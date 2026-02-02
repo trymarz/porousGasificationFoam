@@ -1,0 +1,3 @@
+#!/bin/sh
+
+rm -rf processor* 0 [1-9]* 0.? 0.?? 0.??? log log.analyzed *.foam postProcessing

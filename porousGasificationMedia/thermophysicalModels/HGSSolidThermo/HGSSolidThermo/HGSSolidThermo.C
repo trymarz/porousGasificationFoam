@@ -75,11 +75,10 @@ Foam::HGSSolidThermo::HGSSolidThermo
             "rhos",
             mesh.time().timeName(),
             mesh,
-            IOobject::NO_READ,
+            IOobject::MUST_READ,
             IOobject::AUTO_WRITE
         ),
-        mesh,
-        dimMass/dimVolume
+        mesh
     ),
     kappa_
     (
@@ -120,7 +119,9 @@ Foam::HGSSolidThermo::HGSSolidThermo
         mesh,
         dimless
     )
-{}
+{
+Info << "kopytko -1" << endl;
+}
 
 
 Foam::HGSSolidThermo::HGSSolidThermo
@@ -162,105 +163,16 @@ Foam::HGSSolidThermo::HGSSolidThermo
             "rhos",
             mesh.time().timeName(),
             mesh,
-            IOobject::NO_READ,
-            IOobject::AUTO_WRITE
-        ),
-        mesh,
-        dimMass/dimVolume
-    ),
-    kappa_
-    (
-        IOobject
-        (
-            "kappa",
-            mesh.time().timeName(),
-            mesh,
-            IOobject::NO_READ,
-            IOobject::NO_WRITE
-        ),
-        mesh,
-        dimless/dimLength
-    ),
-    sigmaS_
-    (
-        IOobject
-        (
-            "sigmaS",
-            mesh.time().timeName(),
-            mesh,
-            IOobject::NO_READ,
-            IOobject::NO_WRITE
-        ),
-        mesh,
-        dimless/dimLength
-    ),
-    emissivity_
-    (
-        IOobject
-        (
-            "emissivity",
-            mesh.time().timeName(),
-            mesh,
-            IOobject::NO_READ,
-            IOobject::NO_WRITE
-        ),
-        mesh,
-        dimless
-    )
-{}
-
-Foam::HGSSolidThermo::HGSSolidThermo
-(
-    const fvMesh& mesh,
-    const dictionary& dict,
-    const PtrList<volScalarField>& gasPhaseGases
-)
-:
-
-      
-    IOdictionary
-    (
-        IOobject
-        (
-            "solidThermophysicalProperties",
-            mesh.time().constant(),
-            mesh,
-            IOobject::NO_READ,
-            IOobject::NO_WRITE
-        ),
-        dict
-    ),
-    mesh_(mesh),
-    T_
-    (
-        IOobject
-        (
-            "Ts",
-            mesh.time().timeName(),
-            mesh,
             IOobject::MUST_READ,
             IOobject::AUTO_WRITE
         ),
         mesh
     ),
-    rho_
-    (
-        IOobject
-        (
-            "rhos",
-            mesh.time().timeName(),
-            mesh,
-            IOobject::NO_READ,
-            IOobject::AUTO_WRITE
-        ),
-        mesh,
-        dimMass/dimVolume
-    ),
     kappa_
     (
         IOobject
         (
-            "kappa",
+            "kappas",
             mesh.time().timeName(),
             mesh,
             IOobject::NO_READ,
@@ -296,6 +208,94 @@ Foam::HGSSolidThermo::HGSSolidThermo
         dimless
     )
 {
+Info << "kopytko 0" << endl;
+}
+
+Foam::HGSSolidThermo::HGSSolidThermo
+(
+    const fvMesh& mesh,
+    const dictionary& dict,
+    const PtrList<volScalarField>& gasPhaseGases
+)
+:
+    IOdictionary
+    (
+        IOobject
+        (
+            "solidThermophysicalProperties",
+            mesh.time().constant(),
+            mesh,
+            IOobject::NO_READ,
+            IOobject::NO_WRITE
+        ),
+        dict
+    ),
+    mesh_(mesh),
+    T_
+    (
+        IOobject
+        (
+            "Ts",
+            mesh.time().timeName(),
+            mesh,
+            IOobject::MUST_READ,
+            IOobject::AUTO_WRITE
+        ),
+        mesh
+    ),
+    rho_
+    (
+        IOobject
+        (
+            "rhos",
+            mesh.time().timeName(),
+            mesh,
+            IOobject::MUST_READ,
+            IOobject::AUTO_WRITE
+        ),
+        mesh
+    ),
+    kappa_
+    (
+        IOobject
+        (
+            "kappas",
+            mesh.time().timeName(),
+            mesh,
+            IOobject::NO_READ,
+            IOobject::NO_WRITE
+        ),
+        mesh,
+        dimless/dimLength
+    ),
+    sigmaS_
+    (
+        IOobject
+        (
+            "sigmaS",
+            mesh.time().timeName(),
+            mesh,
+            IOobject::NO_READ,
+            IOobject::NO_WRITE
+        ),
+        mesh,
+        dimless/dimLength
+    ),
+    emissivity_
+    (
+        IOobject
+        (
+            "emissivity",
+            mesh.time().timeName(),
+            mesh,
+            IOobject::NO_READ,
+            IOobject::NO_WRITE
+        ),
+        mesh,
+        dimless
+    )
+{
+Info << "kopytko 1" << endl;
 }
 
 // * * * * * * * * * * * * * * * * Destructor  * * * * * * * * * * * * * * * //
