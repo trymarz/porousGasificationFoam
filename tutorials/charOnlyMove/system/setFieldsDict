@@ -1,0 +1,128 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  8
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "system";
+    object      setFieldsDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+defaultFieldValues
+(
+    volScalarFieldValue Ts -1
+    volScalarFieldValue porosityF  1. 
+    volScalarFieldValue porosityF0 1.
+    volScalarFieldValue Yrubberwood  0.
+    volScalarFieldValue Ychar   1.  
+    volScalarFieldValue Yhum  0.
+    volScalarFieldValue Yash  0.
+);
+
+regions
+(
+//  boxToCell
+//  {
+//      box (0. -0.1 0.02) (0.05 0.1 0.16);
+//      fieldValues
+//      (
+//          volScalarFieldValue porosityF  0.4
+//          volScalarFieldValue porosityF0 0.4
+//      );
+//  }
+
+//  boxToCell
+//  {
+//      box (0. -0.1 0.02) (0.05 0.1 0.025);
+//      fieldValues
+//      (
+//          volScalarFieldValue Ts 400
+//      );
+//  }
+
+//  boxToCell
+//  {
+//      box (0. -0.1 0.02) (0.01 0.1 0.025);
+//      fieldValues
+//      (
+//	  // volScalarFieldValue Yrubberwood 0
+//          volScalarFieldValue Ychar 0.9
+//          volScalarFieldValue Yash  0.1
+//          volScalarFieldValue porosityF  0.9995
+//          volScalarFieldValue porosityF0 0.9995
+//      );
+//  }
+
+//  boxToCell
+//  {
+//      box (0. -0.1 0.025) (0.01 0.1 0.16);
+//      fieldValues
+//      (
+//          // volScalarFieldValue Yrubberwood 0
+//          volScalarFieldValue Ychar 0.9
+//          volScalarFieldValue Yash  0.1
+//          volScalarFieldValue porosityF  0.9995
+//          volScalarFieldValue porosityF0 0.9995
+//      );
+//  }
+
+  boxToCell
+  {
+      box (0.005 -0.1 0.025) (0.015 0.1 0.05);
+      fieldValues
+      (
+          // volScalarFieldValue Yrubberwood 0
+          volScalarFieldValue Ychar 0.9
+          volScalarFieldValue Yash  0.1
+          volScalarFieldValue porosityF  0.99
+          volScalarFieldValue porosityF0 0.99
+          volScalarFieldValue Ts  600
+      );
+  }
+
+
+//  boxToCell
+//  {
+//      box (0.03 -0.1 0.025) (0.04 0.1 0.05);
+//      fieldValues
+//      (
+//          // volScalarFieldValue Yrubberwood 0
+//          volScalarFieldValue Ychar 0.9
+//          volScalarFieldValue Yash  0.1
+//          volScalarFieldValue porosityF  0.99
+//          volScalarFieldValue porosityF0 0.99
+//          volScalarFieldValue Ts  500
+//      );
+//  }
+
+
+  //boxToCell
+  //{
+  //    box (0.01 -0.1 0.025) (0.03 0.1 0.05);
+  //    fieldValues
+  //    (
+  //        volScalarFieldValue Ts  300
+  //    );
+  //}
+
+
+  boxToCell
+  {
+      box (.0 -0.1 0.025) (0.1 0.1 0.05);
+      fieldValues
+      (
+          volVectorFieldValue solidU (0.01 0 0)
+      );
+  }
+
+
+);
+
+// ************************************************************************* //
