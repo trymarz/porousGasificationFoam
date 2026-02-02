@@ -33,7 +33,7 @@ Foam::autoPtr<Foam::HGSSolidThermo> Foam::HGSSolidThermo::New
     const fvMesh& mesh
 )
 {
-    //if (debug)
+    if (debug)
     {
         Info<< "HGSSolidThermo::New(const fvMesh&): "
             << "constructing HGSSolidThermo"
@@ -80,7 +80,7 @@ Foam::autoPtr<Foam::HGSSolidThermo> Foam::HGSSolidThermo::New
     const fvMesh& mesh, const dictionary& dict
 )
 {
-    //if (debug)
+    if (debug)
     {
         Info<< "HGSSolidThermo::New(const fvMesh&, const dictionary&): "
             << "constructing HGSSolidThermo"
@@ -114,7 +114,7 @@ Foam::autoPtr<Foam::HGSSolidThermo> Foam::HGSSolidThermo::New
     const PtrList<volScalarField>& gasPhaseGases
 )
 {
-    //if (debug)
+    if (debug)
     {
         Info<< "HGSSolidThermo::New(const fvMesh&, const dictionary&, PtrList<volScalarField>& gasPhaseGases): "
             << "constructing HGSSolidThermo"
