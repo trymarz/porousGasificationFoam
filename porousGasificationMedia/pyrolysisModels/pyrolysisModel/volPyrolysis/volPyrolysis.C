@@ -106,6 +106,16 @@ void volPyrolysis::solveSpeciesMass()
             max(rho_ * (1. - porosity_), dimensionedScalar("minRho",dimMass/dimVolume, SMALL))
         );
 
+        surfaceScalarField solidPhi = mesh_.Sf() & fvc::interpolate(rho_*solidU_);
+        fvScalarMatrix rhosEqn
+        (
+            fvm::ddt(rho_)
+         ==
+          - fvc::div(solidPhi)
+        );
+        rhosEqn.relax();
+        rhosEqn.solve("rhos");
+
         for (label i = 0; i < Ys_.size(); ++i)
         {
 
@@ -113,12 +123,14 @@ void volPyrolysis::solveSpeciesMass()
             Yi.ref() *= whereIs_;
             volScalarField sRhoSi = solidChemistry_->RRs(i);
 
+            surfaceScalarField solidFlux_ = mesh_.Sf() & fvc::interpolate(solidU_*rhoLoc);
+
             fvScalarMatrix YsEqn
             (
                 fvm::ddt(rhoLoc,Yi)
              ==
                 sRhoSi
-
+              - fvc::div(solidFlux_, Yi, "div(phiSolid)")
             );
 
             YsEqn.relax();
@@ -172,15 +184,81 @@ void volPyrolysis::solveEnergy()
                 )
             );
 
+            volScalarField heatTransfField = heatTransfer()();
+            volScalarField rhoCpG(gasThermo_.rho() * gasThermo_.Cp() * porosity_);
+            surfaceVectorField surfSolidU = fvc::interpolate(solidU_);
+            surfaceScalarField surfPor = fvc::interpolate(porosity_,"porosityInt");
+
+
+            whereIsNot_.correctBoundaryConditions();
+            volVectorField whereIsNotGrad = fvc::grad(whereIsNot_);        
+            whereIs_.correctBoundaryConditions();
+            surfaceScalarField  whereIsPatch  = fvc::interpolate(whereIs_);
+   
+            //trial 1 to set energy flux stable via tempereture in the first cell outside porous media 
+            //forAll(porosity_,cellI)
+            //{
+            //    if ( (whereIsNot_[cellI] == 1) && ( (solidU_[cellI] & whereIsNotGrad[cellI]) > 0)  )
+            //    {
+            //        const labelList& faces = mesh_.cells()[cellI];
+            //        forAll(faces,faceI)
+            //        {
+            //            //Info << faces << " " << faceI << " " << faces[faceI] << " " << mesh_.isInternalFace(faces[faceI]) << mesh_.Sf()[faces[faceI]]  << " " << TPatch[faces[faceI]] << " " << whereIsPatch[faces[faceI]] <<  endl;
+            //            //Info << (solidU_[cellI] & mesh_.Sf()[faces[faceI]]) / mag(mesh_.Sf()[faces[faceI]]) << endl;
+            //            if (mesh_.isInternalFace(faces[faceI]) && ( whereIsPatch[faces[faceI]] > 0 ))
+            //            {
+            //                //if  ( T_[cellI] < 0 )
+            //                //{
+            //                    //Info << faces[faceI] << " " << mesh_.isInternalFace(faces[faceI]) << endl;
+            //                    //Info << mesh_.faceOwner()[faces[faceI]] << " "  <<  mesh_.faceNeighbour()[faces[faceI]] << endl;
+            //                    //Info << T_[mesh_.faceOwner()[faces[faceI]]] << " " <<  T_[mesh_.faceNeighbour()[faces[faceI]]] << endl;
+            //                    //Info << cellI << endl;
+            //                    T_[cellI] = T_[mesh_.faceOwner()[faces[faceI]]];
+            //                    //Info << rhoCp[cellI] << " " << heatTransfField[cellI] << " kopytko 1" << endl; 
+            //                //}
+            //            }
+            //        }
+            //    }
+            //}
+
+            //trial to set source terms at the bourders for htc to some rescaled value, but failinig so far thus 0 on the solid phase side.
+            //this requires further rethinking
+            forAll(porosity_,cellI)
+            {
+                if ( (whereIs_[cellI] == 1) && ( (solidU_[cellI] & whereIsNotGrad[cellI]) != 0)  )
+                {
+                    //Info << rhoCp[cellI] << " " << porosity_[cellI] << " " << rhoCpG[cellI] << " " << heatTransfField[cellI] << " " << T_[cellI] << " " << gasThermo_.T()[cellI]  << " kopytko 2" << endl;
+                    const labelList& faces = mesh_.cells()[cellI];
+                    forAll(faces,faceI)
+                    {
+                        if (mesh_.isInternalFace(faces[faceI])  )
+                        {
+                            //Info << surfPor[faces[faceI]] << " kopytko 3" << endl;
+                            //Info <<  surfPor[faces[faceI]]  << " " << (1-porosity_[cellI])/(max(1-surfPor[faces[faceI]],SMALL)) << " kopytko 4" << endl;
+                            //heatTransfField[cellI] = heatTransfField[cellI] * (1-porosity_[cellI])/(max(1-surfPor[faces[faceI]],SMALL));
+                            //rhoCp[cellI] = rhoCp[cellI] * (1-porosity_[cellI])/(max(1-surfPor[faces[faceI]],SMALL));
+                        }
+                    }
+                    //if (porosity_[cellI] > 0.999)
+                    {
+                        heatTransfField[cellI] = 0;
+                    }
+                    //Info << "kopytko 5" << endl;
+                }
+            }
+
+
+            surfaceScalarField solidFluxRhoCp = mesh_.Sf() & surfSolidU * fvc::interpolate(rhoCp,"rhoCpInt");
+
             // Simplistic immersed boundary for heat transport in solid phase.
             fvScalarMatrix TLap
             (
                 fvm::laplacian(composedK, T_)
+              - fvc::div(solidFluxRhoCp,T_,"div(phiSolid)")
             );
  
             // Setting face fluxes on the border of porous media to 0.
-            whereIs_.correctBoundaryConditions();
-            surfaceScalarField  whereIsPatch  = fvc::interpolate(whereIs_);
+            // this should be instead flux due to the macrscopic motion to smooth at the edges
             forAll(whereIsPatch,faceI)
             {
                if ( (whereIsPatch[faceI] > 0) and (whereIsPatch[faceI] < 1) )
@@ -218,7 +296,7 @@ void volPyrolysis::solveEnergy()
               - TLap
             ==
                 chemistrySh_ // eqZx2uHGn004, eqZx2uHGn017
-              - heatTransfer()() // eqZx2uHGn005
+              - heatTransfField // eqZx2uHGn005
               - heatUpGas_
               + radiationSh_
             );
@@ -360,6 +438,10 @@ volPyrolysis::volPyrolysis
     T_(solidThermo_.T()),
     equilibrium_(false),
     subintegrateSwitch_(false),
+    bedMotionSwitch_(false),
+    replenishSwitch_(false),
+    critPorosity_(0.9999),
+    totRepMass_(0.),
     nNonOrthCorr_(-1),
     maxDiff_(10),
     porosity0_(whereIs),
@@ -430,6 +512,32 @@ volPyrolysis::volPyrolysis
         mesh_,
         dimensionedScalar("zero", dimless, 0.0)
     ),
+    whereWas_
+    (
+        IOobject
+        (
+            "whereWas",
+            time_.timeName(),
+            mesh_,
+            IOobject::NO_READ,
+            IOobject::NO_WRITE
+        ),
+        mesh_,
+        dimensionedScalar("zero", dimless, 0.0)
+    ),
+    cellVolume_
+    (
+        IOobject
+        (
+            "cellVolume",
+            time_.timeName(),
+            mesh_,
+            IOobject::NO_READ,
+            IOobject::NO_WRITE
+        ),
+        mesh_,
+        dimensionedScalar("zero", dimless, 0.0)
+    ),
     heatUpGas_
     (
         IOobject
@@ -485,6 +593,19 @@ volPyrolysis::volPyrolysis
         dimensionedTensor("one", dimless, tensor(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0))
     ),
     surfF_(whereIs_),
+    solidU_
+    (
+        IOobject
+        (
+            "solidU",
+            time_.timeName(),
+            mesh_,
+            IOobject::NO_READ,
+            IOobject::AUTO_WRITE
+        ),
+        mesh_,
+        dimensionedVector("solidU", dimensionSet(0,1,-1,0,0,0,0), Foam::vector(0,0,0))
+    ),
     lostSolidMass_(dimensionedScalar("zero", dimMass, 0.0)),
     addedGasMass_(dimensionedScalar("zero", dimMass, 0.0)),
     totalGasMassFlux_(dimensionedScalar("zero", dimMass/dimTime, 0.0)),
@@ -492,10 +613,21 @@ volPyrolysis::volPyrolysis
     timeChem_(1.0)
 {
     mesh.setFluxRequired(T_.name());
- 
+
     ST_ = STmodel_->ST()();
+    CONV_ = CONV();
     rho0_.ref() = rho_.ref();
-    
+
+    subintegrateSwitch_ = coeffs().lookupOrDefault("subintegrateHeatTransfer",false);
+    bedMotionSwitch_ = coeffs().lookupOrDefault("bedCollapse",false);
+    replenishSwitch_ = coeffs().lookupOrDefault("replenish",false);
+
+    Info << endl;
+    Info << "subintegrateHeatTransfer " << subintegrateSwitch_ << endl;
+    Info << "bedCollapse              " << bedMotionSwitch_    << endl;
+    Info << "replenish                " << replenishSwitch_    << endl;
+    Info << endl;
+
     forAll(rho_,cellI)
     {
         if (porosity_[cellI] == 1)
@@ -505,9 +637,6 @@ volPyrolysis::volPyrolysis
              rho0_[cellI] = 3.14;
         }
     }
-    CONV_ = CONV();
-
-    subintegrateSwitch_ = coeffs().lookupOrDefault("subintegrateHeatTransfer",false);
 
     forAll(Ys_, fieldI)
     {
@@ -605,6 +734,12 @@ volPyrolysis::volPyrolysis
             }
         }
     }
+
+    forAll(cellVolume_,cellI)
+    {
+        cellVolume_[cellI] = mesh_.V()[cellI];
+    }
+    cellVolume_.correctBoundaryConditions();
 }
 
 volPyrolysis::volPyrolysis
@@ -691,6 +826,10 @@ volPyrolysis::volPyrolysis
     T_(solidThermo_.T()),
     equilibrium_(false),
     subintegrateSwitch_(false),
+    bedMotionSwitch_(false),
+    replenishSwitch_(false),
+    critPorosity_(0.9999),
+    totRepMass_(0.),
     nNonOrthCorr_(-1),
     maxDiff_(10),
     porosity0_(whereIs),
@@ -743,7 +882,7 @@ volPyrolysis::volPyrolysis
             time_.timeName(),
             mesh_,
             IOobject::NO_READ,
-            IOobject::NO_WRITE
+            IOobject::AUTO_WRITE
         ),
         mesh_,
         dimensionedScalar("zero", dimless, 0.0)
@@ -756,10 +895,36 @@ volPyrolysis::volPyrolysis
             time_.timeName(),
             mesh_,
             IOobject::NO_READ,
-            IOobject::NO_WRITE
+            IOobject::AUTO_WRITE
         ),
         mesh_,
         dimensionedScalar("one", dimless, 1.0)
+    ),
+    whereWas_
+    (
+        IOobject
+        (
+            "whereWas",
+            time_.timeName(),
+            mesh_,
+            IOobject::NO_READ,
+            IOobject::NO_WRITE
+        ),
+        mesh_,
+        dimensionedScalar("zero", dimless, 0.0)
+    ),
+    cellVolume_
+    (
+        IOobject
+        (
+            "cellVolume",
+            time_.timeName(),
+            mesh_,
+            IOobject::NO_READ,
+            IOobject::NO_WRITE
+        ),
+        mesh_,
+        dimensionedScalar("zero", dimless, 0.0)
     ),
     heatUpGas_
     (
@@ -827,32 +992,46 @@ volPyrolysis::volPyrolysis
         mesh_,
         dimensionedScalar("zero", dimless, 0.0)
     ),
+    solidU_
+    (
+        IOobject
+        (
+            "solidU",
+            time_.timeName(),
+            mesh_,
+            IOobject::READ_IF_PRESENT,
+            IOobject::AUTO_WRITE
+        ),
+        mesh_,
+        dimensionedVector("solidU", dimensionSet(0,1,-1,0,0,0,0), Foam::vector(0,0,0))
+    ),
     lostSolidMass_(dimensionedScalar("zero", dimMass, 0.0)),
     addedGasMass_(dimensionedScalar("zero", dimMass, 0.0)),
     totalGasMassFlux_(dimensionedScalar("zero", dimMass/dimTime, 0.0)),
     totalHeatRR_(dimensionedScalar("zero", dimEnergy/dimTime, 0.0)),
     timeChem_(1.0)
 {
+
     mesh.setFluxRequired(T_.name());
 
     ST_ = STmodel_->ST()();
-    forAll(rho_,cellI)
-    {
-        if (porosity_[cellI] < 1.)
-        {
-             whereIsNot_[cellI] = 0.;
-             whereIs_[cellI] = 1.;
-        }
-        else
-        {
-             whereIsNot_[cellI] = 1.;
-             whereIs_[cellI] = 0.;
-         rho0_[cellI] = 3.14;
-        }
-    }
     CONV_ = CONV();
     rho0_.ref() = rho_.ref();
+
     subintegrateSwitch_ = coeffs().lookupOrDefault("subintegrateHeatTransfer",false);
+    bedMotionSwitch_ = coeffs().lookupOrDefault("bedCollapse",false);
+    replenishSwitch_ = coeffs().lookupOrDefault("replenish",false);
+    critPorosity_ = coeffs().lookupOrDefault("criticalPorosity",0.9999);
+
+    Info << endl;
+    Info << "subintegrateHeatTransfer " << subintegrateSwitch_ << endl;
+    Info << "bedCollapse              " << bedMotionSwitch_    << endl;
+    if (bedMotionSwitch_) 
+    {
+        Info << "criticalPorosity         " << critPorosity_  << endl;
+    }
+    Info << "replenish                " << replenishSwitch_    << endl;
+    Info << endl;
 
     forAll(Ys_, fieldI)
     {
@@ -873,8 +1052,22 @@ volPyrolysis::volPyrolysis
                     dimensionedScalar("zero",dimMass/dimVolume,0.0)
                 )
           );
-
           Ym_[fieldI].ref() = Ys_[fieldI].ref() * rho_;
+    }
+
+    forAll(rho_,cellI)
+    {
+        if (porosity_[cellI] < 1.)
+        {
+             whereIsNot_[cellI] = 0.;
+             whereIs_[cellI] = 1.;
+        }
+        else
+        {
+             whereIsNot_[cellI] = 1.;
+             whereIs_[cellI] = 0.;
+             rho0_[cellI] = 3.14;
+        }
     }
 
     if (active_)
@@ -897,6 +1090,13 @@ volPyrolysis::volPyrolysis
             if (surfC) surfF_[cellI] = 1;
         }
     }
+
+    forAll(cellVolume_,cellI)
+    {
+        cellVolume_[cellI] = mesh_.V()[cellI];
+    }
+    cellVolume_.correctBoundaryConditions();
+
 }
 
 // * * * * * * * * * * * * * * * * Destructor  * * * * * * * * * * * * * * * //
@@ -1029,12 +1229,10 @@ void volPyrolysis::evolveRegion()
         time_.deltaTValue()
     );
 
+    chemistrySh_ = solidChemistry_->Sh()(); // eqZx2uHGn004
     heatUpGas_ = heatUpGasCalc()();
 
-    chemistrySh_ = solidChemistry_->Sh()(); // eqZx2uHGn004
-
     solveSpeciesMass();
-
     evolvePorosity();
 
     solidThermo_.correct(); // eqZx2uHGn046
@@ -1050,7 +1248,6 @@ void volPyrolysis::evolveRegion()
     }
 
     calculateMassTransfer();
-
     info();
 }
 
@@ -1062,16 +1259,21 @@ void volPyrolysis::evolvePorosity()
 
         volScalarField& por = porosity_;
 
+        surfaceScalarField solidU = mesh_.Sf() & fvc::interpolate(solidU_,"solidU");
+
+        // requires setting same stuff as for diffusion to release flux at the ends of porous media
+        // it would be best to solve 1-porosity as it gives 0 flux naturally when empty?? 
         fvScalarMatrix porosityEqn
         (
             fvm::ddt(por)
          ==
             porositySource_
+          - fvc::div(solidU,por,"div(phiSolid)")
         );
 
         porosityEqn.solve("porosity");
 
-        Info<< "prosity equation solved. Sources min/max   = " << gMin(porositySource_)
+        Info<< "porosity equation solved. Sources min/max   = " << gMin(porositySource_)
             << ", " << gMax(porositySource_);
 
         Info<< "; values min Y = " << gMin(por)
@@ -1079,16 +1281,23 @@ void volPyrolysis::evolvePorosity()
 
         scalar minTs = -1.;
 
+        FIFOStack<label> flippedStack = {};
+
+        volVectorField whereIsGrad = fvc::grad(whereIs_);        
+
         forAll(porosity_,cellI)
         {
-            if (porosity_[cellI] > 0.9999)
+            if ((porosity_[cellI] > critPorosity_) && ( (solidU_[cellI] & whereIsGrad[cellI]) > 0) )
             {
-                porosity_[cellI] = 1.0;
-                T_[cellI] = minTs;
+                if (porosity_[cellI] < 1.0)
+                {
+                    flippedStack.push(cellI);
+                }
             }
             if (porosity_[cellI] < 0.0001)
             {
                 porosity_[cellI] = 0.0;
+                Info << "b porosity 0 in cell " << cellI << endl;
             }
             if (porosity_[cellI] < 1.0)
             {
@@ -1102,7 +1311,375 @@ void volPyrolysis::evolvePorosity()
             }
         }
 
-        surfF_=0.0;
+        List<Field<label>> procFlipList(Pstream::nProcs());
+        procFlipList[Pstream::myProcNo()] = labelList(flippedStack);
+        Pstream::gatherList(procFlipList);
+        Pstream::scatterList(procFlipList);
+        bool evaluate = false;
+        forAll(procFlipList,listI)
+        {
+            if (procFlipList[listI].size() > 0)
+            {
+                evaluate = true;
+            }
+        }
+
+        if (bedMotionSwitch_)
+        {
+            if (evaluate)
+            {
+                whereIs_.correctBoundaryConditions();
+                porosity_.correctBoundaryConditions();
+                whereWas_ = whereWas_*0;
+
+                // this part collects global cell numbering
+                List<Field<scalar>> globalIndex(Pstream::nProcs());
+                globalIndex[Pstream::myProcNo()] = whereWas_.internalField();
+                Pstream::gatherList(globalIndex);
+                if (Pstream::master())
+                {
+                    labelList sizes
+                    (
+                        ListListOps::subSizes(globalIndex,accessOp<Field<scalar>>())
+                    );
+
+                    label prefix = 0;
+                    forAll(globalIndex,gI)
+                    {
+                        forAll(globalIndex[gI],entI)
+                        {
+                            globalIndex[gI][entI] = entI + prefix;
+                        }
+                        prefix = prefix + sizes[gI];
+                    }
+                }
+                Pstream::scatter(globalIndex);
+                volScalarField globalIndices = whereIs_*0;
+                forAll(globalIndices,cellI)
+                {
+                    globalIndices[cellI] = globalIndex[Pstream::myProcNo()][cellI];
+                }
+                globalIndices.correctBoundaryConditions();
+
+                // this part determines processor based a possible motion paths using the global numbering
+                // it writes into takeFrom the global adress of cell from which the resources will be taken
+                volScalarField takeFrom = whereIs_;
+                forAll(mesh_.cells(),cellI)
+                {
+                    if (whereIs_[cellI] < 1)
+                    {
+                        takeFrom[cellI] = -1;
+                    }
+                    else
+                    { 
+                        label takeFromGlobalID = -1;
+                        forAll(mesh_.cells()[cellI],faceI)
+                        {
+                            if (mesh_.Cf()[mesh_.cells()[cellI][faceI]].z() > mesh_.C()[cellI].z() + 1e-6) // determine the upper face - here more advanced criterion should be in force
+                            {                                                                              // like eg. upwards gravity maybe with some uniqueness cirteria
+                                label faceID = -1;
+                                label patchID = mesh_.boundaryMesh().whichPatch(mesh_.cells()[cellI][faceI]);
+                                if (patchID > -1)
+                                {
+                                    faceID = mesh_.boundaryMesh()[patchID].whichFace(mesh_.cells()[cellI][faceI]);
+                                    if (isA<processorPolyPatch>(mesh_.boundaryMesh()[patchID]))
+                                    {
+                                        takeFromGlobalID = globalIndices.boundaryField()[patchID].patchNeighbourField()()[faceID];
+                                        if (whereIs_.boundaryField()[patchID].patchNeighbourField()()[faceID] < 1)
+                                        {
+                                            takeFromGlobalID = -1;
+                                        }
+                                    }
+                                }
+                                else
+                                {
+                                    
+                                    if (cellI == mesh_.faceNeighbour()[mesh_.cells()[cellI][faceI]])
+                                    {
+                                        takeFromGlobalID =  mesh_.faceOwner()[mesh_.cells()[cellI][faceI]]; 
+                                    }
+                                    else
+                                    {
+                                        takeFromGlobalID =  mesh_.faceNeighbour()[mesh_.cells()[cellI][faceI]]; 
+                                    }
+                                    if (whereIs_[takeFromGlobalID] < 1)
+                                    {
+                                        takeFromGlobalID = -1;
+                                    }
+                                    else
+                                    {
+                                        takeFromGlobalID = globalIndices[takeFromGlobalID];
+                                    }
+                                } 
+                                //Pout << cellI << " "  << Pstream::myProcNo()  << " " << globalIndex[Pstream::myProcNo()][cellI] 
+                                //     << " "  << mesh_.cellCells()[cellI].size()  << " "
+                                //     << mesh_.Cf()[mesh_.cells()[cellI][faceI]] << " " << mesh_.Sf()[mesh_.cells()[cellI][faceI]] << " " 
+                                //     << patchID << " " << faceID << " " << mesh_.faceNeighbour()[mesh_.cells()[cellI][faceI]] << " " << mesh_.faceOwner()[mesh_.cells()[cellI][faceI]] 
+                                //     << " " << takeFromGlobalID << endl;
+                            }
+                        }
+                        takeFrom[cellI] = takeFromGlobalID; 
+                    }
+                }
+
+                //whereWas_ = takeFrom;
+
+                // this part gets motion paths to be distributed per each processor
+                // from possible routes and initial positions
+                // and maximum reaches of motion paths
+                // convenient way might be to get back the initial cells or whole routes on each processor
+                List<Field<scalar>> routes(Pstream::nProcs());
+                routes[Pstream::myProcNo()] = takeFrom.internalField();
+                Pstream::gatherList(routes);
+
+                // this part calcuates global actual routes of material travel
+                // and distributes them to execution on local processors
+                List<List<label>> realRoutes = {};
+                scalar replenishedMass = 0;
+                if (Pstream::master())
+                {
+
+                    Field<scalar> routesCombined =
+                    ListListOps::combine<Field<scalar>>
+                    (
+                        routes,
+                        accessOp<Field<scalar>>()
+                    );
+
+                    forAll(procFlipList,lI)
+                    {
+                        forAll(procFlipList[lI],entI)
+                        {
+                            //Info << procFlipList[lI][entI] << " " << globalIndex[lI][procFlipList[lI][entI]] << " start ";
+                            label prevStep = globalIndex[lI][procFlipList[lI][entI]];
+                            List<label> realRoute = {prevStep};
+                            while (routesCombined[prevStep] >= 0)
+                            {
+                                //Info << " " << prevStep;
+                                prevStep = routesCombined[prevStep];
+                                realRoute.append(prevStep);
+                            }
+                            //Info << endl;
+                            realRoutes.append(realRoute);
+                        }
+                    }
+                    //Info << realRoutes << endl;
+                }
+                Pstream::scatter(realRoutes);
+
+                //this part will determine processorwise route parts and motions of porous media
+                whereWas_ = whereWas_*0;
+                porosity_.correctBoundaryConditions();
+                porosityArch_.correctBoundaryConditions();
+                T_.correctBoundaryConditions();
+                rho_.correctBoundaryConditions();
+                for (label i = 0; i < Ys_.size(); ++i)
+                {
+                    Ym_[i].correctBoundaryConditions();
+                    Ys_[i].correctBoundaryConditions();
+                }
+                forAll(realRoutes,routeI)
+                {
+                    label minLocalGlobalI = globalIndex[Pstream::myProcNo()][0];
+                    label maxLocalGlobalI = globalIndex[Pstream::myProcNo()][globalIndex[Pstream::myProcNo()].size()-1];
+                    bool currentI = false;
+                    bool previousI = false;
+                    for (label stepI = 0; stepI < realRoutes[routeI].size(); stepI++)
+                    {
+                        if ( (minLocalGlobalI <= realRoutes[routeI][stepI]) and (realRoutes[routeI][stepI] <= maxLocalGlobalI))
+                        {
+                            //Pout << realRoutes[routeI][stepI] << " " << realRoutes[routeI][stepI] - minLocalGlobalI << " ";
+                            previousI = currentI;
+                            currentI = true;
+                            whereWas_[realRoutes[routeI][stepI] - minLocalGlobalI] = -1;
+                        }
+                        else
+                        {
+                            previousI = currentI;
+                            currentI = false;
+                        }
+                        if (previousI and currentI)
+                        {
+                            //Pout << "motion inside single core from " << realRoutes[routeI][stepI] << " " << realRoutes[routeI][stepI] - minLocalGlobalI 
+                            //     << " to " << realRoutes[routeI][stepI-1] << " " << realRoutes[routeI][stepI-1] - minLocalGlobalI
+                            //     << " porosity from " << porosity_[realRoutes[routeI][stepI] - minLocalGlobalI]
+                            //     << " porosity to " << porosity_[realRoutes[routeI][stepI-1] - minLocalGlobalI]
+                            //     << endl;
+                            scalar cellVolumeRatio = cellVolume_[realRoutes[routeI][stepI] - minLocalGlobalI]/cellVolume_[realRoutes[routeI][stepI-1] - minLocalGlobalI];
+                            // Pout << " " <<  1. - (1. - porosity_[realRoutes[routeI][stepI] - minLocalGlobalI])*cellVolumeRatio << endl;
+                            // this 0.001 is a guardian for too large skewness in cells. It introduces error and will be solved in the future.
+                            porosity_[realRoutes[routeI][stepI-1] - minLocalGlobalI] = max(1. - (1. - porosity_[realRoutes[routeI][stepI] - minLocalGlobalI])*cellVolumeRatio
+                                                                                          ,0.001);
+                            porosityArch_[realRoutes[routeI][stepI-1] - minLocalGlobalI] = max(1. - (1. - porosityArch_[realRoutes[routeI][stepI] - minLocalGlobalI])*cellVolumeRatio
+                                                                                          ,0.001);
+                            T_[realRoutes[routeI][stepI-1] - minLocalGlobalI] = T_[realRoutes[routeI][stepI] - minLocalGlobalI];
+                            rho_[realRoutes[routeI][stepI-1] - minLocalGlobalI] = rho_[realRoutes[routeI][stepI] - minLocalGlobalI];
+                            for (label i = 0; i < Ys_.size(); ++i)
+                            {
+                                Ym_[i][realRoutes[routeI][stepI-1] - minLocalGlobalI] = Ym_[i][realRoutes[routeI][stepI] - minLocalGlobalI];
+                                Ys_[i][realRoutes[routeI][stepI-1] - minLocalGlobalI] = Ys_[i][realRoutes[routeI][stepI] - minLocalGlobalI];
+                            }
+                            
+                            //scalar neededMass = porosity_[realRoutes[routeI][stepI-1] - minLocalGlobalI]*(1. - porosity_[realRoutes[routeI][stepI] - minLocalGlobalI])
+                            //                    *cellVolume_[realRoutes[routeI][stepI-1] - minLocalGlobalI]*rho_[realRoutes[routeI][stepI] - minLocalGlobalI];
+                            //scalar availableMass = (1. - porosity_[realRoutes[routeI][stepI] - minLocalGlobalI])
+                            //                    *cellVolume_[realRoutes[routeI][stepI] - minLocalGlobalI]*rho_[realRoutes[routeI][stepI] - minLocalGlobalI];
+                            //scalar movingMass = min(neededMass,availableMass);
+                            //Pout << " needed mass " << neededMass 
+                            //     << " available mass " << availableMass
+                            //     << " moving mass " << movingMass 
+                            //     << endl;
+                            //porosity_[realRoutes[routeI][stepI-1] - minLocalGlobalI] -= movingMass/rho_[realRoutes[routeI][stepI] - minLocalGlobalI];
+                            //porosity_[realRoutes[routeI][stepI] - minLocalGlobalI] += movingMass/rho_[realRoutes[routeI][stepI] - minLocalGlobalI]; 
+                            //scalar totalMass   = 0;
+                            //scalar totalMassUp = 0;
+                            //for (label i = 0; i < Ys_.size(); ++i)
+                            //{
+                            //    Ym_[i][realRoutes[routeI][stepI-1] - minLocalGlobalI] += movingMass*Ys_[i][realRoutes[routeI][stepI] - minLocalGlobalI];
+                            //    Ym_[i][realRoutes[routeI][stepI] - minLocalGlobalI]   -= movingMass*Ys_[i][realRoutes[routeI][stepI] - minLocalGlobalI];
+                            //    totalMass   += Ym_[i][realRoutes[routeI][stepI-1] - minLocalGlobalI];
+                            //    totalMassUp +=Ym_[i][realRoutes[routeI][stepI] - minLocalGlobalI];
+                            //}
+                            //for (label i = 0; i < Ys_.size(); ++i)
+                            //{
+                            //    Ys_[i][realRoutes[routeI][stepI-1] - minLocalGlobalI] = Ym_[i][realRoutes[routeI][stepI-1] - minLocalGlobalI] / totalMass;
+                            //    Ys_[i][realRoutes[routeI][stepI] - minLocalGlobalI]   = Ym_[i][realRoutes[routeI][stepI] - minLocalGlobalI] / totalMassUp;
+                            //}
+
+                            //scalar cellVolumeRatio = cellVolume_[realRoutes[routeI][stepI] - minLocalGlobalI]/cellVolume_[realRoutes[routeI][stepI-1] - minLocalGlobalI];
+                            //Pout << " " <<  1. - (1. - porosity_[realRoutes[routeI][stepI] - minLocalGlobalI])*cellVolumeRatio << endl;
+                            //if (1. - (1. - porosity_[realRoutes[routeI][stepI] - minLocalGlobalI])*cellVolumeRatio <= 0.001)
+                            //{
+                            //    scalar neededMass = (porosity_[realRoutes[routeI][stepI-1] - minLocalGlobalI] - 0.001)
+                            //                       *cellVolume_[realRoutes[routeI][stepI-1] - minLocalGlobalI]*rho_[realRoutes[routeI][stepI] - minLocalGlobalI];
+                            //    porosity_[realRoutes[routeI][stepI-1] - minLocalGlobalI] = 0.001;
+                            //    porosity_[realRoutes[routeI][stepI] - minLocalGlobalI] += neededMass/rho_[realRoutes[routeI][stepI] - minLocalGlobalI];
+
+                            //    scalar totalMassDown = 0;
+                            //    scalar totalMassUp   = 0;
+                            //    for (label i = 0; i < Ys_.size(); ++i)
+                            //    {
+                            //        Ym_[i][realRoutes[routeI][stepI-1] - minLocalGlobalI] += neededMass*Ys_[i][realRoutes[routeI][stepI] - minLocalGlobalI];
+                            //        Ym_[i][realRoutes[routeI][stepI] - minLocalGlobalI]   -= neededMass*Ys_[i][realRoutes[routeI][stepI] - minLocalGlobalI];
+                            //        totalMassDown += Ym_[i][realRoutes[routeI][stepI-1] - minLocalGlobalI];
+                            //        totalMassUp   += Ym_[i][realRoutes[routeI][stepI] - minLocalGlobalI];
+                            //    }
+                            //    for (label i = 0; i < Ys_.size(); ++i)
+                            //    {
+                            //        Ys_[i][realRoutes[routeI][stepI-1] - minLocalGlobalI] = Ym_[i][realRoutes[routeI][stepI-1] - minLocalGlobalI] / totalMassDown;
+                            //        Ys_[i][realRoutes[routeI][stepI] - minLocalGlobalI]   = Ym_[i][realRoutes[routeI][stepI] - minLocalGlobalI]   / totalMassUp;
+                            //    }
+                            //}
+                            //else
+                            //{
+                            //    porosity_[realRoutes[routeI][stepI-1] - minLocalGlobalI] = 1. - (1. - porosity_[realRoutes[routeI][stepI] - minLocalGlobalI])*cellVolumeRatio;
+                            //    porosityArch_[realRoutes[routeI][stepI-1] - minLocalGlobalI] = 1. - (1. - porosityArch_[realRoutes[routeI][stepI] - minLocalGlobalI])*cellVolumeRatio;
+                            //    T_[realRoutes[routeI][stepI-1] - minLocalGlobalI] = T_[realRoutes[routeI][stepI] - minLocalGlobalI];
+                            //    rho_[realRoutes[routeI][stepI-1] - minLocalGlobalI] = rho_[realRoutes[routeI][stepI] - minLocalGlobalI];
+                            //    for (label i = 0; i < Ys_.size(); ++i)
+                            //    {
+                            //        Ym_[i][realRoutes[routeI][stepI-1] - minLocalGlobalI] = Ym_[i][realRoutes[routeI][stepI] - minLocalGlobalI];
+                            //        Ys_[i][realRoutes[routeI][stepI-1] - minLocalGlobalI] = Ys_[i][realRoutes[routeI][stepI] - minLocalGlobalI];
+                            //    }
+                            //}
+
+                        }
+                        if (previousI and (not currentI))
+                        {
+                            //Pout << "motion between cores from " << realRoutes[routeI][stepI] << " on other core to " 
+                            //     << realRoutes[routeI][stepI-1] << " " << realRoutes[routeI][stepI-1] - minLocalGlobalI << endl;
+                            forAll(mesh_.cells()[realRoutes[routeI][stepI-1] - minLocalGlobalI],faceI)
+                            {
+                                 label faceID = -1;
+                                 label patchID = mesh_.boundaryMesh().whichPatch(mesh_.cells()[realRoutes[routeI][stepI-1] - minLocalGlobalI][faceI]);
+                                 if (patchID > -1)
+                                 {
+                                     faceID = mesh_.boundaryMesh()[patchID].whichFace(mesh_.cells()[realRoutes[routeI][stepI-1] - minLocalGlobalI][faceI]);
+                                     if (isA<processorPolyPatch>(mesh_.boundaryMesh()[patchID]))
+                                     {
+                                         scalar cellVolumeRatio = cellVolume_.boundaryField()[patchID].patchNeighbourField()()[faceID]/cellVolume_[realRoutes[routeI][stepI-1] - minLocalGlobalI];
+                                         // this 0.001 is a guardian for too large skewness in cells. It introduces error and will be solved in the future.
+                                         porosity_[realRoutes[routeI][stepI-1] - minLocalGlobalI] = max(1. - (1. - porosity_.boundaryField()[patchID].patchNeighbourField()()[faceID])*cellVolumeRatio
+                                                                                                       ,0.001);
+                                         porosityArch_[realRoutes[routeI][stepI-1] - minLocalGlobalI] = max(1. - (1. - porosityArch_.boundaryField()[patchID].patchNeighbourField()()[faceID])*cellVolumeRatio
+                                                                                                        ,0.001);
+                                         T_[realRoutes[routeI][stepI-1] - minLocalGlobalI] = T_.boundaryField()[patchID].patchNeighbourField()()[faceID];
+                                         rho_[realRoutes[routeI][stepI-1] - minLocalGlobalI] = rho_.boundaryField()[patchID].patchNeighbourField()()[faceID];
+                                         for (label i = 0; i < Ys_.size(); ++i)
+                                         {
+                                             Ym_[i][realRoutes[routeI][stepI-1] - minLocalGlobalI] = Ym_[i].boundaryField()[patchID].patchNeighbourField()()[faceID];
+                                             Ys_[i][realRoutes[routeI][stepI-1] - minLocalGlobalI] = Ys_[i].boundaryField()[patchID].patchNeighbourField()()[faceID];
+                                         }
+                                     }
+                                 }
+                            }
+                        } 
+                    }
+                    if ( (minLocalGlobalI <= realRoutes[routeI][realRoutes[routeI].size() - 1]) and (realRoutes[routeI][realRoutes[routeI].size() - 1] <= maxLocalGlobalI))
+                    {
+                        //Pout << "replenish last one " << realRoutes[routeI][realRoutes[routeI].size() - 1]  << " " << realRoutes[routeI][realRoutes[routeI].size() - 1] - minLocalGlobalI << endl;
+                        //whereWas_[realRoutes[routeI][realRoutes[routeI].size() - 1] - minLocalGlobalI] = -1;
+                        //this line is to add cold feedstock for replenishing
+                        //however it has been commented out as it has to be specified
+                        //T_[realRoutes[routeI][realRoutes[routeI].size() - 1] - minLocalGlobalI] = 300;
+                        //this lines are to stop replenishing
+                        if (not replenishSwitch_)
+                        {
+                            porosity_[realRoutes[routeI][realRoutes[routeI].size() - 1] - minLocalGlobalI] = 1.;
+                            porosityArch_[realRoutes[routeI][realRoutes[routeI].size() - 1] - minLocalGlobalI] = 1.;
+                        }
+                        replenishedMass += (1. - porosity_[realRoutes[routeI][realRoutes[routeI].size() - 1] - minLocalGlobalI])*
+                            rho_[realRoutes[routeI][realRoutes[routeI].size() - 1] - minLocalGlobalI]*
+                            cellVolume_[realRoutes[routeI][realRoutes[routeI].size() - 1] - minLocalGlobalI];
+                        //Pout << " mass replenished on core " << Pstream::myProcNo()  << " is " 
+                        //     <<  replenishedMass << " from cellI " << realRoutes[routeI][realRoutes[routeI].size() - 1] - minLocalGlobalI 
+                        //     << " " << rho_[realRoutes[routeI][realRoutes[routeI].size() - 1] - minLocalGlobalI] 
+                        //     << " " << cellVolume_[realRoutes[routeI][realRoutes[routeI].size() - 1] - minLocalGlobalI] 
+                        //     << " " << porosity_[realRoutes[routeI][realRoutes[routeI].size() - 1] - minLocalGlobalI] << endl;
+                    }
+                }
+
+                reduce(replenishedMass, sumOp<scalar>());
+                if (Pstream::master())
+                {
+                    totRepMass_ += replenishedMass;
+                    Info << "Total replenished mass in this run is: " << totRepMass_ << " [kg]" <<endl;
+                }
+            }            
+        }
+        else
+        {
+            // this is to set porosity 0 and other fields on flipped fileds
+            // it will be an alternative to the motion procedure at some point
+            List<label> flippedStackList = labelList(flippedStack);
+            forAll(flippedStackList,entI)
+            {
+                porosity_[flippedStackList[entI]] = 1.0;
+                T_[flippedStackList[entI]] = minTs;
+            }
+        }
+
+        forAll(porosity_,cellI)
+        {
+            if (porosity_[cellI] < 0.0001)
+            {
+                porosity_[cellI] = 0.0;
+                Info << "b porosity 0 in cell " << cellI << endl;
+            }
+            if (porosity_[cellI] < 1.0)
+            {
+                whereIs_[cellI] = 1.0;
+                whereIsNot_[cellI] = 0.0;
+            }
+            else
+            {
+                whereIs_[cellI] = 0.0;
+                whereIsNot_[cellI] = 1.0;
+            }
+        }
+
+        surfF_= surfF_*0;
+        porosity_.correctBoundaryConditions();
         whereIs_.correctBoundaryConditions();
         surfaceScalarField  whereIsPatch  = fvc::interpolate(whereIs_);
         forAll(whereIsPatch,faceI)
@@ -1135,7 +1712,6 @@ void volPyrolysis::evolvePorosity()
                 }
             }
         }
-
     }
     else
     {}
@@ -1167,7 +1743,7 @@ Foam::tmp<Foam::volScalarField> volPyrolysis::Srho() const
 
         forAll(gasTable,gasI)
         {
-            tSrho = tSrho + solidChemistry_->RRg(gasI);;
+            tSrho = tSrho + solidChemistry_->RRg(gasI);
         }
     }
 
@@ -1406,6 +1982,7 @@ void volPyrolysis::info() const
 
     Info<< indent << "Total gas mass produced  [kg] = " << addedGasMass_.value() << nl
         << indent << "Total solid mass lost    [kg] = " << lostSolidMass_.value() << nl
+        << indent << "Total mass replenished   [kg] = " << totRepMass_ << nl
         << indent << "Realese rate of pyrolysis gases  [kg/s] = " << totalGasMassFlux_.value() << nl
         << indent << "Heat release rate [J/s] = " << totalHeatRR_.value() << nl;
 
