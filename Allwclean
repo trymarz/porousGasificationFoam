@@ -2,6 +2,9 @@
 
 source ./porousGasificationMediaDirectories
 
+cd $FOAM_HGS/BCs
+wclean libso
+
 cd $FOAM_HGS/fieldPorosityModel
 wclean libso
 

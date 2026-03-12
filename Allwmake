@@ -12,6 +12,10 @@ cp -r porousGasificationMedia/fieldPorosityModel $FOAM_HGS/
 cp -r porousGasificationMedia/thermophysicalModels $FOAM_HGS/
 cp -r porousGasificationMedia/pyrolysisModels $FOAM_HGS/
 cp -r porousGasificationMedia/radiationModels $FOAM_HGS/
+cp -r porousGasificationMedia/DEM $FOAM_HGS/
+
+cd $FOAM_HGS/DEM
+wmake -j libso
 
 cd $FOAM_HGS/fieldPorosityModel
 wmake -j libso

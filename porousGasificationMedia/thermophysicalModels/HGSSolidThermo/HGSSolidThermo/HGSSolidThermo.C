@@ -75,10 +75,11 @@ Foam::HGSSolidThermo::HGSSolidThermo
             "rhos",
             mesh.time().timeName(),
             mesh,
-            IOobject::MUST_READ,
+            IOobject::NO_READ,
             IOobject::AUTO_WRITE
         ),
-        mesh
+        mesh,
+        dimMass/dimVolume
     ),
     kappa_
     (
@@ -119,9 +120,7 @@ Foam::HGSSolidThermo::HGSSolidThermo
         mesh,
         dimless
     )
-{
-Info << "kopytko -1" << endl;
-}
+{}
 
 
 Foam::HGSSolidThermo::HGSSolidThermo
@@ -163,16 +162,17 @@ Foam::HGSSolidThermo::HGSSolidThermo
             "rhos",
             mesh.time().timeName(),
             mesh,
-            IOobject::MUST_READ,
+            IOobject::NO_READ,
             IOobject::AUTO_WRITE
         ),
-        mesh
+        mesh,
+        dimMass/dimVolume
     ),
     kappa_
     (
         IOobject
         (
-            "kappas",
+            "kappa",
             mesh.time().timeName(),
             mesh,
             IOobject::NO_READ,
@@ -207,9 +207,7 @@ Foam::HGSSolidThermo::HGSSolidThermo
         mesh,
         dimless
     )
-{
-Info << "kopytko 0" << endl;
-}
+{}
 
 Foam::HGSSolidThermo::HGSSolidThermo
 (
@@ -218,6 +216,8 @@ Foam::HGSSolidThermo::HGSSolidThermo
     const PtrList<volScalarField>& gasPhaseGases
 )
 :
+
+      
     IOdictionary
     (
         IOobject
@@ -250,16 +250,17 @@ Foam::HGSSolidThermo::HGSSolidThermo
             "rhos",
             mesh.time().timeName(),
             mesh,
-            IOobject::MUST_READ,
+            IOobject::NO_READ,
             IOobject::AUTO_WRITE
         ),
-        mesh
+        mesh,
+        dimMass/dimVolume
     ),
     kappa_
     (
         IOobject
         (
-            "kappas",
+            "kappa",
             mesh.time().timeName(),
             mesh,
             IOobject::NO_READ,
@@ -295,7 +296,6 @@ Foam::HGSSolidThermo::HGSSolidThermo
         dimless
     )
 {
-Info << "kopytko 1" << endl;
 }
 
 // * * * * * * * * * * * * * * * * Destructor  * * * * * * * * * * * * * * * //

@@ -130,18 +130,6 @@ protected:
     //- Switch for temporal subintegration of heatTransfer model
     Switch subintegrateSwitch_;
 
-    //- Switch for bed motion model
-    Switch bedMotionSwitch_;
-
-    //- Switch for bed replenishment
-    Switch replenishSwitch_;
-
-    //- Criterion for bed motion porosity model
-    scalar critPorosity_;
-
-    //- Total replenished mass
-    scalar totRepMass_;
-
     // Solution parameters
 
         //- Number of non-orthogonal correctors
@@ -175,10 +163,6 @@ protected:
 
         volScalarField whereIsNot_;
 
-        volScalarField whereWas_;
-
-        volScalarField cellVolume_;
-
         volScalarField heatUpGas_;
 
         //- Reference to heat transport model
@@ -192,9 +176,6 @@ protected:
 
         //- border cells inside solid body
         volScalarField surfF_;
-
-        //- solid phase velocity
-        volVectorField solidU_;
 
     // Checks
 

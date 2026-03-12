@@ -303,13 +303,6 @@ template<class SolidThermo, class SolidThermoType, class GasThermoType>
 void Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasThermoType>::
 setCellReacting(const label cellI, const bool active)
 {
-    if (reactingCells_[cellI] != active && active)
-    {
-        for (label i=0; i<nSolids_; i++)
-        {
-            specieConcentration_[i] = this->solidThermo().rho()[cellI]*Ys_[i][cellI];
-        }
-    }
     reactingCells_[cellI] = active;
 }
 
@@ -767,13 +760,13 @@ void Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, Gas
 
     if (solidReactionEnergyFromEnthalpy_)
     {
-        for (label i=0; i<nSolids_; i++)
-        {
-                scalar dYidt = dcdt[i];
-                scalar Yi = c[i];
-                newCp += Yi*solidThermo_[i].Cp(T);
-                newhi -= dYidt*solidThermo_[i].hf();
-        }
+    for (label i=0; i<nSolids_; i++)
+    {
+            scalar dYidt = dcdt[i];
+            scalar Yi = c[i];
+            newCp += Yi*solidThermo_[i].Cp(T);
+            newhi -= dYidt*solidThermo_[i].hf();
+    }
     }
     else
     {
@@ -785,7 +778,8 @@ void Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, Gas
         newhi += omegaPreq[nEqns()];
     }
 
-    scalar dTdt = (newhi == 0 ? 0 : newhi/newCp);
+
+    scalar dTdt = newhi/newCp;
     scalar dtMag = min(500.0, mag(dTdt));
     dcdt[nSpecie_] = dTdt*dtMag/(mag(dTdt) + 1.0e-10);
 
@@ -1177,7 +1171,6 @@ void Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, Gas
     {
         dfdc[i][nSpecie_] = 0.5*(dcdT1[i] - dcdT0[i]) / delta;
     }
-
 }
 
 
@@ -1608,7 +1601,6 @@ Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasTherm
     const scalarField& omegaPreq
 )
 {
-
     scalar t = t0;
 
     tauC_ = this->deltaTChem_[celli];
@@ -1657,7 +1649,7 @@ Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasTherm
             newhi += omegaPreq[nEqns()];
         }
 
-        scalar dTi =  ( newhi == 0 ? 0 : (newhi/(newCp*solidRho))*dt_ );
+        scalar dTi = (newhi/(newCp*solidRho))*dt_;
 
         Ti += dTi;
 

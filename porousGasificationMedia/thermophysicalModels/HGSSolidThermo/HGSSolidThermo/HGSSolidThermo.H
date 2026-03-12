@@ -156,8 +156,7 @@ public:
         static autoPtr<HGSSolidThermo> New(const fvMesh&, const dictionary&);
         
         static autoPtr<HGSSolidThermo> New
-        (            
-            const fvMesh& mesh,
+        (            const fvMesh& mesh,
             const dictionary& dict,
             const PtrList<volScalarField>& gasPhaseGases
         );
