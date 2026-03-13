@@ -435,3 +435,16 @@ volVectorField Us
     dimensionedVector("zero", dimVelocity, vector::zero)
 );
 
+volVectorField UsInterp
+(
+    IOobject
+    (
+        "UsInterp",
+        runTime.timeName(),
+        mesh,
+        IOobject::READ_IF_PRESENT,
+        IOobject::AUTO_WRITE
+    ),
+    mesh,
+    dimensionedVector("zero", dimVelocity, vector::zero)
+);

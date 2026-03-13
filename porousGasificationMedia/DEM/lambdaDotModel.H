@@ -7,6 +7,7 @@
 #include "Function1.H"
 
 
+
 namespace Foam
 {
 
@@ -17,6 +18,8 @@ private:
     volScalarField& lambdaDot_;
     volScalarField& nParticles_;  // number of particles
     volVectorField& Us_;     // velocity of spheres
+    volVectorField& UsInterp_;    // interpolated sphere velocity
+    volScalarField& porosityF_;   // porosity field  get from the main solver
     FoamYade& yade_;
 
     autoPtr<Function1<scalar>> lambdaFunc_;  // to read lambdaFunction from constant/lambdaDict
@@ -29,6 +32,8 @@ public:
         volScalarField& lambdaDot,
         volScalarField& nParticles,
         volVectorField& Us,   // velocity of spheres
+        volVectorField& UsInterp, // interpolated sphere velocity
+        volScalarField& porosityF, // porosity field  get from the main solver
         FoamYade& yade
     );
 

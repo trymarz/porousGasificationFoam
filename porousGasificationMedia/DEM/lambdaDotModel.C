@@ -1,5 +1,6 @@
 #include "lambdaDotModel.H"
 #include "IOdictionary.H"
+#include "fvmLaplacian.H"
 
 namespace Foam
 {
@@ -11,6 +12,8 @@ lambdaDotModel::lambdaDotModel
     volScalarField& lambdaDot,
     volScalarField& nParticles,
     volVectorField& Us,  // velocity of spheres
+    volVectorField& UsInterp, // interpolated velocity of spheres
+    volScalarField& porosityF,
     FoamYade& yade
 )
 :
@@ -18,6 +21,8 @@ lambdaDotModel::lambdaDotModel
     lambdaDot_(lambdaDot),
     nParticles_(nParticles),
     Us_(Us), // velocity of spheres
+    UsInterp_(UsInterp),
+    porosityF_(porosityF),
     yade_(yade),
     // to read lambda function from constant/lambdaDict
     lambdaFunc_
@@ -114,6 +119,36 @@ void lambdaDotModel::update()
     Us_.correctBoundaryConditions();
 
 
+    // interpolated velocity of spheres for cells withough sphere but containing solid matterial
+
+            UsInterp_ = Us_;
+
+        forAll(UsInterp_, cellI)
+        {
+            if (porosityF_[cellI] >= 0.999)
+            {
+                UsInterp_[cellI] = vector::zero;
+            }
+        }
+
+        fvVectorMatrix UsInterpEqn
+        (
+            fvm::laplacian
+                (
+                    dimensionedScalar("one", dimless, 1.0),
+                    UsInterp_
+                )
+        );
+
+        UsInterpEqn.solve();
+
+        forAll(UsInterp_, cellI)
+        {
+            if (porosityF_[cellI] >= 0.999)
+            {
+                UsInterp_[cellI] = vector::zero;
+            }
+        }
 
 
     // Assign lambdaDot to particles (only if occupied)

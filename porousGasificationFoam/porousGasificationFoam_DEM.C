@@ -88,7 +88,7 @@ int main(int argc, char *argv[])
 
             Info<< "DasteXar 3" << endl;
 
-            lambdaDotModel lambdaDotUpdater(mesh, lambdaDot, nParticles, Us,  yadeCoupling);
+            lambdaDotModel lambdaDotUpdater(mesh, lambdaDot, nParticles, Us, UsInterp, porosityF, yadeCoupling);
 
             Info<< "DasteXar 4" << endl;
             yadeCoupling.locateAllParticles();   // places the location of spheres from time 0
