@@ -3,9 +3,9 @@ sinclude $(RULES)/mplib$(WM_MPLIB)
 EXE_INC = \
     -I$(LIB_SRC)/finiteVolume/lnInclude \
     -I$(LIB_SRC)/meshTools/lnInclude	\
-    -I/home/zhiwar/yade-trunk/pkg/openfoam/coupling/FoamYade \
-    -I/home/zhiwar/yade-trunk/pkg/openfoam/coupling/FoamYade/lnInclude \
-    -I/home/zhiwar/yade-trunk/pkg/openfoam/coupling/FoamYade/meshtree \
+    -I$(YADE_TRUNK)/FoamYade \
+    -I$(YADE_TRUNK)/FoamYade/lnInclude \
+    -I$(YADE_TRUNK)/FoamYade/meshtree \
     -I$(LIB_SRC)/Pstream/mpi/lnInclude  \
     $(PFLAGS) $(PINC) \
     -DfoamVersion=$(shell echo $(WM_PROJECT_VERSION) | sed 's/v//g')

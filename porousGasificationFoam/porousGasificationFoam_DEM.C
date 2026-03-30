@@ -73,24 +73,24 @@ int main(int argc, char *argv[])
 
 
 
-    Info<< "DasteXar 1" << endl;
+
 
      // for lambdaDot model
             bool gaussianInterp = false;
 
             FoamYade yadeCoupling(mesh,U, gradP, vGrad, divT,ddtU_f,g,uSourceDrag,alphac, uSource, uParticle, uCoeff,uInterp, lambdaDot, gaussianInterp);
 
-            Info<< "DasteXar 2" << endl;
+
 
             yadeCoupling.setScalarProperties(partDensity.value(), fluidDensity.value(), nu.value());
             std::cout << "done set of part properties" << std::endl;
             Info<< "done set of part properties" << endl;
 
-            Info<< "DasteXar 3" << endl;
+
 
             lambdaDotModel lambdaDotUpdater(mesh, lambdaDot, nParticles, Us, UsInterp, porosityF, yadeCoupling);
 
-            Info<< "DasteXar 4" << endl;
+
             yadeCoupling.locateAllParticles();   // places the location of spheres from time 0
 
 

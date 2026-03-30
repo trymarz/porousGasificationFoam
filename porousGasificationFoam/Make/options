@@ -1,9 +1,9 @@
 sinclude $(GENERAL_RULES)/mplib$(WM_MPLIB)
 sinclude $(RULES)/mplib$(WM_MPLIB)
 EXE_INC = \
-    -I/home/zhiwar/yade-trunk/pkg/openfoam/coupling/FoamYade \
-    -I/home/zhiwar/yade-trunk/pkg/openfoam/coupling/FoamYade/lnInclude \
-    -I/home/zhiwar/yade-trunk/pkg/openfoam/coupling/FoamYade/meshtree \
+    -I$(YADE_TRUNK)/FoamYade \
+    -I$(YADE_TRUNK)/FoamYade/lnInclude \
+    -I$(YADE_TRUNK)/FoamYade/meshtree \
     -I$(FOAM_HGS)/DEM/lnInclude \
     -I$(LIB_SRC)/finiteVolume/lnInclude \
     -I$(LIB_SRC)/meshTools/meshTools/lnInclude \
