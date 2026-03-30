@@ -1014,6 +1014,8 @@ volPyrolysis::volPyrolysis
 
     mesh.setFluxRequired(T_.name());
 
+    solidU_ = mesh_.lookupObject<volVectorField>("UsInterp");  // DasteXar 1
+
     ST_ = STmodel_->ST()();
     CONV_ = CONV();
     rho0_.ref() = rho_.ref();
@@ -1045,7 +1047,8 @@ volPyrolysis::volPyrolysis
                         Ys_[fieldI].name() + "m",
                         time_.timeName(),
                         mesh_,
-                        IOobject::NO_READ,
+                        //IOobject::NO_READ,
+                        IOobject::READ_IF_PRESENT,  // DasteXar 2
                         IOobject::AUTO_WRITE
                     ),
                     mesh_,
@@ -1212,6 +1215,9 @@ void volPyrolysis::preEvolveRegion() {
 
 void volPyrolysis::evolveRegion()
 {
+    solidU_ = mesh_.lookupObject<volVectorField>("UsInterp");
+
+
     voidFraction_ = porosity_;
 
     if (equilibrium_)

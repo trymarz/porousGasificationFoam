@@ -1,4 +1,10 @@
+sinclude $(GENERAL_RULES)/mplib$(WM_MPLIB)
+sinclude $(RULES)/mplib$(WM_MPLIB)
 EXE_INC = \
+    -I$(YADE_TRUNK)/FoamYade \
+    -I$(YADE_TRUNK)/FoamYade/lnInclude \
+    -I$(YADE_TRUNK)/FoamYade/meshtree \
+    -I$(FOAM_HGS)/DEM/lnInclude \
     -I$(LIB_SRC)/finiteVolume/lnInclude \
     -I$(LIB_SRC)/meshTools/meshTools/lnInclude \
     -I$(LIB_SRC)/meshTools/lnInclude \
@@ -23,7 +29,9 @@ EXE_INC = \
     -I$(FOAM_HGS)/thermophysicalModels/solid/lnInclude \
     -I$(FOAM_HGS)/thermophysicalModels/porousSolidChemistryModel/lnInclude \
     -I$(FOAM_HGS)/radiationModels/lnInclude \
-    -I$(FOAM_HGS)/fieldPorosityModel/lnInclude
+    -I$(FOAM_HGS)/fieldPorosityModel/lnInclude \
+    -I$(LIB_SRC)/Pstream/mpi/lnInclude \
+    $(PFLAGS) $(PINC) \
 
 EXE_LIBS = \
     -lfiniteVolume \
@@ -42,4 +50,8 @@ EXE_LIBS = \
     -lfieldPorosityModel \
     -lporousSolidChemistryModel \
     -lHGSsolid \
-    -lHGSSolidThermo
+    -lHGSSolidThermo \
+    -lMeshTree \
+    -lYadeFoam \
+    -llambdaDotModel \
+    $(PLIBS)

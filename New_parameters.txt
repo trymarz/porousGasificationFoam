@@ -1,0 +1,3 @@
+solidU
+Us = reads the sphere velocity from Yade
+UsInterp = Interpolates Us into cells without sphere but with solid material
