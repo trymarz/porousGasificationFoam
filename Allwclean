@@ -1,6 +1,9 @@
 #!/bin/sh
 
-source ./porousGasificationMediaDirectories
+. ./porousGasificationMediaDirectories
+
+cd $FOAM_HGS/DEM
+wclean libso
 
 cd $FOAM_HGS/fieldPorosityModel
 wclean libso
