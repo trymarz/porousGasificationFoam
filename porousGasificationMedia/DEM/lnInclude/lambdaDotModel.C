@@ -1,1 +1,0 @@
-../lambdaDotModel.C
