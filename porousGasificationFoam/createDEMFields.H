@@ -9,8 +9,7 @@ IOdictionary yadeCouplingProperties
    IOobject::NO_WRITE )
 };
 
-Switch yadeActive(yadeCouplingProperties.lookupOrDefault<Switch>("active", false));
-
+Switch DEM(yadeCouplingProperties.lookupOrDefault<Switch>("active", false));
 
 dimensionedScalar nu (
     "nu",

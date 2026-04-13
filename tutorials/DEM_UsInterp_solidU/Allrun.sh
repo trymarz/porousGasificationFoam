@@ -5,5 +5,5 @@ blockMesh -dict system/blockMeshDict
 setFields
 > oo.foam
 decomposePar
-mpirun -np 4 porousGasificationFoam_DEM -parallel
+mpirun -np 4 porousGasificationFoam -parallel
 #porousGasificationFoam

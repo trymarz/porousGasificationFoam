@@ -434,7 +434,7 @@ fluidCoupling.isGaussianInterp = True
 sphereIDs = [b.id for b in O.bodies if type(b.shape) == Sphere]
 
 
-fluidCoupling.SetOpenFoamSolver("porousGasificationFoam_DEM", numProcOF)
+fluidCoupling.SetOpenFoamSolver("porousGasificationFoam", numProcOF)
 
 
 

@@ -1,9 +1,3 @@
-/** @file
- * Main solver
- * @date 10.04.2020
- */
-
-
 /*---------------------------------------------------------------------------*\
   =========                 |
   \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
@@ -50,8 +44,8 @@ Description
 #include "heterogeneousPyrolysisModel.H"
 #include "heterogeneousRadiationModel.H"
 #include "HGSSolidThermo.H"
-#include "FoamYade.H"  //DasteXar
-#include "lambdaDotModel.H" //DasteXar
+#include "FoamYade.H"
+#include "lambdaDotModel.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 int main(int argc, char *argv[])
@@ -64,7 +58,6 @@ int main(int argc, char *argv[])
     #include "createTimeControls.H"
     #include "initContinuityErrs.H"
     #include "createFields.H"
-    #include "createDEMFields.H"
     #include "createFieldRefs.H"
     #include "createPorosity.H"
     #include "createPyrolysisModel.H"
@@ -72,18 +65,19 @@ int main(int argc, char *argv[])
     #include "createHeterogeneousRadiationModel.H"
     #include "readChemistryTimeControls.H"
 
-    // for lambdaDot model
-    bool gaussianInterp = false;
+    if (DEM)
+    {
+        bool gaussianInterp = false;
 
-    FoamYade yadeCoupling(mesh,U, gradP, vGrad, divT,ddtU_f,g,uSourceDrag,alphac, uSource, uParticle, uCoeff,uInterp, lambdaDot, gaussianInterp);
+        FoamYade yadeCoupling(mesh,U, gradP, vGrad, divT, ddtU_f, g, uSourceDrag, alphac, uSource, uParticle, uCoeff, uInterp, lambdaDot, gaussianInterp);
 
-    yadeCoupling.setScalarProperties(partDensity.value(), fluidDensity.value(), nu.value());
-    Info<< "Particles properties set." << endl;
+        yadeCoupling.setScalarProperties(partDensity.value(), fluidDensity.value(), nu.value());
+        Info<< "Particles properties set." << endl;
 
-    lambdaDotModel lambdaDotUpdater(mesh, lambdaDot, nParticles, Us, UsInterp, porosityF, yadeCoupling);
+        lambdaDotModel lambdaDotUpdater(mesh, lambdaDot, nParticles, Us, UsInterp, porosityF, yadeCoupling);
 
-    yadeCoupling.locateAllParticles();   // places the location of spheres from time 0
-
+        yadeCoupling.locateAllParticles();   // places the location of spheres from time 0
+    }
 
 
     turbulence->validate();
@@ -119,17 +113,14 @@ int main(int argc, char *argv[])
 
         Info<< "Time = " << runTime.timeName() << nl << endl;
 
-
-
-        // for lambdaDot
-
-        vGrad = fvc::grad(U);
-        yadeCoupling.setParticleAction(runTime.deltaT().value());
-        lambdaDotUpdater.update(); //DasteXar jadid
-        lambdaDotUpdater.writeParticlesData(); // DasteXar to write ParticlesData.txt in each time step for each rank
-        yadeCoupling.setSourceZero();
-
-
+        if (DEM)
+        {
+            vGrad = fvc::grad(U);
+            yadeCoupling.setParticleAction(runTime.deltaT().value());
+            lambdaDotUpdater.update(); //DasteXar jadid
+            lambdaDotUpdater.writeParticlesData(); // DasteXar to write ParticlesData.txt in each time step for each rank
+            yadeCoupling.setSourceZero();
+        }
 
         #include "radiation.H"
         pyrolysisZone.evolve();
