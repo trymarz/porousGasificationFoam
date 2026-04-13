@@ -58,6 +58,7 @@ int main(int argc, char *argv[])
     #include "createTimeControls.H"
     #include "initContinuityErrs.H"
     #include "createFields.H"
+    #include "createDEMFields.H"
     #include "createFieldRefs.H"
     #include "createPorosity.H"
     #include "createPyrolysisModel.H"
@@ -65,8 +66,6 @@ int main(int argc, char *argv[])
     #include "createHeterogeneousRadiationModel.H"
     #include "readChemistryTimeControls.H"
 
-    if (DEM)
-    {
         bool gaussianInterp = false;
 
         FoamYade yadeCoupling(mesh,U, gradP, vGrad, divT, ddtU_f, g, uSourceDrag, alphac, uSource, uParticle, uCoeff, uInterp, lambdaDot, gaussianInterp);
@@ -77,7 +76,6 @@ int main(int argc, char *argv[])
         lambdaDotModel lambdaDotUpdater(mesh, lambdaDot, nParticles, Us, UsInterp, porosityF, yadeCoupling);
 
         yadeCoupling.locateAllParticles();   // places the location of spheres from time 0
-    }
 
 
     turbulence->validate();

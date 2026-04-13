@@ -1,24 +1,3 @@
 #!/bin/sh
 
-. ./porousGasificationMediaDirectories
-
-cd $FOAM_HGS/DEM
-wclean libso
-
-cd $FOAM_HGS/fieldPorosityModel
-wclean libso
-
-cd $FOAM_HGS/radiationModels
-wclean libso
-
-cd $FOAM_HGS/thermophysicalModels
-./Allwclean
-
-cd $FOAM_HGS/pyrolysisModels
-wclean libso
-
-cd $WM_PROJECT_USER_DIR/applications/porousGasificationFoam
-wclean
-
-cd $WM_PROJECT_USER_DIR/applications/utilities
-./Allwclean
+./build.sh clean
