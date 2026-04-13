@@ -58,25 +58,13 @@ int main(int argc, char *argv[])
     #include "createTimeControls.H"
     #include "initContinuityErrs.H"
     #include "createFields.H"
-    #include "createDEMFields.H"
     #include "createFieldRefs.H"
     #include "createPorosity.H"
     #include "createPyrolysisModel.H"
     #include "readPyrolysisTimeControls.H"
     #include "createHeterogeneousRadiationModel.H"
     #include "readChemistryTimeControls.H"
-
-        bool gaussianInterp = false;
-
-        FoamYade yadeCoupling(mesh,U, gradP, vGrad, divT, ddtU_f, g, uSourceDrag, alphac, uSource, uParticle, uCoeff, uInterp, lambdaDot, gaussianInterp);
-
-        yadeCoupling.setScalarProperties(partDensity.value(), fluidDensity.value(), nu.value());
-        Info<< "Particles properties set." << endl;
-
-        lambdaDotModel lambdaDotUpdater(mesh, lambdaDot, nParticles, Us, UsInterp, porosityF, yadeCoupling);
-
-        yadeCoupling.locateAllParticles();   // places the location of spheres from time 0
-
+    #include "createDEMFields.H"
 
     turbulence->validate();
     if (!LTS)
