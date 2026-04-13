@@ -50,6 +50,8 @@ Description
 #include "heterogeneousPyrolysisModel.H"
 #include "heterogeneousRadiationModel.H"
 #include "HGSSolidThermo.H"
+#include "FoamYade.H"  //DasteXar
+#include "lambdaDotModel.H" //DasteXar
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 int main(int argc, char *argv[])
@@ -69,6 +71,20 @@ int main(int argc, char *argv[])
     #include "readPyrolysisTimeControls.H"
     #include "createHeterogeneousRadiationModel.H"
     #include "readChemistryTimeControls.H"
+
+    // for lambdaDot model
+    bool gaussianInterp = false;
+
+    FoamYade yadeCoupling(mesh,U, gradP, vGrad, divT,ddtU_f,g,uSourceDrag,alphac, uSource, uParticle, uCoeff,uInterp, lambdaDot, gaussianInterp);
+
+    yadeCoupling.setScalarProperties(partDensity.value(), fluidDensity.value(), nu.value());
+    Info<< "Particles properties set." << endl;
+
+    lambdaDotModel lambdaDotUpdater(mesh, lambdaDot, nParticles, Us, UsInterp, porosityF, yadeCoupling);
+
+    yadeCoupling.locateAllParticles();   // places the location of spheres from time 0
+
+
 
     turbulence->validate();
     if (!LTS)
@@ -102,6 +118,18 @@ int main(int argc, char *argv[])
         runTime++;
 
         Info<< "Time = " << runTime.timeName() << nl << endl;
+
+
+
+        // for lambdaDot
+
+        vGrad = fvc::grad(U);
+        yadeCoupling.setParticleAction(runTime.deltaT().value());
+        lambdaDotUpdater.update(); //DasteXar jadid
+        lambdaDotUpdater.writeParticlesData(); // DasteXar to write ParticlesData.txt in each time step for each rank
+        yadeCoupling.setSourceZero();
+
+
 
         #include "radiation.H"
         pyrolysisZone.evolve();

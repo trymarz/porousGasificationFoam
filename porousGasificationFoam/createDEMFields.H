@@ -9,13 +9,13 @@ IOdictionary yadeCouplingProperties
    IOobject::NO_WRITE )
 };
 
-Switch yadeActive(yadeCouplingProperties.lookupOrDefault<Switch>("active", true));
+Switch yadeActive(yadeCouplingProperties.lookupOrDefault<Switch>("active", false));
 
 
 dimensionedScalar nu (
- "nu",
- dimViscosity,
- yadeCouplingProperties.lookup("nu")
+    "nu",
+    dimViscosity,
+    yadeCouplingProperties.lookup("nu")
 );
 
 dimensionedScalar partDensity (
@@ -29,7 +29,6 @@ dimensionedScalar fluidDensity(
     dimDensity,
     yadeCouplingProperties.lookup("fluidDensity")
 );
-
 
 
 volScalarField alphac
