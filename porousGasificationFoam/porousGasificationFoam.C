@@ -58,13 +58,14 @@ int main(int argc, char *argv[])
     #include "createTimeControls.H"
     #include "initContinuityErrs.H"
     #include "createFields.H"
+    #include "createDEMFields.H"
     #include "createFieldRefs.H"
     #include "createPorosity.H"
     #include "createPyrolysisModel.H"
     #include "readPyrolysisTimeControls.H"
     #include "createHeterogeneousRadiationModel.H"
     #include "readChemistryTimeControls.H"
-    #include "createDEMFields.H"
+    #include "createYadeCoupling.H"
 
     turbulence->validate();
     if (!LTS)
