@@ -100,8 +100,16 @@ setup_directories() {
 
   echo "Setting up directories..."
   mkdir -p "$WM_PROJECT_USER_DIR/applications" "$FOAM_HGS" || return 1
-  cp -r utilities porousGasificationFoam "$WM_PROJECT_USER_DIR/applications/" || return 1
-  cp -r porousGasificationMedia/{fieldPorosityModel,thermophysicalModels,pyrolysisModels,radiationModels,DEM} "$FOAM_HGS/" || return 1
+
+  # Copy only selected targets
+  [ "${BUILD_TARGETS[porousGasificationFoam]:-0}" -eq 1 ] && cp -r porousGasificationFoam "$WM_PROJECT_USER_DIR/applications/"
+  [ "${BUILD_TARGETS[utilities]:-0}" -eq 1 ] && cp -r utilities "$WM_PROJECT_USER_DIR/applications/"
+  [ "${BUILD_TARGETS[DEM]:-0}" -eq 1 ] && cp -r porousGasificationMedia/DEM "$FOAM_HGS/"
+  [ "${BUILD_TARGETS[fieldPorosityModel]:-0}" -eq 1 ] && cp -r porousGasificationMedia/fieldPorosityModel "$FOAM_HGS/"
+  [ "${BUILD_TARGETS[radiationModels]:-0}" -eq 1 ] && cp -r porousGasificationMedia/radiationModels "$FOAM_HGS/"
+  [ "${BUILD_TARGETS[thermophysicalModels]:-0}" -eq 1 ] && cp -r porousGasificationMedia/thermophysicalModels "$FOAM_HGS/"
+  [ "${BUILD_TARGETS[pyrolysisModels]:-0}" -eq 1 ] && cp -r porousGasificationMedia/pyrolysisModels "$FOAM_HGS/"
+
   echo "✓ Setup complete"
 }
 
