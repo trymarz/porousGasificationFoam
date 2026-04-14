@@ -174,10 +174,10 @@ main() {
   build_all_targets || exit 1
 }
 
-_build_clean_completion() {
+_build_completion() {
   local opts="build clean --all --libs-only --apps-only --dem --porosity --radiation --thermophysical --pyrolysis --solver --utilities --help"
   COMPREPLY=($(compgen -W "$opts" -- "${COMP_WORDS[COMP_CWORD]}"))
 }
-complete -o bashdefault -o default -o nospace -F _build_clean_completion build_clean.sh
+complete -o bashdefault -o default -o nospace -F _build_completion ./build.sh
 
 [ "${BASH_SOURCE[0]}" = "${0}" ] && main "$@"
