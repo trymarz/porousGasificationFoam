@@ -12,7 +12,7 @@ FoamFile
 // YADE–OpenFOAM coupling properties
 // --------------
 
-active          true;
+active          false;
 
 nu                 1e-6;      // kinematic viscosity (m2/s)
 

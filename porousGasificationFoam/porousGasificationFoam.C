@@ -100,7 +100,7 @@ int main(int argc, char *argv[])
 
         Info<< "Time = " << runTime.timeName() << nl << endl;
 
-        if (yadeCoupling && lambdaDotUpdater)
+        if (DEM)
         {
             vGrad = fvc::grad(U);
             yadeCoupling->setParticleAction(runTime.deltaT().value());

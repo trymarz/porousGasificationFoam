@@ -1,5 +1,31 @@
 #!/bin/bash
 
-./Allrun_cold
-./Allrun_hot_immediate
-./Allrun_hot_stat
+runCase() {
+
+  case=$1
+  caseDir=flatPlate${case}
+
+  cp -r flatPlateTemplate "$caseDir"
+  cp "${caseDir}"/constant/pyrolysisProperties${case,}
+  cp "${caseDir}"/system/controlDict${case,}
+  cp "${caseDir}"/system/setFieldsDict${case,}
+
+  cd "$caseDir" || exit
+
+  blockMesh
+  setSet -batch makeFaceSet.setSet
+  createPatch -overwrite
+  setFields
+
+  decomposePar
+
+  mpirun -np 4 porousGasificationFoam -parallel
+}
+
+main() {
+  runCase Cold
+  runCase HotImmediate
+  runCase Stat
+}
+
+[ "${BASH_SOURCE[0]}" = "${0}" ] && main
