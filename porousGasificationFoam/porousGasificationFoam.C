@@ -100,13 +100,13 @@ int main(int argc, char *argv[])
 
         Info<< "Time = " << runTime.timeName() << nl << endl;
 
-        if (DEM)
+        if (yadeCoupling && lambdaDotUpdater)
         {
             vGrad = fvc::grad(U);
-            yadeCoupling.setParticleAction(runTime.deltaT().value());
-            lambdaDotUpdater.update(); //DasteXar jadid
-            lambdaDotUpdater.writeParticlesData(); // DasteXar to write ParticlesData.txt in each time step for each rank
-            yadeCoupling.setSourceZero();
+            yadeCoupling->setParticleAction(runTime.deltaT().value());
+            lambdaDotUpdater->update(); //DasteXar jadid
+            lambdaDotUpdater->writeParticlesData(); // DasteXar to write ParticlesData.txt in each time step for each rank
+            yadeCoupling->setSourceZero();
         }
 
         #include "radiation.H"

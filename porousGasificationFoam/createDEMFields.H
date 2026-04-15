@@ -5,28 +5,29 @@ IOdictionary yadeCouplingProperties
    "yadeProperties",
    runTime.constant(),
    mesh,
-   IOobject::MUST_READ_IF_MODIFIED,
+   IOobject::READ_IF_PRESENT,
    IOobject::NO_WRITE )
 };
 
 Switch DEM(yadeCouplingProperties.lookupOrDefault<Switch>("active", false));
 
+
 dimensionedScalar nu (
     "nu",
     dimViscosity,
-    yadeCouplingProperties.lookup("nu")
+    yadeCouplingProperties.lookupOrDefault<scalar>("nu", 0.0)
 );
 
 dimensionedScalar partDensity (
     "partDensity",
-     dimDensity,
-     yadeCouplingProperties.lookup("partDensity")
+    dimDensity,
+    yadeCouplingProperties.lookupOrDefault<scalar>("partDensity", 0.0)
 );
 
 dimensionedScalar fluidDensity(
     "fluidDensity",
     dimDensity,
-    yadeCouplingProperties.lookup("fluidDensity")
+    yadeCouplingProperties.lookupOrDefault<scalar>("fluidDensity", 0.0)
 );
 
 
@@ -34,7 +35,7 @@ volScalarField alphac
 (
     IOobject
     (
-      "alpha",
+    "alpha",
         runTime.timeName(),
         mesh,
         IOobject::NO_READ,
@@ -79,45 +80,45 @@ volScalarField lambdaDot // lambdaDot: rate of change of per-particle lambda (co
 
 
 volVectorField divT(
-      IOobject(
-      "divT",
-      runTime.timeName(),
-      mesh,
-      IOobject::NO_READ,
-      IOobject::NO_WRITE),
-      fvc::laplacian(U)
+    IOobject(
+    "divT",
+    runTime.timeName(),
+    mesh,
+    IOobject::NO_READ,
+    IOobject::NO_WRITE),
+    fvc::laplacian(U)
 );
 
 volTensorField vGrad(
     IOobject(
-      "vGrad",
-      runTime.timeName(),
-      mesh,
-      IOobject::NO_READ,
-      IOobject::NO_WRITE),
-      fvc::grad(U)
+    "vGrad",
+    runTime.timeName(),
+    mesh,
+    IOobject::NO_READ,
+    IOobject::NO_WRITE),
+    fvc::grad(U)
     );
 
 
 volVectorField gradP(
-      IOobject(
-      "gradP",
-      runTime.timeName(),
-      mesh,
-      IOobject::NO_READ,
-      IOobject::AUTO_WRITE),
-      fvc::grad(p)/rho
+    IOobject(
+    "gradP",
+    runTime.timeName(),
+    mesh,
+    IOobject::NO_READ,
+    IOobject::AUTO_WRITE),
+    fvc::grad(p)/rho
 );
 
 
 
 volScalarField uSourceDrag(
     IOobject(
-      "uSourceDrag",
-      runTime.timeName(),
-      mesh,
-      IOobject::NO_READ,
-      IOobject::NO_WRITE),
+    "uSourceDrag",
+    runTime.timeName(),
+    mesh,
+    IOobject::NO_READ,
+    IOobject::NO_WRITE),
     mesh,
     dimensionedScalar("dragCoeff", dimensionSet(0,0,-1,0,0,0,0), 0 )
 );
@@ -125,33 +126,33 @@ volScalarField uSourceDrag(
 
 volVectorField uSource(
     IOobject(
-      "uSource",
-      runTime.timeName(),
-      mesh,
-      IOobject::NO_READ,
-      IOobject::NO_WRITE),
+    "uSource",
+    runTime.timeName(),
+    mesh,
+    IOobject::NO_READ,
+    IOobject::NO_WRITE),
     mesh,
     dimensionedVector("volSource", dimensionSet(0,1,-2,0,0,0,0), vector(0,0,0) )
 );
 
 volScalarField uCoeff(
     IOobject(
-      "uCoeffDrag",
-      runTime.timeName(),
-      mesh,
-      IOobject::NO_READ,
-      IOobject::NO_WRITE),
+    "uCoeffDrag",
+    runTime.timeName(),
+    mesh,
+    IOobject::NO_READ,
+    IOobject::NO_WRITE),
     mesh,
     dimensionedScalar("dragCoeffFluid", dimensionSet(0,0,-1,0,0,0,0), 0 )
 );
 
 volVectorField uInterp(
     IOobject(
-      "uInterpField",
-      runTime.timeName(),
-      mesh,
-      IOobject::NO_READ,
-      IOobject::NO_WRITE),
+    "uInterpField",
+    runTime.timeName(),
+    mesh,
+    IOobject::NO_READ,
+    IOobject::NO_WRITE),
     mesh,
     dimensionedVector("interpVel", dimensionSet(0,1,-1,0,0,0,0), vector(0,0,0) )
 );
@@ -159,11 +160,11 @@ volVectorField uInterp(
 
 volVectorField uParticle(
     IOobject(
-      "uParticle",
-      runTime.timeName(),
-      mesh,
-      IOobject::NO_READ,
-      IOobject::NO_WRITE),
+    "uParticle",
+    runTime.timeName(),
+    mesh,
+    IOobject::NO_READ,
+    IOobject::NO_WRITE),
     mesh,
     dimensionedVector("uParticle", dimensionSet(0,1,-1,0,0,0,0), vector(0,0,0) )
 );
@@ -171,13 +172,13 @@ volVectorField uParticle(
 
 volVectorField ddtU_f (
     IOobject (
-      "ddtU_f",
-      runTime.timeName(),
-      mesh,
-      IOobject::NO_READ,
-      IOobject::NO_WRITE),
-      //fvc::ddt(U)+fvc::div(phi, U)
-       ( fvc::ddt(rho, U) + fvc::div(phi, U) ) / rho
+    "ddtU_f",
+    runTime.timeName(),
+    mesh,
+    IOobject::NO_READ,
+    IOobject::NO_WRITE),
+    //fvc::ddt(U)+fvc::div(phi, U)
+    ( fvc::ddt(rho, U) + fvc::div(phi, U) ) / rho
 );
 
 // for spheres velocity sent from yade
@@ -208,4 +209,3 @@ volVectorField UsInterp
     mesh,
     dimensionedVector("zero", dimVelocity, vector::zero)
 );
-
