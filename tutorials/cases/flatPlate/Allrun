@@ -1,16 +1,29 @@
 #!/bin/bash
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 runCase() {
+
+  echo "Running $1 case"
+  cd "$SCRIPT_DIR" || {
+    echo "$SCRIPT_DIR does not exist"
+    return
+  }
+  echo "Directory changed to $(pwd)"
 
   case=$1
   caseDir=flatPlate${case}
 
   cp -r flatPlateTemplate "$caseDir"
-  cp "${caseDir}"/constant/pyrolysisProperties${case,}
-  cp "${caseDir}"/system/controlDict${case,}
-  cp "${caseDir}"/system/setFieldsDict${case,}
+  cp "${caseDir}"/constant/pyrolysisProperties{"$case",}
+  cp "${caseDir}"/system/controlDict{"$case",}
+  cp "${caseDir}"/system/setFieldsDict{"$case",}
 
-  cd "$caseDir" || exit
+  cd "$caseDir" || {
+    echo "$caseDir does not exist"
+    return
+  }
+  echo "Directory changed to $(pwd)"
 
   blockMesh
   setSet -batch makeFaceSet.setSet
