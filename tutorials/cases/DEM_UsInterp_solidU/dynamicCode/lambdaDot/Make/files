@@ -1,0 +1,6 @@
+/* dynamicCode:
+ * SHA1 = 28bfc523e58f0c73f4d6c26df812b3af7a4198c3
+ */
+codedFunction1Template.C
+
+LIB = $(PWD)/../platforms/$(WM_OPTIONS)/lib/liblambdaDot_28bfc523e58f0c73f4d6c26df812b3af7a4198c3

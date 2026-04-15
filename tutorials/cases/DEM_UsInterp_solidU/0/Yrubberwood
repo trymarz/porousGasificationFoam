@@ -9,54 +9,45 @@ FoamFile
 {
     version     2.0;
     format      ascii;
-    class       dictionary;
-    location    "system";
-    object      controlDict;
+    class       volScalarField;
+    location    "0";
+    object      Yrubberwood;
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-application     porousGasificationFoam;
+dimensions      [0 0 0 0 0 0 0];
 
-startFrom       latestTime;
+internalField   uniform 1;
 
-startTime       0; 
-
-stopAt          endTime;
-
-endTime         10;
-
-deltaT          1e-7;
-
-maxDeltaT	    0.001;
-
-writeControl    adjustableRunTime;
-
-writeInterval   0.1;
-
-purgeWrite      0;
-
-writeFormat     ascii;
-
-writePrecision  8;
-
-writeCompression off;
-
-timeFormat      general;
-
-timePrecision   6;
-
-runTimeModifiable yes;
-
-adjustTimeStep yes;
-
-maxCo      1; 
-
-maxDi      5000;
-
-functions
+boundaryField
 {
-//    #includeFunc  probes
-//    #includeFunc  sample
+    inlet
+    {
+        type            fixedValue;
+        value           uniform 1;
+    }
+    outlet
+    {
+        type            zeroGradient;
+    }
+    wall
+    {
+        type            fixedValue;
+        value           uniform 1;
+    }
+    axis
+    {
+        type            zeroGradient;
+    }
+    back
+    {
+        type            empty;
+    }
+    front
+    {
+        type            empty;
+    }
 }
+
 
 // ************************************************************************* //
