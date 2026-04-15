@@ -1,0 +1,5 @@
+#!/bin/bash
+
+./Allrun_cold
+./Allrun_hot_immediate
+./Allrun_hot_stat
