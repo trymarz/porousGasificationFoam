@@ -1,10 +1,18 @@
-#!/bin/sh
+#!/bin/bash
 
-cd biomassPressureDrop && ./Allclean.sh
-cd ../flatPlate && ./Allclean.sh
-cd ../gasifier && ./Allclean.sh
-cd ../macroTGA_688K && ./Allclean.sh
-cd ../macroTGA_688K_fine && ./Allclean.sh
-cd ../macroTGA_879K && ./Allclean.sh
-cd ../macroTGA_879K_fine && ./Allclean.sh
-cd ../microTGA && ./Allclean.sh
+(
+  cd "cases" || {
+    echo "cases does not exist"
+    return
+  }
+
+  for case in */; do
+    if [[ -f "$case/Allclean" ]]; then
+      echo "Cleaning $case"
+      ./"$case"/Allclean
+    else
+      echo "⚠️ Allclean script not found - skipping $case"
+      continue
+    fi
+  done
+)

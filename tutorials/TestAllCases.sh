@@ -1,5 +1,4 @@
 #!/bin/bash
-
 # OpenFOAM Tutorial Case Runner
 # Runs each case in tutorials directory, stops on errors
 

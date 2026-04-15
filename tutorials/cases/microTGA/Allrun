@@ -1,6 +1,41 @@
-#!/bin/sh
+#!/bin/bash
 
-./buildCase688.sh
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-decomposePar
-mpirun -np 4 porousGasificationFoam -parallel
+runCase() {
+
+  echo "Running $1 case"
+  cd "$SCRIPT_DIR" || {
+    echo "$SCRIPT_DIR does not exist"
+    return
+  }
+  echo "Directory changed to $(pwd)"
+
+  case=$1
+  caseDir=microTGA${case}
+
+  cp -r ./mircoTGATemplate/ "$caseDir"
+  cp "${caseDir}"/constant/radiationProperties{"$case",}
+
+  cd "$caseDir" || {
+    echo "$caseDir does not exist"
+    return
+  }
+  echo "Directory changed to $(pwd)"
+
+  blockMesh
+  setFields
+  renumberMesh -overwrite
+  checkMesh
+
+  decomposePar
+
+  mpirun -np 4 porousGasificationFoam -parallel
+}
+
+main() {
+  runCase MeanTemp
+  runCase P1
+}
+
+[ "${BASH_SOURCE[0]}" = "${0}" ] && main
