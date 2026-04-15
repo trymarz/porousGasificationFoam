@@ -1,6 +1,3 @@
-#!/bin/sh
+#!/bin/bash
 
-rm -rf processor* 0 0.[1-9]* [1-9]* log log.analyzed postProcessing constant/polyMesh dynamicCode
-rm -r log*
-rm -f spheres/* springs/*
-
+rm -rf -- processor* 0 0.[1-9]* [1-9]* log log.analyzed postProcessing constant/polyMesh dynamicCode log* spheres/* springs/*
