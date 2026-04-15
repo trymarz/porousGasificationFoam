@@ -23,28 +23,33 @@ internalField   uniform 0;
 
 boundaryField
 {
-    wallTop
+    inlet
     {
         type            calculated;
         value           uniform 0;
     }
-    wallSides
+    outlet
     {
         type            calculated;
         value           uniform 0;
     }
-
-    wallBottom
+    wall
     {
-         type            calculated;
+        type            calculated;
         value           uniform 0;
     }
-
-
-    procBoundarwallBottomto1
+    axis
     {
-        type            processor;
+        type            calculated;
         value           uniform 0;
+    }
+    back
+    {
+        type            empty;
+    }
+    front
+    {
+        type            empty;
     }
 }
 

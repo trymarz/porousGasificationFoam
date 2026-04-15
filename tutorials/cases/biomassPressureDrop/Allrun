@@ -1,4 +1,4 @@
 #!/bin/bash
 
-./Allrun_Df2.56e+10_f3.21e+6.sh
-./Allrun_Df2.5e+11_f0.sh
+./Allrun_Df2.56e+10_f3.21e+6
+./Allrun_Df2.5e+11_f0
