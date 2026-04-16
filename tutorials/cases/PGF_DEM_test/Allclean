@@ -1,3 +1,0 @@
-#!/bin/bash
-
-rm -rf -- processor* 0 0.[1-9]* [1-9]* log log.analyzed postProcessing constant/polyMesh dynamicCode proc* spheres springs log*
