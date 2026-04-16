@@ -1,20 +1,24 @@
 #!/bin/bash
 # OpenFOAM Tutorial Case Runner
 # Runs each case in tutorials directory, stops on errors
+#
+set -m # Enable job control
 
-TUTORIALS_DIR="cases"
-TIMEOUT_SECONDS=50 # Run each case for X seconds
-LOG_DIR="simulation_logs"
-FAILED_CASE=""
+trap 'echo ""; echo "❌ Interrupted by user"; exit 130' INT
 
-# Create log directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CASES_DIR="$SCRIPT_DIR/cases"
+TIMEOUT_SECONDS=20
+LOG_DIR="$SCRIPT_DIR/simulation_logs"
+
+CRASHED_CASES=()
 mkdir -p "$LOG_DIR"
 
 echo "Starting OpenFOAM case runner..."
 echo "========================================"
 
 # Loop through each case directory
-for case_dir in "$TUTORIALS_DIR"/*/; do
+for case_dir in "$CASES_DIR"/*/; do
     case_name=$(basename "$case_dir")
     log_file="$LOG_DIR/${case_name}.log"
 
@@ -22,60 +26,61 @@ for case_dir in "$TUTORIALS_DIR"/*/; do
     echo "Processing case: $case_name"
     echo "Log file: $log_file"
 
-    # Check if case directory exists and has necessary files
-    if [[ ! -f "$case_dir/0.orig/p" ]]; then
-        echo "⚠️  Skipping $case_name (missing initial conditions)"
-        continue
-    fi
+    (
+        [[ ! -f "$case_dir"/Allrun ]] && {
+            echo "Allrun not present: skipping $case_dir"
+            exit 0
+        }
 
-    # Navigate to case directory
-    cd "$case_dir" || {
-        echo "❌ ERROR: Cannot enter directory $case_dir"
-        FAILED_CASE="$case_name"
-        break
-    }
+        # Enter case directory (in subshell)
+        cd "$case_dir" || {
+            echo "❌ ERROR: Cannot enter directory $case_dir"
+            exit 1
+        }
 
-    # Reconstruct case if needed (remove old results)
-    if [[ -d "processor0" ]]; then
-        echo "❌ ERROR: Case $case_dir contains processor0. Clean case befor run!"
-        FAILED_CASE="$case_name"
-        break
-    fi
-
-    # Run the case with timeout
-    echo "Running simulation for $TIMEOUT_SECONDS seconds..."
-
-    if timeout "$TIMEOUT_SECONDS" ./Allrun >"$LOG_DIR/${case_name}.log" 2>&1; then
-        echo "✅ Case $case_name completed successfully"
-    else
-        exit_code=$?
-
-        if [[ $exit_code -eq 124 ]]; then
-            # Timeout occurred (normal, expected behavior)
-            echo "✅ Case $case_name ran for allocated time and stopped (timeout)"
-        else
-            # Actual error occurred
-            echo "❌ **SIMULATION CRASHED: $case_name**"
-            echo ""
-            echo "Last 20 lines of error log:"
-            echo "========================================"
-            tail -20 "$log_file" | sed 's/^/  /'
-            echo "========================================"
-            FAILED_CASE="$case_name"
-            break
+        # Check for old results
+        if [ -d "processor0" ]; then
+            echo "❌ ERROR: Case contains processor0. Clean case before run!"
+            exit 1
         fi
-    fi
 
-    # Return to parent directory
-    cd - >/dev/null || exit
+        # Run the case with timeout
+        echo "Running simulation for $TIMEOUT_SECONDS seconds..."
+
+        if timeout "$TIMEOUT_SECONDS" ./Allrun >"$log_file" 2>&1; then
+            echo "✅ Case $case_name completed successfully"
+            exit 0
+        else
+            exit_code=$?
+
+            if [ $exit_code -eq 124 ]; then
+                # Timeout occurred (normal, expected behavior)
+                echo "✅ Case $case_name ran for allocated time and stopped (timeout)"
+                exit 0
+            else
+                # Actual error occurred
+                echo "❌ **SIMULATION CRASHED: $case_name**"
+                echo ""
+                echo "Last 20 lines of error log:"
+                echo "========================================"
+                tail -20 "$log_file" | sed 's/^/  /'
+                echo "========================================"
+
+                exit 1
+            fi
+        fi
+    ) || CRASHED_CASES+=("$case_name")
+
 done
 
 echo ""
 echo "========================================"
-if [[ -z "$FAILED_CASE" ]]; then
+if [[ ${#CRASHED_CASES[@]} -eq 0 ]]; then
     echo "✅ All cases processed successfully!"
 else
-    echo "❌ **STOPPED: Case '$FAILED_CASE' failed**"
-    echo "Check log file: $LOG_DIR/${FAILED_CASE}.log"
+    echo "❌ Crashed simulations:"
+    for case in "${CRASHED_CASES[@]}"; do
+        echo "  - $case (log: $LOG_DIR/${case}.log)"
+    done
     exit 1
 fi

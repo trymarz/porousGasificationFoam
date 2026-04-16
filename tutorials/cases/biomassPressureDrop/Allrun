@@ -9,7 +9,7 @@ runCase() {
     cp Df_and_porosityProperties/porosityProperties_f"$F" "$case"/constant/porosityProperties
     (
       cd "$case" || return
-      porousGasificationFoam &
+      porousGasificationFoam
     )
   done
 }
