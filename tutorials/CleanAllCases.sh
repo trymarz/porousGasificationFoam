@@ -10,7 +10,7 @@ for case in */; do
     echo "Cleaning $case"
     (
       cd "$case" && ./Allclean
-      echo "Case cleand"
+      echo "✅ Case cleaned"
     )
   else
     echo "⚠️ Allclean script not found - skipping $case"

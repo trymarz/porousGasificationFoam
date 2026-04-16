@@ -1,14 +1,10 @@
 #!/bin/bash
 # OpenFOAM Tutorial Case Runner
 # Runs each case in tutorials directory, stops on errors
-#
-set -m # Enable job control
-
-trap 'echo ""; echo "❌ Interrupted by user"; exit 130' INT
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CASES_DIR="$SCRIPT_DIR/cases"
-TIMEOUT_SECONDS=20
+TIMEOUT_SECONDS=${1:-20}
 LOG_DIR="$SCRIPT_DIR/simulation_logs"
 
 CRASHED_CASES=()
@@ -47,7 +43,7 @@ for case_dir in "$CASES_DIR"/*/; do
         # Run the case with timeout
         echo "Running simulation for $TIMEOUT_SECONDS seconds..."
 
-        if timeout "$TIMEOUT_SECONDS" ./Allrun >"$log_file" 2>&1; then
+        if timeout --foreground "$TIMEOUT_SECONDS" ./Allrun >"$log_file" 2>&1; then
             echo "✅ Case $case_name completed successfully"
             exit 0
         else
