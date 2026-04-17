@@ -1,28 +1,41 @@
+---
 Language: Cpp
-# BasedOnStyle:  WebKit
-# Adjusted for OpenFOAM coding standards
+# OpenFOAM Coding Style Guide Configuration
+# Compatible with clang-format 19.1.7
+# Reference: https://openfoam.org/dev/coding-style-guide/
+
+# Access modifiers at first indentation level
 AccessModifierOffset: -4
-AlignAfterOpenBracket: AlwaysBreak
+
+# Align arguments after opening bracket
+AlignAfterOpenBracket: Align
+AlignConsecutiveMacros: None
 AlignConsecutiveAssignments: None
+AlignConsecutiveBitFields: None
 AlignConsecutiveDeclarations: None
 AlignEscapedNewlines: Right
-AlignOperands: DontAlign
-AlignTrailingComments: false
-AllowAllArgumentsOnNextLine: false
-AllowAllConstructorInitializersOnNextLine: false
-AllowAllParametersOfDeclarationOnNextLine: false
+AlignOperands: Align
+AlignTrailingComments: true
+
+# Allow arguments on next line
+AllowAllArgumentsOnNextLine: true
+AllowAllConstructorInitializersOnNextLine: true
+AllowAllParametersOfDeclarationOnNextLine: true
+AllowShortEnumsOnASingleLine: true
 AllowShortBlocksOnASingleLine: Never
 AllowShortCaseLabelsOnASingleLine: false
-AllowShortFunctionsOnASingleLine: None
-AllowShortLambdasOnASingleLine: None
+AllowShortFunctionsOnASingleLine: All
+AllowShortLambdasOnASingleLine: All
 AllowShortIfStatementsOnASingleLine: Never
 AllowShortLoopsOnASingleLine: false
-AlwaysBreakAfterDefinitionReturnType: None
-AlwaysBreakAfterReturnType: None
+
 AlwaysBreakBeforeMultilineStrings: false
-AlwaysBreakTemplateDeclarations: MultiLine
+AlwaysBreakTemplateDeclarations: Yes
+
 BinPackArguments: false
-BinPackParameters: OnePerLine
+BinPackParameters: BinPack
+
+# Allman style - opening brace on new line
 BraceWrapping:
   AfterCaseLabel: true
   AfterClass: true
@@ -36,62 +49,84 @@ BraceWrapping:
   AfterExternBlock: true
   BeforeCatch: true
   BeforeElse: true
-  IndentBraces: false
+  BeforeLambdaBody: true
+  BeforeWhile: true
+  IndentBraces: true
   SplitEmptyFunction: true
   SplitEmptyRecord: true
   SplitEmptyNamespace: true
+
 BreakBeforeBinaryOperators: NonAssignment
-BreakBeforeBraces: Custom
+BreakBeforeBraces: Allman
 BreakBeforeInheritanceComma: false
 BreakInheritanceList: BeforeColon
 BreakBeforeTernaryOperators: true
 BreakConstructorInitializersBeforeComma: false
 BreakConstructorInitializers: BeforeColon
-BreakAfterJavaFieldAnnotations: true
 BreakStringLiterals: true
-ColumnLimit: 80
+
+# Set to 0 to allow longer lines, or 80 for strict enforcement
+ColumnLimit: 0
+
 CommentPragmas: "^ IWYU pragma:"
 CompactNamespaces: false
+
 ConstructorInitializerAllOnOneLineOrOnePerLine: false
 ConstructorInitializerIndentWidth: 4
 ContinuationIndentWidth: 4
 Cpp11BracedListStyle: true
+
+DeriveLineEnding: true
 DerivePointerAlignment: false
 DisableFormat: false
+
 ExperimentalAutoDetectBinPacking: false
-FixNamespaceComments: true
+FixNamespaceComments: false
+
+# OpenFOAM loop macros
 ForEachMacros:
-  - foreach
-  - Q_FOREACH
-  - BOOST_FOREACH
-IncludeBlocks: Regroup
+  - forAllIters
+  - forAllConstIters
+  - forAllReverseIters
+  - forAllConstReverseIters
+  - forAll
+  - forAllReverse
+  - forAllIter
+  - forAllConstIter
+
+IncludeBlocks: Preserve
 IncludeCategories:
-  - Regex: "^<cassert>"
-    Priority: 1
-  - Regex: "^<cstdlib>"
-    Priority: 1
-  - Regex: '^<.*\.h>'
+  - Regex: '^"(llvm|llvm-c|clang|clang-c)/'
     Priority: 2
-  - Regex: "^<[^/]*>"
+  - Regex: '^(<|"(gtest|gmock|isl|json)/)'
     Priority: 3
   - Regex: ".*"
-    Priority: 4
+    Priority: 1
+
 IncludeIsMainRegex: "(Test)?$"
+IncludeIsMainSourceRegex: ""
+
 IndentCaseLabels: false
+IndentCaseBlocks: false
+IndentGotoLabels: true
 IndentPPDirectives: None
 IndentWidth: 4
 IndentWrappedFunctionNames: false
-JavaScriptQuotes: Leave
-JavaScriptWrapImports: true
+
+InsertTrailingCommas: None
 KeepEmptyLinesAtTheStartOfBlocks: true
+
 MacroBlockBegin: ""
 MacroBlockEnd: ""
-MaxEmptyLinesToKeep: 1
+MaxEmptyLinesToKeep: 2
+
 NamespaceIndentation: None
+
 ObjCBinPackProtocolList: Auto
 ObjCBlockIndentWidth: 4
 ObjCSpaceAfterProperty: true
 ObjCSpaceBeforeProtocolList: true
+
 PenaltyBreakAssignment: 2
 PenaltyBreakBeforeFirstCallParameter: 19
 PenaltyBreakComment: 300
@@ -100,10 +135,11 @@ PenaltyBreakString: 1000
 PenaltyBreakTemplateDeclaration: 10
 PenaltyExcessCharacter: 1000000
 PenaltyReturnTypeOnItsOwnLine: 60
+
 PointerAlignment: Left
-ReflowComments: Always
-SortIncludes: { Enabled: false }
+ReflowComments: Never
 SortUsingDeclarations: Never
+
 SpaceAfterCStyleCast: false
 SpaceAfterLogicalNot: false
 SpaceAfterTemplateKeyword: false
@@ -113,6 +149,7 @@ SpaceBeforeCtorInitializerColon: true
 SpaceBeforeInheritanceColon: true
 SpaceBeforeParens: ControlStatements
 SpaceBeforeRangeBasedForLoopColon: true
+
 SpaceInEmptyParentheses: false
 SpacesBeforeTrailingComments: 1
 SpacesInAngles: Never
@@ -120,11 +157,12 @@ SpacesInContainerLiterals: false
 SpacesInCStyleCastParentheses: false
 SpacesInParentheses: false
 SpacesInSquareBrackets: false
+
 Standard: c++11
+
 StatementMacros:
   - Q_UNUSED
   - QT_REQUIRE_VERSION
-  - FOAM_UNLIKELY
-  - FOAM_LIKELY
+
 TabWidth: 4
 UseTab: Never
