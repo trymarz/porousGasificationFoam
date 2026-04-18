@@ -1,0 +1,44 @@
+#!/bin/bash
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+runCase() {
+
+  echo "Running $1 case"
+  cd "$SCRIPT_DIR" || {
+    echo "$SCRIPT_DIR does not exist"
+    return
+  }
+  echo "Directory changed to $(pwd)"
+
+  case=$1
+  caseDir=flatPlate${case}
+
+  cp -r flatPlateTemplate "$caseDir"
+  cp "${caseDir}"/constant/pyrolysisProperties{"$case",}
+  cp "${caseDir}"/system/controlDict{"$case",}
+  cp "${caseDir}"/system/setFieldsDict{"$case",}
+
+  cd "$caseDir" || {
+    echo "$caseDir does not exist"
+    return
+  }
+  echo "Directory changed to $(pwd)"
+
+  blockMesh
+  setSet -batch makeFaceSet.setSet
+  createPatch -overwrite
+  setFields
+
+  decomposePar
+
+  mpirun -np 4 porousGasificationFoam -parallel
+}
+
+main() {
+  runCase Cold
+  runCase HotImmediate
+  runCase Stat
+}
+
+[ "${BASH_SOURCE[0]}" = "${0}" ] && main

@@ -1,9 +1,3 @@
-/** @file
- * Main solver
- * @date 10.04.2020
- */
-
-
 /*---------------------------------------------------------------------------*\
   =========                 |
   \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
@@ -50,6 +44,8 @@ Description
 #include "heterogeneousPyrolysisModel.H"
 #include "heterogeneousRadiationModel.H"
 #include "HGSSolidThermo.H"
+#include "FoamYade.H"
+#include "lambdaDotModel.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 int main(int argc, char *argv[])
@@ -62,12 +58,14 @@ int main(int argc, char *argv[])
     #include "createTimeControls.H"
     #include "initContinuityErrs.H"
     #include "createFields.H"
+    #include "createDEMFields.H"
     #include "createFieldRefs.H"
     #include "createPorosity.H"
     #include "createPyrolysisModel.H"
     #include "readPyrolysisTimeControls.H"
     #include "createHeterogeneousRadiationModel.H"
     #include "readChemistryTimeControls.H"
+    #include "createYadeCoupling.H"
 
     turbulence->validate();
     if (!LTS)
@@ -101,6 +99,15 @@ int main(int argc, char *argv[])
         runTime++;
 
         Info<< "Time = " << runTime.timeName() << nl << endl;
+
+        if (DEM)
+        {
+            vGrad = fvc::grad(U);
+            yadeCoupling->setParticleAction(runTime.deltaT().value());
+            lambdaDotUpdater->update(); //DasteXar jadid
+            lambdaDotUpdater->writeParticlesData(); // DasteXar to write ParticlesData.txt in each time step for each rank
+            yadeCoupling->setSourceZero();
+        }
 
         #include "radiation.H"
         pyrolysisZone.evolve();

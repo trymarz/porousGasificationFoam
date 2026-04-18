@@ -1,0 +1,5 @@
+#!/bin/bash
+
+for case in p[0-9]*; do
+  rm -rf $case/{0.*,1,postProcessing,log}
+done

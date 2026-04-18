@@ -1,0 +1,6 @@
+#!/bin/sh
+
+./buildCase879.sh
+
+decomposePar
+mpirun -np 4 porousGasificationFoam -parallel

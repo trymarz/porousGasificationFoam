@@ -1,0 +1,3 @@
+#!/bin/bash
+
+rm -rf ./microTGAMeanTemp/ ./microTGAP1/

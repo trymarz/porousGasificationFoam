@@ -1,0 +1,22 @@
+#!/bin/bash
+
+runCase() {
+  DF=$1
+  F=$2
+
+  for case in p[1-9]*/; do
+    cp Df_and_porosityProperties/Df"$DF" "$case"/0/Df
+    cp Df_and_porosityProperties/porosityProperties_f"$F" "$case"/constant/porosityProperties
+    (
+      cd "$case" || return
+      porousGasificationFoam
+    )
+  done
+}
+
+main() {
+  runCase 2.56e+10 3.21e+6
+  runCase 2.5e+11 0
+}
+
+[ "${BASH_SOURCE[0]}" = "${0}" ] && main
