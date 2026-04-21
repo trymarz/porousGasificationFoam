@@ -44,8 +44,12 @@ Description
 #include "heterogeneousPyrolysisModel.H"
 #include "heterogeneousRadiationModel.H"
 #include "HGSSolidThermo.H"
-#include "FoamYade.H"
-#include "lambdaDotModel.H"
+
+#ifdef WITH_YADE 
+    #include "FoamYade.H"
+    #include "lambdaDotModel.H"
+#endif // WITH_YADE 
+
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 int main(int argc, char *argv[])
@@ -58,14 +62,20 @@ int main(int argc, char *argv[])
     #include "createTimeControls.H"
     #include "initContinuityErrs.H"
     #include "createFields.H"
-    #include "createDEMFields.H"
+
+    #ifdef WITH_YADE
+        #include "createDEMFields.H"
+    #endif // WITH_YADE
+
     #include "createFieldRefs.H"
     #include "createPorosity.H"
     #include "createPyrolysisModel.H"
     #include "readPyrolysisTimeControls.H"
     #include "createHeterogeneousRadiationModel.H"
     #include "readChemistryTimeControls.H"
-    #include "createYadeCoupling.H"
+    #ifdef WITH_YADE
+        #include "createYadeCoupling.H"
+    #endif // WITH_YADE
 
     turbulence->validate();
     if (!LTS)
@@ -100,6 +110,7 @@ int main(int argc, char *argv[])
 
         Info<< "Time = " << runTime.timeName() << nl << endl;
 
+        #ifdef WITH_YADE
         if (DEM)
         {
             vGrad = fvc::grad(U);
@@ -108,6 +119,7 @@ int main(int argc, char *argv[])
             lambdaDotUpdater->writeParticlesData(); // DasteXar to write ParticlesData.txt in each time step for each rank
             yadeCoupling->setSourceZero();
         }
+        #endif
 
         #include "radiation.H"
         pyrolysisZone.evolve();

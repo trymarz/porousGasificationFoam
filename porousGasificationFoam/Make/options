@@ -52,5 +52,5 @@ ifeq ($(WITH_YADE),1)
     EXE_LIBS += \
         -lMeshTree \
         -lYadeFoam \
-        -llambdaDotModel \
+        -llambdaDotModel
 endif
