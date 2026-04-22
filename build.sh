@@ -6,6 +6,10 @@
 # CONFIGURATION
 # ============================================================
 
+declare -a LIBRARY_TARGETS=(DEM fieldPorosityModel radiationModels thermophysicalModels pyrolysisModels)
+declare -a APP_TARGETS=(porousGasificationFoam utilities)
+declare -a ALL_TARGETS=("${LIBRARY_TARGETS[@]}" "${APP_TARGETS[@]}")
+
 declare -A BUILD_TARGETS=(
   [DEM]=1
   [fieldPorosityModel]=1
@@ -46,10 +50,6 @@ declare -A CLEAN_COMMANDS=(
   [utilities]="./Allwclean"
 )
 
-declare -a LIBRARY_TARGETS=(DEM fieldPorosityModel radiationModels thermophysicalModels pyrolysisModels)
-declare -a APP_TARGETS=(porousGasificationFoam utilities)
-declare -a ALL_TARGETS=("${LIBRARY_TARGETS[@]}" "${APP_TARGETS[@]}")
-
 MODE="build"
 
 # ============================================================
@@ -76,9 +76,13 @@ parse_arguments() {
         BUILD_TARGETS[$t]=0
       done
       ;;
-    --dem | --fieldPorosityModel | --radiationModels | --thermophysicalModels | --pyrolysisModels | --porousGasificationFoam | --utilities)
+    --DEM | --fieldPorosityModel | --radiationModels | --thermophysicalModels | --pyrolysisModels | --porousGasificationFoam | --utilities)
       local t="${1#--}"
       BUILD_TARGETS[$t]=1
+      ;;
+    --no-DEM | --no-fieldPorosityModel | --no-radiationModels | --no-thermophysicalModels | --no-pyrolysisModels | --no-porousGasificationFoam | --no-utilities)
+      local t="${1#--no-}"
+      BUILD_TARGETS[$t]=0
       ;;
     --dry-run)
       dry_run
@@ -87,7 +91,7 @@ parse_arguments() {
     --help)
       echo "Usage: $0 [build|clean] [OPTIONS]"
       echo "Options: --reset-all, --all, --libs-only, --apps-only"
-      echo "Targets: --dem, --fieldPorosityModel, --radiationModels, --thermophysicalModels, --pyrolysisModels, --porousGasificationFoam, --utilities"
+      echo "Targets: --DEM, --fieldPorosityModel, --radiationModels, --thermophysicalModels, --pyrolysisModels, --porousGasificationFoam, --utilities"
       exit 0
       ;;
     *)
@@ -252,7 +256,7 @@ main() {
 }
 
 _build_completion() {
-  local opts="build clean --reset-all --all --libs-only --apps-only --dem --fieldPorosityModel --radiationModels --thermophysicalModels --pyrolysisModels --porousGasificationFoam --utilities --help --dry-run"
+  local opts="build clean --reset-all --all --libs-only --apps-only --DEM --fieldPorosityModel --radiationModels --thermophysicalModels --pyrolysisModels --porousGasificationFoam --utilities --help --dry-run"
   COMPREPLY=($(compgen -W "$opts" -- "${COMP_WORDS[COMP_CWORD]}"))
 }
 
