@@ -48,6 +48,7 @@ declare -A CLEAN_COMMANDS=(
 
 declare -a LIBRARY_TARGETS=(DEM fieldPorosityModel radiationModels thermophysicalModels pyrolysisModels)
 declare -a APP_TARGETS=(porousGasificationFoam utilities)
+declare -a ALL_TARGETS=("${LIBRARY_TARGETS[@]}" "${APP_TARGETS[@]}")
 
 MODE="build"
 
@@ -60,6 +61,11 @@ parse_arguments() {
     case "$1" in
     clean | --clean) MODE="clean" ;;
     build | --build) MODE="build" ;;
+    --reset-all)
+      for t in "${ALL_TARGETS[@]}"; do
+        BUILD_TARGETS[$t]=0
+      done
+      ;;
     --all) : ;; # Default state
     --libs-only)
       BUILD_TARGETS[porousGasificationFoam]=0
@@ -70,16 +76,18 @@ parse_arguments() {
         BUILD_TARGETS[$t]=0
       done
       ;;
-    --dem | --porosity | --radiation | --thermophysical | --pyrolysis | --solver | --utilities)
+    --dem | --fieldPorosityModel | --radiationModels | --thermophysicalModels | --pyrolysisModels | --porousGasificationFoam | --utilities)
       local t="${1#--}"
-      [[ "$t" == "porosity" ]] && t="fieldPorosityModel"
-      [[ "$t" == "solver" ]] && t="porousGasificationFoam"
       BUILD_TARGETS[$t]=1
+      ;;
+    --dry-run)
+      dry_run
+      exit 0
       ;;
     --help)
       echo "Usage: $0 [build|clean] [OPTIONS]"
-      echo "Options: --all, --libs-only, --apps-only"
-      echo "Targets: --dem, --porosity, --radiation, --thermophysical, --pyrolysis, --solver, --utilities"
+      echo "Options: --reset-all, --all, --libs-only, --apps-only"
+      echo "Targets: --dem, --fieldPorosityModel, --radiationModels, --thermophysicalModels, --pyrolysisModels, --porousGasificationFoam, --utilities"
       exit 0
       ;;
     *)
@@ -96,21 +104,42 @@ parse_arguments() {
 # ============================================================
 
 setup_directories() {
-    [ "$MODE" != "build" ] && return 0
-    
-    echo "Setting up directories..."
-    mkdir -p "$WM_PROJECT_USER_DIR/applications" "$FOAM_HGS" || return 1
-    
-    # Copy only selected targets
-    [ "${BUILD_TARGETS[porousGasificationFoam]:-0}" -eq 1 ] && { echo "  Copying porousGasificationFoam..."; cp -r porousGasificationFoam "$WM_PROJECT_USER_DIR/applications/"; }
-    [ "${BUILD_TARGETS[utilities]:-0}" -eq 1 ] && { echo "  Copying utilities..."; cp -r utilities "$WM_PROJECT_USER_DIR/applications/"; }
-    [ "${BUILD_TARGETS[DEM]:-0}" -eq 1 ] && { echo "  Copying DEM..."; cp -r porousGasificationMedia/DEM "$FOAM_HGS/"; }
-    [ "${BUILD_TARGETS[fieldPorosityModel]:-0}" -eq 1 ] && { echo "  Copying fieldPorosityModel..."; cp -r porousGasificationMedia/fieldPorosityModel "$FOAM_HGS/"; }
-    [ "${BUILD_TARGETS[radiationModels]:-0}" -eq 1 ] && { echo "  Copying radiationModels..."; cp -r porousGasificationMedia/radiationModels "$FOAM_HGS/"; }
-    [ "${BUILD_TARGETS[thermophysicalModels]:-0}" -eq 1 ] && { echo "  Copying thermophysicalModels..."; cp -r porousGasificationMedia/thermophysicalModels "$FOAM_HGS/"; }
-    [ "${BUILD_TARGETS[pyrolysisModels]:-0}" -eq 1 ] && { echo "  Copying pyrolysisModels..."; cp -r porousGasificationMedia/pyrolysisModels "$FOAM_HGS/"; }
-    
-    echo "✓ Setup complete"
+  [ "$MODE" != "build" ] && return 0
+
+  echo "Setting up directories..."
+  mkdir -p "$WM_PROJECT_USER_DIR/applications" "$FOAM_HGS" || return 1
+
+  # Copy only selected targets
+  [ "${BUILD_TARGETS[porousGasificationFoam]:-0}" -eq 1 ] && {
+    echo "  Copying porousGasificationFoam..."
+    cp -r porousGasificationFoam "$WM_PROJECT_USER_DIR/applications/"
+  }
+  [ "${BUILD_TARGETS[utilities]:-0}" -eq 1 ] && {
+    echo "  Copying utilities..."
+    cp -r utilities "$WM_PROJECT_USER_DIR/applications/"
+  }
+  [ "${BUILD_TARGETS[DEM]:-0}" -eq 1 ] && {
+    echo "  Copying DEM..."
+    cp -r porousGasificationMedia/DEM "$FOAM_HGS/"
+  }
+  [ "${BUILD_TARGETS[fieldPorosityModel]:-0}" -eq 1 ] && {
+    echo "  Copying fieldPorosityModel..."
+    cp -r porousGasificationMedia/fieldPorosityModel "$FOAM_HGS/"
+  }
+  [ "${BUILD_TARGETS[radiationModels]:-0}" -eq 1 ] && {
+    echo "  Copying radiationModels..."
+    cp -r porousGasificationMedia/radiationModels "$FOAM_HGS/"
+  }
+  [ "${BUILD_TARGETS[thermophysicalModels]:-0}" -eq 1 ] && {
+    echo "  Copying thermophysicalModels..."
+    cp -r porousGasificationMedia/thermophysicalModels "$FOAM_HGS/"
+  }
+  [ "${BUILD_TARGETS[pyrolysisModels]:-0}" -eq 1 ] && {
+    echo "  Copying pyrolysisModels..."
+    cp -r porousGasificationMedia/pyrolysisModels "$FOAM_HGS/"
+  }
+
+  echo "✓ Setup complete"
 }
 
 execute_target() {
@@ -161,6 +190,54 @@ build_all_targets() {
   fi
 }
 
+dry_run() {
+  echo "════════════════════════════════════════════════════════════"
+  echo "DRY RUN - MODE: $MODE (build|clean)"
+  echo "════════════════════════════════════════════════════════════"
+  echo ""
+
+  echo "BUILD TARGETS STATUS:"
+  echo "────────────────────────────────────────────────────────────"
+  for t in "${ALL_TARGETS[@]}"; do
+    local status="${BUILD_TARGETS[$t]:-0}"
+    local symbol="✗"
+    if [ "$status" -eq 1 ]; then
+      symbol="✓"
+    fi
+    printf "  %s %-30s [%s]\n" "$symbol" "$t" "$status"
+  done
+  echo ""
+
+  echo "TARGETS TO EXECUTE:"
+  echo "────────────────────────────────────────────────────────────"
+  local will_execute=0
+  for target in "${LIBRARY_TARGETS[@]}" "${APP_TARGETS[@]}"; do
+    if [ "${BUILD_TARGETS[$target]:-0}" -eq 1 ]; then
+      will_execute=1
+      local dir="${TARGET_DIRS[$target]}"
+      local cmd
+      if [ "$MODE" = "build" ]; then
+        cmd="${BUILD_COMMANDS[$target]}"
+      else
+        cmd="${CLEAN_COMMANDS[$target]}"
+      fi
+      echo "  • $target"
+      echo "    Directory: $dir"
+      echo "    Command:   $cmd"
+      echo ""
+    fi
+  done
+
+  if [ $will_execute -eq 0 ]; then
+    echo "  (No targets selected for execution)"
+    echo ""
+  fi
+
+  echo "════════════════════════════════════════════════════════════"
+  echo "Run without --dry-run to execute"
+  echo "════════════════════════════════════════════════════════════"
+}
+
 # ============================================================
 # MAIN & COMPLETION
 # ============================================================
@@ -175,9 +252,10 @@ main() {
 }
 
 _build_completion() {
-  local opts="build clean --all --libs-only --apps-only --dem --porosity --radiation --thermophysical --pyrolysis --solver --utilities --help"
+  local opts="build clean --reset-all --all --libs-only --apps-only --dem --fieldPorosityModel --radiationModels --thermophysicalModels --pyrolysisModels --porousGasificationFoam --utilities --help --dry-run"
   COMPREPLY=($(compgen -W "$opts" -- "${COMP_WORDS[COMP_CWORD]}"))
 }
+
 complete -o bashdefault -o default -o nospace -F _build_completion ./build.sh
 
 [ "${BASH_SOURCE[0]}" = "${0}" ] && main "$@"
