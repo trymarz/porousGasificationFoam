@@ -597,14 +597,14 @@ volPyrolysis::volPyrolysis
     (
         IOobject
         (
-            "solidU",
+            "Us",
             time_.timeName(),
             mesh_,
-            IOobject::NO_READ,
+            IOobject::READ_IF_PRESENT,
             IOobject::AUTO_WRITE
         ),
         mesh_,
-        dimensionedVector("solidU", dimensionSet(0,1,-1,0,0,0,0), Foam::vector(0,0,0))
+        dimensionedVector("Us", dimensionSet(0,1,-1,0,0,0,0), Foam::vector(0,0,0))
     ),
     lostSolidMass_(dimensionedScalar("zero", dimMass, 0.0)),
     addedGasMass_(dimensionedScalar("zero", dimMass, 0.0)),
@@ -996,14 +996,14 @@ volPyrolysis::volPyrolysis
     (
         IOobject
         (
-            "solidU",
+            "Us",
             time_.timeName(),
             mesh_,
             IOobject::READ_IF_PRESENT,
             IOobject::AUTO_WRITE
         ),
         mesh_,
-        dimensionedVector("solidU", dimensionSet(0,1,-1,0,0,0,0), Foam::vector(0,0,0))
+        dimensionedVector("Us", dimensionSet(0,1,-1,0,0,0,0), Foam::vector(0,0,0))
     ),
     lostSolidMass_(dimensionedScalar("zero", dimMass, 0.0)),
     addedGasMass_(dimensionedScalar("zero", dimMass, 0.0)),
@@ -1013,8 +1013,6 @@ volPyrolysis::volPyrolysis
 {
 
     mesh.setFluxRequired(T_.name());
-
-    solidU_ = mesh_.lookupObject<volVectorField>("UsInterp");  // DasteXar 1
 
     ST_ = STmodel_->ST()();
     CONV_ = CONV();
@@ -1215,9 +1213,6 @@ void volPyrolysis::preEvolveRegion() {
 
 void volPyrolysis::evolveRegion()
 {
-    solidU_ = mesh_.lookupObject<volVectorField>("UsInterp");
-
-
     voidFraction_ = porosity_;
 
     if (equilibrium_)
