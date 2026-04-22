@@ -9,9 +9,11 @@
 declare -a LIBRARY_TARGETS=(DEM fieldPorosityModel radiationModels thermophysicalModels pyrolysisModels)
 declare -a APP_TARGETS=(porousGasificationFoam utilities)
 declare -a ALL_TARGETS=("${LIBRARY_TARGETS[@]}" "${APP_TARGETS[@]}")
+declare -a ALL_TARGETS_FLAGS=("${ALL_TARGETS[@]/#/--}")
+declare -a ALL_TARGETS_NO_FLAGS=("${ALL_TARGETS[@]/#/--no-}")
 
-declare -A BUILD_TARGETS=(
-  [DEM]=1
+declare -A BUILD_TARGETS=( # default values
+  [DEM]=0 # disabled
   [fieldPorosityModel]=1
   [radiationModels]=1
   [thermophysicalModels]=1
@@ -56,26 +58,34 @@ MODE="build"
 # ARGUMENT PARSING
 # ============================================================
 
+set_targets() {
+  local -n targets=$1
+  for t in $targets; do
+    BUILD_TARGETS[$t]=$2
+  done
+}
+
 parse_arguments() {
   while [ $# -gt 0 ]; do
     case "$1" in
-    clean | --clean) MODE="clean" ;;
-    build | --build) MODE="build" ;;
+    clean) MODE="clean" ;;
+    build) MODE="build" ;;
+    # Exclusive flags
     --reset-all)
-      for t in "${ALL_TARGETS[@]}"; do
-        BUILD_TARGETS[$t]=0
-      done
+      set_targets ALL_TARGETS 0
       ;;
-    --all) : ;; # Default state
+    --all)
+      set_targets ALL_TARGETS 1
+      ;;
     --libs-only)
-      BUILD_TARGETS[porousGasificationFoam]=0
-      BUILD_TARGETS[utilities]=0
+      set_targets LIBRARY_TARGETS 1
+      set_targets APP_TARGETS 0
       ;;
     --apps-only)
-      for t in "${LIBRARY_TARGETS[@]}"; do
-        BUILD_TARGETS[$t]=0
-      done
+      set_targets LIBRARY_TARGETS 0
+      set_targets APP_TARGETS 1
       ;;
+    # Selective flags
     --DEM | --fieldPorosityModel | --radiationModels | --thermophysicalModels | --pyrolysisModels | --porousGasificationFoam | --utilities)
       local t="${1#--}"
       BUILD_TARGETS[$t]=1
@@ -91,7 +101,7 @@ parse_arguments() {
     --help)
       echo "Usage: $0 [build|clean] [OPTIONS]"
       echo "Options: --reset-all, --all, --libs-only, --apps-only"
-      echo "Targets: --DEM, --fieldPorosityModel, --radiationModels, --thermophysicalModels, --pyrolysisModels, --porousGasificationFoam, --utilities"
+      echo "Targets: ${ALL_TARGETS_FLAGS[*]} ${ALL_TARGETS_NO_FLAGS[*]}"
       exit 0
       ;;
     *)
@@ -256,7 +266,7 @@ main() {
 }
 
 _build_completion() {
-  local opts="build clean --reset-all --all --libs-only --apps-only --DEM --fieldPorosityModel --radiationModels --thermophysicalModels --pyrolysisModels --porousGasificationFoam --utilities --help --dry-run"
+  local opts="build clean --reset-all --all --libs-only --apps-only ${ALL_TARGETS_FLAGS[*]} ${ALL_TARGETS_NO_FLAGS[*]} --help --dry-run"
   COMPREPLY=($(compgen -W "$opts" -- "${COMP_WORDS[COMP_CWORD]}"))
 }
 
