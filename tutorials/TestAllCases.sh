@@ -4,11 +4,44 @@
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CASES_DIR="$SCRIPT_DIR/cases"
-TIMEOUT_SECONDS=${1:-20}
 LOG_DIR="$SCRIPT_DIR/simulation_logs"
+TIMEOUT_SECONDS=20
 
 CRASHED_CASES=()
 mkdir -p "$LOG_DIR"
+
+MOCK_YADE=false
+
+# Parse input arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+    --no-yade)
+        MOCK_YADE=true
+        ;;
+    --time=*)
+        TIMEOUT_SECONDS="${1#--time=}"
+        ;;
+    *)
+        echo "Unknown option: $1"
+        ;;
+    esac
+    shift
+done
+
+if [[ "$MOCK_YADE" == true ]]; then
+    MOCK_BIN_DIR="$SCRIPT_DIR/.mock_bin"
+    mkdir -p "$MOCK_BIN_DIR"
+
+    cat >"$MOCK_BIN_DIR/yade" <<'EOF'
+#!/bin/bash
+echo "[YADE MOCK] yade command is not available (mocked)"
+exit 1
+EOF
+    chmod +x "$MOCK_BIN_DIR/yade"
+
+    export PATH="$MOCK_BIN_DIR:$PATH"
+    echo "yade command is now mocked"
+fi
 
 echo "Starting OpenFOAM case runner..."
 echo "========================================"
