@@ -2,6 +2,8 @@
 # OpenFOAM Tutorial Case Runner
 # Runs each case in tutorials directory, stops on errors
 
+trap 'echo ""; echo "Interrupted!"; kill $(jobs -p) 2>/dev/null; exit 130' INT TERM
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CASES_DIR="$SCRIPT_DIR/cases"
 LOG_DIR="$SCRIPT_DIR/simulation_logs"
