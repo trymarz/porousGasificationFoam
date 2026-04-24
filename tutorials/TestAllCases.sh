@@ -2,6 +2,8 @@
 # OpenFOAM Tutorial Case Runner
 # Runs each case in tutorials directory, stops on errors
 
+. ./../utilities/bash_utils/helpers.sh
+
 trap 'echo ""; echo "Interrupted!"; kill $(jobs -p) 2>/dev/null; exit 130' INT TERM
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -24,7 +26,7 @@ while [[ $# -gt 0 ]]; do
         TIMEOUT_SECONDS="${1#--time=}"
         ;;
     *)
-        echo "Unknown option: $1"
+        clog WARNING "Unknown option: $1"
         ;;
     esac
     shift
@@ -42,7 +44,7 @@ EOF
     chmod +x "$MOCK_BIN_DIR/yade"
 
     export PATH="$MOCK_BIN_DIR:$PATH"
-    echo "yade command is now mocked"
+    clog INFO "yade command is now mocked"
 fi
 
 echo "Starting OpenFOAM case runner..."
@@ -53,44 +55,43 @@ for case_dir in "$CASES_DIR"/*/; do
     case_name=$(basename "$case_dir")
     log_file="$LOG_DIR/${case_name}.log"
 
-    echo ""
-    echo "Processing case: $case_name"
-    echo "Log file: $log_file"
+    clog "Processing case: $case_name"
+    clog "Log file: $log_file"
 
     (
         [[ ! -f "$case_dir"/Allrun ]] && {
-            echo "Allrun not present: skipping $case_dir"
+            clog SKIP "Allrun not present in $case_dir"
             exit 0
         }
 
         # Enter case directory (in subshell)
         cd "$case_dir" || {
-            echo "❌ ERROR: Cannot enter directory $case_dir"
+            clog ERROR "Cannot enter directory $case_dir"
             exit 1
         }
 
         # Check for old results
         if [ -d "processor0" ]; then
-            echo "❌ ERROR: Case contains processor0. Clean case before run!"
+            clog ERROR "Case contains processor0. Clean case before run!"
             exit 1
         fi
 
         # Run the case with timeout
-        echo "Running simulation for $TIMEOUT_SECONDS seconds..."
+        clog INFO "Running simulation for $TIMEOUT_SECONDS seconds..."
 
         if timeout -k 5 "$TIMEOUT_SECONDS" ./Allrun >"$log_file" 2>&1; then
-            echo "✅ Case $case_name completed successfully"
+            clog SUCESS "Case $case_name completed"
             exit 0
         else
             exit_code=$?
 
             if [ $exit_code -eq 124 ]; then
                 # Timeout occurred (normal, expected behavior)
-                echo "✅ Case $case_name ran for allocated time and stopped (timeout)"
+                clog SUCESS "Case $case_name ran for allocated time and stopped (timeout)"
                 exit 0
             else
                 # Actual error occurred
-                echo "❌ **SIMULATION CRASHED: $case_name**"
+                clog ERROR "**SIMULATION CRASHED: $case_name**"
                 echo ""
                 echo "Last 20 lines of error log:"
                 echo "========================================"
@@ -107,9 +108,9 @@ done
 echo ""
 echo "========================================"
 if [[ ${#CRASHED_CASES[@]} -eq 0 ]]; then
-    echo "✅ All cases processed successfully!"
+    clog SUCCESS "All cases processed successfully!"
 else
-    echo "❌ Crashed simulations:"
+    clog ERROR "Crashed simulations:"
     for case in "${CRASHED_CASES[@]}"; do
         echo "  - $case (log: $LOG_DIR/${case}.log)"
     done
