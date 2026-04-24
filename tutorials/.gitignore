@@ -4,6 +4,7 @@ polyMesh/
 
 spheres/
 springs/
+VTK/
 
 [0-9]*/
 !0*org/
