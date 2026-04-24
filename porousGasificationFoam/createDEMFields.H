@@ -146,27 +146,16 @@ volScalarField uCoeff(
     dimensionedScalar("dragCoeffFluid", dimensionSet(0,0,-1,0,0,0,0), 0 )
 );
 
-volVectorField uInterp(
+
+volVectorField UsDEM(
     IOobject(
-    "uInterpField",
+    "UsDEM",
     runTime.timeName(),
     mesh,
     IOobject::NO_READ,
     IOobject::NO_WRITE),
     mesh,
-    dimensionedVector("interpVel", dimensionSet(0,1,-1,0,0,0,0), vector(0,0,0) )
-);
-
-
-volVectorField uParticle(
-    IOobject(
-    "uParticle",
-    runTime.timeName(),
-    mesh,
-    IOobject::NO_READ,
-    IOobject::NO_WRITE),
-    mesh,
-    dimensionedVector("uParticle", dimensionSet(0,1,-1,0,0,0,0), vector(0,0,0) )
+    dimensionedVector("UsDEM", dimensionSet(0,1,-1,0,0,0,0), vector(0,0,0) )
 );
 
 
@@ -181,31 +170,4 @@ volVectorField ddtU_f (
     ( fvc::ddt(rho, U) + fvc::div(phi, U) ) / rho
 );
 
-// for spheres velocity sent from yade
-volVectorField Us
-(
-    IOobject
-    (
-        "Us",
-        runTime.timeName(),
-        mesh,
-        IOobject::READ_IF_PRESENT,
-        IOobject::AUTO_WRITE
-    ),
-    mesh,
-    dimensionedVector("zero", dimVelocity, vector::zero)
-);
 
-volVectorField UsInterp
-(
-    IOobject
-    (
-        "UsInterp",
-        runTime.timeName(),
-        mesh,
-        IOobject::READ_IF_PRESENT,
-        IOobject::AUTO_WRITE
-    ),
-    mesh,
-    dimensionedVector("zero", dimVelocity, vector::zero)
-);

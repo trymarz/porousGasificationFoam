@@ -1,5 +1,9 @@
 processor*/
 .mock_bin/
+polyMesh/
+
+spheres/
+springs/
 
 [0-9]*/
 !0*org/

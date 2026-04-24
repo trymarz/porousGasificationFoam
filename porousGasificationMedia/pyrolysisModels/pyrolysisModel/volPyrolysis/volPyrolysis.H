@@ -194,7 +194,7 @@ protected:
         volScalarField surfF_;
 
         //- solid phase velocity
-        volVectorField solidU_;
+        volVectorField Us_;
 
     // Checks
 
