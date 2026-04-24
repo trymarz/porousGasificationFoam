@@ -78,7 +78,7 @@ for case_dir in "$CASES_DIR"/*/; do
         # Run the case with timeout
         echo "Running simulation for $TIMEOUT_SECONDS seconds..."
 
-        if timeout --foreground "$TIMEOUT_SECONDS" ./Allrun >"$log_file" 2>&1; then
+        if timeout -k 5 "$TIMEOUT_SECONDS" ./Allrun >"$log_file" 2>&1; then
             echo "✅ Case $case_name completed successfully"
             exit 0
         else
