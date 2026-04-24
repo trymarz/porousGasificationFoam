@@ -100,13 +100,13 @@ parse_arguments() {
       exit 0
       ;;
     --help)
-      clog "Usage: $0 [build|clean] [OPTIONS]"
-      clog "Options: --reset-all, --all, --libs-only, --apps-only"
-      clog "Targets: ${ALL_TARGETS_FLAGS[*]} ${ALL_TARGETS_NO_FLAGS[*]}"
+      echo "Usage: $0 [build|clean] [OPTIONS]"
+      echo "Options: --reset-all, --all, --libs-only, --apps-only"
+      echo "Targets: ${ALL_TARGETS_FLAGS[*]} ${ALL_TARGETS_NO_FLAGS[*]}"
       exit 0
       ;;
     *)
-      clog error "Unknown option '$1'"
+      clog ERROR "Unknown option '$1'"
       exit 1
       ;;
     esac
@@ -121,40 +121,40 @@ parse_arguments() {
 setup_directories() {
   [ "$MODE" != "build" ] && return 0
 
-  clog info "Setting up directories..."
+  clog INFO "Setting up directories..."
   mkdir -p "$WM_PROJECT_USER_DIR/applications" "$FOAM_HGS" || return 1
 
   # Copy only selected targets
   [ "${BUILD_TARGETS[porousGasificationFoam]:-0}" -eq 1 ] && {
-    clog info "  Copying porousGasificationFoam..."
+    clog INFO "  Copying porousGasificationFoam..."
     cp -r porousGasificationFoam "$WM_PROJECT_USER_DIR/applications/"
   }
   [ "${BUILD_TARGETS[utilities]:-0}" -eq 1 ] && {
-    clog info "  Copying utilities..."
+    clog INFO "  Copying utilities..."
     cp -r utilities "$WM_PROJECT_USER_DIR/applications/"
   }
   [ "${BUILD_TARGETS[DEM]:-0}" -eq 1 ] && {
-    clog info "  Copying DEM..."
+    clog INFO "  Copying DEM..."
     cp -r porousGasificationMedia/DEM "$FOAM_HGS/"
   }
   [ "${BUILD_TARGETS[fieldPorosityModel]:-0}" -eq 1 ] && {
-    clog info "  Copying fieldPorosityModel..."
+    clog INFO "  Copying fieldPorosityModel..."
     cp -r porousGasificationMedia/fieldPorosityModel "$FOAM_HGS/"
   }
   [ "${BUILD_TARGETS[radiationModels]:-0}" -eq 1 ] && {
-    clog info "  Copying radiationModels..."
+    clog INFO "  Copying radiationModels..."
     cp -r porousGasificationMedia/radiationModels "$FOAM_HGS/"
   }
   [ "${BUILD_TARGETS[thermophysicalModels]:-0}" -eq 1 ] && {
-    clog info "  Copying thermophysicalModels..."
+    clog INFO "  Copying thermophysicalModels..."
     cp -r porousGasificationMedia/thermophysicalModels "$FOAM_HGS/"
   }
   [ "${BUILD_TARGETS[pyrolysisModels]:-0}" -eq 1 ] && {
-    clog info "  Copying pyrolysisModels..."
+    clog INFO "  Copying pyrolysisModels..."
     cp -r porousGasificationMedia/pyrolysisModels "$FOAM_HGS/"
   }
 
-  clog success "Setup complete"
+  clog SUCCESS "Setup complete"
 }
 
 execute_target() {
@@ -163,21 +163,21 @@ execute_target() {
   local cmd
 
   [ -d "$dir" ] || {
-    clog error "Directory not found: $dir"
+    clog ERROR "Directory not found: $dir"
     return 1
   }
 
   if [ "$MODE" = "build" ]; then
     cmd="${BUILD_COMMANDS[$target]}"
-    clog info "Building $target..."
+    clog INFO "Building $target..."
   else
     cmd="${CLEAN_COMMANDS[$target]}"
-    clog info "Cleaning $target..."
+    clog INFO "Cleaning $target..."
   fi
 
   cd "$dir" || return 1
   if eval "$cmd"; then
-    clog success "$target done"
+    clog SUCCESS "$target done"
     return 0
   else
     "✗ Failed on $target"
@@ -197,10 +197,10 @@ build_all_targets() {
   done
 
   if [ ${#failed[@]} -eq 0 ]; then
-    clog success "✓ $MODE complete!"
+    clog SUCCESS "$MODE complete!"
     return 0
   else
-    clog error "Failed: ${failed[*]}"
+    clog ERROR "Failed: ${failed[*]}"
     return 1
   fi
 }
@@ -260,7 +260,7 @@ dry_run() {
 main() {
   parse_arguments "$@"
   setup_directories || {
-    clog error "Setup failed"
+    clog ERROR "Setup failed"
     exit 1
   }
   build_all_targets || exit 1
