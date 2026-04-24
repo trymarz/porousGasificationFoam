@@ -28,30 +28,28 @@ clog() {
   fi
 
   case $level in
-  info)
+  INFO)
     echo -e "${BLUE}[INFO]${NC} ${timestamp}${message}"
     ;;
-  success)
+  SUCCESS)
     echo -e "${GREEN}[✓ SUCCESS]${NC} ${timestamp}${message}"
     ;;
-  warning)
+  WARNING)
     echo -e "${YELLOW}[⚠ WARNING]${NC} ${timestamp}${message}"
     ;;
-  error)
+  ERROR)
     echo -e "${RED}[✗ ERROR]${NC} ${timestamp}${message}" >&2
     ;;
-  debug)
+  DEBUG)
     echo -e "${MAGENTA}[DEBUG]${NC} ${timestamp}${message}"
+    ;;
+  SKIP)
+    echo -e "${MAGENTA}[-> SKIP]${NC} ${timestamp}${message}"
     ;;
   *)
     echo -e "${CYAN}[LOG]${NC} ${timestamp}${message}"
     ;;
   esac
-}
-
-error_exit() {
-  clog error "$1"
-  exit 1
 }
 
 # Completion function for the log command
