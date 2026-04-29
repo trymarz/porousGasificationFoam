@@ -62,8 +62,6 @@ volScalarField nParticles
 );
 
 //DasteXar  this field (lambdaDot) represents the rate of Lambda change  in each cell
-
-
 volScalarField lambdaDot // lambdaDot: rate of change of per-particle lambda (computed by lambdaDotModel)
 (
     IOobject
@@ -144,6 +142,29 @@ volScalarField uCoeff(
     IOobject::NO_WRITE),
     mesh,
     dimensionedScalar("dragCoeffFluid", dimensionSet(0,0,-1,0,0,0,0), 0 )
+);
+
+volVectorField uInterp(
+    IOobject(
+    "uInterpField",
+    runTime.timeName(),
+    mesh,
+    IOobject::NO_READ,
+    IOobject::NO_WRITE),
+    mesh,
+    dimensionedVector("interpVel", dimensionSet(0,1,-1,0,0,0,0), vector(0,0,0) )
+);
+
+
+volVectorField uParticle(
+    IOobject(
+    "uParticle",
+    runTime.timeName(),
+    mesh,
+    IOobject::NO_READ,
+    IOobject::NO_WRITE),
+    mesh,
+    dimensionedVector("uParticle", dimensionSet(0,1,-1,0,0,0,0), vector(0,0,0) )
 );
 
 

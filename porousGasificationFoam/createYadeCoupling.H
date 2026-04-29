@@ -6,8 +6,8 @@ autoPtr<lambdaDotModel> lambdaDotUpdater(nullptr);
 if (DEM) 
 {
   yadeCoupling.reset(new FoamYade(mesh, U, gradP, vGrad, divT, ddtU_f, g,
-                              uSourceDrag, alphac, uSource, UsDEM, uCoeff,
-                              Us, lambdaDot, gaussianInterp));
+                              uSourceDrag, alphac, uSource, uParticle, uCoeff,
+                              uInterp, lambdaDot, gaussianInterp));
 
   yadeCoupling().setScalarProperties(partDensity.value(), fluidDensity.value(),
                                    nu.value());
