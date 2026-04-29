@@ -1,438 +1,134 @@
-# **porousGasificationFoam**
+#  porousGasificationMedia README
+***
 
-A comprehensive **OpenFOAM solver** for thermal and chemical conversion in porous media, including pyrolysis, gasification, and combustion with coupled fluid flow and conjugate heat transfer.
+This folder contains files and programs created under
+GNU GPL v3 License
 
-| | |
-|---|---|
-| **Version** | OpenFOAM-v2406 (ESI Community) |
-| **License** | GNU GPL v3 |
-| **Status** | Published |
-| **Citation** | [Zuk et al., Computer Physics Communications (2025)](#citation) |
+by [Filip Mróz](https://github.com/Fafa87) & [Pawel Jan Zuk](https://github.com/pjzuk) 2025
 
----
 
-## Quick Navigation
+if you use any part of this work please cite the scientific contribution:
 
-- [Features](#features)
-- [System Requirements](#system-requirements)
-- [Installation](#installation)
-- [Quick Start](#quick-start)
-- [Tutorial Cases](#tutorial-cases)
-- [Common Pitfalls](#common-pitfalls)
-- [Project Structure](#project-structure)
-- [Documentation](#documentation)
-- [Citation & References](#citation--references)
-- [Support](#support)
 
----
+OpenFOAM solver for thermal and chemical conversion in porous media
+Pawel Jan Zuk, Bartosz Tużnik, Tadeusz Rymarz, Kamil Kwiatkowski,
+Marek Dudyński, Flavio C. C. Galeazzo, Guenther C. Krieger Filho
+Submitted to Computer Physics Communications
 
-## Features
+This is a OpenFOAM-v2406 build which can be also obtained form
+https://github.com/pjzuk/porousGasificationFoam
 
-**porousGasificationFoam** is a comprehensive CFD tool built on **OpenFOAM-v2406** for simulating reactive flow in porous media. It solves coupled equations for solid and gas phases with full energy balance and chemical kinetics:
+The authors provide the equivalent (on the day of release)
+implementation in OpenFOAM 8,
+which can be obtained from repository:
+https://github.com/btuznik/porousGasificationFoam
 
-| Feature | Description |
-|---------|-------------|
-| **Dual-phase modeling** | Independent solid and gas phase energy balance for out-of-equilibrium calculations |
-| **Darcy-Forchheimer flow** | Resistance modeling in porous media via Darcy coefficient (Df) and Forchheimer coefficient (Fc) |
-| **Heterogeneous reactions** | Arbitrary solid-phase kinetic reactions with Arrhenius temperature dependence |
-| **Homogeneous reactions** | Gas-phase chemistry via ODE solvers (fast compared to slow solid reactions) |
-| **Convective heat transfer** | Solid-gas phase heat exchange with customizable correlations |
-| **Radiative heat transfer** | Volumetric heterogeneous radiation model (P1 or mean temperature approximation) |
-| **Immersed boundary method** | For solid enthalpy equation without explicit solid domain boundaries |
-| **Optional Yade integration** | Discrete element method (DEM) for particle-scale coupling ([read more](#yade-integration)) |
-| **Parallel computing** | Domain decomposition with MPI support |
-| **Multi-species transport** | Gas and solid species with diffusion and mass transfer limitations |
 
----
+Table of content:
+1. [Installation guide](#installation)
+2. [Source guide](#source)
+3. [Documentation](#doc)
 
-## System Requirements
+<a name="installation"></a>
+## Installation guide
 
-### Required
+The installation guide is prepared under the assumption 
+that OpenFOAM is installed in standard location: `/opt/OpenFoam-8/`
 
-- **OpenFOAM-v2406** (ESI Community version)  
-  Installation guide: <https://openfoam.org/version/2406/>
+To install the 'porousGasificationFoam':
+1. Set the OpenFOAM environmental paths 
 
-- **Ubuntu 22.04 LTS** (tested; other Linux distributions likely compatible)
+2. Check the environmental settings
+    * run any OpenFOAM solver, e.g. icoFoam -help
+    * type: `$ echo $WM_PROJECT_USER_DIR`
 
-- **Build tools**: gcc/g++, make, CMake
+3. Optionally change the destination path. The default path is: `$WM_PROJECT_USER_DIR/`.
+   To change destination path edit file porousGasificationMediaDirectories located
+   in the library installation folder.
 
-- **Standard libraries**: OpenFOAM dependencies (installed automatically with OpenFOAM)
+4. Set the package environment by typing from inside of porousGasificationFoam folder:
 
-### Optional
+    `$ source porousGasificationMediaDirectories`
 
-- **Yade DEM** (for particle-coupling simulations)  
-  Installation: <https://yade-dem.org/doc/installation.html>
+5. Run the install script:
 
-- **ParaView** (for visualization)  
-  <https://www.paraview.org/>
+   `$ . ./Allwmake`
 
-- **Doxygen + Graphviz** (for generating code documentation)  
+6. Test the installation by running the solver:
 
-  ```bash
-  sudo apt-get install doxygen graphviz
-  ```
+    `$ porousGasificationFoam`
 
----
+In case of errors:
 
-## Installation
+1. Make sure the OpenFoam and all required packaches have been correctly installed,
+   by testing one of the tutorial cases provided with OpenFOAM. 
+   
+2. Open new terminal and again set the nessesary paths:
 
-### Step 1: Set Up OpenFOAM Environment
+    `$ source source source /<PATH TO OpenFOAM-v2406 installation folder>/OpenFOAM-v2406/etc/bashrc`\
+    `$ source <PATH TO porousGasificationMediaDirectories>/porousGasificationMediaDirectiories`
 
-Source the OpenFOAM bashrc file (adjust path if installed elsewhere):
+3. Check the setting:
 
-```bash
-source /opt/OpenFOAM/OpenFOAM-v2406/etc/bashrc
-```
+    run: `icoFoam -help` (output should be 'usage info')\
+    `echo $WM_PROJECT_USER_DIR `\
+    `echo $FOAM_HGS` \
+    
+    If missing set these variables manually.
+    
+4. Run instalaltion script and check for errors:
 
-Verify the installation:
+    `./Allwmake > log_install &`
 
-```bash
-icoFoam -help
-echo $WM_PROJECT_USER_DIR  # Should print a path, e.g., /home/user/OpenFOAM/user-v2406
-```
+<a name="source"></a>
 
-### Step 2: Clone Repository
+## Source guide
 
-```bash
-cd $WM_PROJECT_USER_DIR
-git clone https://github.com/trymarz/porousGasificationFoam.git
-cd porousGasificationFoam
-```
+###  Installation part
 
-### Step 3: Build Installation Environment
+Files for installation and sourcing paths:
 
-Set the installation package environment:
+* `./README.md` -- readme file
 
-```bash
-source porousGasificationMediaDirectories
-```
+* `./porousGasificationMediaDirectories` -- file with enviromental variables
+                                            needed for the installation
 
-(Optional: To install elsewhere, edit `porousGasificationMediaDirectories` before sourcing)
+* `./Allwmake` -- installation script
 
-### Step 4: Compile Solver & Library
+###  porousGasificationFoam -- solver
 
-```bash
-./Allwmake
-```
+ porousGasificationFoam's main code, that uses porousGasificationMedia library.
+ All calculations are scheduled here.
 
-To see detailed output and save logs:
+### porousGasificationMedia -- library
 
-```bash
-./Allwmake > log.make 2>&1 &
-tail -f log.make
-```
+porousGasificationMedia library inculding four major parts:
+1. pyrolysisModels -- classes that evaluate porous medium state and properties.
+2. thermophysicalModels -- implementation of thermophysical and chemical properties od porous medium.
+3. fieldPorosityModel -- implementation of mechanical properties of porous medium.
+4. radiationModels -- heterogeneous radiation model
 
-### Step 5: Verify Installation
+###  Utilities
 
-Run the solver with no arguments (should display usage info):
+1. setPorosity -- utility for creating porosity fields:
+    *  porosityF -- porosity field
+    *  Df -- Darcy porous resitance tensor
+2. totalMassPorousGasificationFoam -- Integrate solid state mass over the whole
+   computational domain. The calculation is performed for each stored time step.
 
-```bash
-porousGasificationFoam
-```
+<a name="doc"></a>
+# Documentation
 
-You should see usage output and no errors.
+The documentation of the model can be generated with Doxygen. To build
+the documentation the doxygen and the graphviz packages are required.
+For Ubuntu users the packages can be obtained with the following command:
 
----
+`$ sudo apt-get install doxygen graphviz`
 
-## Quick Start
+To generate the documentation go to the `$POROUS_DOC_SRC/doc/Doxygen` directory
+and type:
 
-### For Experienced OpenFOAM Users
+`$ ./Allwmake`
 
-**1. Copy a tutorial case:**
-
-```bash
-cd $WM_PROJECT_USER_DIR/porousGasificationFoam/tutorials
-cp -r macroTGA_688K ~/myCase
-cd ~/myCase
-```
-
-**2. Review case structure:**
-
-Standard OpenFOAM directories: `0/`, `constant/`, `system/`  
-PGF-specific dictionaries in `constant/`:
-
-- `pyrolysisProperties` — pyrolysis model & heat transfer settings
-- `solidThermophysicalProperties` — solid species & their thermodynamics
-- `chemistryProperties` — gas & heterogeneous reactions
-- `radiationProperties` — radiation model & parameters
-- `heatTransferProperties` — convective heat transfer correlations
-- `porosityProperties` — Darcy/Forchheimer coefficients (optional)
-- `specieTransferProperties` — mass transfer (if diffusion-limited)
-
-**3. Edit for your case** (mesh, BCs, properties, reactions, etc.)
-
-**4. Run:**
-
-```bash
-porousGasificationFoam > log &
-```
-
-Or parallel (adjust `numberOfSubdomains` in `system/decomposeParDict`):
-
-```bash
-decomposePar
-mpirun -np 4 porousGasificationFoam -parallel > log &
-```
-
----
-
-## Workflow Overview
-
-### Preprocessing
-
-1. **Generate mesh** using OpenFOAM tools:
-   - `blockMesh` — structured hexahedral mesh
-   - `snappyHexMesh` — automatic mesh with geometry
-   - External tools: Salome, Blender → STL → OpenFOAM
-
-2. **Set initial/boundary conditions** in `0/` directory:
-   - `p` — pressure
-   - `U` — velocity
-   - `T` — gas temperature
-   - `Ts` — solid temperature
-   - `Yi` — gas species mass fractions
-   - `Ys` — solid species fractions
-
-3. **Define domain properties** in `constant/`:
-   - Mesh: `polyMesh/`
-   - Thermophysical properties (gas: `thermo.compressibleGas`)
-   - Transport coefficients, reactions, radiation
-
-4. **Configure solver settings** in `system/`:
-   - `controlDict` — time stepping, output, stop time
-   - `fvSchemes` — discretization schemes
-   - `fvSolution` — linear solvers & tolerances
-
-### Running
-
-```bash
-# Sequential
-porousGasificationFoam > log &
-
-# Parallel
-decomposePar
-mpirun -np N porousGasificationFoam -parallel > log &
-```
-
-### Postprocessing
-
-**Built-in utility for solid mass:**
-
-```bash
-totalMassPorousGasificationFoam
-```
-
-Outputs `totalMass.txt` (time vs. integrated solid mass).
-
-**General visualization & analysis:**
-
-- ParaView (native OpenFOAM support)
-- OpenFOAM post-processing utilities (`postProcess`, `foamLog`, etc.)
-- Runtime processing with `controlDict` entries
-
----
-
-## Tutorial Cases
-
-The `tutorials/` directory contains **5 validation cases** with experimental data:
-
-| Case | Description | Physics | Key Focus |
-|------|-------------|---------|-----------|
-| **macroTGA_688K** / **879K** | Wooden ball pyrolysis in tube furnace | Thermal gradients, kinetics | Macro-scale pyrolysis |
-| **microTGA** | Small wooden particle pyrolysis | Drying + pyrolysis | Kinetic-limited regime |
-| **biomassPressureDrop** | Flow resistance through porous bed | Darcy-Forchheimer | Permeability validation |
-| **flatPlate** | Porous flat plate in cross-flow | Momentum & heat transfer | Immersed boundary method |
-| **gasifier** | Axisymmetric packed-bed gasifier | Full gasification | Industrial-scale (diffusion-limited) |
-
-**Run a tutorial:**
-
-```bash
-cd tutorials/macroTGA_688K
-./buildCase688.sh      # Preprocesses mesh & fields
-porousGasificationFoam # Run solver
-```
-
-See included README in each case directory for details.
-
----
-
-## Common Pitfalls
-
-> ⚠️ **These are frequent issues reported by users. Review before running your first case.**
-
-### 1. **Solid Properties Must Be "True" Density, Not Bulk**
-
-**Problem:** Users specify bulk/apparent density of the porous material instead of pure solid density.
-
-**Solution:** Use the **true density** of the solid material (porosityF = 0 in calculations). For wood:
-
-- **True density:** ~1000–1500 kg/m³
-- **Bulk density:** (1 − ε) × ρ_true (ε = porosity/void fraction)
-
-Example in `solidThermophysicalProperties`:
-
-```c++
-woodCoeffs
-{
-  density
-  {
-    rho 1050;  // TRUE density of wood, not bulk!
-  }
-  // ... heat capacity, thermal conductivity, etc.
-}
-```
-
-### 2. **JANAF Thermodynamic Data May Not Exist for Pseudo-Species**
-
-**Problem:** Pyrolysis produces "pseudo-gases" (targas, volatiles) that don't have standard thermodynamic data.
-
-**Solution:**
-
-- Use an existing gas species that closely mimics the pseudo-species (e.g., use `C2H6` data for `targas`)
-- Edit `constant/thermo.compressibleGas` to add mimicked properties
-- See manual section 3.3.4 for details
-
-### 3. **Time Step Too Large for Gas Reactions**
-
-**Problem:** Gas-phase reactions are **orders of magnitude faster** than solid pyrolysis. Large time steps cause solver instability.
-
-**Solution:**
-
-- Start conservatively: Δt ~ 1e-4 to 1e-3 s
-- Adjust `initialChemicalTimeStep` in `chemistryProperties`
-- Monitor: `solidChemistryTimeStepControl true` allows adaptive sub-stepping
-- **Expect long run times** for slow processes like gasification (hours to days)
-
-### 4. **Radiation Properties Are Difficult to Calibrate**
-
-**Problem:** Radiation parameters (absorptivity, emissivity, penetration depth) are hard to find in literature and strongly affect temperature profiles.
-
-**Solution:**
-
-- Start with rough estimates from literature
-- **Calibrate against experimental data** (temperature rise rate, final temperatures)
-- Use the tuned parameters for similar systems
-- See `radiationProperties` in tutorial cases for working examples
-
-### 5. **Biomass Distribution & Porosity Field Setup**
-
-**Problem:** Initial porosity field (solid region) is set incorrectly or incompletely.
-
-**Solution:**
-
-- Use `setFields` + `setSet` for simple geometries:
-
-  ```bash
-  setSet -batch setSet.c0   # Define zones
-  setFields                  # Assign porosityF values
-  ```
-
-- For complex geometries: Create STL in Blender/Salome, use with `setSet`
-- Ensure `porosityF = 1` in gas regions (no solids), `porosityF < 1` in biomass regions
-- Use `setPorosity` tool for advanced distributions (requires compilation)
-
-### 6. **Initial/Boundary Conditions for Temperature & Species**
-
-**Problem:** Inconsistent or missing initial conditions for `Ts` (solid temperature), `T` (gas temperature), or `Ys` (solid species).
-
-**Solution:**
-
-- Always provide: `0/T`, `0/Ts`, `0/Ys*` (solid species fields)
-- If a field is not explicitly written in `0/`, it will be created from defaults (check dictionaries)
-- Use `setFields` for spatially varying initial conditions
-- Ensure boundary conditions match the physics (e.g., heating at inlet/walls)
-
-### 7. **Mesh Independence & Courant Number**
-
-**Problem:** Results are mesh-dependent; solver diverges with coarse mesh.
-
-**Solution:**
-
-- Run a few cases with increasing mesh resolution
-- Monitor Courant number: `Co = U * Δt / Δx` should be < 0.5 for stability
-- Use `Allrun` scripts provided in tutorials; they include mesh refinement
-- Coarser meshes → smaller time steps needed
-
----
-
-## Project Structure
-
-```
-porousGasificationFoam/
-├── README.md                          # This file
-├── LICENSE
-├── porousGasificationMediaDirectories # Environment setup (edit if custom path)
-├── Allwmake                           # Build script
-├── Allclean                           # Clean build
-│
-├── porousGasificationFoam/            # Main solver
-│   ├── Make/
-│   ├── porousGasificationFoam.C
-│   └── ...
-│
-├── porousGasificationMedia/           # Core library
-│   ├── pyrolysisModels/              # Solid phase kinetics & state
-│   ├── thermophysicalModels/         # Thermo & chemistry for solids
-│   ├── porosityModels/               # Mechanical properties (Darcy, Forchheimer)
-│   ├── radiationModels/              # Heterogeneous radiation
-│   └── ...
-│
-├── utilities/                         # Post-processing tools
-│   ├── setPorosity/                  # Advanced porosity field setup
-│   └── totalMassPorousGasificationFoam/  # Integrate solid mass
-│
-├── tutorials/                         # Validation cases
-│   ├── macroTGA_688K/
-│   ├── macroTGA_879K/
-│   ├── microTGA/
-│   ├── biomassPressureDrop/
-│   ├── flatPlate/
-│   └── gasifier/
-│
-└── doc/                               # Documentation
-    └── Doxygen/                       # Source code docs (build with Doxygen)
-```
-
----
-
-## Documentation
-
-### Scientific Background
-
-For detailed physics and modeling equations, refer to the **published paper**:
-
-> **Zuk, P.J., Tużnik, B., Rymarz, T., et al.** (2025). *OpenFOAM solver for thermal and chemical conversion in porous media.* **Computer Physics Communications**.  
-> DOI: [10.1016/j.cpc.2025.xxxxx](#) [*pending final publication details*]
-
-### Code Documentation (Doxygen)
-
-Generate API documentation from source code:
-
-```bash
-cd doc/Doxygen
-./Allwmake
-open ../../../doc/Doxygen/html/index.html  # View in browser
-```
-
-### Tutorials & User Manual
-
-See `tutorials/*/README.md` for case-specific details and setup instructions.
-
-### OpenFOAM Resources
-
-- **Official documentation:** <https://openfoam.org/documentation/>
-- **User guide:** <https://www.openfoam.com/documentation/user-guide/>
-- **Mesh generation:** <https://openfoam.org/features/meshing/>
-
----
-
-## Citation & References
-
-### Main Publication
-
-**[PLACEHOLDER - Please provide updated citation once published]**
-
-If you use **porousGasificationFoam** in your research, please cite:
-
-```bibtex
-@article{Zuk2
+In order to view the documentation open the 
+`$WM_PROJECT_DIR/doc/Doxygen/html/index.html` in a desired internet browser.
