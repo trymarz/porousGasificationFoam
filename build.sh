@@ -61,7 +61,7 @@ MODE="build"
 
 set_targets() {
   local -n targets=$1
-  for t in $targets; do
+  for t in "${targets[@]}"; do
     BUILD_TARGETS[$t]=$2
   done
 }

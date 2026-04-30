@@ -48,7 +48,8 @@ EXE_LIBS = \
 
 ifeq ($(WITH_YADE),1)
     EXE_INC += \
-        -I$(YADE_TRUNK)/pkg/openfoam/coupling/FoamYade/lnInclude \
+        -I$(YADE_TRUNK)/pkg/openfoam/coupling/FoamYade/lnInclude
+
     EXE_LIBS += \
         -lMeshTree \
         -lYadeFoam \
