@@ -118,7 +118,7 @@ regions
       box (.0 -0.1 0.025) (0.1 0.1 0.05);
       fieldValues
       (
-          volVectorFieldValue solidU (0.01 0 0)
+          volVectorFieldValue Us (0.01 0 0)
       );
   }
 

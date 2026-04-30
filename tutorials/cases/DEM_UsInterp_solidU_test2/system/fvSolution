@@ -95,15 +95,14 @@ solvers
         relTol          0;
     }
 
-        UsInterp
-{
-    solver          smoothSolver;
-    smoother        symGaussSeidel;
-    tolerance       1e-6;
-    relTol          0.01;
+    Us
+    {
+        solver          smoothSolver;
+        smoother        symGaussSeidel;
+        tolerance       1e-6;
+        relTol          0.01;
+    }
 }
-}
-
 
 PIMPLE
 {

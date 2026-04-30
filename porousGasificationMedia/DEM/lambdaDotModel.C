@@ -5,14 +5,13 @@
 namespace Foam
 {
 
-
 lambdaDotModel::lambdaDotModel
 (
     const fvMesh& mesh,
     volScalarField& lambdaDot,
     volScalarField& nParticles,
-    volVectorField& Us,  // velocity of spheres
-    volVectorField& UsInterp, // interpolated velocity of spheres
+    volVectorField& UsDEM,  // velocity of spheres
+    volVectorField& Us, // interpolated velocity of spheres
     volScalarField& porosityF,
     FoamYade& yade
 )
@@ -20,8 +19,8 @@ lambdaDotModel::lambdaDotModel
     mesh_(mesh),
     lambdaDot_(lambdaDot),
     nParticles_(nParticles),
-    Us_(Us), // velocity of spheres
-    UsInterp_(UsInterp),
+    UsDEM_(UsDEM), // velocity of spheres
+    Us_(Us),
     porosityF_(porosityF),
     yade_(yade),
     // to read lambda function from constant/lambdaDict
@@ -44,41 +43,29 @@ lambdaDotModel::lambdaDotModel
             &mesh
         )
     )
-
-
 {}
-
 
 
 void lambdaDotModel::update()
 {
-
     // calc lambdaDot field
-
     forAll(lambdaDot_, cellI)
     {
-
         // direct function
         //const point& c = mesh_.C()[cellI];
         //lambdaDot_[cellI] = 0.1 * Foam::sin(c.x());
 
         // to read function from constant/lambdaDict
-
         const point& c = mesh_.C()[cellI];
         lambdaDot_[cellI] = lambdaFunc_->value(c.y());
-
-
-
     }
 
     lambdaDot_.correctBoundaryConditions();
 
-
-
     // count particles per cell
     // and sum velocities per cell
     nParticles_ = 0.0;
-    Us_ = dimensionedVector("zero", Us_.dimensions(), vector::zero);
+    UsDEM_ = dimensionedVector("zero", UsDEM_.dimensions(), vector::zero);
 
     for (const auto& procPtr : yade_.inCommProcs)
     {
@@ -94,61 +81,58 @@ void lambdaDotModel::update()
                 nParticles_[cellI] += 1.0;
 
                 // sum particle velocities into the cell
-                Us_[cellI] += partPtr->linearVelocity;
+                UsDEM_[cellI] += partPtr->linearVelocity;
             }
         }
     }
 
+    // average velocity in cells containing sphere(s)
+    // empty cells remain zero
 
-
-    // average velocity in  cells containing sphere(s)
-    //    empty cells remain zero
-
-    forAll(Us_, cellI)
+    forAll(UsDEM_, cellI)
     {
         if (nParticles_[cellI] > 0.5)
         {
-            Us_[cellI] /= nParticles_[cellI];
+            UsDEM_[cellI] /= nParticles_[cellI];
         }
         else
+        {
+            UsDEM_[cellI] = vector::zero;
+        }
+    }
+
+    UsDEM_.correctBoundaryConditions();
+
+    // interpolated velocity of spheres for cells withough sphere but containing solid matterial
+
+    Us_ = UsDEM_;
+
+    forAll(Us_, cellI)
+    {
+        if (porosityF_[cellI] >= 0.999)
         {
             Us_[cellI] = vector::zero;
         }
     }
 
-    Us_.correctBoundaryConditions();
+    fvVectorMatrix UsEqn
+    (
+        fvm::laplacian
+            (
+                dimensionedScalar("one", dimless, 1.0),
+                Us_
+            )
+    );
 
+    UsEqn.solve();
 
-    // interpolated velocity of spheres for cells withough sphere but containing solid matterial
-
-            UsInterp_ = Us_;
-
-        forAll(UsInterp_, cellI)
+    forAll(Us_, cellI)
+    {
+        if (porosityF_[cellI] >= 0.999)
         {
-            if (porosityF_[cellI] >= 0.999)
-            {
-                UsInterp_[cellI] = vector::zero;
-            }
+            Us_[cellI] = vector::zero;
         }
-
-        fvVectorMatrix UsInterpEqn
-        (
-            fvm::laplacian
-                (
-                    dimensionedScalar("one", dimless, 1.0),
-                    UsInterp_
-                )
-        );
-
-        UsInterpEqn.solve();
-
-        forAll(UsInterp_, cellI)
-        {
-            if (porosityF_[cellI] >= 0.999)
-            {
-                UsInterp_[cellI] = vector::zero;
-            }
-        }
+    }
 
 
     // Assign lambdaDot to particles (only if occupied)
@@ -210,9 +194,5 @@ void lambdaDotModel::writeParticlesData() const
 
     ofs << "\n";
 }
-
-
-
-
 
 } // namespace Foam

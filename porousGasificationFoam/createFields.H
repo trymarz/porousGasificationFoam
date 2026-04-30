@@ -230,3 +230,17 @@ forAll(cellVolume,cellI)
 #include "readGravitationalAcceleration.H"
 #include "createMRF.H"
 #include "createFvOptions.H"
+
+volVectorField Us
+(
+    IOobject
+    (
+        "Us",
+        runTime.timeName(),
+        mesh,
+        IOobject::READ_IF_PRESENT,
+        IOobject::AUTO_WRITE
+    ),
+    mesh,
+    dimensionedVector("zero", dimVelocity, vector::zero)
+);

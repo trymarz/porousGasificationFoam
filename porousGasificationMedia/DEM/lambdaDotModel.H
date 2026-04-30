@@ -2,11 +2,8 @@
 #define lambdaDotModel_H
 
 #include "fvMesh.H"
-#include "volFields.H"
 #include "FoamYade.H"
 #include "Function1.H"
-
-
 
 namespace Foam
 {
@@ -17,8 +14,8 @@ private:
     const fvMesh& mesh_;
     volScalarField& lambdaDot_;
     volScalarField& nParticles_;  // number of particles
-    volVectorField& Us_;     // velocity of spheres
-    volVectorField& UsInterp_;    // interpolated sphere velocity
+    volVectorField& UsDEM_;     // velocity of spheres
+    volVectorField& Us_;    // interpolated sphere velocity
     volScalarField& porosityF_;   // porosity field  get from the main solver
     FoamYade& yade_;
 
@@ -31,8 +28,8 @@ public:
         const fvMesh& mesh,
         volScalarField& lambdaDot,
         volScalarField& nParticles,
-        volVectorField& Us,   // velocity of spheres
-        volVectorField& UsInterp, // interpolated sphere velocity
+        volVectorField& UsDEM,   // velocity of spheres
+        volVectorField& Us, // interpolated sphere velocity
         volScalarField& porosityF, // porosity field  get from the main solver
         FoamYade& yade
     );
@@ -44,7 +41,4 @@ public:
 
 }
 
-
-#endif
-
-
+#endif // lambdaDotModel_H

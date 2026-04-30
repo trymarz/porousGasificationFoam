@@ -62,8 +62,6 @@ volScalarField nParticles
 );
 
 //DasteXar  this field (lambdaDot) represents the rate of Lambda change  in each cell
-
-
 volScalarField lambdaDot // lambdaDot: rate of change of per-particle lambda (computed by lambdaDotModel)
 (
     IOobject
@@ -170,6 +168,18 @@ volVectorField uParticle(
 );
 
 
+volVectorField UsDEM(
+    IOobject(
+    "UsDEM",
+    runTime.timeName(),
+    mesh,
+    IOobject::NO_READ,
+    IOobject::NO_WRITE),
+    mesh,
+    dimensionedVector("UsDEM", dimensionSet(0,1,-1,0,0,0,0), vector(0,0,0) )
+);
+
+
 volVectorField ddtU_f (
     IOobject (
     "ddtU_f",
@@ -181,31 +191,4 @@ volVectorField ddtU_f (
     ( fvc::ddt(rho, U) + fvc::div(phi, U) ) / rho
 );
 
-// for spheres velocity sent from yade
-volVectorField Us
-(
-    IOobject
-    (
-        "Us",
-        runTime.timeName(),
-        mesh,
-        IOobject::READ_IF_PRESENT,
-        IOobject::AUTO_WRITE
-    ),
-    mesh,
-    dimensionedVector("zero", dimVelocity, vector::zero)
-);
 
-volVectorField UsInterp
-(
-    IOobject
-    (
-        "UsInterp",
-        runTime.timeName(),
-        mesh,
-        IOobject::READ_IF_PRESENT,
-        IOobject::AUTO_WRITE
-    ),
-    mesh,
-    dimensionedVector("zero", dimVelocity, vector::zero)
-);

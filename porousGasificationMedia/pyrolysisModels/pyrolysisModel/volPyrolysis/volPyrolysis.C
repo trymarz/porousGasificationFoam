@@ -106,7 +106,7 @@ void volPyrolysis::solveSpeciesMass()
             max(rho_ * (1. - porosity_), dimensionedScalar("minRho",dimMass/dimVolume, SMALL))
         );
 
-        surfaceScalarField solidPhi = mesh_.Sf() & fvc::interpolate(rho_*solidU_);
+        surfaceScalarField solidPhi = mesh_.Sf() & fvc::interpolate(rho_*Us_);
         fvScalarMatrix rhosEqn
         (
             fvm::ddt(rho_)
@@ -123,7 +123,7 @@ void volPyrolysis::solveSpeciesMass()
             Yi.ref() *= whereIs_;
             volScalarField sRhoSi = solidChemistry_->RRs(i);
 
-            surfaceScalarField solidFlux_ = mesh_.Sf() & fvc::interpolate(solidU_*rhoLoc);
+            surfaceScalarField solidFlux_ = mesh_.Sf() & fvc::interpolate(Us_*rhoLoc);
 
             fvScalarMatrix YsEqn
             (
@@ -186,7 +186,7 @@ void volPyrolysis::solveEnergy()
 
             volScalarField heatTransfField = heatTransfer()();
             volScalarField rhoCpG(gasThermo_.rho() * gasThermo_.Cp() * porosity_);
-            surfaceVectorField surfSolidU = fvc::interpolate(solidU_);
+            surfaceVectorField surfSolidU = fvc::interpolate(Us_);
             surfaceScalarField surfPor = fvc::interpolate(porosity_,"porosityInt");
 
 
@@ -198,13 +198,13 @@ void volPyrolysis::solveEnergy()
             //trial 1 to set energy flux stable via tempereture in the first cell outside porous media 
             //forAll(porosity_,cellI)
             //{
-            //    if ( (whereIsNot_[cellI] == 1) && ( (solidU_[cellI] & whereIsNotGrad[cellI]) > 0)  )
+            //    if ( (whereIsNot_[cellI] == 1) && ( (Us_[cellI] & whereIsNotGrad[cellI]) > 0)  )
             //    {
             //        const labelList& faces = mesh_.cells()[cellI];
             //        forAll(faces,faceI)
             //        {
             //            //Info << faces << " " << faceI << " " << faces[faceI] << " " << mesh_.isInternalFace(faces[faceI]) << mesh_.Sf()[faces[faceI]]  << " " << TPatch[faces[faceI]] << " " << whereIsPatch[faces[faceI]] <<  endl;
-            //            //Info << (solidU_[cellI] & mesh_.Sf()[faces[faceI]]) / mag(mesh_.Sf()[faces[faceI]]) << endl;
+            //            //Info << (Us_[cellI] & mesh_.Sf()[faces[faceI]]) / mag(mesh_.Sf()[faces[faceI]]) << endl;
             //            if (mesh_.isInternalFace(faces[faceI]) && ( whereIsPatch[faces[faceI]] > 0 ))
             //            {
             //                //if  ( T_[cellI] < 0 )
@@ -225,7 +225,7 @@ void volPyrolysis::solveEnergy()
             //this requires further rethinking
             forAll(porosity_,cellI)
             {
-                if ( (whereIs_[cellI] == 1) && ( (solidU_[cellI] & whereIsNotGrad[cellI]) != 0)  )
+                if ( (whereIs_[cellI] == 1) && ( (Us_[cellI] & whereIsNotGrad[cellI]) != 0)  )
                 {
                     //Info << rhoCp[cellI] << " " << porosity_[cellI] << " " << rhoCpG[cellI] << " " << heatTransfField[cellI] << " " << T_[cellI] << " " << gasThermo_.T()[cellI]  << " kopytko 2" << endl;
                     const labelList& faces = mesh_.cells()[cellI];
@@ -593,18 +593,18 @@ volPyrolysis::volPyrolysis
         dimensionedTensor("one", dimless, tensor(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0))
     ),
     surfF_(whereIs_),
-    solidU_
+    Us_
     (
         IOobject
         (
-            "solidU",
+            "Us",
             time_.timeName(),
             mesh_,
-            IOobject::NO_READ,
+            IOobject::READ_IF_PRESENT,
             IOobject::AUTO_WRITE
         ),
         mesh_,
-        dimensionedVector("solidU", dimensionSet(0,1,-1,0,0,0,0), Foam::vector(0,0,0))
+        dimensionedVector("Us", dimensionSet(0,1,-1,0,0,0,0), Foam::vector(0,0,0))
     ),
     lostSolidMass_(dimensionedScalar("zero", dimMass, 0.0)),
     addedGasMass_(dimensionedScalar("zero", dimMass, 0.0)),
@@ -992,18 +992,18 @@ volPyrolysis::volPyrolysis
         mesh_,
         dimensionedScalar("zero", dimless, 0.0)
     ),
-    solidU_
+    Us_
     (
         IOobject
         (
-            "solidU",
+            "Us",
             time_.timeName(),
             mesh_,
             IOobject::READ_IF_PRESENT,
             IOobject::AUTO_WRITE
         ),
         mesh_,
-        dimensionedVector("solidU", dimensionSet(0,1,-1,0,0,0,0), Foam::vector(0,0,0))
+        dimensionedVector("Us", dimensionSet(0,1,-1,0,0,0,0), Foam::vector(0,0,0))
     ),
     lostSolidMass_(dimensionedScalar("zero", dimMass, 0.0)),
     addedGasMass_(dimensionedScalar("zero", dimMass, 0.0)),
@@ -1013,8 +1013,6 @@ volPyrolysis::volPyrolysis
 {
 
     mesh.setFluxRequired(T_.name());
-
-    solidU_ = mesh_.lookupObject<volVectorField>("UsInterp");  // DasteXar 1
 
     ST_ = STmodel_->ST()();
     CONV_ = CONV();
@@ -1215,9 +1213,6 @@ void volPyrolysis::preEvolveRegion() {
 
 void volPyrolysis::evolveRegion()
 {
-    solidU_ = mesh_.lookupObject<volVectorField>("UsInterp");
-
-
     voidFraction_ = porosity_;
 
     if (equilibrium_)
@@ -1265,7 +1260,7 @@ void volPyrolysis::evolvePorosity()
 
         volScalarField& por = porosity_;
 
-        surfaceScalarField solidU = mesh_.Sf() & fvc::interpolate(solidU_,"solidU");
+        surfaceScalarField Us = mesh_.Sf() & fvc::interpolate(Us_,"Us");
 
         // requires setting same stuff as for diffusion to release flux at the ends of porous media
         // it would be best to solve 1-porosity as it gives 0 flux naturally when empty?? 
@@ -1274,7 +1269,7 @@ void volPyrolysis::evolvePorosity()
             fvm::ddt(por)
          ==
             porositySource_
-          - fvc::div(solidU,por,"div(phiSolid)")
+          - fvc::div(Us,por,"div(phiSolid)")
         );
 
         porosityEqn.solve("porosity");
@@ -1293,7 +1288,7 @@ void volPyrolysis::evolvePorosity()
 
         forAll(porosity_,cellI)
         {
-            if ((porosity_[cellI] > critPorosity_) && ( (solidU_[cellI] & whereIsGrad[cellI]) > 0) )
+            if ((porosity_[cellI] > critPorosity_) && ( (Us_[cellI] & whereIsGrad[cellI]) > 0) )
             {
                 if (porosity_[cellI] < 1.0)
                 {
