@@ -1,0 +1,43 @@
+#!/bin/bash
+# Clean regression artefacts from every case in cases.list.
+# Does NOT delete reference/ baselines.
+
+set -u
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+
+# shellcheck disable=SC1091
+. "$REPO_ROOT/utilities/bash_utils/helpers.sh"
+
+CASES_FILE="$SCRIPT_DIR/cases.list"
+
+if [ ! -f "$CASES_FILE" ]; then
+    clog ERROR "Cases file not found: $CASES_FILE"
+    exit 2
+fi
+
+mapfile -t CASES < <(grep -vE '^\s*(#|$)' "$CASES_FILE")
+
+for caseRel in "${CASES[@]}"; do
+    caseDir="$REPO_ROOT/$caseRel"
+
+    if [ ! -d "$caseDir" ]; then
+        clog WARNING "Case directory missing: $caseDir"
+        continue
+    fi
+
+    clog INFO "Cleaning $caseRel"
+
+    if [ -x "$caseDir/Allclean" ]; then
+        ( cd "$caseDir" && ./Allclean )
+    else
+        # Best-effort cleanup if no Allclean exists.
+        rm -rf "$caseDir"/processor* \
+               "$caseDir"/postProcessing \
+               "$caseDir"/log.* \
+               "$caseDir"/[1-9]* 2>/dev/null || true
+    fi
+done
+
+clog SUCCESS "Regression artefacts cleaned"
