@@ -1,95 +1,20 @@
 # porousGasificationFoam
 
-OpenFOAM solver for reactive flow through porous media with coupled
-gas-solid physics. Designed for gasification, pyrolysis, and combustion
-of solid fuels (biomass, coal, char, etc.) in fixed and moving beds.
+OpenFOAM solver for reactive flow through porous media with coupled gas-solid physics. Designed for gasification, pyrolysis, and combustion of solid fuels (biomass, coal, char, etc.) in fixed and moving beds.
 
 - License: GNU GPL v3
-- OpenFOAM-v2406 (this repository): <https://github.com/pjzuk/porousGasificationFoam>
-- OpenFOAM 8 backport: <https://github.com/btuznik/porousGasificationFoam>
-
----
-
-## Citing
-
-If you use this solver, please cite:
-
-Żuk, P. J., Tużnik, B., Rymarz, T., Kwiatkowski, K., Dudyński, M., Galeazzo, F. C., & Krieger Filho, G. C. (2022). OpenFOAM solver for thermal and chemical conversion in porous media. Computer Physics Communications, 278, 108407.
-
----
-
-## Contributors
-
-Paweł Jan Żuk, Bartosz Tużnik, Tadeusz Rymarz, Zhiwar, Kamil Kwiatkowski,
-Marek Dudyński, Flavio C. C. Galeazzo, Guenther C. Krieger Filho,
-Filip Mróz (foam-extend-4.1 to v2406 port)
-
----
-
-## Table of Contents
-
-1. [Key Concepts](#key-concepts)
-2. [Quick Start](#quick-start)
-3. [Build System](#build-system)
-4. [Case Structure](#case-structure)
-5. [Input File Reference](#input-file-reference)
-6. [Required Initial Fields](#required-initial-fields)
-7. [Tutorial Cases](#tutorial-cases)
-8. [Utilities](#utilities)
-9. [Troubleshooting](#troubleshooting)
-10. [Documentation](#documentation)
-
----
-
-## Key Concepts
-
-### Two-phase coupling
-
-Gas and solid phases coexist in every cell. They are distinguished by the
-**porosity** field `porosityF`:
-
-| `porosityF` | Meaning |
-|---|---|
-| 1.0 | Pure gas (no solid) |
-| 0.0 | Pure solid (fully dense) |
-| 0 < φ < 1 | Porous medium containing both phases |
-
-Mass, momentum, and energy are exchanged between the phases through
-coupling source terms computed by the pyrolysis/chemistry model.
-
-### What happens in one time step
-
-1. **Solid phase evolves** — solid chemistry integrates ODEs for solid
-   species conversion, porosity evolves as solid is consumed, solid
-   temperature is solved (conduction, radiation, reaction heat, gas-solid
-   convection), and mass/energy source terms for the gas phase are computed.
-2. **Gas continuity** — density equation with pyrolysis mass source.
-3. **PIMPLE loop** (iterative pressure-velocity coupling):
-   - Momentum: Navier-Stokes + Darcy porous resistance
-   - Gas species transport: advection-diffusion with homogeneous reactions
-     - pyrolysis gas sources
-   - Gas energy: enthalpy equation with reaction heat, gas-solid heat
-     exchange, and radiation
-   - Pressure correction: accounts for mass sources from pyrolysis
-4. **Turbulence** update.
-
-### Reaction types
-
-- **Homogeneous** — gas-gas combustion (standard OpenFOAM reaction format
-  in `constant/reactions`)
-- **Heterogeneous** — gas-solid reactions with Arrhenius kinetics, four
-  rate law variants, diffusion-limited option, and stoichiometric or
-  non-stoichiometric mass partitioning
-
-### Bed motion
-
-The solid phase can advect (e.g. fuel bed settling). When porosity exceeds
-a threshold (`criticalPorosity`), material from upstream cells is moved
-downward — a simple bed-collapse model.
-
----
+- OpenFOAM-v2406 (this repository): https://github.com/pjzuk/porousGasificationFoam
+- OpenFOAM 8 backport: https://github.com/btuznik/porousGasificationFoam
 
 ## Quick Start
+
+### Prerequisites
+
+- OpenFOAM-v2406 (or the foam-extend-4.1 variant)
+- MPI (for parallel runs)
+- Optional: YADE DEM library (for DEM coupling, set `WITH_YADE=1`)
+
+### Build and Install
 
 ```bash
 # 1. Source OpenFOAM (adjust path for your installation)
@@ -102,151 +27,411 @@ source porousGasificationMediaDirectories
 # 3. Build everything
 ./Allwmake
 
-# 4. Test by running a tutorial case
+# Alternative: fine-grained build
+./build.sh build --all
+```
+
+### Run a Tutorial Case
+
+The gasifier tutorial demonstrates a full fixed-bed gasification simulation:
+
+```bash
 cd tutorials/cases/gasifier
 ./Allrun
 ```
 
-This script runs `blockMesh`, `setFields`, `decomposePar`, and launches
-`porousGasificationFoam -parallel` on 4 processes.
+This runs `blockMesh`, `setFields`, `decomposePar`, and launches `porousGasificationFoam -parallel` on 4 processes.
 
----
-
-## Build System
-
-### Simple build
+### Run All Tutorial Cases
 
 ```bash
-# Build everything
-./Allwmake
-
-# Clean everything
-./Allwclean
+cd tutorials
+./TestAllCases.sh
 ```
 
-### Fine-grained control with build.sh
+### Clean Build
 
 ```bash
-# Build only libraries
-./build.sh build --libs-only
-
-# Build only the solver and utilities
-./build.sh build --apps-only
-
-# Build specific targets
-./build.sh build --radiationModels --pyrolysisModels --porousGasificationFoam
-
-# Skip DEM (if YADE is not available)
-./build.sh build --no-DEM
-
-# Dry-run to preview commands
-./build.sh build --all --dry-run
-
-# Clean
+./Allwclean
+# or
 ./build.sh clean --all
 ```
 
-### Build targets and dependencies
-
-| Target | Type | Built by default | Dependency |
-|---|---|---|---|
-| DEM | library | yes (if WITH_YADE=1) | — |
-| fieldPorosityModel | library | yes | — |
-| radiationModels | library | yes | solid thermo |
-| thermophysicalModels | library suite | yes | — |
-| pyrolysisModels | library | yes | all above |
-| porousGasificationFoam | executable | yes | all libraries |
-| utilities | executable suite | yes | — |
-
-Build order is automatic: libraries first, then applications.
-
-### YADE DEM coupling
-
-To enable the DEM module, build with:
-
-```bash
-WITH_YADE=1 ./build.sh build --all
-```
-
-You must have YADE installed with the OpenFOAM coupling module.
-If YADE is not available, use `--no-DEM` or omit the flag (DEM is
-not built by default without `WITH_YADE=1`).
-
----
-
-## Case Structure
-
-A typical case directory:
+## Project Structure
 
 ```
-myCase/
-├── 0/                          # Initial conditions
-│   ├── p                       # Pressure [Pa]
-│   ├── U                       # Velocity [m/s]
-│   ├── T                       # Gas temperature [K]
-│   ├── Ts                      # Solid temperature [K]
-│   ├── rhos                    # Solid density [kg/m³]
-│   ├── porosityF               # Porosity (0 = solid, 1 = gas)
-│   ├── porosityF0              # Initial porosity (archived copy)
-│   ├── Df                      # Darcy resistance tensor
-│   ├── N2, O2, CO, ...         # Gas species mass fractions
-│   ├── Ywood, Yash, ...        # Solid species mass fractions
-│   ├── Ydefault                # Default field for unmatched gas species
-│   └── YsDefault               # Default field for unmatched solid species
-├── constant/
-│   ├── thermophysicalProperties    # Gas-phase thermo (JANAF, Sutherland)
-│   ├── thermo.compressibleGas      # Included gas species definitions
-│   ├── solidThermophysicalProperties # Solid components and properties
-│   ├── chemistryProperties         # Solid chemistry: reactions, solver settings
-│   ├── reactions                   # Gas-phase homogeneous reactions
-│   ├── pyrolysisProperties         # Pyrolysis model selection and parameters
-│   ├── heatTransferProperties      # Gas-solid convective heat transfer
-│   ├── specieTransferProperties    # Mass transfer (diffusion-limited reactions)
-│   ├── radiationProperties         # Heterogeneous radiation model
-│   ├── turbulenceProperties        # Laminar / RAS / LES
-│   ├── g                           # Gravity vector
-│   └── polyMesh/                   # Mesh (from blockMesh or other)
-└── system/
-    ├── controlDict                 # Time control, maxCo, maxDi
-    ├── fvSchemes                   # Spatial and temporal discretization
-    ├── fvSolution                  # Linear solvers, PIMPLE controls
-    ├── blockMeshDict               # Mesh definition
-    ├── setFieldsDict               # Initial field distribution
-    ├── decomposeParDict            # Parallel decomposition
-    └── probes                      # Point/line data sampling
+porousGasificationFoam/
+├── porousGasificationFoam/          # Main solver executable
+│   ├── porousGasificationFoam.C     # Time loop (main algorithm)
+│   ├── createFields.H               # Field creation
+│   ├── createPorosity.H             # Darcy resistance setup
+│   ├── createPyrolysisModel.H       # Pyrolysis/solid chemistry setup
+│   ├── rhoEqn.H                     # Gas continuity equation
+│   ├── UEqn.H                       # Momentum equation (Navier-Stokes + Darcy)
+│   ├── YEqn.H                       # Gas species transport
+│   ├── EEqn.H                       # Gas energy equation
+│   ├── pEqn.H / pcEqn.H             # Pressure correction
+│   ├── radiation.H                  # Radiative source term
+│   ├── solidRegionDiffusionNo.H     # Solid diffusion stability
+│   ├── setMultiRegionDeltaT.H       # Time-step controller
+│   └── updateChemistryTimeStep.H    # Chemistry-limited time step
+├── porousGasificationMedia/         # Supporting libraries
+│   ├── pyrolysisModels/
+│   │   └── volPyrolysis/            # Solid-phase evolution engine
+│   ├── thermophysicalModels/
+│   │   └── porousSolidChemistryModel/
+│   │       ├── ODESolidHeterogeneousChemistryModel/  # ODE chemistry solver
+│   │       └── basicPorousChemistryModel/             # Base chemistry class
+│   ├── radiationModels/             # Heterogeneous P1 / mean-temp radiation
+│   ├── fieldPorosityModel/          # Darcy resistance (pZones.addResistance)
+│   └── DEM/                         # YADE DEM coupling (optional)
+├── tutorials/
+│   └── cases/                       # 13 tutorial cases
+├── utilities/
+│   ├── setPorosity/                 # Creates porosityF and Df fields
+│   ├── totalMassPorousGasificationFoam/  # Mass conservation diagnostic
+│   ├── bash_utils/                  # Helper scripts
+│   └── py_utils/                    # Python post-processing tools
+├── build.sh                         # Fine-grained build script
+└── doc/Doxygen/                     # Doxygen documentation source
 ```
 
----
+## Detailed Physical and Code Structure
+
+### Core Concept: Two-Phase Coexistence
+
+Gas and solid phases coexist in every cell, distinguished by the **porosity** field `porosityF`:
+
+| `porosityF` | Meaning |
+|---|---|
+| 1.0 | Pure gas (no solid) |
+| 0.0 | Pure solid (fully dense) |
+| 0 < φ < 1 | Porous medium containing both phases |
+
+The solid mass per unit volume is `rhos = rho * (1 - porosityF)` [kg/m³], where `rho` is the intrinsic solid material density. Mass, momentum, and energy are exchanged between phases through coupling source terms computed by the pyrolysis/chemistry model.
+
+### What Happens in One Time Step (10-Step Algorithm)
+
+The main solver loop in `porousGasificationFoam.C` executes the following sequence:
+
+```
+┌─────────────────────────────────────────────────┐
+│ 1. Time-step control                            │
+│    → Courant (gas), Diffusion (solid), Chemistry │
+├─────────────────────────────────────────────────┤
+│ 2. Radiation (solid phase)                      │
+│    → radiation->correct()                       │
+│    → radiationF = radiation->solidSh()          │
+├─────────────────────────────────────────────────┤
+│ 3. Solid phase evolution                        │
+│    → pyrolysisZone.evolve()                     │
+│      a. Chemistry ODE integration               │
+│      b. Solid species mass conservation         │
+│      c. Porosity evolution                      │
+│      d. Solid energy equation                   │
+├─────────────────────────────────────────────────┤
+│ 4. Gas continuity (rhoEqn)                      │
+│    → ∂(φ·ρ)/∂t + ∇·(φ·U) = Sρ·(1-φ)           │
+├─────────────────────────────────────────────────┤
+│ 5. PIMPLE loop (iterative):                     │
+│    a. Momentum (UEqn) — NS + Darcy resistance   │
+│    b. Gas species (YEqn) — advection-diffusion  │
+│    c. Gas energy (EEqn) — enthalpy transport    │
+│    d. Pressure correction (pEqn)                │
+├─────────────────────────────────────────────────┤
+│ 6. Turbulence update                            │
+└─────────────────────────────────────────────────┘
+```
+
+#### Step 1: Time-Step Control
+
+Three stability limits are checked and the minimum time step is selected:
+
+```
+maxDeltaTFluid  = maxCo / (CoNum + SMALL)
+maxDeltaTSolid  = maxDi / (DiNum + SMALL)
+```
+
+- `maxCo` — Courant number for the gas phase (default 5)
+- `maxDi` — Diffusion number for the solid phase (default 5000), computed from `K * deltaCoeffs / (Cp * rho)`
+- Chemistry time step — returned by the ODE integrator
+
+The actual time step change is damped to avoid oscillations:
+```
+dt_new = dt_old * min(1.2, min(1+0.1·r_fluid, 1+0.1·r_solid, r_fluid, r_solid))
+```
+
+#### Step 2: Radiation
+
+```cpp
+radiation->correct();
+radiationF = radiation->solidSh();
+```
+
+Two heterogeneous radiation models:
+
+| Model | Description |
+|---|---|
+| `heterogeneousP1` | P1 approximation — accounts for solid-phase absorption, scattering, emission. Solves a diffusion equation for incident radiation. |
+| `heterogeneousMeanTemp` | Simplified model using mean temperature. |
+
+Radiative source term `radiationF` [W/m³] is computed based on solid temperature, absorption coefficient `a`, scattering coefficient `as`, and surface layer properties (`borderAs`, `borderL`).
+
+#### Step 3: Solid Phase Evolution (`pyrolysisZone.evolve()`)
+
+This is the heart of the solver, implemented in `volPyrolysis::evolveRegion()` (`volPyrolysis.C:1214`). It performs five sub-steps:
+
+##### 3a. Solid Chemistry ODE Integration
+
+```cpp
+timeChem_ = solidChemistry_->solve(t0, deltaT);
+```
+
+Integrates per-cell ordinary differential equations for solid species conversion, gas generation, and temperature change. Returns the characteristic chemical time scale. (See detailed chemistry section below.)
+
+##### 3b. Chemical Energy Source
+
+```cpp
+chemistrySh_ = solidChemistry_->Sh()();
+```
+
+Computes the energy release/absorption [W/m³] from heterogeneous reactions. Two modes:
+- `solidReactionEnergyFromEnthalpy = true`: uses heats of formation `hf` of solid and gas species
+- `solidReactionEnergyFromEnthalpy = false`: uses specified `heatOfReaction` from reaction definition
+
+##### 3c. Energy to Heat Pyrolysis Gases
+
+```cpp
+heatUpGas_ = heatUpGasCalc()();
+```
+
+Pyrolysis gases leave the solid at solid temperature `Ts` and must be heated (or cooled) to the gas temperature `Tg` in the energy equation. This term represents `Sρ · Cp_gas · (Ts - Tg)`.
+
+##### 3d. Solid Species Mass Conservation (`solveSpeciesMass()`)
+
+Solves two equations:
+
+1. **Solid bulk density** (advection only):
+```
+∂ρ_s/∂t = -∇·(ρ_s · Us)
+```
+
+2. **Solid species mass fractions** (chemistry + advection):
+```
+∂(ρLoc · Y_s,i)/∂t = ω_s,i - ∇·(Us · ρLoc · Y_s,i)
+```
+where `ρLoc = max(ρ · (1-φ), SMALL)`.
+
+After solving all species, mass fractions are renormalized so they sum to 1.
+
+##### 3e. Porosity Evolution (`evolvePorosity()`)
+
+```
+∂φ/∂t = RRpor - ∇·(Us · φ)
+```
+where:
+```
+RRpor = -Σ(ω_s,i / ρ_s,i)    [1/s]
+```
+
+After solving, cells where porosity exceeds `criticalPorosity` (default 0.9999) are identified for the bed-collapse algorithm. If `bedCollapse` is enabled, material from downstream cells is shifted upward to replenish solid mass.
+
+##### 3f. Solid Energy Equation (`solveEnergy()`)
+
+```
+ρCp · ∂Ts/∂t = ∇·(K_eff · ∇(Ts)) + Sh_chem - Q_conv - Q_heatUpGas + Q_radiation
+```
+
+where:
+- `K_eff = K · (1-φ) · anisotropyK` — effective solid thermal conductivity
+- `Sh_chem` — reaction heat from chemistry
+- `Q_conv = h · SAV · (Ts - Tg)` — gas-solid convective exchange (from `heatTransferProperties`)
+- `Q_heatUpGas` — energy to heat pyrolysis gas
+- `Q_radiation` — from radiation model
+
+A simplified immersed boundary treatment zeroes out conductive fluxes across the gas-solid interface to avoid spurious heat transfer at porous medium boundaries.
+
+### Solid Chemistry — ODE Integration
+
+The chemistry model is `ODESolidHeterogeneousChemistryModel` in `thermophysicalModels/porousSolidChemistryModel/`.
+
+#### Reaction Rate Laws
+
+Four kinetic rate variants (line 1 of reaction definition):
+
+| Keyword | Rate formula `k(T) =` |
+|---|---|
+| `irreversibleSolidArrheniusHeterogeneousReaction` | `A · exp(-Ta/T)` (if T ≥ Tcrit, else 0) |
+| `irreversibleSolidTemperatureArrheniusHeterogeneousReaction` | `A · T · exp(-Ta/T)` |
+| `irreversibleSolidModArrHeterogeneousReaction` | `A · (T-Tcrit)^(2/3) · exp(-Ta/T)` |
+| `irreversibleSolidConstHeterogeneousReaction` | `A` (constant) |
+
+The overall forward rate for a reaction is:
+
+```
+kf = k(T) · Π(Y_reactant_i^n_i) · ρ_solid   (for solid reactants)
+kf = k(T) · Π(Y_reactant_i^n_i) · ρ_gas     (for gas-only reactants)
+```
+
+#### Diffusion-Limited Reactions
+
+When `diffusionLimitedReactions = true`, the effective rate is limited by mass transfer:
+
+```
+1/k_eff = 1/k_kinetic + Σ(1 / (ST · ρ_g · Y_gas_reactant))
+```
+
+where `ST` is the mass transfer coefficient [1/s] from `constant/specieTransferProperties`.
+
+#### Per-Cell ODE System
+
+For each cell containing solid, the following system is solved:
+
+```
+d(ρ_s · Y_s,i)/dt = ω_s,i              (i = 1..nSolids)
+d(ρ_g · Y_g,j)/dt = ω_g,j              (j = 1..nGases)
+dT/dt = -Σ(ω_i · H_i) / Σ(Y_i · Cp_i)   (temperature)
+```
+
+The last equation is derived from the energy balance: reaction heat changes temperature via `Cp·dT/dt = -Σ(ω_i · hf_i)` when using enthalpy-based energy, or `Cp·dT/dt = heatOfReaction` when using specified heats.
+
+#### ODE Sub-Cycling Algorithm (`calculateSourceTerms()`)
+
+The ODE system is integrated with adaptive sub-cycling:
+
+```
+t = t0
+timeLeft = deltaT
+while (timeLeft > SMALL):
+    tauC_ = solve(specieConcentration_, Ti, p, t, dt_)
+    t += dt_
+    // Update temperature from reaction enthalpy
+    dTi = -Σ(ΔYi·hfi) + heatOfReaction) / (newCp · solidRho) · dt_
+    Ti += dTi
+    timeLeft -= dt_
+    dt_ = min(timeLeft, tauC_)
+```
+
+The default ODE solver is `seulex` (implicit extrapolation method), configured in `chemistryProperties`.
+
+#### Mass Partitioning
+
+Two modes controlled by `stoichiometricReactions`:
+
+| Mode | Description |
+|---|---|
+| `false` (default) | Mass fractions split by stoichiometric coefficient ratios. Total substrates mass = total products mass. |
+| `true` | Uses molecular weights to compute mass-conserving partitioning. Accounts for differences in molar masses between reactants and products. |
+
+In both modes, mass is strictly conserved. If a solid substrate converts to both solid products and gas products, the mass ratio between solid and gas products is proportional to the stoichiometric coefficients.
+
+### Porosity Evolution and Bed Motion
+
+#### Porosity Source
+
+The porosity source term represents solid consumption:
+
+```
+RRpor = -Σ(ω_s,i / ρ_s,i)
+```
+
+The porosity equation is solved with an advection term for moving beds:
+
+```cpp
+fvScalarMatrix porosityEqn
+(
+    fvm::ddt(por)
+    ==
+    porositySource_
+    - fvc::div(Us, por, "div(phiSolid)")
+);
+```
+
+#### Bed Collapse Model
+
+When `bedCollapse = true` in `pyrolysisProperties` and porosity exceeds `criticalPorosity`:
+
+1. **Detection**: Cells where `porosity > criticalPorosity` AND `(Us · ∇(whereIs)) > 0` (solid moving into the cell) are flagged.
+2. **Path tracing**: Starting from each flagged cell, the algorithm follows the advection path opposite to the solid velocity direction, building a chain of cells (a "route").
+3. **Material shift**: Properties (porosity, porosityF0, temperature, solid density, solid species mass fractions) are copied from the source cell downward along the route:
+
+```cpp
+porosity[destination] = 1 - (1 - porosity[source]) * (V_source / V_destination)
+T[destination] = T[source]
+rho[destination] = rho[source]
+Ys[i][destination] = Ys[i][source]
+```
+
+### Gas-Solid Coupling Summary
+
+| Quantity | Solid Equation Source | → Gas Equation Source |
+|---|---|---|
+| Mass | `∂ρ_s/∂t = -ω_s` (loss) | `Sρ = +ω_s` in `rhoEqn`, `YEqn`, `pEqn` |
+| Species `i` | `ω_s,i` in species mass eqn | `Sρ(i) = +ω_s,i` in `YEqn` |
+| Energy | `-Sh_chem + Q_conv + Q_heatUpGas - Q_rad` in `solveEnergy()` | `+Q_conv + Q_heatUpGas + radiation->Sh()` in `EEqn` |
+| Momentum | — | Darcy resistance `Df·U` in `UEqn` |
+| Volume | Porosity `φ` fills gas space | `φ` multiplies gas-phase volume terms |
+
+Source terms in detail:
+
+- `Srho = Σω_s,i` [kg/m³/s] — total mass transferred solid → gas, limited to `(1 - porosityF)` in equations
+- `Srho(i) = ω_g,i` [kg/m³/s] — mass of gas species `i` from pyrolysis
+- `heatTransfer = h · SAV · (Ts - Tg)` [W/m³] — convective exchange
+- `heatUpGas = Sρ · Cp_gas · (Ts - Tg)` [W/m³] — heating pyrolysis products
+- `chemistrySh_` [W/m³] — heterogeneous reaction heat
+- `radiationF` [W/m³] — solid radiative source
 
 ## Input File Reference
 
-### `constant/thermophysicalProperties`
+### `constant/chemistryProperties`
 
-Gas-phase thermodynamics. Standard OpenFOAM configuration:
+Defines solid chemistry configuration — the most important file for reaction kinetics.
 
 ```cpp
-thermoType
+chemistry           on;
+
+solidChemistryType
 {
-    type            hePsiThermo;
-    mixture         multiComponentMixture;
-    transport       sutherland;
-    thermo          janaf;
-    energy          sensibleEnthalpy;
-    equationOfState perfectGas;
-    specie          specie;
+    solver              solidOde;
+    method              ODESolidHeterogeneousChemistryModel;
+    solidThermoType     const<constRad<constThermo<constRho>>>;
 }
 
-inertSpecie N2;
-solveEnergy true;
+initialChemicalTimeStep 1e-5;
 
-#include "thermo.compressibleGas";
+solidReactionEnergyFromEnthalpy false;   // true = use Hf, false = use heatReact
+stoichiometricReactions false;           // true = mass-conserving stoichiometry
+diffusionLimitedReactions true;          // enable mass-transfer limitation
+showRelativeReactionRates false;
+
+solidOdeCoeffs
+{
+    solver      seulex;                  // ODE integrator
+}
+
+species  // Pyrolysis gas names (must match gas species fields in 0/)
+(
+    CO N2 O2
+);
+
+solidReactions
+(
+    // Format (3 lines per reaction):
+    // irreversibleSolidArrheniusHeterogeneousReaction
+    // wood + 1.25 O2 = 0.5 ash + 1.75 CO
+    // (5.61e9 1.96e4 300 -6.22e6 1.0 1.0)
+);
 ```
 
-The included file `thermo.compressibleGas` lists each gas species with
-its JANAF `Cp(T)` coefficients, Sutherland transport coefficients, and
-molecular weight.
+**Reaction parameter format**: `(A Ta Tcrit heatOfReaction n1 n2 ...)`
 
----
+| Parameter | Meaning | Units |
+|---|---|---|
+| `A` | Pre-exponential factor | varies |
+| `Ta` | Activation temperature `Ea/R` | [K] |
+| `Tcrit` | Minimum temperature for reaction | [K] |
+| `heatOfReaction` | Heat released/absorbed (>0 = exothermic) | [J/kg] |
+| `n1, n2, ...` | Reaction order for each LHS species in order | — |
 
 ### `constant/solidThermophysicalProperties`
 
@@ -262,42 +447,15 @@ solidComponents
 
 woodCoeffs
 {
-    transport
-    {
-        K           0.341;   // Thermal conductivity [W/m/K]
-    }
-    thermodynamics
-    {
-        Cp          1800;    // Specific heat [J/kg/K]
-        Hf          -1.04e6; // Heat of formation [J/kg]
-    }
-    density
-    {
-        rho         1050;    // Intrinsic solid density [kg/m³]
-    }
+    transport       { K           0.341; }   // [W/m/K]
+    thermodynamics  { Cp          1800;  Hf -1.04e6; }  // [J/kg/K], [J/kg]
+    density         { rho         1050; }   // [kg/m³]
 };
 
-ashCoeffs
-{
-    transport
-    {
-        K           0.15;
-    }
-    thermodynamics
-    {
-        Cp          2400;
-        Hf          -12.38e6;
-    }
-    density
-    {
-        rho         650;
-    }
-};
+ashCoeffs { ... }
 ```
 
-Component dictionary names are formed as `<componentName>Coeffs`.
-
-Three thermo variants are available:
+Three thermo variants:
 
 | `solidThermoType` | Cp(T) | Transport | Notes |
 |---|---|---|---|
@@ -305,214 +463,72 @@ Three thermo variants are available:
 | `expoHeterogeneous` | `c0·(T/Tref)^n0` | exponential | T-dependent Cp and K |
 | `linearHeterogeneous` | constant | linear | T-dependent K = a·T + b |
 
----
-
-### `constant/chemistryProperties`
-
-Solid chemistry configuration — the most important file for defining
-your reaction kinetics.
-
-```cpp
-chemistry           on;
-
-solidChemistryType
-{
-    solver              solidOde;
-    method              ODESolidHeterogeneousChemistryModel;
-    solidThermoType     const<constRad<constThermo<constRho>>>;
-}
-
-initialChemicalTimeStep 1e-5;
-
-solidReactionEnergyFromEnthalpy false;  // true = use Hf, false = use heatReact
-stoichiometricReactions false;          // true = mass-conserving stoichiometry
-diffusionLimitedReactions true;         // enable mass-transfer limitation
-showRelativeReactionRates false;
-
-solidOdeCoeffs
-{
-    solver      seulex;                 // ODE integrator
-}
-
-species  // Pyrolysis gas names (must match gas species)
-(
-    CO N2 O2
-);
-
-solidReactions
-(
-    // One or more reactions (see Reaction Format below)
-);
-```
-
-#### Reaction Format
-
-Each reaction entry has three lines:
-
-```
-irreversibleSolidArrheniusHeterogeneousReaction
-wood + 1.25 O2 = 0.5 ash + 1.75 CO
-(5.61e9 1.96e4 300 -6.22e6 1.0 1.0)
-```
-
-**Line 1 — Reaction type keyword:**
-
-| Keyword | Rate formula `k(T) =` |
-|---|---|
-| `irreversibleSolidArrheniusHeterogeneousReaction` | `A·exp(-Ta/T)` (if `T ≥ Tcrit`, else 0) |
-| `irreversibleSolidTemperatureArrheniusHeterogeneousReaction` | `A·T·exp(-Ta/T)` |
-| `irreversibleSolidModArrHeterogeneousReaction` | `A·(T-Tcrit)^(2/3)·exp(-Ta/T)` |
-| `irreversibleSolidConstHeterogeneousReaction` | `A` (constant) |
-
-**Line 2 — Stoichiometric equation:**
-
-Format: `[n]Reactant1 [+ n]Reactant2 = [n]Product1 [+ n]Product2`
-
-- Reactants and products can be solid names (from `solidThermophysicalProperties/solidComponents`) or gas names (from `species` list above)
-- Numeric stoichiometric coefficients are optional (default 1)
-- Solid names and gas names are distinguished automatically
-
-**Line 3 — Rate parameters:**
-
-`(A Ta Tcrit heatOfReaction n1 n2 ...)`
-
-| Parameter | Meaning | Units |
-|---|---|---|
-| `A` | Pre-exponential factor | varies |
-| `Ta` | Activation temperature `Ea/R` | [K] |
-| `Tcrit` | Minimum temperature for reaction | [K] |
-| `heatOfReaction` | Heat released/absorbed (>0 = exothermic) | [J/kg] |
-| `n1, n2, ...` | Reaction order for each LHS species in order | — |
-
----
-
 ### `constant/pyrolysisProperties`
 
 ```cpp
 active          true;
-
 heterogeneousPyrolysisModel  volPyrolysis;
 
 pyrolysisCoeffs
 {
-    subintegrateHeatTransfer true;  // sub-cycle heat transfer
-    bedCollapse             false;  // enable bed motion
-    criticalPorosity        0.9999; // porosity threshold for bed collapse
-    replenish               false;  // fuel replenishment model
+    subintegrateHeatTransfer true;
+    bedCollapse             false;       // enable bed motion
+    criticalPorosity        0.9999;      // porosity threshold for bed collapse
+    replenish               false;       // fuel replenishment model
 }
-
-infoOutput      true;
 ```
-
-The only implemented pyrolysis model is `volPyrolysis`. It solves solid
-species conservation, solid temperature, and porosity evolution.
-
----
 
 ### `constant/heatTransferProperties`
 
-Gas-solid convective heat exchange coefficient.
-
 ```cpp
 heatTransferModel constCONV;
-
 Parameters
 {
-    h       8;      // Heat transfer coefficient [W/m²/K]
-    SAV     468;    // Specific surface area [1/m]
+    h       8;        // Heat transfer coefficient [W/m²/K]
+    SAV     468;      // Specific surface area [1/m]
 }
 ```
 
-The volumetric heat transfer rate is `h · SAV · (T_gas - T_solid)`.
-
----
+Volumetric heat transfer rate: `Q = h · SAV · (T_gas - T_solid)` [W/m³].
 
 ### `constant/specieTransferProperties`
 
-Mass transfer coefficient for diffusion-limited reactions.
-
 ```cpp
 specieTransferModel constST;
-
 Parameters
 {
-    h       0.017;  // Mass transfer coefficient
-    SAV     468;    // Specific surface area [1/m]
+    h       0.017;    // Mass transfer coefficient
+    SAV     468;      // Specific surface area [1/m]
 }
 ```
 
-Only used when `diffusionLimitedReactions true` in `chemistryProperties`.
-
----
+Only used when `diffusionLimitedReactions true`.
 
 ### `constant/radiationProperties`
 
 ```cpp
 radiation       on;
-
 heterogeneousRadiationModel  heterogeneousP1;
 solverFreq 1;
 
 heterogeneousAbsorptionEmissionModel heterogeneousConstantAbsorptionEmission;
-
 heterogeneousConstantAbsorptionEmissionCoeffs
 {
-    a               a  [ 0 -1  0 0 0 0 0 ] 0;      // Absorption coefficient [1/m]
-    as              as [ 0 -1  0 0 0 0 0 ] 0;      // Scattering coefficient [1/m]
+    a               a  [ 0 -1  0 0 0 0 0 ] 0;       // Absorption coefficient [1/m]
+    as              as [ 0 -1  0 0 0 0 0 ] 0;       // Scattering coefficient [1/m]
     borderAs        borderAs [ 0 -1  0 0 0 0 0 ] 180; // Surface absorption [1/m]
     E               E  [ 1 -1 -3 0 0 0 0 ] 0.0;     // Emissive power
-    borderL         borderL  [ 0 1 0 0 0 0 0 ] 1.5e-3; // Surface layer thickness [m]
+    borderL         borderL  [ 0 1 0 0 0 0 0 ] 1.5e-3; // Surface layer [m]
 }
 ```
 
-Two radiation models:
-
-- `heterogeneousP1` — P1 approximation, accounts for solid-phase absorption
-- `heterogeneousMeanTemp` — simplified mean-temperature model
-
-Set to `none` to disable heterogeneous radiation.
-
----
-
-### `constant/turbulenceProperties`
-
-Standard OpenFOAM. Most porous-media cases use laminar flow:
-
-```cpp
-simulationType  laminar;
-```
-
----
-
-### `system/controlDict`
-
-Key settings specific to this solver:
-
-```cpp
-application     porousGasificationFoam;
-
-deltaT          0.001;
-adjustTimeStep  yes;
-maxCo           5;          // Courant number limit (fluid)
-maxDi           5000;       // Diffusion number limit (solid)
-```
-
-`maxDi` controls the solid-phase time step through the diffusion
-stability criterion computed by `solidRegionDiffusionNo.H`.
-
----
-
-### `system/fvSolution`
-
-Solvers for solver-specific fields:
+### `system/fvSolution` — Key Settings
 
 ```cpp
 solvers
 {
-    p                   { solver GAMG; ... }
-    "(U|h|Yi|Ys|porosity)"  { solver PBiCG; preconditioner DILU; ... }
-    Ts                  { solver PCG; preconditioner DIC; tolerance 1e-10; }
-    rhos                { solver PCG; preconditioner DIC; ... }
+    Ts    { solver PCG; preconditioner DIC; tolerance 1e-10; } // tight tolerance!
+    rhos  { solver PCG; preconditioner DIC; }
 }
 
 PIMPLE
@@ -524,62 +540,44 @@ PIMPLE
 }
 ```
 
-The `Ts` (solid temperature) solver needs a tight tolerance (1e-10)
-for stability.
+The `Ts` (solid temperature) solver requires a tight tolerance (1e-10) for stability.
 
----
-
-### `system/fvSchemes`
+### `system/fvSchemes` — Key Settings
 
 ```cpp
-ddtSchemes
-{
-    default         Euler;
-}
-
-divSchemes
-{
-    div(phiSolid)     Gauss upwind;
-    div(phi,U)        Gauss linearUpwindV default;
-    div(phi,Yi)       Gauss upwind;
-    div(phi,h)        Gauss upwind;
-}
+div(phiSolid)     Gauss upwind;   // MUST be upwind for solid advection stability
 ```
 
-`div(phiSolid)` must be `upwind` for stability of the solid advection equation.
+### `system/controlDict` — Key Settings
 
----
+```cpp
+application     porousGasificationFoam;
+adjustTimeStep  yes;
+maxCo           5;          // Courant number limit (fluid)
+maxDi           5000;       // Diffusion number limit (solid)
+```
 
 ## Required Initial Fields
 
-| Field | Type | Dimensions | Description |
-|---|---|---|---|
-| `p` | volScalarField | `[1 -1 -2 0 0 0 0]` | Pressure [Pa] |
-| `U` | volVectorField | `[0 1 -1 0 0 0 0]` | Velocity [m/s] |
-| `T` | volScalarField | `[0 0 0 1 0 0 0]` | Gas temperature [K] |
-| `Ts` | volScalarField | `[0 0 0 1 0 0 0]` | Solid temperature [K] |
-| `rhos` | volScalarField | `[1 -3 0 0 0 0 0]` | Solid density [kg/m³] |
-| `porosityF` | volScalarField | dimensionless | Porosity (0–1) |
-| `porosityF0` | volScalarField | dimensionless | Archival initial porosity |
-| `Df` | volTensorField | `[0 -2 0 0 0 0 0]` | Darcy resistance tensor |
-| `<gasName>` (e.g. `O2`, `N2`, `CO`) | volScalarField | dimensionless | Gas species mass fraction |
-| `Y<solidName>` (e.g. `Ywood`, `Yash`) | volScalarField | dimensionless | Solid species mass fraction |
-| `Ydefault` | volScalarField | dimensionless | Default gas field (set to 0) |
-| `YsDefault` | volScalarField | dimensionless | Default solid field (set to 0) |
+| Field | Type | Description |
+|---|---|---|
+| `p` | volScalarField | Pressure [Pa] |
+| `U` | volVectorField | Velocity [m/s] |
+| `T` | volScalarField | Gas temperature [K] |
+| `Ts` | volScalarField | Solid temperature [K] |
+| `rhos` | volScalarField | Solid density [kg/m³] |
+| `porosityF` | volScalarField | Porosity (0 = solid, 1 = gas) |
+| `porosityF0` | volScalarField | Initial porosity (archival copy) |
+| `Df` | volTensorField | Darcy resistance tensor |
+| `<gasName>` (e.g. `O2`, `N2`, `CO`) | volScalarField | Gas species mass fractions |
+| `Y<solidName>` (e.g. `Ywood`, `Yash`) | volScalarField | Solid species mass fractions |
+| `Ydefault` | volScalarField | Default field for unmatched gas species (set to 0) |
+| `YsDefault` | volScalarField | Default field for unmatched solid species (set to 0) |
 
 **Notes:**
-
-- `Df` is a tensor field. For an isotropic porous medium it is diagonal
-  with large values in gas-only regions (e.g. `1e9`) and smaller values
-  (based on permeability) in porous zones. Use the `setPorosity` utility
-  to create appropriate fields.
-- `porosityF0` stores the initial porosity distribution for reference.
-  It is set to the same values as `porosityF` at time 0.
-- Solid species field names are formed as `Y` + component name from
-  `solidThermophysicalProperties` (e.g. component `wood` → field `Ywood`).
+- `Df` is a tensor field. For isotropic porous media, use a diagonal tensor with large values (e.g. `1e9`) in gas-only regions and smaller values (based on permeability) in porous zones. Use the `setPorosity` utility to create appropriate fields.
+- Solid species field names: `Y` + component name from `solidThermophysicalProperties` (e.g. `wood` → `Ywood`).
 - Gas species field names match the `species` list in `chemistryProperties`.
-
----
 
 ## Tutorial Cases
 
@@ -587,9 +585,7 @@ All 13 cases under `tutorials/cases/`:
 
 | Case | Description | Notable features |
 |---|---|---|
-| `microTGA/microTGAMeanTemp` | Micro-scale TGA with mean-temp radiation | Radiation on, P1 model |
-| `microTGA/microTGAP1` | Micro-scale TGA with P1 radiation | Template case |
-| `microTGA/mircoTGATemplate` | Micro TGA template (typo preserved) | Full configuration reference |
+| `microTGA/` | Micro-scale TGA (3 variants: MeanTemp, P1, Template) | Radiation on, template reference |
 | `macroTGA_688K/` | Macro-scale TGA at 688 K | — |
 | `macroTGA_688K_fine/` | Macro-scale TGA at 688 K, refined mesh | — |
 | `macroTGA_879K/` | Macro-scale TGA at 879 K | — |
@@ -602,42 +598,20 @@ All 13 cases under `tutorials/cases/`:
 | `MicroTGA-DEM/` | DEM-coupled micro TGA | Requires YADE |
 | `DEM_UsInterp_*/` | DEM solid velocity interpolation tests | Requires YADE |
 
-To run all cases for validation:
-
-```bash
-cd tutorials
-./TestAllCases.sh
-```
-
-To clean all cases:
-
-```bash
-cd tutorials
-./CleanAllCases.sh
-```
-
----
-
 ## Utilities
 
 ### `setPorosity`
 
-Creates `porosityF` and `Df` fields based on porous medium parameters
-(particle diameter, tortuosity, permeability). Run before the simulation
-to set up the porous resistance:
+Creates `porosityF` and `Df` fields based on porous medium parameters (particle diameter, tortuosity, permeability). Run before the simulation:
 
 ```bash
 cd <caseDir>
 setPorosity
 ```
 
-Reads parameters from a dictionary; writes `0/porosityF` and `0/Df`.
-
 ### `totalMassPorousGasificationFoam`
 
-Post-processing utility that integrates solid-state mass over the
-computational domain at each stored time step. Useful for checking
-mass conservation:
+Post-processing utility that integrates solid-state mass over the domain at each stored time step. Useful for checking mass conservation:
 
 ```bash
 cd <caseDir>
@@ -646,26 +620,62 @@ totalMassPorousGasificationFoam
 
 Outputs total solid mass per species vs. time.
 
----
+## Build System
+
+### Simple build
+
+```bash
+./Allwmake      # Build everything
+./Allwclean     # Clean everything
+```
+
+### Fine-grained control with build.sh
+
+```bash
+./build.sh build --libs-only           # Libraries only
+./build.sh build --apps-only           # Solver and utilities only
+./build.sh build --radiationModels --pyrolysisModels --porousGasificationFoam  # Specific targets
+./build.sh build --no-DEM              # Skip DEM (if YADE not available)
+./build.sh build --all --dry-run       # Preview commands
+./build.sh clean --all                 # Clean all
+```
+
+### Build targets
+
+| Target | Type | Dependency |
+|---|---|---|
+| DEM | library | — (if `WITH_YADE=1`) |
+| fieldPorosityModel | library | — |
+| radiationModels | library | solid thermo |
+| thermophysicalModels | library suite | — |
+| pyrolysisModels | library | all above |
+| porousGasificationFoam | executable | all libraries |
+| utilities | executable suite | — |
+
+### YADE DEM coupling
+
+```bash
+WITH_YADE=1 ./build.sh build --all
+```
+
+Requires YADE installed with the OpenFOAM coupling module.
 
 ## Troubleshooting
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
 | `Cannot find library` | `porousGasificationMediaDirectories` not sourced | Run `source porousGasificationMediaDirectories` |
-| `undefined symbol` | Library version mismatch or incomplete rebuild | Run `./build.sh clean --all && ./build.sh build --all` |
-| Simulation crashes immediately | Missing initial fields | Check `constant/solidThermophysicalProperties` solidComponents match `0/Y*` files |
-| Negative temperatures | Too large time step, or reaction parameters too aggressive | Reduce `deltaT`, `maxCo`, `maxDi`, or `initialChemicalTimeStep` |
-| Porosity exceeds 1 or goes below 0 | Bed collapse active but too aggressive | Reduce `deltaT` or adjust `criticalPorosity` |
-| Mass fractions do not sum to 1 | Missing `Ydefault` field or gas species | Check that all gas species have corresponding `0/` fields |
-| Slow convergence in pressure | Tight PIMPLE settings or poor initial conditions | Increase `nCorrectors` or relax `tolerance` on `p` |
-| Parallel: `decomposePar` fails | Missing decompose constraints | Ensure `Ts`, `porosityF`, `porosityF0` use `calculated` or `zeroGradient` BCs on processor boundaries |
-
----
+| `undefined symbol` | Library version mismatch or incomplete rebuild | `./build.sh clean --all && ./build.sh build --all` |
+| Simulation crashes immediately | Missing initial fields | Check `solidComponents` match `0/Y*` files |
+| Negative temperatures | Too large time step, or aggressive reaction parameters | Reduce `deltaT`, `maxCo`, `maxDi`, or `initialChemicalTimeStep` |
+| Porosity exceeds 1 or goes below 0 | Bed collapse too aggressive | Reduce `deltaT` or adjust `criticalPorosity` |
+| Mass fractions do not sum to 1 | Missing `Ydefault` field or gas species | Check all gas species have corresponding `0/` files |
+| Slow convergence in pressure | Tight PIMPLE settings | Increase `nCorrectors` or relax `p` tolerance |
+| Parallel: `decomposePar` fails | Missing decompose constraints | Ensure `Ts`, `porosityF`, `porosityF0` use `calculated` or `zeroGradient` BCs |
 
 ## Documentation
 
-Doxygen documentation can be generated:
+Doxygen documentation:
 
 ```bash
 cd doc/Doxygen
@@ -674,8 +684,18 @@ cd doc/Doxygen
 
 Output: `$WM_PROJECT_DIR/doc/Doxygen/html/index.html`
 
-Requires `doxygen` and `graphviz` packages:
+Requires `doxygen` and `graphviz`:
 
 ```bash
 sudo apt-get install doxygen graphviz
 ```
+
+## Citation
+
+If you use this solver, please cite:
+
+> Żuk, P. J., Tużnik, B., Rymarz, T., Kwiatkowski, K., Dudyński, M., Galeazzo, F. C., & Krieger Filho, G. C. (2022). OpenFOAM solver for thermal and chemical conversion in porous media. *Computer Physics Communications*, 278, 108407.
+
+## Contributors
+
+Paweł Jan Żuk, Bartosz Tużnik, Tadeusz Rymarz, Zhiwar, Kamil Kwiatkowski, Marek Dudyński, Flavio C. C. Galeazzo, Guenther C. Krieger Filho, Filip Mróz (foam-extend-4.1 to v2406 port)
