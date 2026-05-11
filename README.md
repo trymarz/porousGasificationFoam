@@ -5,8 +5,8 @@ gas-solid physics. Designed for gasification, pyrolysis, and combustion
 of solid fuels (biomass, coal, char, etc.) in fixed and moving beds.
 
 - License: GNU GPL v3
-- OpenFOAM-v2406 (this repository): https://github.com/pjzuk/porousGasificationFoam
-- OpenFOAM 8 backport: https://github.com/btuznik/porousGasificationFoam
+- OpenFOAM-v2406 (this repository): <https://github.com/pjzuk/porousGasificationFoam>
+- OpenFOAM 8 backport: <https://github.com/btuznik/porousGasificationFoam>
 
 ---
 
@@ -14,10 +14,7 @@ of solid fuels (biomass, coal, char, etc.) in fixed and moving beds.
 
 If you use this solver, please cite:
 
-> P. J. Zuk, B. Tużnik, T. Rymarz, K. Kwiatkowski, M. Dudyński,
-> F. C. C. Galeazzo, G. C. Krieger Filho, F. Mróz
-> *OpenFOAM solver for thermal and chemical conversion in porous media*
-> Submitted to Computer Physics Communications
+Żuk, P. J., Tużnik, B., Rymarz, T., Kwiatkowski, K., Dudyński, M., Galeazzo, F. C., & Krieger Filho, G. C. (2022). OpenFOAM solver for thermal and chemical conversion in porous media. Computer Physics Communications, 278, 108407.
 
 ---
 
@@ -70,7 +67,7 @@ coupling source terms computed by the pyrolysis/chemistry model.
 3. **PIMPLE loop** (iterative pressure-velocity coupling):
    - Momentum: Navier-Stokes + Darcy porous resistance
    - Gas species transport: advection-diffusion with homogeneous reactions
-     + pyrolysis gas sources
+     - pyrolysis gas sources
    - Gas energy: enthalpy equation with reaction heat, gas-solid heat
      exchange, and radiation
    - Pressure correction: accounts for mass sources from pyrolysis
@@ -469,6 +466,7 @@ heterogeneousConstantAbsorptionEmissionCoeffs
 ```
 
 Two radiation models:
+
 - `heterogeneousP1` — P1 approximation, accounts for solid-phase absorption
 - `heterogeneousMeanTemp` — simplified mean-temperature model
 
