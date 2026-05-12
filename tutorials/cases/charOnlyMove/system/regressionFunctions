@@ -12,7 +12,7 @@
 //   gitlab.com/openfoam/core/openfoam/-/raw/master/tutorials/incompressible/
 //     pisoFoam/RAS/cavity/system/FOs/FOvolFieldValue
 //
-// Each block emits one tab-separated row per timestep to
+// Each block emits one tab-separated row per solution write event to
 //   postProcessing/<name>/<startTime>/volFieldValue.dat
 //
 // applications/test/regression/tools/compareScalars.py diffs every such
@@ -29,17 +29,18 @@ regressionBase
     writePrecision  10;
     writeToFile     true;
     log             false;
-    enabled         true;
+    enabled         false;         // not a real FO; children override this
     executeControl  timeStep;
     executeInterval 1;
-    writeControl    timeStep;
-    writeInterval   1;
+    writeControl    writeTime;     // write only at solution write events
+    writeInterval   -1;
 }
 
 // Volume integral of porosity. Bed-motion-sensitive and replenishment-sensitive.
 regressionPorosityIntegral
 {
     ${regressionBase}
+    enabled         true;
     fields          (porosityF);
     operation       volIntegrate;
 }
@@ -48,6 +49,7 @@ regressionPorosityIntegral
 regressionSolidSpeciesIntegrals
 {
     ${regressionBase}
+    enabled         true;
     fields          (Ychar Yash Yhum Yrubberwood);
     operation       volIntegrate;
 }
@@ -56,6 +58,7 @@ regressionSolidSpeciesIntegrals
 regressionTsAverage
 {
     ${regressionBase}
+    enabled         true;
     fields          (Ts);
     operation       volAverage;
 }
@@ -63,6 +66,7 @@ regressionTsAverage
 regressionTsMax
 {
     ${regressionBase}
+    enabled         true;
     fields          (Ts);
     operation       max;
 }
@@ -70,6 +74,7 @@ regressionTsMax
 regressionTsMin
 {
     ${regressionBase}
+    enabled         true;
     fields          (Ts);
     operation       min;
 }
