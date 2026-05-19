@@ -8,7 +8,7 @@ This file may lag the codebase. Before acting on any specific claim below, sanit
 
 Also flag if the *Last verified* date below predates significant recent commits in the affected area; in that case, propose a refresh rather than acting on stale guidance.
 
-*Last verified: 2026-05-19*
+*Last verified: 2026-05-20*
 
 ## Documentation split
 
@@ -22,6 +22,7 @@ Humans are welcome to edit this file, especially to record **current dev status*
 ## Git / VCS rules
 
 - **Do not modify `git config --global`.** Pass identity per-invocation when needed: `git -c user.name="…" -c user.email="…" commit -m "…"`.
+- **Never add a `Co-Authored-By:` footer naming the agent (or any other AI).** Commits must be attributed to the human user only. The user's identity (passed via `-c user.name` / `user.email` or already set in `git config`) is the sole author of every commit.
 - Match the commit-message style of recent log entries (`git log --oneline -10`). The repo currently mixes Conventional-Commits-style prefixes (`docs:`, `fix:`) with short imperative subjects; pick the style of the area you are touching.
 - **Never** use `--no-verify`, `--force-push`, or skip signing unless the user explicitly asks. If a pre-commit hook fails, fix the underlying issue and create a *new* commit — do not `--amend` around it.
 - Stage specific files by name (`git add path/to/file`). Avoid `git add -A` / `git add .` — tutorial runs leave behind `processor*/`, `postProcessing/`, time directories, and logs that are not meant for version control.
