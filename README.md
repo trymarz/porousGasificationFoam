@@ -728,6 +728,14 @@ Requires YADE installed with the OpenFOAM coupling module.
 | Slow convergence in pressure | Tight PIMPLE settings | Increase `nCorrectors` or relax `p` tolerance |
 | Parallel: `decomposePar` fails | Missing decompose constraints | Ensure `Ts`, `porosityF`, `porosityF0` use `calculated` or `zeroGradient` BCs |
 
+## For AI Coding Agents
+
+This repository ships an `AGENTS.md` at the root with a thin operating layer for AI coding agents (Claude Code, OpenCode, and any other tool that follows the `AGENTS.md` / `CLAUDE.md` conventions). A one-line `CLAUDE.md` `@import`s it so both tools load the same content.
+
+`AGENTS.md` contains only agent-specific guidance — workflow rules, verification habits, and a short "current dev status" block that humans are encouraged to keep up to date. Anything useful to a human contributor stays in this README; the split is intentional and one-directional.
+
+If you collaborate with an agent on this codebase, edit `AGENTS.md` to record what is in flux and what direction the next chunk of work is heading. Agents are instructed to flag contradictions between `AGENTS.md` and the current code if they spot any, so a slightly out-of-date file fails loud rather than silent.
+
 ## Documentation
 
 Doxygen documentation:
