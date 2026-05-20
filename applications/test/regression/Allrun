@@ -83,7 +83,7 @@ for caseRel in "${CASES[@]}"; do
 
     if [ ! -d "$caseDir/reference/postProcessing" ]; then
         clog WARNING "No reference baseline at $caseRel/reference/postProcessing/ - skipping"
-        clog WARNING "Capture one locally; see applications/test/regression/README.md"
+        clog WARNING "Capture one locally; see the 'Regression Testing' section in README.md"
         skipped+=("$caseRel")
         continue
     fi

@@ -52,7 +52,7 @@ When you need a load-bearing fact, go to the README rather than re-deriving it f
 | Practical pitfalls (true vs bulk density, JANAF substitution, radiation calibration, time-step coupling) | "Tips for Preparing New Simulations" |
 | Build targets and dependencies | "Build System" |
 | Common failure modes | "Troubleshooting" |
-| Regression framework — hook a case, capture a baseline, run comparisons | `applications/test/regression/README.md` |
+| Regression framework — hook a case, capture a baseline, run comparisons | "Regression Testing" |
 
 ---
 
