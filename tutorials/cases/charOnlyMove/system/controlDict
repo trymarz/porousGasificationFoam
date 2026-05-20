@@ -57,6 +57,11 @@ functions
 {
 //    #includeFunc  probes
 //    #includeFunc  sample
+
+    // Regression-test scalars (see applications/test/regression/).
+    // The include is silent if the file is absent, so removing
+    // regressionFunctions reverts the case to its original behaviour.
+    #includeIfPresent "regressionFunctions"
 }
 
 // ************************************************************************* //

@@ -1,0 +1,123 @@
+#!/bin/bash
+# Regression test runner.
+# Iterates the case paths listed in cases.list, runs each case, then diffs
+# postProcessing/ output against the committed reference/ baseline.
+#
+# Verified against:
+#   gitlab.com/openfoam/core/openfoam : tutorials use Allrun + RunFunctions.
+#   gitlab.com/openfoam/core/openfoam/.../FOvolFieldValue : functionObject syntax.
+
+set -u
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+
+# helpers.sh uses an unguarded $HELPERS_SOURCED include guard; disable -u
+# around the source so it works under our strict mode.
+# shellcheck disable=SC1091
+set +u; . "$REPO_ROOT/utilities/bash_utils/helpers.sh"; set -u
+
+CASES_FILE="$SCRIPT_DIR/cases.list"
+COMPARE="$SCRIPT_DIR/tools/compareScalars.py"
+RUN_CASE="$SCRIPT_DIR/tools/runCase.sh"
+
+RTOL="1e-4"
+ATOL="1e-12"
+ONLY_CASE=""
+SKIP_RUN=false
+
+usage() {
+    cat <<EOF
+Usage: $0 [options]
+
+Options:
+  --case <path>   Run only the named case (must appear in cases.list).
+  --rtol <val>    Relative tolerance for compareScalars.py (default 1e-4).
+  --atol <val>    Absolute tolerance for compareScalars.py (default 1e-12).
+  --no-run        Skip running cases; only compare existing postProcessing/
+                  output to reference/.
+  -h, --help      Show this help.
+EOF
+}
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --case) ONLY_CASE="$2"; shift 2 ;;
+        --rtol) RTOL="$2"; shift 2 ;;
+        --atol) ATOL="$2"; shift 2 ;;
+        --no-run) SKIP_RUN=true; shift ;;
+        -h|--help) usage; exit 0 ;;
+        *) clog ERROR "Unknown option: $1"; usage; exit 2 ;;
+    esac
+done
+
+if [ ! -f "$CASES_FILE" ]; then
+    clog ERROR "Cases file not found: $CASES_FILE"
+    exit 2
+fi
+
+# Load cases (strip comments and blank lines).
+mapfile -t CASES < <(grep -vE '^\s*(#|$)' "$CASES_FILE")
+
+if [ "${#CASES[@]}" -eq 0 ]; then
+    clog WARNING "No cases listed in $CASES_FILE"
+    exit 0
+fi
+
+passed=()
+failed=()
+skipped=()
+
+for caseRel in "${CASES[@]}"; do
+    if [ -n "$ONLY_CASE" ] && [ "$(basename "$caseRel")" != "$ONLY_CASE" ] && [ "$caseRel" != "$ONLY_CASE" ]; then
+        continue
+    fi
+
+    caseDir="$REPO_ROOT/$caseRel"
+
+    if [ ! -d "$caseDir" ]; then
+        clog ERROR "Case directory missing: $caseDir"
+        failed+=("$caseRel (missing)")
+        continue
+    fi
+
+    if [ ! -d "$caseDir/reference/postProcessing" ]; then
+        clog WARNING "No reference baseline at $caseRel/reference/postProcessing/ - skipping"
+        clog WARNING "Capture one locally; see the 'Regression Testing' section in README.md"
+        skipped+=("$caseRel")
+        continue
+    fi
+
+    clog INFO "=== regression: $caseRel ==="
+
+    runFlag=""
+    [ "$SKIP_RUN" = true ] && runFlag="--no-run"
+
+    if "$RUN_CASE" "$caseDir" $runFlag --rtol "$RTOL" --atol "$ATOL" --compare "$COMPARE"; then
+        clog SUCCESS "$caseRel: PASS"
+        passed+=("$caseRel")
+    else
+        clog ERROR "$caseRel: FAIL"
+        failed+=("$caseRel")
+    fi
+done
+
+echo
+echo "================ regression summary ================"
+echo "  passed:  ${#passed[@]}"
+echo "  failed:  ${#failed[@]}"
+echo "  skipped: ${#skipped[@]}"
+if [ "${#failed[@]}" -gt 0 ]; then
+    echo "  failed cases:"
+    for c in "${failed[@]}"; do echo "    - $c"; done
+fi
+if [ "${#skipped[@]}" -gt 0 ]; then
+    echo "  skipped cases:"
+    for c in "${skipped[@]}"; do echo "    - $c"; done
+fi
+echo "===================================================="
+
+if [ "${#failed[@]}" -gt 0 ]; then
+    exit 1
+fi
+exit 0

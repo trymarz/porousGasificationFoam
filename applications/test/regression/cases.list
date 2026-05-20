@@ -1,0 +1,10 @@
+# Tutorials run by the regression framework, one path per non-comment line.
+# Paths are relative to the repository root.
+#
+# To add a case:
+#   1. Drop tutorials/cases/<caseName>/system/regressionFunctions
+#   2. #includeIfPresent it from system/controlDict (functions block)
+#   3. Capture a reference/postProcessing/ baseline locally
+#   4. Add the path here
+
+tutorials/cases/charOnlyMove
