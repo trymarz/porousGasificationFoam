@@ -1,25 +1,23 @@
 # porousGasificationFoam
 
-porousGasificationFoam (PGF) is an OpenFOAM solver for **thermochemical conversion in porous media**. A reactive solid phase, represented as a porosity field, is coupled to a compressible gas flowing through the void space; mass, momentum, and energy are exchanged through the porosity. The solid can be stationary or move under gravity and other external forces, shrink, or disappear entirely as conversion proceeds. Heterogeneous radiation, bed collapse, and DEM coupling for granular solids are optional.
+*porousGasificationFoam* (PGF) is an OpenFOAM solver for **thermochemical conversion in porous media**. A solid phase, represented as a porosity field, is coupled to a gas flowing through the void space. Mass, momentum, and energy are exchanged through the porosity. All chemistry — gas-phase, heterogeneous (gas–solid), and solid decomposition — is defined per case; with no reactions defined, both phases stay inert. The solid can be stationary or move under gravity and other external forces, shrink, or disappear entirely as conversion proceeds.
 
-The continuum transport equations are solved with the Finite Volume Method (OpenFOAM); an optional coupling to a Discrete Element Method solver via YADE handles the solid momentum equation when granular dynamics matter. Solid morphology, temperature, species, and reaction kinetics are user inputs — the solver is geometry- and chemistry-agnostic.
+The continuum transport equations are solved with the Finite Volume Method (OpenFOAM). An optional coupling to a Discrete Element Method solver YADE provides PGF with a velocity field for the solid momentum equation. Solid material properties, initial distribution of porosity throughout a domain, reaction kinetics, and many other parameters — all these are user inputs — the solver is geometry- and chemistry-agnostic.
 
-Reported and plausible application areas include:
+Example application areas:
 
 - Biomass pyrolysis, gasification, and combustion (the solver's origin)
 - Wood fires and waste incineration
-- Coffee bean roasting and other slow thermal-conversion processes
+- Coffee bean roasting
 - Peat smouldering
-- Drying of moisture-laden porous beds
-- Sintering and metal-foam manufacturing
-- Dough rising and other expanding-bed processes
+- Metal-foam manufacturing
 
-…and other processes that share a reactive or transforming porous solid exchanging mass and heat with a gas. The name reflects the solver's origins in biomass-to-syngas gasification (feedstock + air/O₂/steam/CO₂ → H₂/CO), not a limit on what it can model.
+…and other processes that share a reactive or transforming porous solid exchanging mass and heat with a gas. The name *porousGasificationFoam* reflects the solver's origins in biomass-to-syngas gasification (feedstock + air/O₂/steam/CO₂ → H₂/CO), not a limit on what it can model.
 
 - **License**: GNU GPL v3
 - **Target**: OpenFOAM-v2406
 - **Optional**: DEM coupling via YADE (`WITH_YADE=1` at build time)
-- Earlier ports for [OpenFOAM 8](https://github.com/btuznik/porousGasificationFoam) and foam-extend 4.1 exist but are no longer actively maintained.
+- Earlier versions for [OpenFOAM 8](https://github.com/btuznik/porousGasificationFoam) and foam-extend 4.1 exist but are no longer actively maintained.
 
 ## Contents
 
@@ -384,6 +382,7 @@ maxDi           5000;       // Diffusion number limit (solid)
 | `YsDefault` | volScalarField | Default field for unmatched solid species (set to 0) |
 
 **Notes:**
+
 - `Df` is a tensor field. For isotropic porous media, use a diagonal tensor with large values (e.g. `1e9`) in gas-only regions and smaller values (based on permeability) in porous zones. Use the `setPorosity` utility to create appropriate fields.
 - Solid species field names: `Y` + component name from `solidThermophysicalProperties` (e.g. `wood` → `Ywood`).
 - Gas species field names match the `species` list in `chemistryProperties`.
