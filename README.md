@@ -361,7 +361,7 @@ Three approaches, in increasing order of complexity:
 
 1. **`setFields`** (with or without `setSet`): the standard OpenFOAM workflow. Specify a `setFieldsDict` that sets `porosityF` inside a cell zone to the desired void fraction and leaves the rest at `1.0`. `setFields` alone is sufficient for simple geometries. Pair with `setSet` (batch mode) for more involved selection logic. Other fields (`T`, `Ts`, solid species mass fractions, …) can be initialised the same way. See `tutorials/cases/macroTGA_*` for an example chain (`blockMesh` → `setSet` → `refineHexMesh` → `setFields`).
 2. **STL + `setFields`**: for non-trivial bed geometries, build an STL of the porous region in Salome or Blender and feed it to `setSet`/`setFields` via a `surfaceToCell` selector.
-3. **`setPorosity` utility**: a code-driven generator (see `utilities/setPorosity/`). The user-editable description of the medium lives in `medium.H` — the tool must be recompiled after each change. Recommended only when scripted parametric sweeps are needed.
+3. **`setPorosity` utility** *(possibly outdated)*: a code-driven generator (see `utilities/setPorosity/`). The user-editable description of the medium lives in `medium.H` — the tool must be recompiled after each change. Kept for backward compatibility with older cases and parametric sweeps. For new cases, prefer approaches 1 and 2 above.
 
 ### Solid thermophysical properties: true density, not bulk
 
@@ -391,7 +391,7 @@ Gas-phase reactions are typically orders of magnitude faster than heterogeneous 
 
 ## Utilities
 
-- **`setPorosity`** — generates `porosityF` and `Df` fields from medium parameters (particle diameter, tortuosity, permeability). Run inside the case directory before the simulation. The editable medium description lives in `utilities/setPorosity/medium.H`.
+- **`setPorosity`** *(possibly outdated)* — generates `porosityF` and `Df` fields from medium parameters (particle diameter, tortuosity, permeability). Editable medium description in `utilities/setPorosity/medium.H`. Kept for backward compatibility — for new cases prefer the `setFields` + STL workflow (see [Tips](#biomass-distribution-initial-porosityf)).
 - **`totalMassPorousGasificationFoam`** — post-processing diagnostic that writes `totalMass.txt` (time, integrated solid mass `∫ρ_s · (1−porosityF) dV`) for the run. Operates on a reconstructed case — run `reconstructPar` first if the case was decomposed.
 
 ## Regression Testing
