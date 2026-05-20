@@ -20,14 +20,33 @@ COMPARE=""
 
 while [ $# -gt 0 ]; do
     case "$1" in
-        --no-run) SKIP_RUN=true; shift ;;
-        --rtol)   RTOL="$2"; shift 2 ;;
-        --atol)   ATOL="$2"; shift 2 ;;
-        --compare) COMPARE="$2"; shift 2 ;;
-        -*) echo "Unknown option: $1" >&2; exit 2 ;;
-        *)  if [ -z "$caseDir" ]; then caseDir="$1"; else
-                echo "Unexpected positional: $1" >&2; exit 2; fi
-            shift ;;
+    --no-run)
+        SKIP_RUN=true
+        shift
+        ;;
+    --rtol)
+        RTOL="$2"
+        shift 2
+        ;;
+    --atol)
+        ATOL="$2"
+        shift 2
+        ;;
+    --compare)
+        COMPARE="$2"
+        shift 2
+        ;;
+    -*)
+        echo "Unknown option: $1" >&2
+        exit 2
+        ;;
+    *)
+        if [ -z "$caseDir" ]; then caseDir="$1"; else
+            echo "Unexpected positional: $1" >&2
+            exit 2
+        fi
+        shift
+        ;;
     esac
 done
 
@@ -53,11 +72,11 @@ if [ "$SKIP_RUN" = false ]; then
 
     # Clean prior run artefacts (preserve reference/).
     if [ -x "$caseDir/Allclean" ]; then
-        ( cd "$caseDir" && ./Allclean ) >/dev/null 2>&1 || true
+        (cd "$caseDir" && ./Allclean) >/dev/null 2>&1 || true
     fi
 
     echo "[runCase] Running $caseDir/Allrun"
-    if ! ( cd "$caseDir" && ./Allrun ); then
+    if ! (cd "$caseDir" && ./Allrun); then
         echo "[runCase] Allrun failed in $caseDir" >&2
         exit 2
     fi

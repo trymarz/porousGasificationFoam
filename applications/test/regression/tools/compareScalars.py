@@ -79,12 +79,13 @@ def compare_file(ref_path, cand_path, rtol, atol):
     for cand_row in cand_rows[:n]:
         if len(cand_row) != ncols:
             failures.append(
-                "column count differs: "
-                f"ref={ncols} vs cand={len(cand_row)}"
+                f"column count differs: ref={ncols} vs cand={len(cand_row)}"
             )
             return failures
 
-    col_names = ref_cols if len(ref_cols) == ncols else [f"col{i}" for i in range(ncols)]
+    col_names = (
+        ref_cols if len(ref_cols) == ncols else [f"col{i}" for i in range(ncols)]
+    )
 
     for i in range(n):
         for j in range(ncols):
@@ -112,14 +113,22 @@ def collect_dat_files(root):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--reference", required=True,
-                    help="reference postProcessing/ directory (the baseline)")
-    ap.add_argument("--candidate", required=True,
-                    help="candidate postProcessing/ directory (fresh run)")
-    ap.add_argument("--rtol", type=float, default=1e-4,
-                    help="relative tolerance (default: 1e-4)")
-    ap.add_argument("--atol", type=float, default=1e-12,
-                    help="absolute tolerance (default: 1e-12)")
+    ap.add_argument(
+        "--reference",
+        required=True,
+        help="reference postProcessing/ directory (the baseline)",
+    )
+    ap.add_argument(
+        "--candidate",
+        required=True,
+        help="candidate postProcessing/ directory (fresh run)",
+    )
+    ap.add_argument(
+        "--rtol", type=float, default=1e-4, help="relative tolerance (default: 1e-4)"
+    )
+    ap.add_argument(
+        "--atol", type=float, default=1e-12, help="absolute tolerance (default: 1e-12)"
+    )
     args = ap.parse_args()
 
     ref_root = Path(args.reference).resolve()
@@ -162,10 +171,14 @@ def main():
             print(f"OK    {rel}")
 
     print()
-    print(f"compareScalars.py: {total - failed - missing}/{total} files within tolerance "
-          f"(rtol={args.rtol}, atol={args.atol})")
+    print(
+        f"compareScalars.py: {total - failed - missing}/{total} files within tolerance "
+        f"(rtol={args.rtol}, atol={args.atol})"
+    )
     if missing:
-        print(f"compareScalars.py: {missing} reference file(s) not present in candidate")
+        print(
+            f"compareScalars.py: {missing} reference file(s) not present in candidate"
+        )
 
     if failed > 0 or missing > 0:
         return 1
