@@ -19,13 +19,15 @@ Exit codes:
     2  Infrastructure error (reference file missing in candidate, etc.).
 """
 
+from __future__ import annotations
+
 import argparse
 import os
 import sys
 from pathlib import Path
 
 
-def parse_dat(path):
+def parse_dat(path: Path) -> tuple[list[str], list[tuple[float, ...]]]:
     """Return (header_columns, list_of_rows) parsed from a .dat file.
 
     header_columns: list of column names (Time first), drawn from the LAST
@@ -33,9 +35,9 @@ def parse_dat(path):
                     column header was emitted.
     rows:           list of tuples of floats, one tuple per data line.
     """
-    columns = []
-    rows = []
-    last_comment = None
+    columns: list[str] = []
+    rows: list[tuple[float, ...]] = []
+    last_comment: str | None = None
     with open(path, "r") as f:
         for raw in f:
             line = raw.strip()
@@ -55,13 +57,15 @@ def parse_dat(path):
     return columns, rows
 
 
-def within_tol(a, b, rtol, atol):
+def within_tol(a: float, b: float, rtol: float, atol: float) -> bool:
     return abs(a - b) <= atol + rtol * max(abs(a), abs(b))
 
 
-def compare_file(ref_path, cand_path, rtol, atol):
+def compare_file(
+    ref_path: Path, cand_path: Path, rtol: float, atol: float
+) -> list[str]:
     """Return list of failure descriptions; empty list means PASS."""
-    failures = []
+    failures: list[str] = []
     ref_cols, ref_rows = parse_dat(ref_path)
     cand_cols, cand_rows = parse_dat(cand_path)
 
@@ -101,9 +105,9 @@ def compare_file(ref_path, cand_path, rtol, atol):
     return failures
 
 
-def collect_dat_files(root):
+def collect_dat_files(root: Path) -> list[Path]:
     """Return list of paths to *.dat files under root."""
-    out = []
+    out: list[Path] = []
     for dirpath, _, filenames in os.walk(root):
         for fn in filenames:
             if fn.endswith(".dat"):
@@ -111,7 +115,7 @@ def collect_dat_files(root):
     return out
 
 
-def main():
+def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument(
         "--reference",
