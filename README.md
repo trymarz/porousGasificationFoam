@@ -1,6 +1,6 @@
 # porousGasificationFoam
 
-*porousGasificationFoam* (PGF) is an OpenFOAM solver for **thermochemical conversion in porous media**. A solid phase, represented as a porosity field, is coupled to a gas flowing through the void space. Mass, momentum, and energy are exchanged through the porosity. All chemistry — gas-phase, heterogeneous (gas–solid), and solid decomposition — is defined per case; with no reactions defined, both phases stay inert. The solid can be stationary or move under gravity and other external forces, shrink, or disappear entirely as conversion proceeds.
+*porousGasificationFoam* (PGF) is an OpenFOAM solver for **thermochemical conversion in porous media**. A solid phase, represented as a porosity field, is coupled to a gas flowing through the void space. Mass, momentum, and energy are exchanged through the porosity. All chemistry — gas-phase, heterogeneous (gas–solid), and solid decomposition — is defined per case — with no reactions defined, both phases stay inert. The solid can be stationary or move under gravity and other external forces, shrink, or disappear entirely as conversion proceeds.
 
 The continuum transport equations are solved with the Finite Volume Method (OpenFOAM). An optional coupling to a Discrete Element Method solver YADE provides PGF with a velocity field for the solid momentum equation. Solid material properties, initial distribution of porosity throughout a domain, reaction kinetics, and many other parameters — all these are user inputs — the solver is geometry- and chemistry-agnostic.
 
@@ -40,7 +40,7 @@ Example application areas:
 
 - OpenFOAM-v2406
 - MPI (for parallel runs)
-- Optional: YADE DEM library (for DEM coupling; set `WITH_YADE=1`)
+- Optional: YADE DEM library (for DEM coupling — set `WITH_YADE=1`)
 
 ### Build and Install
 
@@ -308,7 +308,7 @@ Adds a Forchheimer (quadratic) resistance term to the momentum equation on top o
 forchheimerCoeff 3.21e6;
 ```
 
-Effective momentum sink: `−µ_eff · D · ⟨u⟩  −  F_c · ρ_f · |⟨u⟩| · √3 · D / |D|`. The Forchheimer term matters for high-velocity flow through coarse beds (≳ 1 m/s); for slow flow inside a fine porous medium the linear Darcy term is usually sufficient. Unlike `Df` (a per-cell field), `forchheimerCoeff` is a single scalar applied everywhere.
+Effective momentum sink: `−µ_eff · D · ⟨u⟩  −  F_c · ρ_f · |⟨u⟩| · √3 · D / |D|`. The Forchheimer term matters for high-velocity flow through coarse beds (≳ 1 m/s). For slow flow inside a fine porous medium the linear Darcy term is usually sufficient. Unlike `Df` (a per-cell field), `forchheimerCoeff` is a single scalar applied everywhere.
 
 ### `constant/radiationProperties`
 
@@ -395,13 +395,13 @@ Practical notes that are easy to get wrong on a first PGF case.
 
 Three approaches, in increasing order of complexity:
 
-1. **`setFields`** (with or without `setSet`): the standard OpenFOAM workflow. Specify a `setFieldsDict` that sets `porosityF` inside a cell zone to the desired void fraction and leaves the rest at `1.0`. `setFields` alone is sufficient for simple geometries; pair with `setSet` (batch mode) for more involved selection logic. Other fields (`T`, `Ts`, solid species mass fractions, …) can be initialised the same way. See `tutorials/cases/macroTGA_*` for an example chain (`blockMesh` → `setSet` → `refineHexMesh` → `setFields`).
+1. **`setFields`** (with or without `setSet`): the standard OpenFOAM workflow. Specify a `setFieldsDict` that sets `porosityF` inside a cell zone to the desired void fraction and leaves the rest at `1.0`. `setFields` alone is sufficient for simple geometries. Pair with `setSet` (batch mode) for more involved selection logic. Other fields (`T`, `Ts`, solid species mass fractions, …) can be initialised the same way. See `tutorials/cases/macroTGA_*` for an example chain (`blockMesh` → `setSet` → `refineHexMesh` → `setFields`).
 2. **STL + `setFields`**: for non-trivial bed geometries, build an STL of the porous region in Salome or Blender and feed it to `setSet`/`setFields` via a `surfaceToCell` selector.
-3. **`setPorosity` utility**: a code-driven generator (see `utilities/setPorosity/`). The user-editable description of the medium lives in `medium.H`; the tool must be recompiled after each change. Recommended only when scripted parametric sweeps are needed.
+3. **`setPorosity` utility**: a code-driven generator (see `utilities/setPorosity/`). The user-editable description of the medium lives in `medium.H` — the tool must be recompiled after each change. Recommended only when scripted parametric sweeps are needed.
 
 ### Solid thermophysical properties: true density, not bulk
 
-Entries in `solidThermophysicalProperties` (`rho`, `K`, `Cp`, `Hf`) describe the **pure solid** — i.e. the material at `porosityF = 0`. The macroscopic bulk density inside the bed is then `ρ · (1 − φ)`; PGF reconstructs it from `porosityF` and the intrinsic `rho`. Literature often reports bulk values instead, so be careful: feeding a bulk density into `rho` understates the solid by a factor of `(1 − φ)`. The exception is the `gasifier` tutorial, which deliberately models the entire packed bed at the megascopic scale using bulk wood density (`rho 663` kg/m³ vs ≈ 1050 kg/m³ for true wood); this is a modelling choice consistent with treating the bed as a homogeneous Darcy medium.
+Entries in `solidThermophysicalProperties` (`rho`, `K`, `Cp`, `Hf`) describe the **pure solid** — i.e. the material at `porosityF = 0`. The macroscopic bulk density inside the bed is then `ρ · (1 − φ)`. PGF reconstructs it from `porosityF` and the intrinsic `rho`. Literature often reports bulk values instead, so be careful: feeding a bulk density into `rho` understates the solid by a factor of `(1 − φ)`. The exception is the `gasifier` tutorial, which deliberately models the entire packed bed at the megascopic scale using bulk wood density (`rho 663` kg/m³ vs ≈ 1050 kg/m³ for true wood). This is a modelling choice consistent with treating the bed as a homogeneous Darcy medium.
 
 ### Gas species without JANAF data
 
@@ -416,19 +416,19 @@ The heterogeneous radiation coefficients (`a`, `as`, `borderAs`, `borderL`, `E`)
 Gas-phase reactions are typically orders of magnitude faster than heterogeneous solid reactions. When both are active, gas chemistry dominates the chemistry-limited time step and can make slow processes (e.g. gasification of a whole bed) very expensive. Practical implications:
 
 - For slow heterogeneous processes, prefer chemistry mechanisms with the minimum gas-phase detail needed for the result you care about.
-- `maxCo`, `maxDi`, and `initialChemicalTimeStep` in `controlDict` / `chemistryProperties` interact; tightening any one of them can mask the actual bottleneck. Check the solver log for which limit is binding before tuning.
+- `maxCo`, `maxDi`, and `initialChemicalTimeStep` in `controlDict` / `chemistryProperties` interact — tightening any one of them can mask the actual bottleneck. Check the solver log for which limit is binding before tuning.
 
 ### Mesh and parallel execution
 
-- Run `setPorosity` (if used) **before** `decomposePar`; it operates on the reconstructed mesh.
+- Run `setPorosity` (if used) **before** `decomposePar` — it operates on the reconstructed mesh.
 - The `totalMassPorousGasificationFoam` utility also requires a reconstructed case. Run `reconstructPar` first, or operate on the un-decomposed run.
 - `paraView -builtin` can visualise the decomposed processor directories directly without reconstruction — useful for very large cases.
-- Re-running a regression baseline must use the same `numberOfSubdomains` as the original; floating-point sensitivity to decomposition is real (see the "Regression Testing" section below).
+- Re-running a regression baseline must use the same `numberOfSubdomains` as the original — floating-point sensitivity to decomposition is real (see the "Regression Testing" section below).
 
 ## Utilities
 
-- **`setPorosity`** — generates `porosityF` and `Df` fields from medium parameters (particle diameter, tortuosity, permeability). Run inside the case directory before the simulation; the editable medium description lives in `utilities/setPorosity/medium.H`.
-- **`totalMassPorousGasificationFoam`** — post-processing diagnostic that writes `totalMass.txt` (time, integrated solid mass `∫ρ_s · (1−porosityF) dV`) for the run. Operates on a reconstructed case; run `reconstructPar` first if the case was decomposed.
+- **`setPorosity`** — generates `porosityF` and `Df` fields from medium parameters (particle diameter, tortuosity, permeability). Run inside the case directory before the simulation. The editable medium description lives in `utilities/setPorosity/medium.H`.
+- **`totalMassPorousGasificationFoam`** — post-processing diagnostic that writes `totalMass.txt` (time, integrated solid mass `∫ρ_s · (1−porosityF) dV`) for the run. Operates on a reconstructed case — run `reconstructPar` first if the case was decomposed.
 
 ## Regression Testing
 
@@ -472,7 +472,7 @@ cd applications/test/regression
 ./Allrun --rtol 1e-3                    # override default relative tolerance
 ```
 
-Exit code 0 means all cases within tolerance; non-zero means at least one case failed. The script prints a per-case PASS/FAIL summary and, on failure, the rows that diverged.
+Exit code 0 means all cases within tolerance — non-zero means at least one case failed. The script prints a per-case PASS/FAIL summary and, on failure, the rows that diverged.
 
 ### What the comparison does
 
