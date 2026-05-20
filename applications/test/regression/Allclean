@@ -7,8 +7,10 @@ set -u
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 
+# helpers.sh uses an unguarded $HELPERS_SOURCED include guard; disable -u
+# around the source so it works under our strict mode.
 # shellcheck disable=SC1091
-. "$REPO_ROOT/utilities/bash_utils/helpers.sh"
+set +u; . "$REPO_ROOT/utilities/bash_utils/helpers.sh"; set -u
 
 CASES_FILE="$SCRIPT_DIR/cases.list"
 
