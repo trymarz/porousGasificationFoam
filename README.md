@@ -1,6 +1,6 @@
 # porousGasificationFoam
 
-*porousGasificationFoam* (PGF) is an OpenFOAM solver for **thermochemical conversion in porous media**. A solid phase, represented as a porosity field, is coupled to a gas flowing through the void space. Mass, momentum, and energy are exchanged through the porosity. All chemistry — gas-phase, heterogeneous (gas–solid), and solid decomposition — is defined per case — with no reactions defined, both phases stay inert. The solid can be stationary or move under gravity and other external forces, shrink, or disappear entirely as conversion proceeds.
+*porousGasificationFoam* (PGF) is an OpenFOAM solver for **thermochemical conversion in porous media**. A solid phase, represented as a porosity field, is coupled to a gas flowing through the void space. Mass, momentum, and energy are exchanged through the porosity. All chemistry — gas-phase, heterogeneous (gas–solid), and solid decomposition — is defined per case. With no reactions defined, both phases stay inert. The solid can be stationary or move under gravity and other external forces, shrink, or disappear entirely as conversion proceeds.
 
 The continuum transport equations are solved with the Finite Volume Method (OpenFOAM). An optional coupling to a Discrete Element Method solver YADE provides PGF with a velocity field for the solid momentum equation. Solid material properties, initial distribution of porosity throughout a domain, reaction kinetics, and many other parameters — all these are user inputs — the solver is geometry- and chemistry-agnostic.
 
@@ -45,101 +45,65 @@ Example application areas:
 ### Build and Install
 
 ```bash
-# 1. Source OpenFOAM (adjust path for your installation)
+
+# 1. Source OpenFOAM (adjust paths for your installation)
 source /path/to/OpenFOAM-v2406/etc/bashrc
 
-# 2. Set porousGasificationFoam environment variables
+# 2. Build everything
 cd /path/to/porousGasificationFoam
-source porousGasificationMediaDirectories
-
-# 3. Build everything
 ./Allwmake
 
-# Alternative: fine-grained build
-./build.sh build --all
-```
-
-### Run a Tutorial Case
-
-`charOnlyMove` is the lightest tutorial (moving char bed, no chemistry) and works well as a first smoke test once the build succeeds:
-
-```bash
+# 3. Test installation
 cd tutorials/cases/charOnlyMove
 ./Allrun
 ```
 
-For a full reactive-flow demonstration see `gasifier` (4-proc parallel biomass gasifier). The complete list is under [Tutorial Cases](#tutorial-cases). To run every case in turn: `cd tutorials && ./TestAllCases.sh`. To clean a build: `./Allwclean` (or `./build.sh clean --all`).
+For a full reactive-flow demonstration see `gasifier`. The complete list is under [Tutorial Cases](#tutorial-cases). To run every case: `cd tutorials && ./TestAllCases.sh`. To clean a build: `./Allwclean`.
 
 ## Project Structure
 
 ```
 porousGasificationFoam/
-├── porousGasificationFoam/          # Main solver executable
-│   ├── porousGasificationFoam.C     # Time loop (main algorithm)
-│   ├── createFields.H               # Field creation
-│   ├── createPorosity.H             # Darcy resistance setup
-│   ├── createPyrolysisModel.H       # Pyrolysis/solid chemistry setup
-│   ├── rhoEqn.H                     # Gas continuity equation
-│   ├── UEqn.H                       # Momentum equation (Navier-Stokes + Darcy)
-│   ├── YEqn.H                       # Gas species transport
-│   ├── EEqn.H                       # Gas energy equation
-│   ├── pEqn.H / pcEqn.H             # Pressure correction
-│   ├── radiation.H                  # Radiative source term
-│   ├── solidRegionDiffusionNo.H     # Solid diffusion stability
-│   ├── setMultiRegionDeltaT.H       # Time-step controller
-│   └── updateChemistryTimeStep.H    # Chemistry-limited time step
-├── porousGasificationMedia/         # Supporting libraries
-│   ├── pyrolysisModels/
-│   │   └── volPyrolysis/            # Solid-phase evolution engine
-│   ├── thermophysicalModels/
-│   │   └── porousSolidChemistryModel/
-│   │       ├── ODESolidHeterogeneousChemistryModel/  # ODE chemistry solver
-│   │       └── basicPorousChemistryModel/             # Base chemistry class
-│   ├── radiationModels/             # Heterogeneous P1 / mean-temp radiation
-│   ├── fieldPorosityModel/          # Darcy resistance (pZones.addResistance)
-│   └── DEM/                         # YADE DEM coupling (optional)
-├── tutorials/
-│   └── cases/                       # 13 tutorial cases
-├── utilities/
-│   ├── setPorosity/                 # Creates porosityF and Df fields
-│   ├── totalMassPorousGasificationFoam/  # Mass conservation diagnostic
-│   ├── bash_utils/                  # Helper scripts
-│   └── py_utils/                    # Python post-processing tools
-├── build.sh                         # Fine-grained build script
-└── doc/Doxygen/                     # Doxygen documentation source
+├── porousGasificationFoam/    # main solver source (time loop, equations)
+├── porousGasificationMedia/   # libraries (pyrolysis, chemistry, radiation, DEM)
+├── tutorials/cases/           # tutorial cases (input examples)
+├── utilities/                 # auxiliary tools (setPorosity, totalMass, …)
+├── applications/test/         # regression framework
+├── build.sh                   # fine-grained build script
+└── doc/Doxygen/               # API documentation source
 ```
 
 ## Build System
-
-### Simple build
-
-```bash
-./Allwmake      # Build everything
-./Allwclean     # Clean everything
-```
-
-### Fine-grained control with build.sh
-
-```bash
-./build.sh build --libs-only           # Libraries only
-./build.sh build --apps-only           # Solver and utilities only
-./build.sh build --radiationModels --pyrolysisModels --porousGasificationFoam  # Specific targets
-./build.sh build --no-DEM              # Skip DEM (if YADE not available)
-./build.sh build --all --dry-run       # Preview commands
-./build.sh clean --all                 # Clean all
-```
 
 ### Build targets
 
 | Target | Type | Dependency |
 |---|---|---|
-| DEM | library | — (if `WITH_YADE=1`) |
+| DEM (if `WITH_YADE=1`)| library | —  |
 | fieldPorosityModel | library | — |
 | radiationModels | library | solid thermo |
 | thermophysicalModels | library suite | — |
 | pyrolysisModels | library | all above |
 | porousGasificationFoam | executable | all libraries |
 | utilities | executable suite | — |
+
+### Fine-grained control with build.sh
+
+The `build.sh` script operates in two modes: `build` or `clean`. For the selected mode it builds or cleans all active targets. Targets are switched on or off via CLI flags.
+
+Examples:
+
+```bash
+./build.sh build --apps-only # set app targets to 1 and libs to 0, build targets with 1 set
+./build.sh clean --reset-all --radiationModels # set all targets to 0; set radiationModels to 1, clean only radiationModels (later flags overwrite previous ones)
+./build.sh build --all --no-DEM # skip DEM, build all the rest
+
+# Aliases
+./Allwmake  → ./build.sh build --all
+./Allwclean → ./build.sh clean --all
+```
+
+Run `build.sh --help` for all options.
 
 ### YADE DEM coupling
 
@@ -170,10 +134,10 @@ All 13 cases under `tutorials/cases/`:
 | `macroTGA_879K/` | Macro-scale TGA at 879 K | — |
 | `macroTGA_879K_fine/` | Macro-scale TGA at 879 K, refined mesh | — |
 | `macroTGA_experimentalData/` | TGA with experimental data comparison | — |
-| `gasifier/` | Fixed-bed gasifier | 4-proc parallel, wedge geometry |
+| `gasifier/` | Fixed-bed gasifier | - |
 | `flatPlate/` | Flat plate reactive flow | — |
 | `biomassPressureDrop/` | Pressure drop through biomass bed | — |
-| `charOnlyMove/` | Moving char bed (no reactions) | Bed motion test |
+| `charOnlyMove/` | Moving char (no reactions) | Solid material motion test |
 | `MicroTGA-DEM/` | DEM-coupled micro TGA | Requires YADE |
 | `DEM_UsInterp_*/` | DEM solid velocity interpolation tests | Requires YADE |
 
@@ -226,7 +190,7 @@ solidReactions
 | `A` | Pre-exponential factor | varies |
 | `Ta` | Activation temperature `Ea/R` | [K] |
 | `Tcrit` | Minimum temperature for reaction | [K] |
-| `heatOfReaction` | Heat released/absorbed (>0 = exothermic) | [J/kg] |
+| `heatOfReaction` | Heat released/absorbed (<0 = exothermic) | [J/kg] |
 | `n1, n2, ...` | Reaction order for each LHS species in order | — |
 
 ### `constant/solidThermophysicalProperties`
@@ -298,7 +262,7 @@ Parameters
 }
 ```
 
-Only used when `diffusionLimitedReactions true`.
+nly used when `diffusionLimitedReactions true`.
 
 ### `constant/porosityProperties` (optional)
 
@@ -308,7 +272,7 @@ Adds a Forchheimer (quadratic) resistance term to the momentum equation on top o
 forchheimerCoeff 3.21e6;
 ```
 
-Effective momentum sink: `−µ_eff · D · ⟨u⟩  −  F_c · ρ_f · |⟨u⟩| · √3 · D / |D|`. The Forchheimer term matters for high-velocity flow through coarse beds (≳ 1 m/s). For slow flow inside a fine porous medium the linear Darcy term is usually sufficient. Unlike `Df` (a per-cell field), `forchheimerCoeff` is a single scalar applied everywhere.
+Effective momentum sink: `−µ_eff · D · ⟨u⟩  −  F_c · ρ_f · |⟨u⟩| · √3 · D / |D|`. The Forchheimer term matters for high-velocity flow through coarse beds. For slow flow inside a fine porous medium the linear Darcy term is usually sufficient. Unlike `Df` (a per-cell field), `forchheimerCoeff` is a single scalar applied everywhere.
 
 ### `constant/radiationProperties`
 
@@ -351,7 +315,7 @@ The `Ts` (solid temperature) solver requires a tight tolerance (1e-10) for stabi
 ### `system/fvSchemes` — Key Settings
 
 ```cpp
-div(phiSolid)     Gauss upwind;   // MUST be upwind for solid advection stability
+div(phiSolid)     Gauss upwind;
 ```
 
 ### `system/controlDict` — Key Settings
@@ -511,7 +475,7 @@ If you use this solver, please cite:
 
 ## Contributors
 
-Paweł Jan Żuk, Bartosz Tużnik, Tadeusz Rymarz, Zhiwar, Kamil Kwiatkowski, Marek Dudyński, Flavio C. C. Galeazzo, Guenther C. Krieger Filho, Filip Mróz (foam-extend-4.1 to v2406 port)
+Paweł Jan Żuk, Bartosz Tużnik, Tadeusz Rymarz, Ali Ebrahimi Pure, Kamil Kwiatkowski, Marek Dudyński, Flavio C. C. Galeazzo, Guenther C. Krieger Filho, Filip Mróz (foam-extend-4.1 to v2406 port)
 
 ## For AI Coding Agents
 
