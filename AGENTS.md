@@ -8,7 +8,7 @@ This file may lag the codebase. Before acting on any specific claim below, sanit
 
 Also flag if the *Last verified* date below predates significant recent commits in the affected area; in that case, propose a refresh rather than acting on stale guidance.
 
-*Last verified: 2026-05-20*
+*Last verified: 2026-05-21*
 
 ## Documentation split
 
@@ -17,7 +17,7 @@ Also flag if the *Last verified* date below predates significant recent commits 
 
 **Rule for new content**: if a fact is useful to *either* a human contributor *or* an agent, it goes in `README.md`. Only put content in `AGENTS.md` when it is 100% agent-targeted and would be noise for a human reader (e.g. "pass git identity per-invocation rather than touching global config", "verify before claiming"). When in doubt, choose `README.md` — false positives there are cheap; missing facts are not.
 
-Humans are welcome to edit this file, especially to record **current dev status** (what's stable, what's in flux, what direction the next chunk of work is heading). That section lives at the bottom.
+For the current state of work in the repository — what's in flight, what's stable — use `git status`, `git log`, and `gh pr list` rather than expecting a written summary here. Per-contributor working state does not live in this file.
 
 ## Documentation source of truth
 
@@ -59,21 +59,11 @@ When you need a load-bearing fact, go to the README rather than re-deriving it f
 
 | Need | Section |
 |---|---|
-| Algorithm walkthrough (10-step loop, ODE chemistry, porosity, bed collapse) | "Detailed Physical and Code Structure" |
+| Per-time-step flow / which source file implements each step | "Part II — Physics and Implementation → Per-Time-Step Tour" (for equations and details, follow the tour's pointers into source comments — not the README) |
+| Branch naming, PR titles, PR body, doc-strategy rule | "Development Workflow" |
 | Per-case input dictionaries (`chemistryProperties`, `solidThermophysicalProperties`, `radiationProperties`, `pyrolysisProperties`, `heatTransferProperties`, `specieTransferProperties`, `porosityProperties`) | "Input File Reference" |
 | Required `0/` fields and their meaning | "Required Initial Fields" |
 | Practical pitfalls (true vs bulk density, JANAF substitution, radiation calibration, time-step coupling) | "Tips for Preparing New Simulations" |
 | Build targets and dependencies | "Build System" |
 | Common failure modes | "Troubleshooting" |
 | Regression framework — hook a case, capture a baseline, run comparisons | "Regression Testing" |
-
----
-
-## Current dev status
-
-*Humans: keep this short and update it when direction changes. Agents: read this last; it is the most likely thing to drift.*
-
-- **Active branch**: `build/add-testing-framework`. Goal: numerical regression safety net for the solver before further refactoring.
-- **Done**: framework scaffold (`applications/test/regression/`); pilot case `charOnlyMove` has `system/regressionFunctions` wired in and is listed in `cases.list`.
-- **Next**: capture the `charOnlyMove` reference baseline; add unit tests for `tools/compareScalars.py`; wire more tutorial cases (macroTGA, microTGA, gasifier, flatPlate, biomassPressureDrop) into `cases.list`.
-- **Not in scope right now**: physics changes, DEM coupling refactors, build-system overhaul.
