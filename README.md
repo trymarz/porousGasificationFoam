@@ -36,13 +36,11 @@ Reported and plausible application areas include:
 9. [Regression Testing](#regression-testing)
 10. [Troubleshooting](#troubleshooting)
 
-**Part II — Physics and Code Structure**
+**Part II — Physics and Implementation**
 
 11. [Two-Phase Coexistence](#two-phase-coexistence)
-12. [Per-Time-Step Sequence](#per-time-step-sequence)
-13. [Solid Chemistry — ODE Integration](#solid-chemistry--ode-integration)
-14. [Porosity Evolution and Bed Motion](#porosity-evolution-and-bed-motion)
-15. [Gas-Solid Coupling](#gas-solid-coupling)
+12. [Per-Time-Step Tour](#per-time-step-tour)
+13. [Where to Look for What](#where-to-look-for-what)
 
 [Development Workflow](#development-workflow) · [Citation](#citation) · [Contributors](#contributors)
 
@@ -522,267 +520,37 @@ Defaults: `rtol=1e-4`, `atol=1e-12`. Both can be overridden per-run. The header 
 
 ---
 
-## Part II — Physics and Code Structure
+## Part II — Physics and Implementation
 
-*How the solver works. Useful when porting cases, extending models, or interpreting unexpected results.*
+*A tour, not a reference. Equations, units, and algorithm choices live in the source files that implement them — `Description` blocks in the file banner, block comments above the relevant function, and inline narrative inside. This section narrates the flow and points at where to look.*
 
 ## Two-Phase Coexistence
 
-Gas and solid phases coexist in every cell, distinguished by the **porosity** field `porosityF`:
+Gas and solid coexist in every cell, distinguished by the porosity field `porosityF` ∈ [0, 1]: 1.0 is pure gas, 0.0 is pure solid, in-between is a porous medium containing both phases. Solid bulk density is `rhos = rho · (1 − porosityF)`, where `rho` is the intrinsic solid material density. Mass, momentum, and energy are exchanged between phases via coupling source terms computed by the pyrolysis/chemistry model.
 
-| `porosityF` | Meaning |
+## Per-Time-Step Tour
+
+The main loop is in `porousGasificationFoam/porousGasificationFoam.C`. Each piece of work is pulled in via an `#include`, so the file reads top-to-bottom as a sequence. The steps below cite the include or function that does the work:
+
+1. **Time-step control** — Courant (gas), diffusion (solid), and chemistry timescale are combined into one stable `deltaT`. See `setMultiRegionDeltaT.H` and `updateChemistryTimeStep.H`.
+2. **DEM coupling** (compiled only when `WITH_YADE` is defined) — particle positions and velocities are exchanged with YADE, then the interpolated solid-velocity field is computed (raw per-cell average, then Laplace-smoothed into adjacent solid cells). See `lambdaDotModel::update()` in `porousGasificationMedia/DEM/lambdaDotModel.C`.
+3. **Radiation** — heterogeneous radiation model (`heterogeneousP1` or `heterogeneousMeanTemp`) updates the solid radiative source term. See `porousGasificationFoam/radiation.H` and `porousGasificationMedia/radiationModels/`.
+4. **Solid phase evolution** — the heart of the solver: per-cell chemistry ODE, solid species mass conservation, porosity evolution (with optional bed-collapse), and the solid energy equation. See `volPyrolysis::evolveRegion()` in `porousGasificationMedia/pyrolysisModels/pyrolysisModel/volPyrolysis/volPyrolysis.C`.
+5. **Gas continuity** — gas-phase density update with the solid-to-gas mass source. See `porousGasificationFoam/rhoEqn.H`.
+6. **PIMPLE loop** — momentum (`UEqn.H`) with Darcy/Forchheimer porous resistance, gas species (`YEqn.H`), gas energy (`EEqn.H`), and pressure correction (`pEqn.H` or `pcEqn.H` depending on `pimple.consistent()`).
+7. **Turbulence correction** — `turbulence->correct()` in the main loop.
+
+## Where to Look for What
+
+| Question | Where to look |
 |---|---|
-| 1.0 | Pure gas (no solid) |
-| 0.0 | Pure solid (fully dense) |
-| 0 < `porosityF` < 1 | Porous medium containing both phases |
-
-The solid mass per unit volume is `rhos = rho * (1 - porosityF)` [kg/m³], where `rho` is the intrinsic solid material density. Mass, momentum, and energy are exchanged between phases through coupling source terms computed by the pyrolysis/chemistry model.
-
-## Per-Time-Step Sequence
-
-The main solver loop in `porousGasificationFoam.C` executes the following sequence each time step:
-
-```
-┌─────────────────────────────────────────────────┐
-│ 1. Time-step control                            │
-│    → Courant (gas), Diffusion (solid), Chemistry │
-├─────────────────────────────────────────────────┤
-│ 2. Radiation (solid phase)                      │
-│    → radiation->correct()                       │
-│    → radiationF = radiation->solidSh()          │
-├─────────────────────────────────────────────────┤
-│ 3. Solid phase evolution                        │
-│    → pyrolysisZone.evolve()                     │
-│      a. Chemistry ODE integration               │
-│      b. Solid species mass conservation         │
-│      c. Porosity evolution                      │
-│      d. Solid energy equation                   │
-├─────────────────────────────────────────────────┤
-│ 4. Gas continuity (rhoEqn)                      │
-│    → ∂(φ·ρ)/∂t + ∇·(φ·U) = Sρ·(1-φ)           │
-├─────────────────────────────────────────────────┤
-│ 5. PIMPLE loop (iterative):                     │
-│    a. Momentum (UEqn) — NS + Darcy (+Forchheimer)│
-│    b. Gas species (YEqn) — advection-diffusion  │
-│    c. Gas energy (EEqn) — enthalpy transport    │
-│    d. Pressure correction (pEqn)                │
-├─────────────────────────────────────────────────┤
-│ 6. Turbulence update                            │
-└─────────────────────────────────────────────────┘
-```
-
-### Step 1: Time-Step Control
-
-Three stability limits are checked and the minimum time step is selected:
-
-```
-maxDeltaTFluid  = maxCo / (CoNum + SMALL)
-maxDeltaTSolid  = maxDi / (DiNum + SMALL)
-```
-
-- `maxCo` — Courant number for the gas phase (default 5)
-- `maxDi` — Diffusion number for the solid phase (default 5000), computed from `K * deltaCoeffs / (Cp * rho)`
-- Chemistry time step — returned by the ODE integrator
-
-The actual time step change is damped to avoid oscillations:
-```
-dt_new = dt_old * min(1.2, min(1+0.1·r_fluid, 1+0.1·r_solid, r_fluid, r_solid))
-```
-
-### Step 2: Radiation
-
-```cpp
-radiation->correct();
-radiationF = radiation->solidSh();
-```
-
-Two heterogeneous radiation models:
-
-| Model | Description |
-|---|---|
-| `heterogeneousP1` | P1 approximation — accounts for solid-phase absorption, scattering, emission. Solves a diffusion equation for incident radiation. |
-| `heterogeneousMeanTemp` | Simplified model using mean temperature. |
-
-Radiative source term `radiationF` [W/m³] is computed based on solid temperature, absorption coefficient `a`, scattering coefficient `as`, and surface layer properties (`borderAs`, `borderL`).
-
-### Step 3: Solid Phase Evolution (`pyrolysisZone.evolve()`)
-
-This is the heart of the solver, implemented in `volPyrolysis::evolveRegion()` (`volPyrolysis.C:1214`). It performs five sub-steps:
-
-#### 3a. Solid Chemistry ODE Integration
-
-`solidChemistry_->solve(t0, deltaT)` integrates per-cell ODEs for solid species conversion, gas generation, and temperature change, and returns the characteristic chemical timescale. See [Solid Chemistry — ODE Integration](#solid-chemistry--ode-integration) below for details.
-
-#### 3b. Chemical Energy Source
-
-`chemistrySh_ = solidChemistry_->Sh()()` computes heterogeneous reaction heat [W/m³]. Two modes:
-- `solidReactionEnergyFromEnthalpy = true`: uses heats of formation `hf` of solid and gas species
-- `solidReactionEnergyFromEnthalpy = false`: uses specified `heatOfReaction` from reaction definition
-
-#### 3c. Energy to Heat Pyrolysis Gases
-
-`heatUpGas_ = heatUpGasCalc()()` heats (or cools) pyrolysis gases from solid temperature `Ts` to gas temperature `Tg`. Magnitude: `Sρ · Cp_gas · (Ts − Tg)`.
-
-#### 3d. Solid Species Mass Conservation (`solveSpeciesMass()`)
-
-Solves two equations:
-
-1. **Solid bulk density** (advection only):
-```
-∂ρ_s/∂t = -∇·(ρ_s · Us)
-```
-
-2. **Solid species mass fractions** (chemistry + advection):
-```
-∂(ρLoc · Y_s,i)/∂t = ω_s,i - ∇·(Us · ρLoc · Y_s,i)
-```
-where `ρLoc = max(ρ · (1-φ), SMALL)`.
-
-After solving all species, mass fractions are renormalized so they sum to 1.
-
-#### 3e. Porosity Evolution (`evolvePorosity()`)
-
-```
-∂φ/∂t = RRpor - ∇·(Us · φ)
-```
-where:
-```
-RRpor = -Σ(ω_s,i / ρ_s,i)    [1/s]
-```
-
-After solving, cells where porosity exceeds `criticalPorosity` (default 0.9999) are identified for the bed-collapse algorithm. If `bedCollapse` is enabled, material from downstream cells is shifted upward to replenish solid mass.
-
-#### 3f. Solid Energy Equation (`solveEnergy()`)
-
-```
-ρCp · ∂Ts/∂t = ∇·(K_eff · ∇(Ts)) + Sh_chem - Q_conv - Q_heatUpGas + Q_radiation
-```
-
-where:
-- `K_eff = K · (1-φ) · anisotropyK` — effective solid thermal conductivity
-- `Sh_chem` — reaction heat from chemistry
-- `Q_conv = h · SAV · (Ts - Tg)` — gas-solid convective exchange (from `heatTransferProperties`)
-- `Q_heatUpGas` — energy to heat pyrolysis gas
-- `Q_radiation` — from radiation model
-
-A simplified immersed boundary treatment zeroes out conductive fluxes across the gas-solid interface to avoid spurious heat transfer at porous medium boundaries.
-
-## Solid Chemistry — ODE Integration
-
-The chemistry model is `ODESolidHeterogeneousChemistryModel` in `thermophysicalModels/porousSolidChemistryModel/`.
-
-### Reaction Rate Laws
-
-Four kinetic rate variants (line 1 of reaction definition):
-
-| Keyword | Rate formula `k(T) =` |
-|---|---|
-| `irreversibleSolidArrheniusHeterogeneousReaction` | `A · exp(-Ta/T)` (if T ≥ Tcrit, else 0) |
-| `irreversibleSolidTemperatureArrheniusHeterogeneousReaction` | `A · T · exp(-Ta/T)` |
-| `irreversibleSolidModArrHeterogeneousReaction` | `A · (T-Tcrit)^(2/3) · exp(-Ta/T)` |
-| `irreversibleSolidConstHeterogeneousReaction` | `A` (constant) |
-
-The overall forward rate for a reaction is:
-
-```
-kf = k(T) · Π(Y_reactant_i^n_i) · ρ_solid   (for solid reactants)
-kf = k(T) · Π(Y_reactant_i^n_i) · ρ_gas     (for gas-only reactants)
-```
-
-### Diffusion-Limited Reactions
-
-When `diffusionLimitedReactions = true`, the effective rate is limited by mass transfer:
-
-```
-1/k_eff = 1/k_kinetic + Σ(1 / (ST · ρ_g · Y_gas_reactant))
-```
-
-where `ST` is the mass transfer coefficient [1/s] from `constant/specieTransferProperties`.
-
-### Per-Cell ODE System
-
-For each cell containing solid, the following system is solved:
-
-```
-d(ρ_s · Y_s,i)/dt = ω_s,i              (i = 1..nSolids)
-d(ρ_g · Y_g,j)/dt = ω_g,j              (j = 1..nGases)
-dT/dt = -Σ(ω_i · H_i) / Σ(Y_i · Cp_i)   (temperature)
-```
-
-The last equation is derived from the energy balance: reaction heat changes temperature via `Cp·dT/dt = -Σ(ω_i · hf_i)` when using enthalpy-based energy, or `Cp·dT/dt = heatOfReaction` when using specified heats.
-
-### ODE Sub-Cycling Algorithm (`calculateSourceTerms()`)
-
-Adaptive sub-cycling: each sub-step calls the ODE solver, returns the characteristic chemical timescale `tauC_`, advances temperature from the reaction enthalpy, then shrinks the next `dt_` to `min(timeLeft, tauC_)`. The default solver is `seulex` (implicit extrapolation), configured in `chemistryProperties`.
-
-### Mass Partitioning
-
-Two modes controlled by `stoichiometricReactions`:
-
-| Mode | Description |
-|---|---|
-| `false` (default) | Mass fractions split by stoichiometric coefficient ratios. Total substrates mass = total products mass. |
-| `true` | Uses molecular weights to compute mass-conserving partitioning. Accounts for differences in molar masses between reactants and products. |
-
-In both modes, mass is strictly conserved. If a solid substrate converts to both solid products and gas products, the mass ratio between solid and gas products is proportional to the stoichiometric coefficients.
-
-## Porosity Evolution and Bed Motion
-
-### Porosity Source
-
-The porosity source term represents solid consumption:
-
-```
-RRpor = -Σ(ω_s,i / ρ_s,i)
-```
-
-The porosity equation is solved with an advection term for moving beds:
-
-```cpp
-fvScalarMatrix porosityEqn
-(
-    fvm::ddt(por)
-    ==
-    porositySource_
-    - fvc::div(Us, por, "div(phiSolid)")
-);
-```
-
-### Bed Collapse Model
-
-When `bedCollapse = true` in `pyrolysisProperties` and porosity exceeds `criticalPorosity`:
-
-1. **Detection**: Cells where `porosity > criticalPorosity` AND `(Us · ∇(whereIs)) > 0` (solid moving into the cell) are flagged.
-2. **Path tracing**: Starting from each flagged cell, the algorithm follows the advection path opposite to the solid velocity direction, building a chain of cells (a "route").
-3. **Material shift**: Properties (porosity, porosityF0, temperature, solid density, solid species mass fractions) are copied from the source cell downward along the route:
-
-```cpp
-porosity[destination] = 1 - (1 - porosity[source]) * (V_source / V_destination)
-T[destination] = T[source]
-rho[destination] = rho[source]
-Ys[i][destination] = Ys[i][source]
-```
-
-## Gas-Solid Coupling
-
-Each conserved quantity has equal-and-opposite source terms in the solid and gas equations.
-
-| Quantity | Solid side | Gas side |
-|---|---|---|
-| Mass | `−ω_s` (loss) | `+ω_s` in continuity, species, pressure equations |
-| Species `i` | `−ω_s,i` | `+ω_s,i` in `YEqn` for the gas species |
-| Energy | `+Sh_chem − Q_conv − Q_heatUpGas + Q_rad` in `solveEnergy()` | `+Q_conv + Q_heatUpGas + radiation->Sh()` in `EEqn` |
-| Momentum | (no solid-side source) | `−Df·U` Darcy (+ optional Forchheimer) in `UEqn` |
-| Volume | occupies `(1 − porosityF)` | `porosityF` multiplies gas-phase volume terms |
-
-Term definitions:
-
-- `Sρ_total = Σ ω_s,i` [kg/m³/s] — total mass transferred solid→gas; in gas equations it is limited to `(1 − porosityF)`.
-- `Sρ(i) = ω_g,i` [kg/m³/s] — mass of gas species `i` produced by pyrolysis.
-- `Q_conv = h · SAV · (Ts − Tg)` [W/m³] — convective gas-solid heat exchange.
-- `Q_heatUpGas = Sρ · Cp_gas · (Ts − Tg)` [W/m³] — energy needed to heat pyrolysis products from `Ts` to `Tg`.
-- `Sh_chem` (`chemistrySh_`) [W/m³] — heterogeneous reaction heat.
-- `radiation->Sh()` [W/m³] — radiative source term, sign depending on local emission/absorption balance.
+| What equation does this step solve? Which terms, which units? | `Description` block in the file banner and the comment block above the relevant `evolve*` / `solve*` / `*Eqn` function in the corresponding `.C`/`.H`. |
+| Which input dictionary keys does X read? | Part I → [Input File Reference](#input-file-reference). |
+| What initial fields does a case need? | Part I → [Required Initial Fields](#required-initial-fields). |
+| Where does this field get constructed? | `porousGasificationFoam/createFields.H` for solver fields; `createDEMFields.H` for DEM-coupled fields. |
+| How does the solver layout map to OpenFOAM modules? | Part I → [Project Structure](#project-structure). |
+
+If you find a discrepancy between this tour and what the code does, the code wins — please open an issue or PR.
 
 ---
 
@@ -840,6 +608,20 @@ Opening a PR auto-populates the description from `.github/pull_request_template.
 - **Verification** — what you actually ran or checked: build target, tutorial cases, regression suite, residual sanity. Skip if the change cannot affect runtime (README only).
 
 Aim for terse and specific. The body becomes part of `main`'s history once squash-merged, so future-you (and `git log`) benefit from precision now.
+
+### Documentation
+
+Source code is the source of truth for physics, equations, units, and algorithm choices. Comments live next to the implementation they describe — OpenFOAM-style file banner with a `Description` block, `//-` briefs above function declarations, and `// ...` narrative inside function bodies for non-obvious steps.
+
+The README's [Part II](#part-ii--physics-and-implementation) is a tour: it narrates the per-step flow and points into the code. It does **not** restate equations or implementation detail — those belong in the source file that implements them, where they cannot drift unnoticed during refactors.
+
+When you submit a PR:
+
+- **Behaviour change** → update the relevant code-comment block in the same commit.
+- **Loop structure or step ordering change** → update Part II's per-step tour too.
+- **New documentation insight** → if it's about *what the code does*, write it as a code comment. If it's about *how to use* the solver or *how to navigate* the codebase, it belongs in the README.
+
+If you catch a Part II claim that's already in the code as a comment, replace it with a pointer in the same PR. The migration is opportunistic — no need to wait for a dedicated cleanup branch.
 
 ---
 

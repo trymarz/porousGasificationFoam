@@ -19,6 +19,19 @@ Also flag if the *Last verified* date below predates significant recent commits 
 
 Humans are welcome to edit this file, especially to record **current dev status** (what's stable, what's in flux, what direction the next chunk of work is heading). That section lives at the bottom.
 
+## Documentation source of truth
+
+Physics, equations, units, and algorithm choices belong in source-code comments — OpenFOAM-style `Description` block in the file banner, `//-` briefs above function declarations, `// ...` narrative inside the implementing function. README Part II is a *tour* that points into the code; it does **not** restate equations or implementation detail.
+
+In practice this means:
+
+- When a user asks to "document the physics" of a piece of code, write the comment in the source file (or expand an existing block). Update Part II only if the high-level flow changes.
+- When reading code to answer a physics question, quote the relevant comment block rather than re-deriving from the README. The code (and its comments) is authoritative.
+- If you see Part II restating something the code already comments on, replace it with a pointer to the source location — don't keep the duplication "just in case".
+- The migration from README-as-source-of-truth to code-as-source-of-truth is opportunistic: add comments to files as you touch them on other work, not in dedicated cleanup PRs.
+
+The full human-facing version of this rule is in README → Development Workflow → Documentation.
+
 ## Git / VCS rules
 
 - **Do not modify `git config --global`.** Pass identity per-invocation when needed: `git -c user.name="…" -c user.email="…" commit -m "…"`.
