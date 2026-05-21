@@ -44,7 +44,7 @@ Reported and plausible application areas include:
 14. [Porosity Evolution and Bed Motion](#porosity-evolution-and-bed-motion)
 15. [Gas-Solid Coupling](#gas-solid-coupling)
 
-[Citation](#citation) · [Contributors](#contributors)
+[Development Workflow](#development-workflow) · [Citation](#citation) · [Contributors](#contributors)
 
 ---
 
@@ -783,6 +783,63 @@ Term definitions:
 - `Q_heatUpGas = Sρ · Cp_gas · (Ts − Tg)` [W/m³] — energy needed to heat pyrolysis products from `Ts` to `Tg`.
 - `Sh_chem` (`chemistrySh_`) [W/m³] — heterogeneous reaction heat.
 - `radiation->Sh()` [W/m³] — radiative source term, sign depending on local emission/absorption balance.
+
+---
+
+## Development Workflow
+
+*Contributing to this repository. New contributors: start here.*
+
+### Branch Naming
+
+Branches use a short prefix that signals intent, followed by a kebab-case descriptive name. Five prefixes cover everything:
+
+| Prefix | Used for |
+|---|---|
+| `feature/` | New user-facing capability — a new solver field, model, or tutorial exercising real functionality. |
+| `fix/` | Observable bug becomes right. |
+| `refactor/` | Code restructure intended not to change behaviour. Flag for careful review. |
+| `docs/` | Documentation only (README, AGENTS.md, comments). |
+| `chore/` | Everything else meta — formatter configs, build/Make tweaks, `.gitignore`, dependency bumps, tooling. |
+
+Examples: `feature/UsInterp-laplace-smoothing`, `fix/regression-allrun-set-u`, `chore/format-and-docs`.
+
+A single branch may bundle multiple low-risk meta concerns (e.g. formatter, docs, and dev-workflow changes can ride on one `chore/...` branch). Anything that can affect numerical results stays on its own branch.
+
+### Merge Strategy
+
+The repository uses **squash merge** — each PR becomes one commit on `main`, whose message is the PR title followed by the PR body. This keeps `main` linear and easy to scan with `git log --oneline`, while preserving the *why* and verification context inside `git log` / `git show`.
+
+Because the squash commit is permanent and per-branch commits are not, the convention below applies to **PR titles and bodies**, not to individual commits on your working branch. Commit however you like locally; the squash collapses it.
+
+### PR Titles
+
+```
+<type>[(<scope>)]: <imperative subject>
+```
+
+- `<type>` is one of `feat`, `fix`, `refactor`, `docs`, `chore` — the same vocabulary as branch prefixes (`feat` is the short form of `feature`).
+- `<scope>` is optional. Use it when it adds clarity (e.g. `fix(regression): ...` vs an unrelated bug fix). Plausible scopes in this repo: `regression`, `DEM`, `solver`, `tutorials`, `README`, `AGENTS`, `pyrolysis`, `chemistry`.
+- Subject is in imperative mood, lowercase first letter after the colon, ≤72 characters, no trailing period.
+
+Examples:
+
+```
+feat(DEM): add UsInterp Laplace smoothing for solid velocity
+fix(regression): keep Allrun/Allclean working under set -u
+docs(README): clarify default chemistry
+chore: apply clang-format across solver
+```
+
+### PR Body
+
+Opening a PR auto-populates the description from `.github/pull_request_template.md`. Three sections:
+
+- **Summary** — one or two sentences on what the PR changes. Always fill this in.
+- **Why** — motivation: symptom, missing capability, or bug. Skip if the diff is obviously self-justifying (typo fix, formatter run).
+- **Verification** — what you actually ran or checked: build target, tutorial cases, regression suite, residual sanity. Skip if the change cannot affect runtime (README only).
+
+Aim for terse and specific. The body becomes part of `main`'s history once squash-merged, so future-you (and `git log`) benefit from precision now.
 
 ---
 
