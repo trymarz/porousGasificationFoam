@@ -21,6 +21,8 @@ Example application areas:
 
 ## Contents
 
+**Part I — Practical Guide**
+
 1. [Quick Start](#quick-start)
 2. [Project Structure](#project-structure)
 3. [Build System](#build-system)
@@ -32,7 +34,19 @@ Example application areas:
 9. [Regression Testing](#regression-testing)
 10. [Troubleshooting](#troubleshooting)
 
-[Citation](#citation) · [Contributors](#contributors)
+**Part II — Physics and Implementation**
+
+11. [Two-Phase Coexistence](#two-phase-coexistence)
+12. [Per-Time-Step Tour](#per-time-step-tour)
+13. [Where to Look for What](#where-to-look-for-what)
+
+[Development Workflow](#development-workflow) · [Citation](#citation) · [Contributors](#contributors)
+
+---
+
+## Part I — Practical Guide
+
+*Build, run, configure, debug. Most readers spend their time here.*
 
 ## Quick Start
 
@@ -466,6 +480,113 @@ Defaults: `rtol=1e-4`, `atol=1e-12`. Both can be overridden per-run. The header 
 | Mass fractions do not sum to 1 | Missing `Ydefault` field or gas species | Check all gas species have corresponding `0/` files |
 | Slow convergence in pressure | Tight PIMPLE settings | Increase `nCorrectors` or relax `p` tolerance |
 | Parallel: `decomposePar` fails | Missing decompose constraints | Ensure `Ts`, `porosityF`, `porosityF0` use `calculated` or `zeroGradient` BCs |
+
+---
+
+## Part II — Physics and Implementation
+
+*A tour, not a reference. Equations, units, and algorithm choices live in the source files that implement them — `Description` blocks in the file banner, block comments above the relevant function, and inline narrative inside. This section narrates the flow and points at where to look.*
+
+## Two-Phase Coexistence
+
+Gas and solid coexist in every cell, distinguished by the porosity field `porosityF` ∈ [0, 1]: 1.0 is pure gas, 0.0 is pure solid, in-between is a porous medium containing both phases. Solid bulk density is `rhos = rho · (1 − porosityF)`, where `rho` is the intrinsic solid material density. Mass, momentum, and energy are exchanged between phases via coupling source terms computed by the pyrolysis/chemistry model.
+
+## Per-Time-Step Tour
+
+The main loop is in `porousGasificationFoam/porousGasificationFoam.C`. Each piece of work is pulled in via an `#include`, so the file reads top-to-bottom as a sequence. The steps below cite the include or function that does the work:
+
+1. **Time-step control** — Courant (gas), diffusion (solid), and chemistry timescale are combined into one stable `deltaT`. See `setMultiRegionDeltaT.H` and `updateChemistryTimeStep.H`.
+2. **DEM coupling** (compiled only when `WITH_YADE` is defined) — particle positions and velocities are exchanged with YADE, then the interpolated solid-velocity field is computed (raw per-cell average, then Laplace-smoothed into adjacent solid cells). See `lambdaDotModel::update()` in `porousGasificationMedia/DEM/lambdaDotModel.C`.
+3. **Radiation** — heterogeneous radiation model (`heterogeneousP1` or `heterogeneousMeanTemp`) updates the solid radiative source term. See `porousGasificationFoam/radiation.H` and `porousGasificationMedia/radiationModels/`.
+4. **Solid phase evolution** — the heart of the solver: per-cell chemistry ODE, solid species mass conservation, porosity evolution (with optional bed-collapse), and the solid energy equation. See `volPyrolysis::evolveRegion()` in `porousGasificationMedia/pyrolysisModels/pyrolysisModel/volPyrolysis/volPyrolysis.C`.
+5. **Gas continuity** — gas-phase density update with the solid-to-gas mass source. See `porousGasificationFoam/rhoEqn.H`.
+6. **PIMPLE loop** — momentum (`UEqn.H`) with Darcy/Forchheimer porous resistance, gas species (`YEqn.H`), gas energy (`EEqn.H`), and pressure correction (`pEqn.H` or `pcEqn.H` depending on `pimple.consistent()`).
+7. **Turbulence correction** — `turbulence->correct()` in the main loop.
+
+## Where to Look for What
+
+| Question | Where to look |
+|---|---|
+| What equation does this step solve? Which terms, which units? | `Description` block in the file banner and the comment block above the relevant `evolve*` / `solve*` / `*Eqn` function in the corresponding `.C`/`.H`. |
+| Which input dictionary keys does X read? | Part I → [Input File Reference](#input-file-reference). |
+| What initial fields does a case need? | Part I → [Required Initial Fields](#required-initial-fields). |
+| Where does this field get constructed? | `porousGasificationFoam/createFields.H` for solver fields; `createDEMFields.H` for DEM-coupled fields. |
+| How does the solver layout map to OpenFOAM modules? | Part I → [Project Structure](#project-structure). |
+
+If you find a discrepancy between this tour and what the code does, the code wins — please open an issue or PR.
+
+---
+
+## Development Workflow
+
+*Contributing to this repository. New contributors: start here.*
+
+### Branch Naming
+
+Branches use a short prefix that signals intent, followed by a kebab-case descriptive name. Five prefixes cover everything:
+
+| Prefix | Used for |
+|---|---|
+| `feature/` | New user-facing capability — a new solver field, model, or tutorial exercising real functionality. |
+| `fix/` | Observable bug becomes right. |
+| `refactor/` | Code restructure intended not to change behaviour. Flag for careful review. |
+| `docs/` | Documentation only (README, AGENTS.md, comments). |
+| `chore/` | Everything else meta — formatter configs, build/Make tweaks, `.gitignore`, dependency bumps, tooling. |
+
+Examples: `feature/UsInterp-laplace-smoothing`, `fix/regression-allrun-set-u`, `chore/format-and-docs`.
+
+A single branch may bundle multiple low-risk meta concerns (e.g. formatter, docs, and dev-workflow changes can ride on one `chore/...` branch). Anything that can affect numerical results stays on its own branch.
+
+### Merge Strategy
+
+The repository uses **squash merge** — each PR becomes one commit on `main`, whose message is the PR title followed by the PR body. This keeps `main` linear and easy to scan with `git log --oneline`, while preserving the *why* and verification context inside `git log` / `git show`.
+
+Because the squash commit is permanent and per-branch commits are not, the convention below applies to **PR titles and bodies**, not to individual commits on your working branch. Commit however you like locally; the squash collapses it.
+
+### PR Titles
+
+```
+<type>[(<scope>)]: <imperative subject>
+```
+
+- `<type>` is one of `feat`, `fix`, `refactor`, `docs`, `chore` — the same vocabulary as branch prefixes (`feat` is the short form of `feature`).
+- `<scope>` is optional. Use it when it adds clarity (e.g. `fix(regression): ...` vs an unrelated bug fix). Plausible scopes in this repo: `regression`, `DEM`, `solver`, `tutorials`, `README`, `AGENTS`, `pyrolysis`, `chemistry`.
+- Subject is in imperative mood, lowercase first letter after the colon, ≤72 characters, no trailing period.
+
+Examples:
+
+```
+feat(DEM): add UsInterp Laplace smoothing for solid velocity
+fix(regression): keep Allrun/Allclean working under set -u
+docs(README): clarify default chemistry
+chore: apply clang-format across solver
+```
+
+### PR Body
+
+Opening a PR auto-populates the description from `.github/pull_request_template.md`. Three sections:
+
+- **Summary** — one or two sentences on what the PR changes. Always fill this in.
+- **Why** — motivation: symptom, missing capability, or bug. Skip if the diff is obviously self-justifying (typo fix, formatter run).
+- **Verification** — what you actually ran or checked: build target, tutorial cases, regression suite, residual sanity. Skip if the change cannot affect runtime (README only).
+
+Aim for terse and specific. The body becomes part of `main`'s history once squash-merged, so future-you (and `git log`) benefit from precision now.
+
+### Documentation
+
+Source code is the source of truth for physics, equations, units, and algorithm choices. Comments live next to the implementation they describe — OpenFOAM-style file banner with a `Description` block, `//-` briefs above function declarations, and `// ...` narrative inside function bodies for non-obvious steps.
+
+The README's [Part II](#part-ii--physics-and-implementation) is a tour: it narrates the per-step flow and points into the code. It does **not** restate equations or implementation detail — those belong in the source file that implements them, where they cannot drift unnoticed during refactors.
+
+When you submit a PR:
+
+- **Behaviour change** → update the relevant code-comment block in the same commit.
+- **Loop structure or step ordering change** → update Part II's per-step tour too.
+- **New documentation insight** → if it's about *what the code does*, write it as a code comment. If it's about *how to use* the solver or *how to navigate* the codebase, it belongs in the README.
+
+If you catch a Part II claim that's already in the code as a comment, replace it with a pointer in the same PR. The migration is opportunistic — no need to wait for a dedicated cleanup branch.
+
+---
 
 ## Citation
 
