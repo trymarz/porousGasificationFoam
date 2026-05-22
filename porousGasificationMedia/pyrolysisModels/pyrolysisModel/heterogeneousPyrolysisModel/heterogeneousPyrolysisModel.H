@@ -25,19 +25,46 @@ Class
     Foam::heterogeneousPyrolysisModels::heterogeneousPyrolysisModel
 
 Description
-    base class for heterogeneusPyrolysisModel
+    Abstract base for solid-phase ("heterogeneous") pyrolysis models.
 
-    The heterogeneousPyrolysisModel class.
-    It is an implementation of a base class for different pyrolysis models. This
-    class creates all necessary fields of solid properties (e.g., mass fields of
-    solid components) and integrates physical submodels for the solid state
-    (e.g., radiation, kinetics, conduction). For each cell containing the solid
-    phase, the source terms for the gas- and solid-phase equations
-    are calculated.
+    A pyrolysis model owns the per-cell representation of the solid
+    phase that coexists with the gas in every mesh cell. It is
+    responsible for:
+
+      - solid species mass conservation (Y_i,s, rho_s),
+      - the per-cell heterogeneous chemistry ODE,
+      - the solid energy equation (T_s),
+      - the porosity field evolution (and optional bed-collapse motion),
+      - publishing coupling sources to the gas phase:
+          * Srho()           — total solid-to-gas mass production
+                               [kg/(solid-volume * s)],
+          * Srho(label i)    — per-species production for gas specie i,
+          * heatTransfer()   — interphase convective heat flux [W/m^3],
+          * heatUpGas()      — enthalpy needed to bring freshly released
+                               gas from T_s to the local gas state
+                               [W/m^3],
+          * solidChemistrySh() — heat-of-reaction term for the solid
+                                 energy equation [W/m^3].
+
+    The base class only owns: the \c pyrolysisProperties dictionary,
+    the model coefficients sub-dictionary, the \c active switch, and
+    \c reactionDeltaMin (a numerical control). All physical fields and
+    the chemistry/HT/radiation sub-models live in derived classes —
+    the concrete implementation in this repo is
+    \c heterogeneousPyrolysisModels::volPyrolysis. The base class
+    intentionally leaves Srho(i) pure virtual so every derived class
+    must implement it; the other source/access methods raise
+    \c notImplemented if a derived class forgets them.
+
+    Two runtime selection tables are declared (\c noRadiation and
+    \c radiation) so a model may either ignore radiation or consume a
+    pre-computed solid radiative source field — the main solver always
+    uses the \c radiation table.
 
 SourceFiles
     heterogeneousPyrolysisModelI.H
     heterogeneousPyrolysisModel.C
+    heterogeneousPyrolysisModelNew.C
 
 \*---------------------------------------------------------------------------*/
 

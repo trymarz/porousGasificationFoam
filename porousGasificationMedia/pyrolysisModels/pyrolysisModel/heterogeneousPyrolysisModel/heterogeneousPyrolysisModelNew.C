@@ -21,6 +21,22 @@ License
     You should have received a copy of the GNU General Public License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
+Description
+    Selector implementations for the heterogeneous pyrolysis model
+    runtime selection. Two selector overloads:
+
+      - \c New(mesh, solidThermo, gasThermo, whereIs):           uses the
+        \c noRadiationConstructorTablePtr_ — for cases without
+        radiation coupling.
+      - \c New(mesh, solidThermo, gasThermo, whereIs, radiation): uses
+        \c radiationConstructorTablePtr_ — passes a per-cell radiative
+        source field that the model will consume in the solid energy
+        equation. The main solver always calls this overload.
+
+    Both read the key \c heterogeneousPyrolysisModel from
+    \c constant/pyrolysisProperties to pick the concrete class
+    (typically \c volPyrolysis).
+
 \*---------------------------------------------------------------------------*/
 
 #include "heterogeneousPyrolysisModel.H"

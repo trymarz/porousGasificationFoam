@@ -21,6 +21,11 @@ License
     You should have received a copy of the GNU General Public License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
+Description
+    Inline accessors for \c heterogeneousPyrolysisModel: \c active(),
+    \c coeffs(), \c solution(). Provided as inlines so they cost
+    nothing at call sites.
+
 \*---------------------------------------------------------------------------*/
 
 #include "heterogeneousPyrolysisModel.H"

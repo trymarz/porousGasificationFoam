@@ -21,6 +21,13 @@ License
     You should have received a copy of the GNU General Public License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
+Description
+    Base-class implementation. Holds the constructor wiring (reading
+    \c constant/pyrolysisProperties), the default \c evolve() driver
+    (\c preEvolveRegion -> \c evolveRegion -> \c info), and the
+    \c notImplemented bodies of the coupling-source accessors which
+    every derived class is expected to override.
+
 \*---------------------------------------------------------------------------*/
 
 #include "heterogeneousPyrolysisModel.H"
@@ -162,13 +169,23 @@ heterogeneousPyrolysisModel::~heterogeneousPyrolysisModel()
 
 // * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * * //
 
+// Drive the solid-phase update for one time step. This is what
+// pyrolysisZone.evolve() in the main solver calls. Sequence:
+//   1. preEvolveRegion()  — derived-class hook for bookkeeping before
+//                            the main update (e.g. tagging reacting
+//                            cells from the porosity field).
+//   2. evolveRegion()     — the actual chemistry + solid species mass
+//                            + porosity + solid energy update.
+//   3. info()             — optional diagnostic line summarising mass
+//                            and heat balances.
+// The whole thing is a no-op if the model is inactive
+// (constant/pyrolysisProperties has active = false).
 void heterogeneousPyrolysisModel::evolve()
 {
     if (active_)
     {
         preEvolveRegion();
 
-        // Increment the region equations up to the new time level.
         evolveRegion();
 
         if (infoOutput_)
