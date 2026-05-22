@@ -25,10 +25,26 @@ Class
     Foam::radiationModels::heterogeneousConstantAbsorptionEmission
 
 Description
-    Constant radiation absorption and emission coefficients for continuous
-    phase
+    Constant absorption / emission coefficients.
+
+    Five scalars read from
+    \c heterogeneousConstantAbsorptionEmissionCoeffs in
+    \c constant/radiationProperties:
+      - \c a        — gas-phase absorption coefficient [1/m];
+      - \c as       — solid-phase volumetric absorption [1/m];
+      - \c borderAs — solid-surface absorption [1/m] (large; only
+                      active on bed edge cells);
+      - \c E        — gas emission contribution [W/m^3];
+      - \c borderL  — surface-layer thickness [m] used by the
+                      radiation model to scale the surface absorption.
+
+    Greyness is reported as true. The values are notoriously hard to
+    source from literature — README → "Radiation parameters are the
+    hardest to source" recommends tuning on a TGA-like reference case
+    and reusing.
 
 SourceFiles
+    heterogeneousConstantAbsorptionEmission.H
     heterogeneousConstantAbsorptionEmission.C
 
 \*---------------------------------------------------------------------------*/

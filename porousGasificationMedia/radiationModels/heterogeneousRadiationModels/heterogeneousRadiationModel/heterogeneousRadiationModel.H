@@ -25,10 +25,35 @@ Class
     Foam::heterogeneousRadiationModel
 
 Description
-    Top level model for heterogeneous radiation modelling
+    Abstract base for the heterogeneous (gas + solid) radiation model.
+
+    Two field references it always owns: the gas temperature \c T_
+    (inherited from the OpenFOAM \c radiation::radiationModel base) and
+    the solid temperature \c Ts_. Plus a sub-model for the absorption /
+    emission coefficients (\c heterogeneousAbsorptionEmissionModel),
+    selected from \c constant/radiationProperties.
+
+    Two RTS tables: one keyed on \c T only (used by tests / no-radiation
+    branch), one keyed on (\c T, porosityF, surfF, Ts) — the main
+    solver always uses the second.
+
+    Pure-virtual surface used by the main solver:
+      - \c solidSh() — volumetric radiative source for the solid
+        energy equation [W/m^3]. Published from
+        \c heterogeneousRadiationModel via \c radiationF in
+        radiation.H (see porousGasificationFoam/radiation.H).
+
+    Concrete implementations:
+      - \c heterogeneousNoRadiation (type name "none") — zero source;
+      - \c heterogeneousMeanTemp — surface-only mean-temperature model
+        for thin beds with cheap radiation;
+      - \c heterogeneousP1 — P1 diffusion approximation, full
+        volumetric, used for thick beds.
 
 SourceFiles
+    heterogeneousRadiationModel.H
     heterogeneousRadiationModel.C
+    heterogeneousRadiationModelNew.C
 
 \*---------------------------------------------------------------------------*/
 

@@ -21,6 +21,14 @@ License
     You should have received a copy of the GNU General Public License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
+Description
+    Selector implementations for \c heterogeneousRadiationModel. Reads
+    \c radiation switch and \c heterogeneousRadiationModel entry from
+    \c constant/radiationProperties; when radiation is off, returns
+    the \c none variant regardless of model name. Two overloads
+    matching the two RTS tables (T-only and the
+    porosity/surfF/Ts-aware one).
+
 \*---------------------------------------------------------------------------*/
 
 #include "heterogeneousRadiationModel.H"

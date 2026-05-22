@@ -25,10 +25,16 @@ Class
     Foam::radiationModels::heterogeneousNoRadiation
 
 Description
-    No radiation - does nothing to energy equation source terms
-    (returns zeros)
+    Identity (no-op) radiation model.
+
+    Type name \c none. Returns zero from \c solidSh(), \c Rp() and
+    \c Ru(). Select in \c constant/radiationProperties when radiation
+    is turned off but the radiation framework must remain wired in so
+    \c volPyrolysis can still construct without dropping the solid-
+    side source field.
 
 SourceFiles
+    heterogeneousNoRadiation.H
     heterogeneousNoRadiation.C
 
 \*---------------------------------------------------------------------------*/

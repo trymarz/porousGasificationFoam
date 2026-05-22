@@ -21,6 +21,13 @@ License
     You should have received a copy of the GNU General Public License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
+Description
+    Selector for \c heterogeneousAbsorptionEmissionModel. Reads
+    \c heterogeneousAbsorptionEmissionModel entry from the radiation
+    sub-dictionary and dispatches to the matching RTS entry —
+    typically \c heterogeneousConstantAbsorptionEmission or
+    \c heterogeneousNoAbsorptionEmission.
+
 \*---------------------------------------------------------------------------*/
 
 #include "error.H"

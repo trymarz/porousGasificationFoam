@@ -22,18 +22,37 @@ License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
 Class
-    Foam::radiation::heterogeneousMeanTemp
+    Foam::radiationModels::heterogeneousMeanTemp
 
 Description
-    Works well for combustion applications where optical thickness, tau is
-    large, i.e. tau = a*L > 3 (L = distance between objects)
+    Surface-only mean-wall-temperature radiation model.
 
-    Assumes
-     - all surfaces are diffuse
-     - tends to over predict radiative fluxes from sources/sinks
-       *** SOURCES NOT CURRENTLY INCLUDED ***
+    Bypasses the full P1 diffusion equation. The radiative energy
+    impinging on the bed is taken as the Stefan–Boltzmann emission of
+    a representative wall temperature
+    \f[
+        G = \sigma\, T_{wall,mean}^4
+    \f]
+    where \f$T_{wall,mean}\f$ is the area-weighted mean over all
+    patches of type \c wall. The solid radiative source is applied
+    only on the bed surface (cells with \c surfF_[cellI] != 0):
+    \f[
+        S_{rad}(\text{surf}) = 4\, \mathrm{surfF}\,
+            (\mathrm{borderAs}\,G - \mathrm{borderAs}\,\sigma\, T_s^4)
+    \f]
+
+    Fast (no Laplacian solve) but valid only when the bed is optically
+    thin enough that interior cells receive negligible volumetric
+    radiation. Use \c heterogeneousP1 for optically thick beds.
+
+    Requires at least one patch of type \c wall in the case; aborts
+    otherwise. \c surfF_ — the surface-cell mask scaled by
+    \c borderL/dx — is rebuilt from \c surfFI (the binary border mask
+    from volPyrolysis) once per call, accounting for mesh
+    dimensionality (1D/2D/3D).
 
 SourceFiles
+    heterogeneousMeanTemp.H
     heterogeneousMeanTemp.C
 
 \*---------------------------------------------------------------------------*/

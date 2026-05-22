@@ -21,6 +21,13 @@ License
     You should have received a copy of the GNU General Public License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
+Description
+    \c heterogeneousRadiationModel base-class implementation:
+    constructors (three overloads), destructor, RTS table definitions,
+    and the \c initialise() routine that reads
+    \c constant/radiationProperties and constructs the
+    absorption/emission sub-model.
+
 \*---------------------------------------------------------------------------*/
 
 #include "heterogeneousRadiationModel.H"

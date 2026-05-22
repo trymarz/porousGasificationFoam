@@ -22,12 +22,19 @@ License
     along with foam-extend.  If not, see <http://www.gnu.org/licenses/>.
 
 Class
-    Foam::radiation::heterogeneousNoAbsorptionEmission
+    Foam::radiationModels::heterogeneousNoAbsorptionEmission
 
 Description
-    Dummy absorption-emission model for 'none'
+    Zero absorption / emission coefficients.
+
+    Stub for cases where the radiation framework must be wired (so
+    \c volPyrolysis sees a radiation field) but no actual interaction
+    is desired. Effectively equivalent to selecting \c heterogeneousNoRadiation
+    at the model level, but kept available so the model and the
+    absorption/emission selection can be set independently.
 
 SourceFiles
+    heterogeneousNoAbsorptionEmission.H
     heterogeneousNoAbsorptionEmission.C
 
 \*---------------------------------------------------------------------------*/

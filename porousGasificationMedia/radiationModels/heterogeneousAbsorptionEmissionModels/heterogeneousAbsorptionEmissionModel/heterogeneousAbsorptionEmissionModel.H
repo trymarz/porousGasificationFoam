@@ -25,8 +25,33 @@ Class
     Foam::radiationModels::heterogeneousAbsorptionEmissionModel
 
 Description
-    Model to supply absorption and emission coefficients for
-    heterogeneous radiation modelling
+    Abstract base for the absorption / emission coefficient supplier
+    consumed by \c heterogeneousRadiationModel.
+
+    Extends OpenFOAM's \c radiation::absorptionEmissionModel with
+    "border" variants needed for the heterogeneous formulation:
+      - \c aCont / \c asCont      — gas-phase / solid-volumetric
+                                    absorption coefficients [1/m];
+      - \c borderAsCont           — solid-surface absorption [1/m],
+                                    active only on bed-edge cells;
+      - \c borderL                — surface-layer thickness [m] used
+                                    by the radiation model to convert
+                                    border absorption to a per-cell
+                                    source;
+      - \c ECont                  — radiative emission contribution
+                                    [W/m^3] for the gas side.
+
+    Implementations:
+      - \c heterogeneousConstantAbsorptionEmission — user-supplied
+        scalar a, as, borderAs, E, borderL (the canonical case);
+      - \c heterogeneousNoAbsorptionEmission — zero (selected when no
+        absorption/emission is desired even though the radiation model
+        is on).
+
+SourceFiles
+    heterogeneousAbsorptionEmissionModel.H
+    heterogeneousAbsorptionEmissionModel.C
+    newHeterogeneousAbsorptionEmissionModel.C
 
 \*---------------------------------------------------------------------------*/
 
