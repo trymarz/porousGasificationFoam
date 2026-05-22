@@ -21,6 +21,16 @@ License
     You should have received a copy of the GNU General Public License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
+Description
+    Instantiation point for the heterogeneous-reaction type matrix.
+    Expands \c makeIRRType for each (IrreversibleSolidHeterogeneousReaction,
+    reactionRate) pair so that all of
+    \c irreversibleSolidArrheniusHeterogeneousReaction,
+    \c irreversibleSolidModArrHeterogeneousReaction,
+    \c irreversibleSolidConstHeterogeneousReaction,
+    \c irreversibleSolidTemperatureArrheniusHeterogeneousReaction
+    are visible at runtime.
+
 \*---------------------------------------------------------------------------*/
 
 #include "makeSolidHeterogeneousReactionThermo.H"

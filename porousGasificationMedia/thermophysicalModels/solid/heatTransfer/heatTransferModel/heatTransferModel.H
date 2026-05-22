@@ -25,19 +25,28 @@ Class
     Foam::heatTransferModel
 
 Description
-    Interface of the base class for the convective heat transfer models
-    between the gas and solid.
+    Abstract base for the interphase convective heat-transfer model.
 
-    The convective heat transfer between the gas and solid is approximated as:
-    \f[
-        q_{CONV} = h_{CONV}  \sum (T^{fluid} - T^{solid}),
-    \f]
-    where:
-        - \f$ h_{CONV} \f$ -- Convective heat transfer coefficient
-        - \f$ \sum \f$ -- Surface area to volume ratio
-        - T -- temperature
+    Owns references to the current porosity field and the initial
+    porosity field (so geometry-evolving variants — pipe, cylinder —
+    can rebuild the surface area as the bed converts). Reads
+    \c constant/heatTransferProperties for its parameters.
+
+    The only public output is \c CONV() = h * SAV [W/m^3/K], the
+    product of the heat-transfer coefficient and the surface-area-to-
+    volume ratio. Consumed by \c volPyrolysis::CONV() and from there
+    by the convective heat-flux term \c CONV*(T_s - T_g) in the solid
+    energy equation (see volPyrolysis::heatTransfer()).
+
+    Concrete implementations in this directory tree:
+      - \c constCONV  — user-specified scalar h and SAV;
+      - \c pipeCONV   — Nu-correlation for flow inside a regular
+                        lattice of parallel pipes;
+      - \c cylinderCONV — Nu-correlation for flow over a regular
+                          lattice of parallel cylinders.
 
 SourceFiles
+    heatTransferModel.H
     heatTransferModel.C
 
 \*---------------------------------------------------------------------------*/

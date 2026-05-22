@@ -25,9 +25,23 @@ Class
     Foam::solidModArrRate
 
 Description
-    ModArr reaction rate for solids
+    Modified-Arrhenius reaction-rate law for solids.
+
+    \f[
+        k_f(T) = A \, T^{n} \exp(-T_a / T)
+                 \quad \text{for } T > T_{crit}
+    \f]
+
+    Three scalars per reaction (A, Ta, Tcrit) — the temperature
+    exponent n is fixed in the implementation file; check the .I.H
+    for the exact form. Useful when the pre-exponential needs a
+    T^n correction (e.g. CO oxidation expressions).
+
+    TODO: walk through with the user the exact T^n exponent in
+    solidModArrRateI.H.
 
 SourceFiles
+    solidModArrRate.H
     solidModArrRateI.H
 
 \*---------------------------------------------------------------------------*/

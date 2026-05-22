@@ -21,10 +21,23 @@ License
     You should have received a copy of the GNU General Public License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
+Class
+    Foam::constST
+
 Description
-    costant specie transfer model
+    Constant specie-transfer model.
+
+    Two scalars from \c constant/specieTransferProperties:
+      - \c h   — mass-transfer coefficient,
+      - \c SAV — specific surface area [1/m].
+
+    Returns the per-cell ST = h * SAV (with units 1/s) uniformly. Only
+    used when \c diffusionLimitedReactions is true in
+    chemistryProperties. See README → Input File Reference →
+    specieTransferProperties.
 
 SourceFiles
+    constST.H
     constST.C
 
 \*---------------------------------------------------------------------------*/

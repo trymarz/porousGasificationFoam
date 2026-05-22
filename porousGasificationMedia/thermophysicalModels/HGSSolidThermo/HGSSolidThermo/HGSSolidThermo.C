@@ -21,6 +21,13 @@ License
     You should have received a copy of the GNU General Public License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
+Description
+    \c HGSSolidThermo base-class implementation. Constructor wiring
+    (three overloads for the three RTS tables), \c composition()
+    accessors, per-patch \c K() / \c hs() default implementations
+    that just copy the internal field to the requested patch, and
+    \c directionalK() default (diagonal symmTensor of K).
+
 \*---------------------------------------------------------------------------*/
 
 #include "HGSSolidThermo.H"

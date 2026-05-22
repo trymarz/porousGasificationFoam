@@ -21,6 +21,14 @@ License
     You should have received a copy of the GNU General Public License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
+Description
+    Instantiation point for \c HGSSolidMixtureThermo against the
+    permitted (MixtureType, per-component thermo) combinations using
+    \c makeHGSSolidMixtureThermo macros. Generates the typedefs and
+    runtime-selection-table entries the chemistry layer dispatches
+    to via the \c thermoType entry of
+    \c constant/solidThermophysicalProperties.
+
 \*---------------------------------------------------------------------------*/
 
 #include "makeHGSSolidMixtureThermo.H"

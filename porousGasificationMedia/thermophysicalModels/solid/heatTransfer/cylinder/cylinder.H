@@ -25,14 +25,28 @@ Class
     Foam::cylinderCONV
 
 Description
-    Cylinder heat transfer model.
+    Interphase convective heat transfer for flow over a regular
+    lattice of parallel solid cylinders.
 
-    Porosity is modelled as a collection of parallel cylinders. This models assumes
-    that the porous medium with initial porosity \f$ \epsilon_0 \f$ has a regular
-    lattice of parallel cylinders with initial radius \f$ a_{c0} \f$. Constant
-    number of cylinders is assumed. Its radii evolve in time while porosity changes.
+    Geometry assumption: the solid phase is a constant number of
+    parallel cylinders. Given the initial porosity
+    \f$\varepsilon_0\f$ and initial cylinder radius \f$a_{c0}\f$, the
+    current radius \f$a_c(t)\f$ evolves with porosity (the cylinder
+    shrinks as the bed converts):
+    \f$a_c = a_{c0}\sqrt{(1-\varepsilon)/(1-\varepsilon_0)}\f$. The
+    SAV is \f$SAV = 2(1-\varepsilon)/a_c\f$.
+
+    Heat-transfer coefficient uses a Nu(Re, Pr) correlation for
+    cross-flow over a cylinder bundle. Re, Pr and Nu are evaluated
+    per cell from the local gas state (\c Up_, \c rhop_, \c mup_,
+    \c alphap_).
+
+    TODO: walk through with the user — confirm the Nu correlation in
+    cylinder.C (Zukauskas? Churchill-Bernstein?) against the intended
+    reference.
 
 SourceFiles
+    cylinder.H
     cylinder.C
 
 \*---------------------------------------------------------------------------*/

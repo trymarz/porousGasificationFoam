@@ -25,13 +25,22 @@ Class
     Foam::constSolidTransport
 
 Description
-    Constant properties Transport package.
-    Templated into a given thermodynamics package (needed for thermal
-    conductivity).
+    Solid transport package with constant thermal conductivity.
+
+    \f$ K(T) = K_0 \f$ — a single scalar read from the component's
+    \c transport sub-dict (e.g. \c woodCoeffs.transport.K). Wraps a
+    thermodynamics package; the K(T) override is the only addition
+    over \c thermo, which still supplies Cp, hf, hs.
+
+    Use this for solids where the temperature dependence of K is
+    negligible compared with the temperature range of interest. For
+    T-dependent conductivity, see \c linearSolidTransport (K = a T + b)
+    or \c exponentialSolidTransport (K = K_0 (T/Tref)^n).
 
 SourceFiles
-    constSolidTransportI.H
+    constSolidTransport.H
     constSolidTransport.C
+    constSolidTransportI.H
 
 \*---------------------------------------------------------------------------*/
 

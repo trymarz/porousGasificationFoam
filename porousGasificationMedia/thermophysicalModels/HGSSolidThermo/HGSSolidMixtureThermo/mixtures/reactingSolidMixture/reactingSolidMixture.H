@@ -25,9 +25,20 @@ Class
     Foam::reactingSolidMixture
 
 Description
-    Foam::reactingSolidMixture
+    Multi-component solid mixture with reactions of the form
+    \c S1 = S2 + G (solid-only LHS).
+
+    Adds a PtrList of \c solidReaction to \c multiComponentSolidMixture.
+    The reaction list is read by \c read(dict) from the
+    \c solidReactions entry of \c constant/chemistryProperties.
+
+    Used by simple pyrolysis cases where the released gas is a single
+    generic stream and no gas-side reactant is consumed. For mixtures
+    that consume a gas-side species (combustion, gasification), use
+    \c reactingSolidHeterogeneousMixture instead.
 
 SourceFiles
+    reactingSolidMixture.H
     reactingSolidMixture.C
 
 \*---------------------------------------------------------------------------*/

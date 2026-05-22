@@ -25,10 +25,39 @@ Class
     Foam::HGSSolidMixtureThermo
 
 Description
-    Foam::HGSSolidMixtureThermo
+    Concrete \c HGSSolidThermo templated on a multi-component mixture.
+
+    The MixtureType template parameter is one of:
+      - \c multiComponentSolidMixture<...>     — non-reacting mixture;
+      - \c reactingSolidMixture<...>           — gas-only side
+                                                 reactions (S = S + G);
+      - \c reactingSolidHeterogeneousMixture<...> — heterogeneous
+                                                 reactions (S + G = S + G).
+
+    Owns the cached cell-wise thermal conductivity field \c K_, which
+    is recomputed by \c calculate() in \c correct() — at every step
+    the per-component K(T) is evaluated with the current temperature
+    and weighted by the current mass fractions. \c Cp(), \c Hf() and
+    \c hs() are produced on demand from the same loop. Per-patch
+    overloads follow the same pattern but iterate over a patch's
+    cells/faces.
+
+    Multiple inheritance from both \c HGSSolidThermo (the abstract
+    base) and MixtureType lets \c composition() simply return *this
+    typed as MixtureType, which is what callers downstream
+    (ODESolidHeterogeneousChemistryModel) cast into.
+
+    Concrete instantiations are produced by \c makeHGSSolidMixtureThermo.H
+    macros against the \c forCommonSolids.H combination matrix; the
+    name string of the resulting type is the brackets-and-commas
+    composition expected in \c solidThermoType in chemistryProperties
+    (e.g. \c const<constRad<constThermo<constRho>>>).
 
 SourceFiles
+    HGSSolidMixtureThermo.H
     HGSSolidMixtureThermo.C
+    HGSSolidMixtureThermos.C
+    makeHGSSolidMixtureThermo.H
 
 \*---------------------------------------------------------------------------*/
 

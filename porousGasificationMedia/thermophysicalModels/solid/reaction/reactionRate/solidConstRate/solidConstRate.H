@@ -25,9 +25,19 @@ Class
     Foam::solidConstRate
 
 Description
-    Const reaction rate for solids
+    Constant-in-T reaction-rate law for solids.
+
+    \f[
+        k_f = A \quad \text{for } T > T_{crit},\quad 0 \text{ otherwise}
+    \f]
+
+    A is the constant rate. Despite the three-scalar constructor
+    (A, Ta, Tcrit) for parser uniformity, only A and Tcrit are
+    consumed. Useful for sanity-test reactions or for kinetics whose
+    T-dependence is folded into the concentration term elsewhere.
 
 SourceFiles
+    solidConstRate.H
     solidConstRateI.H
 
 \*---------------------------------------------------------------------------*/

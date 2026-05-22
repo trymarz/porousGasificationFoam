@@ -21,10 +21,20 @@ License
     You should have received a copy of the GNU General Public License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
+Class
+    Foam::emptyST
+
 Description
-    costant specie transfer model
+    No-op specie-transfer model.
+
+    Returns ST() = 0 over the whole mesh, effectively disabling the
+    diffusion-limiter on heterogeneous reactions even when
+    \c diffusionLimitedReactions = true is left in
+    chemistryProperties. Use as the default when you do not want the
+    mass-transfer cap to be active.
 
 SourceFiles
+    emptyST.H
     emptyST.C
 
 \*---------------------------------------------------------------------------*/

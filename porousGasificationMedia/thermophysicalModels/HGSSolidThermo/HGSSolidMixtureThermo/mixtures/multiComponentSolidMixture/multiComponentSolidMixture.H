@@ -25,7 +25,31 @@ Class
     Foam::multiComponentSolidMixture
 
 Description
-    Foam::multiComponentSolidMixture
+    Mass-fraction-weighted multi-component solid mixture.
+
+    Templated on the per-component solid thermo physics type (the
+    constSolidThermoPhysics, expoSolidThermoPhysics or
+    linearSolidThermoPhysics typedefs in
+    \c solidThermoPhysicsTypes.H). Owns \c solidData_, a PtrList of
+    per-component thermo objects providing rho(T), Cp(T), hf, hs(T),
+    K(T), kappa(T), sigmaS(T), emissivity(T) for each constituent.
+
+    The cell-based mixing rules (rho, Cp, K, kappa, sigmaS,
+    emissivity, hf, hs, h) are the mass-fraction-weighted averages
+    sum_i Y_i * f_i(T). Density is the harmonic mean — i.e.
+    1/rho = sum_i Y_i / rho_i — to remain self-consistent with the
+    volume-fraction definition. \c X(i, celli, T) returns the molar
+    fraction of component i in cell celli at T.
+
+    \c read(dict) parses the per-component sub-dictionaries from
+    \c solidThermophysicalProperties (the \c <name>Coeffs blocks).
+    \c correctMassFractions() rescales Y so the bound sum_i Y_i = 1
+    holds — called when the mass-fraction fields are loaded or after
+    they are updated by the chemistry model.
+
+SourceFiles
+    multiComponentSolidMixture.H
+    multiComponentSolidMixture.C
 
 \*---------------------------------------------------------------------------*/
 

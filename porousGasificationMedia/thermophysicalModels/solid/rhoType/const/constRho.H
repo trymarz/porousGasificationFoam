@@ -25,11 +25,24 @@ Class
     Foam::constRho
 
 Description
-    rho constant
+    Constant-density solid component.
+
+    Reads a single scalar \c rho from the component's \c density
+    sub-dict in \c solidThermophysicalProperties (e.g.
+    \c woodCoeffs.density.rho). Returns the same value for any T —
+    no thermal expansion. This is the canonical and only \c rhoType
+    in current use; see \c heterogeneousConstRho for the type-name
+    variant retained for heterogeneous mixtures.
+
+    NOTE: \c rho is the *intrinsic* (true) density of the solid at
+    \c porosityF = 0, not a bulk density. The bulk density inside a
+    porous bed is \c rho * (1 - porosityF). See README →
+    Tips → "Solid thermophysical properties: true density, not bulk".
 
 SourceFiles
-    constRhoI.H
+    constRho.H
     constRho.C
+    constRhoI.H
 
 \*---------------------------------------------------------------------------*/
 

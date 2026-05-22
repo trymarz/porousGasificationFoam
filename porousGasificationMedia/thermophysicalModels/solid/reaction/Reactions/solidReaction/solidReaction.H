@@ -25,12 +25,24 @@ Class
     Foam::solidReaction
 
 Description
+    Parsed representation of a solid-only-LHS reaction
+    \c S1 = S2 + G1 — solid reactant decomposing into a solid product
+    and a gas.
 
-    Read solid reactions of the type S1 = S2 + G1
+    Stores the LHS / RHS species index lists (\c slhs_, \c srhs_,
+    \c grhs_) into the global \c components_ and \c pyrolisisGases_
+    speciesTables. Does NOT carry a reaction-rate object — that is
+    added by the templated wrappers (see \c IrreversibleReaction-style
+    derivatives in OpenFOAM's gas-side framework).
+
+    Use this class for cases where no gas-side reactant is consumed.
+    For \c S1 + G1 = S2 + G2 (heterogeneous reactions used by PGF's
+    main solver path), use \c solidHeterogeneousReaction instead.
 
 SourceFiles
-    solidReactionI.H
+    solidReaction.H
     solidReaction.C
+    solidReactionI.H
 
 \*---------------------------------------------------------------------------*/
 

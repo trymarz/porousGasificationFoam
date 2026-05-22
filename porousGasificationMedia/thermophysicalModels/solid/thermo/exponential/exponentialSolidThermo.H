@@ -25,11 +25,27 @@ Class
     Foam::exponentialSolidThermo
 
 Description
-    Exponential thermodynamics package for solids templated into the rhoType.
+    Solid thermodynamics package with power-law specific heat.
+
+    \f[
+        C_p(T) = c_0 \, (T/T_{ref})^{n_0}
+    \f]
+
+    Sensible enthalpy is computed by analytic integration of Cp(T):
+    \f[
+        h_s(T) = \frac{c_0 T_{ref}}{n_0 + 1}
+                 \left[(T/T_{ref})^{n_0+1} - 1\right].
+    \f]
+
+    Parameters \c c0_, \c n0_, \c Tref_, \c Hf_ are read from the
+    component's \c thermodynamics sub-dict. \c checkT(T) guards
+    against negative or near-zero temperatures that would blow up the
+    power.
 
 SourceFiles
-    exponentialSolidThermoI.H
+    exponentialSolidThermo.H
     exponentialSolidThermo.C
+    exponentialSolidThermoI.H
 
 \*---------------------------------------------------------------------------*/
 

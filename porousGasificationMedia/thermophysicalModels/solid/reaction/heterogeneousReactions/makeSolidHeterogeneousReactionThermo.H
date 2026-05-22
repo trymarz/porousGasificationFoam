@@ -25,7 +25,17 @@ InClass
     Foam::makeSolidHeterogeneousReactionThermo
 
 Description
-    Macros for instantiating reactions on given solid thermo packages
+    Per-instantiation macros for heterogeneous-reaction templates.
+
+      makeIRRType(rateLawTypeName, IrreversibleSolidHeterogeneousReaction)
+
+    Combines an \c IrreversibleSolidHeterogeneousReaction with a chosen
+    reaction-rate type to produce a registered concrete reaction type
+    name like
+    \c irreversibleSolidArrheniusHeterogeneousReaction. The resulting
+    typedef appears in the runtime selection table of
+    \c solidHeterogeneousReaction and is what users put in
+    chemistryProperties.
 
 \*---------------------------------------------------------------------------*/
 

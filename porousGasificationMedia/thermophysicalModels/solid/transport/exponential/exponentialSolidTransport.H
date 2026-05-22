@@ -25,12 +25,25 @@ Class
     Foam::exponentialSolidTransport
 
 Description
-    Exponential properties for solid heat transport
-    Templated into a given thermodynamics package.
+    Solid transport package with power-law thermal conductivity.
+
+    \f[
+        K(T) = K_0 \, (T/T_{ref})^{n_0}
+    \f]
+
+    Parameters \c K0_, \c n0_, \c Tref_ are read from the component's
+    \c transport sub-dict. Useful for materials whose conductivity
+    rises (or falls) significantly across the temperature range of
+    interest — e.g. ceramic insulation, char.
+
+    Pairs with the matching \c exponentialSolidThermo for the
+    temperature-dependent Cp(T), or with any other thermo type if only
+    K is to be made T-dependent.
 
 SourceFiles
-    exponentialSolidTransportI.H
+    exponentialSolidTransport.H
     exponentialSolidTransport.C
+    exponentialSolidTransportI.H
 
 \*---------------------------------------------------------------------------*/
 

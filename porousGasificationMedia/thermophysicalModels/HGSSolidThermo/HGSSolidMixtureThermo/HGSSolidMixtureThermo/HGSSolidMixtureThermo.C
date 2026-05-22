@@ -21,6 +21,13 @@ License
     You should have received a copy of the GNU General Public License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
+Description
+    \c HGSSolidMixtureThermo<MixtureType> templated implementation.
+    \c calculate() is the per-cell loop that refreshes rho_, K_,
+    kappa_, sigmaS_, emissivity_ from the mixture's mass-fraction-
+    weighted formulas, then mirrors the values to boundary patches.
+    Called from \c correct() at every chemistry step.
+
 \*---------------------------------------------------------------------------*/
 
 #include "HGSSolidMixtureThermo.H"
@@ -29,6 +36,10 @@ License
 
 // * * * * * * * * * * * * * Private Member Functions  * * * * * * * * * * * //
 
+//- Refresh the cached fields rho_, K_, kappa_, sigmaS_, emissivity_
+//  from the mixture's per-cell evaluations at the current temperature.
+//  Internal cells first, then a sweep over boundary patches via the
+//  per-patch overrides.
 template<class MixtureType>
 void Foam::HGSSolidMixtureThermo<MixtureType>::calculate()
 {

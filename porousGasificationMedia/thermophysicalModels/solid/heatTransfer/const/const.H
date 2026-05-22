@@ -25,9 +25,21 @@ Class
     Foam::constCONV
 
 Description
-    Costant heat transfer model
+    Constant interphase convective heat-transfer model.
+
+    Two scalars read from \c constant/heatTransferProperties:
+      - \c h    — heat-transfer coefficient [W/m^2/K],
+      - \c SAV  — specific surface area [1/m].
+
+    Returns \c CONV = h * SAV [W/m^3/K] uniformly over the mesh. Used
+    by most current tutorial cases — see README → Input File Reference
+    → heatTransferProperties.
+
+    For geometry-evolving correlations (h depending on local
+    Re/Pr/Nu), use \c pipeCONV or \c cylinderCONV instead.
 
 SourceFiles
+    const.H
     const.C
 
 \*---------------------------------------------------------------------------*/

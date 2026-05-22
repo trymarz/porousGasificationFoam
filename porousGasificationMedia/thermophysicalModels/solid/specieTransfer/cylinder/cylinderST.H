@@ -21,10 +21,23 @@ License
     You should have received a copy of the GNU General Public License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
+Class
+    Foam::cylinderST
+
 Description
-    Cylinder specie transfer model
+    Cylinder-lattice specie-transfer model.
+
+    Mass-transfer analogue of \c cylinderCONV: porosity is treated as
+    a regular array of parallel solid cylinders whose radius shrinks
+    as the bed converts. The Sherwood-number correlation mirrors the
+    Nusselt-number correlation in cylinderCONV (heat–mass-transfer
+    analogy).
+
+    TODO: walk through with the user the exact Sh correlation in
+    cylinderST.C.
 
 SourceFiles
+    cylinderST.H
     cylinderST.C
 
 \*---------------------------------------------------------------------------*/

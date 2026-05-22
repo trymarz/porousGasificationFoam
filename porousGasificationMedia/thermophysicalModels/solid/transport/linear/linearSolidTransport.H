@@ -25,12 +25,25 @@ Class
     Foam::linearSolidTransport
 
 Description
-    Exponential properties for solid heat transport
-    Templated into a given thermodynamics package.
+    Solid transport package with linear-in-T thermal conductivity.
+
+    \f[
+        K(T) = K_0 + n_0\, T
+    \f]
+
+    Two parameters \c K0_ (offset) and \c n0_ (slope) read from the
+    component's \c transport sub-dict. A cheap stand-in for materials
+    where K varies roughly linearly over the temperature range of
+    interest, e.g. some metal alloys near room T.
+
+    NOTE: the original file Description claimed "Exponential" — that
+    was a copy-paste error retained in earlier versions. The class
+    name and formula above are the correct ones.
 
 SourceFiles
-    linearSolidTransportI.H
+    linearSolidTransport.H
     linearSolidTransport.C
+    linearSolidTransportI.H
 
 \*---------------------------------------------------------------------------*/
 

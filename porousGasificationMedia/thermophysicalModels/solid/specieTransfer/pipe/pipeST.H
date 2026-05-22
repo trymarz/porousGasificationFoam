@@ -21,10 +21,22 @@ License
     You should have received a copy of the GNU General Public License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
+Class
+    Foam::pipeST
+
 Description
-    pipe specie transfer model
+    Pipe-lattice specie-transfer model.
+
+    Mass-transfer analogue of \c pipeCONV: porosity is treated as a
+    regular array of parallel internal-flow pipes whose radius grows
+    as the bed converts. The Sherwood-number correlation mirrors the
+    Nusselt-number correlation in pipeCONV.
+
+    TODO: walk through with the user the exact Sh correlation in
+    pipeST.C.
 
 SourceFiles
+    pipeST.H
     pipeST.C
 
 \*---------------------------------------------------------------------------*/

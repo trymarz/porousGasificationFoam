@@ -25,14 +25,28 @@ Class
     Foam::pipeCONV
 
 Description
-    Pipe heat transfer model
+    Interphase convective heat transfer for flow inside a regular
+    lattice of parallel pipes.
 
-    Porosity is modelled as a collection of parallel pipes. This models assumes
-    that the porous medium with initial porosity \f$ \epsilon_0 \f$ has a regular
-    lattice of parallel pipes with initial radius \f$ a_{c0} \f$. Constant
-    number of pipes is assumed. Its radii evolve in time while porosity changes.
+    Geometry assumption: the void space is a constant number of
+    parallel circular pipes. Given the initial porosity
+    \f$\varepsilon_0\f$ and initial pipe radius \f$a_{c0}\f$, the
+    current radius \f$a_c(t)\f$ evolves with porosity:
+    \f$a_c = a_{c0}\sqrt{\varepsilon/\varepsilon_0}\f$. The
+    surface-area-to-volume ratio follows
+    \f$SAV = 2\varepsilon/a_c\f$.
+
+    Heat-transfer coefficient is computed per cell from a Nu
+    correlation (see pipe.C — laminar internal-flow expression).
+    References the local gas velocity, density, thermal diffusivity
+    and viscosity (\c Up_, \c rhop_, \c alphap_, \c mup_).
+
+    TODO: walk through with the user — confirm the Nu correlation in
+    pipe.C against the intended literature reference (Hausen / Sieder-
+    Tate / fully developed Nu = 3.66).
 
 SourceFiles
+    pipe.H
     pipe.C
 
 \*---------------------------------------------------------------------------*/

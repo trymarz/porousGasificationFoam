@@ -24,6 +24,18 @@ License
 InClass
     Foam::HGSSolidMixtureThermo
 
+Description
+    Per-instantiation macro:
+
+      makeHGSSolidMixtureThermo(Mixture, ThermoPhysics)
+
+    Typedefs \c HGSSolidMixtureThermo<Mixture<ThermoPhysics>>, registers
+    its run-time name (as the bracket-and-comma composition that
+    user-facing solidThermoType strings expect) and adds it to each of
+    the three RTS tables declared in HGSSolidThermo. Expanded from
+    HGSSolidMixtureThermos.C against the permitted mixture/thermo
+    combinations.
+
 \*---------------------------------------------------------------------------*/
 
 #ifndef makeSolidMixtureThermo_H

@@ -25,7 +25,24 @@ Typedefs
     Foam::solidThermoPhysicsTypes
 
 Description
-    Type definitions for solid-thermo-physics models
+    Type aliases for the per-component solid thermo packages.
+
+    Three concrete combinations are exposed:
+      - \c constSolidThermoPhysics    — constTransport + constRad +
+                                         constThermo + constRho
+        (the typical entry — type name in dictionary:
+         const<constRad<constThermo<constRho>>>);
+      - \c expoSolidThermoPhysics     — constTransport + constRad +
+                                         exponentialThermo + constRho
+        (constant K, T-dependent Cp);
+      - \c linearSolidThermoPhysics   — linearTransport + constRad +
+                                         constThermo + constRho
+        (linear K(T), constant Cp).
+
+    The matching \c solidThermoType strings used in
+    \c chemistryProperties are produced by the nested \c typeName()
+    of each wrapping template (see the README → Input File Reference
+    → solidThermophysicalProperties for the user-facing form).
 
 \*---------------------------------------------------------------------------*/
 

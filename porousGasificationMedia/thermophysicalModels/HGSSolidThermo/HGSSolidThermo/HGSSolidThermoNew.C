@@ -21,6 +21,13 @@ License
     You should have received a copy of the GNU General Public License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
+Description
+    \c HGSSolidThermo::New selector implementations. Reads the
+    \c thermoType entry from \c constant/solidThermophysicalProperties
+    and dispatches to the matching constructor table entry. Three
+    overloads matching the three RTS tables declared in the base
+    header.
+
 \*---------------------------------------------------------------------------*/
 
 #include "HGSSolidThermo.H"

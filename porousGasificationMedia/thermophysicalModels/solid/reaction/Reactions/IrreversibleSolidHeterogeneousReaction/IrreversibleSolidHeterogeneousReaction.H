@@ -25,9 +25,32 @@ Class
     Foam::IrreversibleSolidHeterogeneousReaction
 
 Description
-    Simple extension of Reaction to handle reversible reactions
+    Irreversible heterogeneous reaction = stoichiometry +
+    rate-law object.
+
+    Templated on a \c ReactionRate (one of
+    \c solidArrheniusReactionRate, \c solidModArrRate,
+    \c solidTemperatureArrheniusReactionRate, \c solidConstRate). Adds
+    to \c solidHeterogeneousReaction:
+      - the rate-law instance \c k_,
+      - the per-reaction \c heatReact_ scalar (heat of reaction,
+        consumed when \c solidReactionEnergyFromEnthalpy is false),
+      - the list \c nReact_ of LHS reaction orders (one per LHS
+        specie, in the order they appear).
+
+    \c kf(T, p, c) delegates to \c k_(T, p, c) — i.e. the rate-law
+    object decides whether the temperature dependence is Arrhenius,
+    modified Arrhenius, constant, etc. The full rate seen by
+    ODESolidHeterogeneousChemistryModel::omega is
+        kf * product_j  c_j^{n_j}
+    summed over LHS species, gated by T > Tcrit.
+
+    The runtime type name is "irreversible" — paired with the rate-law
+    type name to form e.g. "irreversibleSolidArrheniusHeterogeneousReaction"
+    in \c chemistryProperties.
 
 SourceFiles
+    IrreversibleSolidHeterogeneousReaction.H
     IrreversibleSolidHeterogeneousReaction.C
 
 \*---------------------------------------------------------------------------*/

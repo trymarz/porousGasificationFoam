@@ -25,10 +25,46 @@ Class
     Foam::HGSSolidThermo
 
 Description
-    Abstract base-class for fluid and solid thermodynamic properties
+    Abstract base for the PGF solid-phase thermo package
+    ("Heterogeneous Gas-Solid" — HGS).
+
+    Owns the per-cell solid-phase fields shared by every concrete
+    implementation: temperature \c T_, density \c rho_, absorption
+    coefficient \c kappa_, scatter coefficient \c sigmaS_, emissivity
+    \c emissivity_. The dictionary it reads is
+    \c constant/solidThermophysicalProperties.
+
+    Three runtime selection tables are declared so callers can pick
+    the construction signature they need:
+      - \c mesh:       (fvMesh) only — empty mixture, used in tests;
+      - \c dictionary: (fvMesh, dictionary) — the standard route;
+      - \c gasPhase:   (fvMesh, dictionary, gasPhaseGases) — required
+                       when the mixture contains heterogeneous
+                       reactions referencing gas species (the main
+                       solver path).
+
+    Pure-virtual interface a derived class implements:
+      - \c correct(): recompute K, hs, etc. from the current
+        composition (called by volPyrolysis after solveSpeciesMass);
+      - \c Cp(), \c Hf(): per-cell specific heat and formation
+        enthalpy [J/kg/K], [J/kg];
+      - per-patch overloads \c rho(patchI), \c Cp(patchI), \c K(patchI),
+        \c kappa(patchI), \c sigmaS(patchI), \c emissivity(patchI),
+        \c Hf(patchI) for boundary-condition access.
+
+    The default \c composition() returns a base \c basicSolidMixture.
+    The concrete \c HGSSolidMixtureThermo<MixtureType> overrides this
+    to return the typed mixture directly (CRTP-style).
+
+    \c directionalK() exposes a per-cell symmetric tensor for
+    anisotropic conduction (off-diagonal entries non-zero in fibrous
+    or layered solids). The default returns the isotropic K wrapped
+    as a symmTensor; only models that need anisotropy override.
 
 SourceFiles
+    HGSSolidThermo.H
     HGSSolidThermo.C
+    HGSSolidThermoNew.C
 
 \*---------------------------------------------------------------------------*/
 

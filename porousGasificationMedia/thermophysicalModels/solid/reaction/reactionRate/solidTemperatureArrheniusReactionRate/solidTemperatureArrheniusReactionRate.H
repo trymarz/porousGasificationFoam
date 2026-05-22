@@ -25,9 +25,22 @@ Class
     Foam::solidTemperatureArrheniusReactionRate
 
 Description
-    Arrhenius reaction rate for solids
+    Temperature-prefactor Arrhenius rate for solids.
+
+    \f[
+        k_f(T) = A \, T \, \exp(-T_a / T)
+                 \quad \text{for } T > T_{crit}
+    \f]
+
+    Specialisation of the modified-Arrhenius family with n = 1. Used
+    where the leading T dependence is purely linear in front of the
+    Boltzmann factor.
+
+    TODO: walk through with the user — confirm the exact prefactor in
+    solidTemperatureArrheniusReactionRateI.H (n = 1 assumed here).
 
 SourceFiles
+    solidTemperatureArrheniusReactionRate.H
     solidTemperatureArrheniusReactionRateI.H
 
 \*---------------------------------------------------------------------------*/

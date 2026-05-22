@@ -21,22 +21,30 @@ License
     You should have received a copy of the GNU General Public License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
-Namespace
-    Foam::incompressible::specieTransferModels
-
-Description
-    Namespace for incompressible specieTransfer specieTransfer models.
-
 Class
-    Foam::incompressible::specieTransferModel
+    Foam::specieTransferModel
 
 Description
-    Abstract base class for incompressible specieTransfer models
-    (RAS, LES and laminar).
+    Abstract base for the interphase mass-transfer model.
+
+    Used by \c ODESolidHeterogeneousChemistryModel when
+    \c diffusionLimitedReactions is true: heterogeneous-reaction rates
+    are capped by the gas-side film mass-transfer coefficient so
+    fast-kinetics reactions become diffusion-limited at high T.
+
+    Owns references to the current and initial porosity fields and
+    reads \c constant/specieTransferProperties. The single public
+    output is \c ST() [units \c 1/s], the per-cell mass-transfer rate
+    coefficient. Concrete variants:
+      - \c constST    — user-supplied scalar h_m and SAV;
+      - \c pipeST     — Sh-correlation for pipe-lattice geometry;
+      - \c cylinderST — Sh-correlation for cylinder-lattice geometry;
+      - \c emptyST    — identity (returns zero); selected when
+                        \c diffusionLimitedReactions is off.
 
 SourceFiles
+    specieTransferModel.H
     specieTransferModel.C
-    newTurbulenceModel.C
 
 \*---------------------------------------------------------------------------*/
 

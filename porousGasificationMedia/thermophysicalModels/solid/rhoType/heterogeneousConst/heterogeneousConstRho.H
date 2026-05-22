@@ -25,11 +25,23 @@ Class
     Foam::heterogeneousConstRho
 
 Description
-    rho constant
+    Constant-density solid component — variant with type name
+    \c heterogeneousConstRho rather than \c constRho.
+
+    Behaviour identical to \c constRho (single scalar \c rho, no T
+    dependence). Kept as a separate type because the chemistry-model
+    runtime selection key uses the rhoType type name verbatim; renaming
+    it to "const" would clash with the constRho instantiation paired
+    with non-heterogeneous mixtures.
+
+    TODO: walk through with the user whether this distinction is still
+    needed in v2406, or whether both rho variants could collapse to a
+    single class with a typedef.
 
 SourceFiles
-    heterogeneousConstRhoI.H
+    heterogeneousConstRho.H
     heterogeneousConstRho.C
+    heterogeneousConstRhoI.H
 
 \*---------------------------------------------------------------------------*/
 

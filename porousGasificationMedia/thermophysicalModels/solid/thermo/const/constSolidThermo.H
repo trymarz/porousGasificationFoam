@@ -25,12 +25,25 @@ Class
     Foam::constSolidThermo
 
 Description
-    Constant properties thermodynamics package for solids
+    Solid thermodynamics package with constant Cp and Hf.
 
+    \f[
+        C_p(T) = C_{p,0}, \qquad h(T) = C_{p,0}\, T + H_f
+    \f]
+
+    Two scalars read from the component's \c thermodynamics sub-dict:
+    \c Cp [J/kg/K] and \c Hf [J/kg]. \c Hf is the heat of formation at
+    the chosen reference (typically 298.15 K). \c hs() returns just
+    the sensible part \c Cp*T; \c h() returns the total (sensible +
+    formation).
+
+    Wraps a rhoType; pairs with \c constSolidTransport for the K(T)
+    side.
 
 SourceFiles
-    constSolidThermoI.H
+    constSolidThermo.H
     constSolidThermo.C
+    constSolidThermoI.H
 
 \*---------------------------------------------------------------------------*/
 

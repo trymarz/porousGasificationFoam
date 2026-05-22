@@ -25,11 +25,26 @@ Class
     Foam::constSolidRad
 
 Description
-    Constant radiative properties
+    Per-component constant radiative properties for a solid.
+
+    Three scalars per component (read from the \c radiation sub-dict):
+      - \c kappa      — absorption coefficient [1/m],
+      - \c sigmaS     — scattering coefficient [1/m],
+      - \c emissivity — surface emissivity [-].
+
+    The mixture-level radiative properties are the mass-fraction
+    average of the per-component values, evaluated by
+    \c multiComponentSolidMixture::kappa/sigmaS/emissivity. These are
+    then consumed by \c heterogeneousRadiationModel (P1 or
+    MeanTemp variants) to assemble the volumetric radiative source.
+
+    Wraps a thermo package via inheritance — the rho/Cp/Hf interface is
+    inherited and only the three radiation accessors are added.
 
 SourceFiles
-    constSolidRadI.H
+    constSolidRad.H
     constSolidRad.C
+    constSolidRadI.H
 
 \*---------------------------------------------------------------------------*/
 

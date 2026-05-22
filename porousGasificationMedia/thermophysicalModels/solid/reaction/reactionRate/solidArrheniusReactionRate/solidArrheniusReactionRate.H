@@ -25,9 +25,24 @@ Class
     Foam::solidArrheniusReactionRate
 
 Description
-    Arrhenius reaction rate for solids
+    Standard Arrhenius reaction-rate law for solids.
+
+    \f[
+        k_f(T) = A \, \exp(-T_a / T) \quad \text{for } T > T_{crit},
+        \quad 0 \text{ otherwise}
+    \f]
+
+    Three scalars per reaction read from chemistryProperties:
+      - \c A    — pre-exponential factor (units depend on reaction order),
+      - \c Ta   — activation temperature = E_a / R [K],
+      - \c Tcrit — minimum temperature for the reaction to fire [K].
+
+    The Tcrit gate is a hard switch — below Tcrit the reaction does not
+    contribute. See README → Input File Reference for the reaction-row
+    format.
 
 SourceFiles
+    solidArrheniusReactionRate.H
     solidArrheniusReactionRateI.H
 
 \*---------------------------------------------------------------------------*/
