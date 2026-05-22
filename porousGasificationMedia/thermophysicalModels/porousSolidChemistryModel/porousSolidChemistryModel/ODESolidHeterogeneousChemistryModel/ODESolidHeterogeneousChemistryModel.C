@@ -21,6 +21,15 @@ License
     You should have received a copy of the GNU General Public License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
+Description
+    Implementation of \c ODESolidHeterogeneousChemistryModel. See the
+    class banner in the .H for the per-reaction model and the switch
+    inventory. Function-level briefs below cover the load-bearing
+    routines: \c omega (rate evaluation), \c solve / \c solveOneCell
+    (per-cell integration), \c calculate (rate-field publication),
+    \c Sh / \c Qdot / \c RRpor (sources for the gas/solid energy and
+    porosity equations).
+
 \*---------------------------------------------------------------------------*/
 
 #include "ODESolidHeterogeneousChemistryModel.H"
@@ -314,6 +323,35 @@ setCellReacting(const label cellI, const bool active)
 }
 
 template<class SolidThermo, class SolidThermoType, class GasThermoType>
+//- Per-cell reaction rates. Returns dcdt for the joint
+//  (solid species, gas species) concentration vector and writes the
+//  per-reaction scalar rate r_R[i] into rR.
+//
+//  For each reaction \c R in \c reactions_:
+//
+//    omegai = omega(R, c, T, ...)   // modified Arrhenius x conc^orders
+//
+//  The branch on stoichiometric vs non-stoichiometric reactions
+//  decides how omegai is distributed across the LHS/RHS species:
+//
+//    - stoichiometricReactions_=true: enforce mass conservation
+//      across the reaction. If solidSubstrates > solidProducts the
+//      reaction net-converts solid to gas; the gas-side stream is
+//      rescaled so the total mass leaving the solid equals the total
+//      mass entering the gas. The opposite case is symmetric.
+//    - stoichiometricReactions_=false: each side contributes its
+//      stoichiometric coefficient directly with no rescaling, which
+//      lets the user model lumped/aggregate species where mass
+//      conservation is enforced upstream (e.g. by Hf assignment).
+//
+//  When \c solidReactionEnergyFromEnthalpy_ is false, the per-reaction
+//  heat release is accumulated into the extra entry \c om[nEqns()]
+//  using R.heatReact() rather than enthalpy differences. This is the
+//  channel feeding \c shReactionHeat_ and \c Sh().
+//
+//  TODO: walk through with the user the LHS/RHS bookkeeping for the
+//  non-stoichiometric branch — the gasDictionary / gasDictionaryBack
+//  index swap is subtle and worth double-checking.
 Foam::scalarField  Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasThermoType>::omega
 (
     const scalarField& c,
@@ -1242,6 +1280,22 @@ Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasTherm
 
 template<class SolidThermo, class SolidThermoType, class GasThermoType>
 Foam::tmp<Foam::volScalarField>
+//- Heat-of-reaction source for the solid energy equation [W/m^3].
+//
+//  Two channels, selected at construction by
+//  \c solidReactionEnergyFromEnthalpy_:
+//
+//    - true:  S_h = sum_i (RRs[i] * Hf_i + RRg[i] * Hf_i)
+//             — driven by per-species heats of formation. Mass leaving
+//             the solid as species i carries its Hf out; mass entering
+//             the gas as species i carries its Hf in. The net is the
+//             heat absorbed/released by the reaction.
+//    - false: S_h = shReactionHeat_, which was populated from the
+//             explicit per-reaction \c heatOfReaction parameter
+//             (omega's nEqns slot — see omega's tail block).
+//
+//  Consumed by \c volPyrolysis::evolveRegion as \c chemistrySh_, which
+//  feeds the RHS of the solid temperature equation.
 Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasThermoType>::Sh() const
 {
     tmp<volScalarField> tSh
@@ -1300,6 +1354,15 @@ Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasTherm
 
 template<class SolidThermo, class SolidThermoType, class GasThermoType>
 Foam::tmp<Foam::volScalarField>
+//- Heat release rate per unit total volume [W/m^3].
+//  Note: the current implementation accumulates RR_[i] * 0 over
+//  species, so the field is structurally zeroed. The active heat-of-
+//  reaction channel is \c Sh(), which uses \c shReactionHeat_ when
+//  solidReactionEnergyFromEnthalpy_ is false or the enthalpy
+//  differences when it is true. Qdot is retained to satisfy the
+//  basicPorousChemistryModel interface.
+//  TODO: walk through with the user whether Qdot should mirror Sh or
+//  remain a no-op given that Sh is the canonical channel.
 Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasThermoType>::Qdot() const
 {
     tmp<volScalarField> tQdot
@@ -1331,6 +1394,16 @@ Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasTherm
 
 template<class SolidThermo, class SolidThermoType, class GasThermoType>
 Foam::tmp<Foam::volScalarField>
+//- Porosity growth rate [1/s] driven by heterogeneous reactions.
+//
+//      RRpor = - sum_i  RRs[i] / rho_i(T)
+//
+//  Each solid species mass disappearing per unit volume per unit time
+//  vacates a volume of rho_i(T)^-1, which directly grows the
+//  porosity. The minus sign accounts for the sign convention that
+//  RRs[i] < 0 when species i is consumed. Read by
+//  \c volPyrolysis::evolvePorosity as the source of the porosity
+//  transport equation.
 Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasThermoType>::RRpor(const volScalarField T) const
 {
     tmp<volScalarField> tRRpor
@@ -1394,6 +1467,16 @@ Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasTherm
 
 
 template<class SolidThermo, class SolidThermoType, class GasThermoType>
+//- Compute the cell-wise reaction-rate fields RRs_ and RRg_ from the
+//  current solid composition without advancing the chemistry.
+//
+//  For each reacting cell: build the concentration vector c (solid
+//  species first, then gas species), call \c omega to get dcdt and
+//  the per-reaction rates, and divide by the cell volume to convert
+//  from total mass-rate (kg/s) to volumetric rate (kg/m^3/s).
+//
+//  Used by diagnostic / function-object code (e.g. specieReactionRates);
+//  the main solver path uses \c solve() instead.
 void Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasThermoType>::calculate()
 {
 
@@ -1479,6 +1562,15 @@ Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasTherm
 
 template<class SolidThermo, class SolidThermoType, class GasThermoType>
 Foam::scalar
+//- Integrate the heterogeneous chemistry ODE over [t0, t0+dt].
+//
+//  Iterates every cell, calling \c solveOneCell, then returns the
+//  globally-reduced minimum newDeltaTMin as the suggested chemistry
+//  time-step for the next step (consumed by
+//  updateChemistryTimeStep.H when solidChemistryTimeStepControl is
+//  on). Resets RR_, RRs_, RRg_ and shReactionHeat_ at the start.
+//
+//  Returns GREAT when chemistry is off (no-op).
 Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasThermoType>::solve
 (
     const scalar t0,
@@ -1541,6 +1633,22 @@ Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasTherm
 
 template<class SolidThermo, class SolidThermoType, class GasThermoType>
 void
+//- Per-cell driver. Builds the (solid + gas) concentration vector
+//  scaled by phase fractions:
+//
+//      solidRho = rho_s * (1 - porosity)
+//      gasRho   = rho_g * porosity
+//      c[ solid_i ]            = solidRho * Y_{solid_i}
+//      c[ nSolids + gas_i ]    = gasRho   * Y_{gas_i}
+//
+//  Then computes the per-reaction rates and delegates the actual
+//  integration to \c calculateSourceTerms / \c updateReactionRates.
+//  If solidReactionEnergyFromEnthalpy_ is false, the cell's
+//  heat-of-reaction is cached in shReactionHeat_[celli].
+//
+//  Skipped entirely when the cell is masked off via
+//  setCellReacting(celli, false) — volPyrolysis uses this to skip
+//  cells with no solid.
 Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasThermoType>::solveOneCell
 (
     const scalar t0,

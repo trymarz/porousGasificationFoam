@@ -21,6 +21,14 @@ License
     You should have received a copy of the GNU General Public License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
+Description
+    Implementation of the \c specieReactionRates function object. For
+    every reaction and every species in the active chemistry model,
+    writes the domain-averaged volumetric reaction rate per unit
+    region volume to \c <timeDir>/specieReactionRates.dat. Two
+    instantiations are registered: against \c psiReactionThermo (the
+    one PGF uses) and against \c rhoReactionThermo.
+
 \*---------------------------------------------------------------------------*/
 
 #include "specieReactionRates.H"

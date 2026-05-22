@@ -22,7 +22,12 @@ License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
 Description
-    Creates chemistry model instances
+    Instantiation point for the \c porousThermoSolidChemistryModel
+    template against the concrete \c HGSSolidThermo. Brings the
+    runtime selection table into existence so derived classes (the
+    solidOde + ODESolidHeterogeneousChemistryModel combinations
+    instantiated in \c solidChemistrySolvers.C) can register
+    themselves at static-init time.
 
 \*---------------------------------------------------------------------------*/
 

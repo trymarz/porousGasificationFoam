@@ -25,11 +25,38 @@ Class
     Foam::porousThermoSolidChemistryModel
 
 Description
-    Basic chemistry model templated on thermodynamics
+    Chemistry-model layer templated on the solid thermo package.
+
+    Sits between \c basicPorousChemistryModel (which is thermo-agnostic)
+    and the concrete \c ODESolidHeterogeneousChemistryModel (which adds
+    the per-reaction ODE). This class adds:
+
+      - a typed reference to the solid thermo package (HGSSolidThermo
+        derivative) so derived classes can read densities, mass
+        fractions, K, Cp, etc.;
+      - a runtime selection table keyed on \c (solidThermo, gasPhaseGases)
+        with the thermo type as the entry name — populated by
+        \c makeChemistrySolver.H instantiations;
+      - the additional pure-virtual interface needed by
+        \c volPyrolysis::evolveRegion():
+          * \c RRs(i), \c RRs(): solid-species and total solid-to-gas
+                                  mass source [kg/m^3/s],
+          * \c RRg(i), \c RRg(): per-gas-species and total gas-side
+                                  source,
+          * \c gasHs(p, T, i):   sensible enthalpy of gas i [J/kg],
+          * \c Sh():             heat-of-reaction source for the
+                                  solid energy equation [W/m^3],
+          * \c gasTable():       speciesTable for the pyrolysis gases,
+          * \c setCellReacting:  enable/disable chemistry per cell
+                                  (volPyrolysis uses this mask),
+          * \c RRpor(T):         porosity-growth rate [1/s] driven
+                                  by the solid-to-gas conversion.
 
 SourceFiles
     porousThermoSolidChemistryModel.H
     porousThermoSolidChemistryModel.C
+    porousThermoSolidChemistryModels.C
+    porousThermoSolidChemistryModelI.H
 
 \*---------------------------------------------------------------------------*/
 

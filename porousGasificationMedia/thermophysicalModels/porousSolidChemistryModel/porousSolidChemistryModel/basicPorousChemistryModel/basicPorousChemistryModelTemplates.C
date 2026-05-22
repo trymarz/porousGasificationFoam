@@ -21,6 +21,20 @@ License
     You should have received a copy of the GNU General Public License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
+Description
+    Templated \c New() selector for chemistry models. Reads
+    \c chemistryProperties / solidChemistryType — three keys:
+      - \c solver:           the chemistry solver name (e.g. solidOde),
+      - \c method:           the chemistry model name (e.g.
+                             ODESolidHeterogeneousChemistryModel),
+      - \c solidThermoType:  the wrapped solid thermo type, e.g.
+                             const<constRad<constThermo<constRho>>>.
+
+    These are concatenated into the registered chemistrySolver name
+    used as the key in \c thermoConstructorTablePtr_. A missing entry
+    falls into the legacy template-name path and emits a helpful
+    error showing the expected dictionary form.
+
 \*---------------------------------------------------------------------------*/
 
 #include "basicPorousChemistryModel.H"

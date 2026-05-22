@@ -50,6 +50,13 @@ Foam::solidOde<ChemistryModel>::~solidOde()
 
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
 template<class ChemistryModel>
+//- Integrate the per-cell chemistry ODE over [t0, t0+dt].
+//
+//  Packs the integration state as cTp_ = [c_0, ..., c_{nSpecie-1}, T,
+//  p] and drives the registered ODESolver between t0 and t0+dt. The
+//  integrator updates dtEst, which is returned as the next chemistry
+//  time step. Concentrations are clipped at zero on unpacking to
+//  protect downstream consumers against integrator overshoots.
 Foam::scalar Foam::solidOde<ChemistryModel>::solve
 (
     scalarField& c,
@@ -59,9 +66,10 @@ Foam::scalar Foam::solidOde<ChemistryModel>::solve
     const scalar dt
 ) const
 {
-
-    // Reset the size of the ODE system to the simplified size when mechanism
-    // reduction is active
+    // Resize the ODE state vector if the underlying solver reduced
+    // the active mechanism (rarely relevant for the heterogeneous
+    // case but kept for parity with OpenFOAM's gas-phase chemistry
+    // solver path).
     if (odeSolver_->resize())
     {
         odeSolver_->resizeField(cTp_);

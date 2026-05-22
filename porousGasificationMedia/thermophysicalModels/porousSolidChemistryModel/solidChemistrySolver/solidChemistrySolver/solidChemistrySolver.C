@@ -21,6 +21,12 @@ License
     You should have received a copy of the GNU General Public License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
+Description
+    Constructor/destructor of the abstract \c solidChemistrySolver. The
+    body is intentionally empty — all state lives in the wrapped
+    ChemistryModel base. Derived solvers (solidOde) add their own
+    integrator state.
+
 \*---------------------------------------------------------------------------*/
 
 #include "solidChemistrySolver.H"

@@ -21,6 +21,17 @@ License
     You should have received a copy of the GNU General Public License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
+Description
+    Cross-product macros expanding the set of permitted solid thermo
+    physics combinations: { incompressiblePerfectGas, perfectGas }
+    x { hConstThermo, janafThermo, eConstThermo }
+    x { sensibleEnthalpy, sensibleInternalEnergy }
+    x { constTransport, sutherlandTransport }.
+
+    Used by chemistry / thermo instantiation .C files to register
+    every supported combination in one go. Mirrors the analogous
+    \c forCommonGases macro for gas-phase thermo.
+
 \*---------------------------------------------------------------------------*/
 
 #ifndef forCommonSolides_H

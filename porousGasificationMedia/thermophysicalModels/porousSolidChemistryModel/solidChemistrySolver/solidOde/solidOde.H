@@ -25,9 +25,25 @@ Class
     Foam::solidOde
 
 Description
-    An ODE solver for chemistry
+    ODE-based per-cell chemistry solver.
+
+    Wraps an OpenFOAM \c ODESolver (e.g. \c seulex, \c rodas23,
+    \c rodas34 — selected via the \c solver entry in
+    \c solidOdeCoeffs in chemistryProperties) around the chemistry
+    model's ODESystem interface. The integration state vector is
+    \c cTp_ = [c_0, c_1, ..., c_{nSpecie-1}, T, p].
+
+    \c solve(c, T, p, t0, dt) packs c, T, p into cTp_, drives the
+    integrator from t0 to t0+dt, unpacks back into c (clipped at zero
+    to avoid negative concentrations), and returns the integrator's
+    suggested next step.
+
+    Used by \c volPyrolysis::evolveRegion via
+    \c porousThermoSolidChemistryModel::solve() which delegates to
+    this class.
 
 SourceFiles
+    solidOde.H
     solidOde.C
 
 \*---------------------------------------------------------------------------*/

@@ -25,10 +25,24 @@ Class
     Foam::solidChemistrySolver
 
 Description
-    An abstract base class for solving chemistry
+    Abstract per-cell ODE solver wrapper around a chemistry model.
+
+    Template-parameterised on the chemistry model (typically
+    \c ODESolidHeterogeneousChemistryModel<...>). Adds the pure-virtual
+    \c solve(c, T, p, t0, dt) entry point that returns the chemical
+    time scale after a single-cell integration. Concrete derivatives:
+      - \c solidOde — uses an OpenFOAM \c ODESolver (e.g. \c seulex)
+        configured via \c solidOdeCoeffs in chemistryProperties.
+
+    The base merely forwards construction to its ChemistryModel base;
+    the derivation pattern lets a future implementation pick a
+    non-ODE solver (analytic, EXPRB, ...) without churning the
+    chemistry model layer above.
 
 SourceFiles
+    solidChemistrySolver.H
     solidChemistrySolver.C
+    solidChemistrySolvers.C
 
 \*---------------------------------------------------------------------------*/
 

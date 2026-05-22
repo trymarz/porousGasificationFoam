@@ -21,6 +21,14 @@ License
     You should have received a copy of the GNU General Public License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
+Description
+    Inline accessors and per-species/per-reaction sum operators for
+    \c ODESolidHeterogeneousChemistryModel. \c RRs(i)/\c RRs(),
+    \c RRg(i)/\c RRg() are read-only views over RRs_/RRg_ wrapped in a
+    volScalarField (so they can be plugged into fv equations without
+    a copy); \c nEqns() = nSpecie + 2 (one extra entry each for T and
+    p in the ODE state vector).
+
 \*---------------------------------------------------------------------------*/
 
 #include "volFields.H"

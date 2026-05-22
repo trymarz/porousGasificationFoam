@@ -25,13 +25,65 @@ Class
     Foam::ODESolidHeterogeneousChemistryModel
 
 Description
-    Extends base chemistry model by adding a thermo package, and ODE functions.
-    Introduces chemistry equation system and evaluation of chemical source
-    terms.
+    Heterogeneous (solid + gas) chemistry model integrated by an ODE
+    solver — the concrete chemistry implementation used by PGF.
+
+    Triple template: <SolidThermo, SolidThermoType, GasThermoType>.
+    SolidThermo is the HGSSolidThermo derivative carrying the solid
+    composition; SolidThermoType / GasThermoType are the per-component
+    thermo physics used to evaluate enthalpies and densities. The
+    instantiation list is in \c forCommonSolids.H.
+
+    Reaction definition: each \c solidHeterogeneousReaction in
+    \c constant/chemistryProperties has the form
+      solid_lhs + gas_lhs  ->  solid_rhs + gas_rhs
+    with parameters (A, Ta, Tcrit, heatOfReaction, n1, n2, ...) — see
+    README → Input File Reference → chemistryProperties for the per-
+    parameter semantics.
+
+    The rate of reaction r is computed by \c omega(r, c, T, ...) and is
+    a modified-Arrhenius expression of the LHS specie concentrations
+    raised to user-supplied orders (n1, n2, ...). The reaction is
+    masked off when T < Tcrit.
+
+    Per-cell update:
+      1. \c calculate(): for every reacting cell, build the
+         concentration vector \c c, call \c omega(c, T, ..., true) to
+         get \c dcdt and per-reaction rate \c rR. Push into the
+         per-species rate fields \c RR_, \c RRs_, \c RRg_.
+      2. \c solve(t0, dt): for every reacting cell, integrate the ODE
+         system over [t0, t0+dt] via \c solveOneCell. Returns the
+         smallest stable next chemistry time-step.
+      3. \c solveOneCell -> \c calculateSourceTerms (integrates) ->
+         \c updateReactionRates (publishes RR/RRs/RRg from the
+         concentration delta).
+
+    Switches read from \c chemistryProperties:
+      - \c solidReactionEnergyFromEnthalpy: if true, the reaction's
+        heat release is computed from the species enthalpy difference
+        (uses the thermo's Hf); if false, the explicit
+        \c heatOfReaction parameter of each reaction is used. Result
+        lands in \c shReactionHeat_ and feeds \c Sh().
+      - \c stoichiometricReactions: enforce mass-conserving
+        stoichiometry between LHS and RHS by rescaling the gas-side
+        rate. Useful when LHS solid mass < RHS solid mass (the
+        excess solid mass is converted to gas).
+      - \c diffusionLimitedReactions: cap the rate by a gas-side
+        mass-transfer-limited estimate (consumes \c ST from
+        \c specieTransferModel).
+      - \c showRelativeReactionRates: per-cell diagnostic of rR / sum(rR).
+
+    Per-cell state \c reactingCells_ is toggled from outside via
+    \c setCellReacting (used by \c volPyrolysis::preEvolveRegion to
+    skip empty cells). \c Ys0_ caches the per-species solid mass at
+    the start of each step for the stoichiometry / mass-conservation
+    bookkeeping. Concentrations \c c, \c dcdt and \c coeffs_ are
+    pre-allocated scratch.
 
 SourceFiles
-    StandardChemistryModelI.H
+    ODESolidHeterogeneousChemistryModel.H
     ODESolidHeterogeneousChemistryModel.C
+    ODESolidHeterogeneousChemistryModelI.H
 
 \*---------------------------------------------------------------------------*/
 

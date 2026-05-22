@@ -21,6 +21,21 @@ License
     You should have received a copy of the GNU General Public License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
+Description
+    Instantiation point for the chemistry solver matrix. Wires up the
+    Cartesian product
+      (transport) x (energy) x (per-component thermo) x (equation
+      of state) x (specie)
+    against \c HGSSolidThermo + \c solidOde +
+    \c ODESolidHeterogeneousChemistryModel by expanding the
+    \c forCommonGases macro defined just below.
+
+    Maintenance note retained from the FE-port (look for "Filip"): the
+    set of permitted gas thermo combinations is mirrored here from
+    OF8 / foam-extend. When OpenFOAM v2406's
+    src/thermophysicalModels/basic/fluidThermo/makeThermo.H exposes a
+    matching helper, this duplication should be replaced with that.
+
 \*---------------------------------------------------------------------------*/
 
 #include "solidOde.H"

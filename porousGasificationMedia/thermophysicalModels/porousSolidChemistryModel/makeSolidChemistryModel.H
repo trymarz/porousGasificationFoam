@@ -22,7 +22,14 @@ License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
 Description
-    Macros for instantiating solid chemistry models
+    Macros for instantiating solid chemistry models.
+
+    \c makeSolidChemistryModel(sChemistry, SS, Comp, SThermo) and
+    \c makeSolidGasChemistryModel(...) wrap
+    \c defineTemplateTypeNameAndDebugWithName so a templated chemistry
+    class can be registered under a human-readable run-time name of
+    the form  modelName<Comp,SThermo>. Used at the bottom of
+    instantiation .C files.
 
 \*---------------------------------------------------------------------------*/
 

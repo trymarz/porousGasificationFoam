@@ -25,11 +25,35 @@ Class
     Foam::basicPorousChemistryModel
 
 Description
-    Base class for chemistry models
+    Abstract base for the porous-medium chemistry model hierarchy.
+
+    Owns the bookkeeping common to all chemistry models in this solver:
+    the \c chemistryProperties dictionary (modified-read mode so a
+    change can be picked up at runtime), the on/off \c chemistry switch,
+    the initial and maximum allowed chemistry time-steps, and the
+    \c deltaTChem field caching the last successful ODE step per cell.
+
+    Templated \c New() routes through \c ChemistryModel::New(...) so a
+    derived class can register itself via the
+    \c porousThermoSolidChemistryModel selection table.
+
+    Pure-virtual interface (every chemistry implementation provides):
+      - \c RR(i):       cell-wise reaction rate field for specie i
+                        [kg/m^3/s].
+      - \c calculateRR(ri, si): per-reaction, per-species rate field.
+      - \c calculate(): compute all reaction-rate fields without
+                        advancing the chemistry.
+      - \c solve(t0, dt): integrate the chemistry ODE for [t0, t0+dt]
+                          and return the suggested next chemistry
+                          time-step.
+      - \c tc():        chemical time-scale field.
+      - \c Qdot():      heat release rate [W/m^3].
 
 SourceFiles
     basicPorousChemistryModel.H
     basicPorousChemistryModel.C
+    basicPorousChemistryModelI.H
+    basicPorousChemistryModelTemplates.C
 
 \*---------------------------------------------------------------------------*/
 

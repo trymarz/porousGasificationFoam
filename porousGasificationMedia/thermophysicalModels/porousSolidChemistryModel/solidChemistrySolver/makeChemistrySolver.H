@@ -21,6 +21,22 @@ License
     You should have received a copy of the GNU General Public License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
+Description
+    Per-instantiation chemistry-solver registration macros:
+
+      - \c defineChemistrySolver: register a Model<SolidThermo,
+        SolidThermoPhysics, GasThermoPhysics> typedef under its
+        human-readable name.
+      - \c makeChemistrySolver: register a Solver<Model<...>> typedef
+        and add it to porousThermoSolidChemistryModel's
+        thermoConstructorTable so chemistryProperties can pick it at
+        runtime as  solver<method<SolidThermo,SolidThermoPhysics,
+        GasThermoPhysics>>.
+
+    Expanded by the \c forCommonGases macro from
+    \c solidChemistrySolvers.C over the Cartesian product of
+    permitted thermo combinations.
+
 \*---------------------------------------------------------------------------*/
 
 #ifndef makeChemistrySolver_H

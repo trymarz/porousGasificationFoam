@@ -21,6 +21,14 @@ License
     You should have received a copy of the GNU General Public License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
+Description
+    Template-implementation of \c porousThermoSolidChemistryModel.
+    Constructor chains to the \c basicPorousChemistryModel base and
+    stores the typed solid thermo reference. \c New() forwards to
+    \c basicPorousChemistryModel::New<porousThermoSolidChemistryModel<SolidThermo>>,
+    which dispatches via the chemistryType dict in
+    \c constant/chemistryProperties.
+
 \*---------------------------------------------------------------------------*/
 
 #include "porousThermoSolidChemistryModel.H"

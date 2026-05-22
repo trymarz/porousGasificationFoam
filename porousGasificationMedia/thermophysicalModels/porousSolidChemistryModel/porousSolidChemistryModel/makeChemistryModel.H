@@ -21,6 +21,13 @@ License
     You should have received a copy of the GNU General Public License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
+Description
+    \c defineChemistryModel(Model, ReactionThermo): typedefs the
+    templated Model<ReactionThermo>, registers the type name in the
+    Foam debug table, and defines the templated run-time selection
+    table. Used once per (Model, ReactionThermo) pair in the
+    corresponding instantiation .C file.
+
 \*---------------------------------------------------------------------------*/
 
 #ifndef makeChemistryModel_H

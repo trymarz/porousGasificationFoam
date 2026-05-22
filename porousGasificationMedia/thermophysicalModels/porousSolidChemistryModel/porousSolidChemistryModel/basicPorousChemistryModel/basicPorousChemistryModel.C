@@ -21,6 +21,14 @@ License
     You should have received a copy of the GNU General Public License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
+Description
+    Base-class constructor / destructor for \c basicPorousChemistryModel.
+    Reads \c constant/chemistryProperties in MUST_READ_IF_MODIFIED
+    mode (so the file is rescanned if the user updates it), pulls
+    \c chemistry / \c initialChemicalTimeStep / \c maxChemicalTimeStep,
+    and creates the per-cell \c deltaTChem cache initialised to
+    \c initialChemicalTimeStep.
+
 \*---------------------------------------------------------------------------*/
 
 #include "basicPorousChemistryModel.H"
