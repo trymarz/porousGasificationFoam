@@ -28,78 +28,29 @@ Description
     Volumetric heterogeneous pyrolysis model — the concrete
     implementation behind \c pyrolysisZone in the main solver.
 
-    "Volumetric" here means: the solid phase is treated as a per-cell
-    bulk quantity weighted by \c (1 - porosityF), not as a discretised
-    second region. The model owns:
+    The solid phase is represented per-cell, weighted by
+    \c (1 - porosityF), not as a separately discretised region. The
+    model owns the solid fields (density, mass fractions,
+    temperature, porosity, smoothed solid velocity, surface mask) and
+    composes three sub-models:
 
-      - \c rho_, \c Ys_, \c Ym_:        solid density and per-component
-                                        mass fractions / mass
-                                        densities (Ym = Ys * rho_),
-      - \c T_:                          solid temperature,
-      - \c porosity_, \c porosityArch_: current porosity field and an
-                                        archival copy at t=0,
-      - \c whereIs_, \c whereIsNot_:    binary masks selecting cells
-                                        that currently contain solid
-                                        (porosity_ < 1) and cells that
-                                        do not,
-      - \c surfF_:                      mask for the surface layer
-                                        cells inside the solid body
-                                        (consumed by radiation),
-      - \c Us_:                         smoothed solid velocity field
-                                        (zero unless DEM or bed motion
-                                        is enabled),
-      - \c chemistrySh_, \c heatUpGas_, \c radiationSh_:
-                                        the three explicit source
-                                        terms feeding the solid
-                                        energy equation,
-      - \c CONV_:                       volumetric heat-transfer
-                                        coefficient h*SAV [W/m^3/K].
+      - \c HTmodel_  (heatTransferModel)     — interphase convection;
+      - \c STmodel_  (specieTransferModel)   — diffusion limitation
+                                               into the chemistry;
+      - \c solidChemistry_                   — \c porousThermoSolidChemistryModel
+                                               that owns the
+                                               heterogeneous reactions
+                                               and the per-cell ODE.
 
-    Two coupling sub-models are constructed and held by autoPtr:
+    \c evolveRegion() drives the per-step sequence; see
+    \c volPyrolysis.C for the implementation. Behaviour switches read
+    from \c constant/pyrolysisProperties include
+    \c subintegrateHeatTransfer, \c bedCollapse, \c criticalPorosity
+    and \c replenish.
 
-      - \c HTmodel_ (heatTransferModel) — provides \c CONV() and
-        feeds the convective interphase heat transfer
-        \c CONV*(T_s - T_g);
-      - \c STmodel_ (specieTransferModel) — provides the
-        diffusion-limited correction \c ST published into the
-        chemistry model.
-
-    The chemistry is handled by \c solidChemistry_, a
-    \c porousThermoSolidChemistryModel that owns the heterogeneous
-    reaction list and the per-cell ODE solver. Its outputs
-    (\c RRs / \c RRg / \c RRpor / \c Sh) drive solid species, gas
-    species, porosity and the heat-of-reaction term respectively.
-
-    Per-time-step sequence in \c evolveRegion():
-      1. cache porosity into \c voidFraction_, refresh \c CONV_ and
-         \c ST_;
-      2. integrate the per-cell chemistry ODE
-         (\c solidChemistry_->solve), publish chemistrySh_ and
-         heatUpGas_;
-      3. \c solveSpeciesMass — transport equations for Ys_;
-      4. \c evolvePorosity — porosity evolution plus optional bed
-         collapse (gravity-driven motion through cells with
-         porosity above \c criticalPorosity);
-      5. \c solidThermo_.correct — refresh K, Cp, kappa from the new
-         composition;
-      6. \c solveEnergy — solid temperature equation with optional
-         non-orthogonal correctors;
-      7. \c calculateMassTransfer + \c info — diagnostics.
-
-    Switches read from \c constant/pyrolysisProperties:
-      - \c subintegrateHeatTransfer: analytic integration of the
-        interphase heat transfer over the time step (more accurate
-        for large CONV*dt);
-      - \c bedCollapse: gravity-driven motion of partially-converted
-        cells through their upward neighbour;
-      - \c criticalPorosity: porosity threshold above which a cell
-        is considered "empty" and triggers bed motion;
-      - \c replenish: continuously refill the top cell of each motion
-        path (otherwise it goes to porosity 1).
-
-    The model implements both runtime-selection-table entries — with
-    and without radiation — but the main solver always uses the
-    radiation-aware constructor.
+    Both runtime selection tables (\c noRadiation and \c radiation)
+    are registered; the main solver always uses the radiation-aware
+    constructor.
 
 SourceFiles
     volPyrolysis.C

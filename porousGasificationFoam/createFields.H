@@ -165,11 +165,9 @@ volScalarField divPhiKinEn
 
 
 // Df is the (possibly anisotropic) Darcy resistance tensor read from
-// constant/0/Df. Set to large values (e.g. 1e9) in gas-only regions to
-// effectively forbid flow and to a permeability-derived value inside
-// the porous region. Used by fieldPorosityModel::addResistance() in
-// UEqn.H. The Forchheimer (quadratic) addition, if enabled, is a
-// single scalar from constant/porosityProperties.
+// 0/Df. Used by fieldPorosityModel::addResistance() in UEqn.H. The
+// Forchheimer (quadratic) addition, if enabled, is a single scalar
+// from constant/porosityProperties.
 Info << "Reading field Df\n" << endl;
 
 volTensorField Df

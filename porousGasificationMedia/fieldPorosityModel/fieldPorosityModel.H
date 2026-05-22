@@ -29,30 +29,13 @@ Description
     anisotropic Darcy tensor field, with an optional global Forchheimer
     coefficient.
 
-    Per cell with \c 0 <= porosityF < 1, the per-unit-volume momentum
-    sink added to UEqn is
-    \f[
-        S_U = -\Big[\mu + f\, \rho\, |U|\, \sqrt{3}/|D_f|\Big]\,
-              D_f \cdot U
-    \f]
-    where:
-      - \f$D_f\f$ is the (anisotropic) Darcy resistance tensor field
-        \c Df read from time 0 — large in gas-only regions to forbid
-        flow, smaller in porous regions based on permeability;
-      - \f$\mu\f$ is the gas dynamic viscosity (looked up by
-        \c thermo:mu or computed as \c rho*nu);
-      - \f$f\f$ is the Forchheimer scalar from
-        \c constant/porosityProperties (default 0 — pure Darcy).
-
-    The isotropic trace of the resulting tensor goes into the UEqn
-    diagonal (\c Udiag) and the deviatoric part into the source
-    (\c Usource) — the standard implicit/explicit split for
-    anisotropic resistances. Cells with \c porosityF >= 1 (pure gas)
-    are skipped.
-
-    The Forchheimer term matters for high-velocity flow through coarse
-    beds. For slow flow inside a fine porous medium the Darcy term
-    alone is usually enough — leave \c porosityProperties absent.
+    For each cell with \c 0 <= porosityF < 1 a momentum sink is added
+    to UEqn from the Darcy tensor \c Df (read from time 0) combined
+    with an optional Forchheimer scalar read from
+    \c constant/porosityProperties (default 0 — pure Darcy). Cells
+    with \c porosityF >= 1 (pure gas) are skipped. See
+    \c fieldPorosityModel.C and \c fieldPorosityModelTemplates.C for
+    the exact assembly.
 
 SourceFiles
     fieldPorosityModel.H

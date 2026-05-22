@@ -37,13 +37,9 @@ Description
     \f$SAV = 2\varepsilon/a_c\f$.
 
     Heat-transfer coefficient is computed per cell from a Nu
-    correlation (see pipe.C — laminar internal-flow expression).
-    References the local gas velocity, density, thermal diffusivity
-    and viscosity (\c Up_, \c rhop_, \c alphap_, \c mup_).
-
-    TODO: walk through with the user — confirm the Nu correlation in
-    pipe.C against the intended literature reference (Hausen / Sieder-
-    Tate / fully developed Nu = 3.66).
+    correlation (see \c pipe.C). References the local gas velocity,
+    density, thermal diffusivity and viscosity (\c Up_, \c rhop_,
+    \c alphap_, \c mup_).
 
 SourceFiles
     pipe.H

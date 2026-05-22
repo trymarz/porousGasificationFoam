@@ -37,13 +37,9 @@ Description
                           \c Function1<scalar> read from
                           \c constant/lambdaDict at construction;
                           pushed back into the particles after the
-                          per-cell aggregation step.
-                          TODO: walk through with the user the
-                          semantics of "lambda" here — physical
-                          interpretation is not obvious from the
-                          implementation (currently evaluates the
-                          function at c.y(), i.e. as a 1D vertical
-                          profile).
+                          per-cell aggregation step. The function is
+                          currently evaluated at the cell-centre
+                          y-coordinate (1D vertical profile).
       - \c nParticles_ — number of YADE spheres whose centre falls in
                           each cell. Used to average UsDEM and to gate
                           empty cells.

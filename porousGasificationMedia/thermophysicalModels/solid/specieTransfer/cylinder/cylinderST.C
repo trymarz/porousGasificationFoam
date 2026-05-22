@@ -27,9 +27,9 @@ Description
 
     \c ST() evaluates the volumetric mass transfer coefficient cell-by-
     cell for a gas flowing over cylindrical particles. The SAV is
-    porosity-weighted (eqZx2uHGn007) and the Sherwood number uses
+    porosity-weighted and the Sherwood number uses
     the same functional form as the Nusselt correlation in
-    \c cylinderCONV (eqZx2uHGn019, eqZx2uHGn020). Gas-phase fields
+    \c cylinderCONV. Gas-phase fields
     (\c U, \c rho, \c mu, \c alpha) are looked up from the mesh
     database at construction.
 
@@ -90,7 +90,6 @@ autoPtr<cylinderST> cylinderST::New
 
 tmp<volScalarField> cylinderST::ST() const
 {
-// eqZx2uHGn007
     Foam::tmp<Foam::volScalarField> STloc_ = Foam::tmp<Foam::volScalarField>
     (
         new volScalarField
@@ -113,7 +112,6 @@ tmp<volScalarField> cylinderST::ST() const
 
     forAll (STloc_(),cellI)
     {
-        //eqZx2uHGn019 eqZx2uHGn020
         STloc_.ref()[cellI] = pow(1 - por()[cellI],0.5) * pow(1 - por0()[cellI], 0.5) * 2.0 / cylinderRadius_
                * (1. + 0.55 * Foam::pow(2 * cylinderRadius_ * rhop_[cellI] * mag(Up_[cellI]) / mup_[cellI], 0.6) / cylinderRadius_) * alphap_[cellI];
     }

@@ -32,13 +32,9 @@ Description
                  \quad \text{for } T > T_{crit}
     \f]
 
-    Three scalars per reaction (A, Ta, Tcrit) — the temperature
-    exponent n is fixed in the implementation file; check the .I.H
-    for the exact form. Useful when the pre-exponential needs a
-    T^n correction (e.g. CO oxidation expressions).
-
-    TODO: walk through with the user the exact T^n exponent in
-    solidModArrRateI.H.
+    Three scalars per reaction (A, Ta, Tcrit). The temperature
+    exponent n is fixed in the implementation file — see
+    \c solidModArrRateI.H for the exact form.
 
 SourceFiles
     solidModArrRate.H

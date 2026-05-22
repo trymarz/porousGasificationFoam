@@ -26,9 +26,9 @@ Description
 
     \c CONV() evaluates the volumetric convection coefficient cell-by-
     cell for a gas flowing through cylindrical pores. The SAV uses
-    porosity (eqZx2uHGn007) and the convective coefficient uses the
+    porosity and the convective coefficient uses the
     laminar Nusselt value \f$\mathrm{Nu} = 3.66\f$ for fully-developed
-    pipe flow (eqZx2uHGn020). Gas-phase fields (\c U, \c rho,
+    pipe flow. Gas-phase fields (\c U, \c rho,
     \c thermo:alpha, \c thermo:mu) are looked up from the mesh database
     at construction.
 
@@ -95,7 +95,6 @@ Foam::autoPtr<Foam::pipeCONV> Foam::pipeCONV::New
 
 Foam::tmp<Foam::volScalarField> Foam::pipeCONV::CONV() const
 {
-// eqZx2uHGn007
     Foam::tmp<Foam::volScalarField> CONVloc_ = Foam::tmp<Foam::volScalarField>
     (
         new volScalarField
@@ -122,9 +121,9 @@ Foam::tmp<Foam::volScalarField> Foam::pipeCONV::CONV() const
     {
         // Surface area to volume ratio.
         scalar SAV =  2.0 * sqrt(porosity()[cellI]) * sqrt(initialPorosity()[cellI])
-                     / pipeRadius_; // eqZx2uHGn007
+                     / pipeRadius_;
 
-        scalar h_conv = Nu * kf(cellI, Cp[cellI]) / (2 * pipeRadius_); //eqZx2uHGn020
+        scalar h_conv = Nu * kf(cellI, Cp[cellI]) / (2 * pipeRadius_);
 
         CONVloc_.ref()[cellI] = SAV * h_conv;
     }

@@ -62,7 +62,7 @@ volScalarField nParticles
 );
 
 //DasteXar  this field (lambdaDot) represents the rate of Lambda change  in each cell
-volScalarField lambdaDot // lambdaDot: rate of change of per-particle lambda (computed by lambdaDotModel)
+volScalarField lambdaDot
 (
     IOobject
     (

@@ -27,53 +27,13 @@ Class
 Description
     P1 (first-moment) radiation model for the gas + solid mixture.
 
-    Solves the diffusion equation for the incident radiation field
-    \f$G\f$ [W/m^2]:
-    \f[
-        \nabla \cdot (\gamma\, \nabla G) - (a + a_s\,\mathrm{whereIs}
-            + a_b\,\mathrm{surfF})\, G
-        = -4 \left[
-              a\, \sigma\, T_g^4
-            + (a_s\,\mathrm{whereIs} + a_b\,\mathrm{surfF})\,
-              \sigma\, T_s^4
-          \right]
-    \f]
-    with diffusion coefficient
-    \f[
-        \gamma = \frac{1}{3(a + a_s + a_b) + \sigma_{eff}}.
-    \f]
-
-    Coefficients per cell:
-      - \f$a\f$ — gas-phase absorption [1/m] (from absorptionEmission
-        model's \c aCont);
-      - \f$a_s\f$ — solid-phase volumetric absorption [1/m]
-        (\c asCont), masked by \c whereIs;
-      - \f$a_b\f$ — solid surface absorption [1/m] (\c borderAsCont),
-        applied only on cells with \c surfF != 0;
-      - \f$\sigma_{eff}\f$ — effective scattering coefficient from
-        the scatter model.
-
-    The solid radiative source delivered to the energy equation is
-    \f[
-        S_{rad} =
-        \begin{cases}
-          (a_s\, G - 4\, a_s\, \sigma\, T_s^4)\,\mathrm{whereIs} &
-            \text{interior solid cells}\\
-          \left[(a_s + \mathrm{surfF}\, a_b)\, G
-                - 4(a_s + \mathrm{surfF}\, a_b)\, \sigma\, T_s^4\right]
-                \,\mathrm{whereIs} & \text{surface cells}
-        \end{cases}
-    \f]
-    so the source switches in the surface term \f$a_b\f$ on the bed
-    edge only. \c borderL_ is the user-supplied surface-layer
-    thickness scaling \c surfF.
-
-    The boundary radiative heat flux \c qr_ is written to processor
-    patches via \f$-\gamma\, \partial G/\partial n\f$ for diagnostics.
-
-    Equation tags retained: eqZx2uHGn009 (G transport),
-    eqZx2uHGn010 (gamma), eqZx2uHGn012 (Sh), eqZx2uHGn013
-    (solidRadiation).
+    Solves a diffusion equation for the incident radiation field
+    \c G_, driven by the absorption / emission coefficients (\c a,
+    \c as, \c borderAs, \c E) supplied by the
+    \c heterogeneousAbsorptionEmissionModel and the scatter model.
+    The solid radiative source delivered to the solid energy equation
+    is exposed via \c solidSh(). See \c heterogeneousP1.C for the
+    exact discretisation.
 
 SourceFiles
     heterogeneousP1.H

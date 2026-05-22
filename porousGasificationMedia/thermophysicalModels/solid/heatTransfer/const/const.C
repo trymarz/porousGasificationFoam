@@ -24,11 +24,9 @@ License
 Description
     Implementation of \c constCONV. See the class Description in the .H.
 
-    \c read() fetches the user-supplied convective heat transfer
-    coefficient \c h [W/m^2/K] and surface-area-to-volume ratio \c SAV
-    [1/m] from \c constant/heatTransferProperties → \c Parameters.
-    \c CONV() returns the product \c h*SAV as a spatially uniform
-    volumetric convection coefficient [W/m^3/K] (eqZx2uHGn006).
+    \c read() fetches \c h and \c SAV from
+    \c constant/heatTransferProperties → \c Parameters. \c CONV()
+    returns the spatially uniform product \c h*SAV.
 
 \*---------------------------------------------------------------------------*/
 
@@ -85,7 +83,6 @@ Foam::autoPtr<Foam::constCONV> Foam::constCONV::New
 
 Foam::tmp<Foam::volScalarField> Foam::constCONV::CONV() const
 {
-// eqZx2uHGn006
     return tmp<volScalarField>
     (
         new volScalarField

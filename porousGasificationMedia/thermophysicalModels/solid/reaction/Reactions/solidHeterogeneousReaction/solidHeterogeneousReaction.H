@@ -36,28 +36,18 @@ Description
       - \c srhs_, \c srhsSto_:  solid RHS,
       - \c grhs_, \c grhsSto_:  gas RHS.
 
-    Pure virtual: \c kf(T, p, c) returns the forward rate constant,
-    \c heatReact() the user-specified heat of reaction, \c nReact()
-    the per-reactant order list. The rate is computed by the wrapping
-    \c IrreversibleSolidHeterogeneousReaction<ReactionRate> template,
-    which combines this stoichiometry with a chosen rate law
-    (Arrhenius, ModArr, TemperatureArrhenius, Const — see
-    solid/reaction/reactionRate/).
+    Base-class \c kf / \c heatReact / \c nReact return zero/empty;
+    concrete reactions live in \c IrreversibleSolidHeterogeneousReaction
+    templated on a rate law (Arrhenius, ModArr, TemperatureArrhenius,
+    Const — see solid/reaction/reactionRate/).
 
     The reaction list is read by
     \c reactingSolidHeterogeneousMixture::read from the
-    \c solidReactions entry of \c constant/chemistryProperties.
-    Format per reaction (three lines):
-
-    \code
-    <typeName>
-    n_S1 S1 + n_G1 G1 = n_S2 S2 + n_G2 G2
-    (A Ta Tcrit heatOfReaction n1 n2 ...)
-    \endcode
-
-    The bound \c gasPhaseGases_ reference lets the rate law evaluate
-    the gas-side concentration term using the current gas mass
-    fractions / densities.
+    \c solidReactions entry of \c constant/chemistryProperties (see
+    README → Input File Reference → chemistryProperties for the
+    per-reaction syntax). The bound \c gasPhaseGases_ reference lets
+    the rate law evaluate the gas-side concentration term using the
+    current gas mass fractions / densities.
 
 SourceFiles
     solidHeterogeneousReaction.H

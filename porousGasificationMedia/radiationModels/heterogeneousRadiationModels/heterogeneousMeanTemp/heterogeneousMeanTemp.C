@@ -266,7 +266,6 @@ void Foam::radiationModels::heterogeneousMeanTemp::calculate()
             << exit(FatalError);
     }
 
-    // eqZx2uHGn016
     volScalarField solidRadiation = borderAs_ * physicoChemical::sigma * pow4(Ts_);
 
     scalar radiationEnergy = (physicoChemical::sigma * pow4(boundaryMeanTemp / boundarySurface)).value();

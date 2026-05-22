@@ -27,10 +27,9 @@ Description
 
     \c CONV() evaluates the volumetric convection coefficient cell-by-
     cell. The surface-area-to-volume ratio uses the current and initial
-    porosities (eqZx2uHGn007), and the convective coefficient uses the
+    porosities, and the convective coefficient uses the
     Gnielinski-type cylinder Nusselt correlation
-    \f$\mathrm{Nu} = 2 + 1.1\,\mathrm{Re}^{0.6}\,\mathrm{Pr}^{1/3}\f$
-    (eqZx2uHGn019, eqZx2uHGn020). Gas-phase fields (\c U, \c rho,
+    \f$\mathrm{Nu} = 2 + 1.1\,\mathrm{Re}^{0.6}\,\mathrm{Pr}^{1/3}\f$. Gas-phase fields (\c U, \c rho,
     \c thermo:alpha, \c thermo:mu) are looked up from the mesh database
     at construction.
 
@@ -62,7 +61,7 @@ Foam::scalar Foam::cylinderCONV::Pr(const label cellI) const
     return mup_[cellI] / alphap_[cellI];
 }
 
-Foam::scalar Foam::cylinderCONV::Nu(const label cellI) const //eqZx2uHGn019
+Foam::scalar Foam::cylinderCONV::Nu(const label cellI) const
 {
     return 2. + 1.1 * pow(Re(cellI), 0.6) * cbrt(Pr(cellI));
 }
@@ -134,9 +133,9 @@ Foam::tmp<Foam::volScalarField> Foam::cylinderCONV::CONV() const
     {
         // Surface area to volume ratio.
         scalar SAV = 2.0 * sqrt(1 - porosity()[cellI]) * sqrt(1 - initialPorosity()[cellI])
-                     / cylinderRadius_; // eqZx2uHGn007
+                     / cylinderRadius_;
 
-        scalar h_conv = Nu(cellI) * kf(cellI) / (2 * cylinderRadius_); //eqZx2uHGn020
+        scalar h_conv = Nu(cellI) * kf(cellI) / (2 * cylinderRadius_);
 
         CONVloc_.ref()[cellI] = SAV * h_conv;
     }

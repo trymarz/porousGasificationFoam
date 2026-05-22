@@ -27,10 +27,6 @@ Description
     for the field inventory and per-time-step sequence; the function
     bodies below carry the equations.
 
-    Equation cross-references retained as tags (eqZx2uHGnXXX) — these
-    point into the project's documentation index. Do not remove them
-    without checking the index that consumes them.
-
 \*---------------------------------------------------------------------------*/
 
 #include "volFields.H"
@@ -99,26 +95,9 @@ bool volPyrolysis::read(const dictionary& dict)
 }
 
 //- Advance the solid species composition and the solid density.
-//
-//  Tags eqZx2uHGn045 (solid density), eqZx2uHGn046 (per-species mass).
-//
-//  Step 1: solid bulk density update from the solid mass flux. With
-//  the solid velocity Us_ (typically zero, non-zero with DEM or bed
-//  motion), the convective transport of rho_ is
-//      d(rho_s)/dt = -div(rho_s * Us_)
-//  expressed via a surface flux \c solidPhi = Sf . interp(rho_*Us_).
-//
-//  Step 2: per-species mass fraction equation, weighted by the
-//  bulk solid density \c rhoLoc = rho_*(1 - porosity_):
-//      d(rhoLoc * Y_i,s)/dt = sRhoSi - div(solidPhi, Y_i,s)
-//  where \c sRhoSi = solidChemistry_->RRs(i) is the rate of mass
-//  change of solid species i due to heterogeneous reactions
-//  [kg/m^3/s].
-//
-//  After all species are solved, mass fractions are renormalised
-//  cell-wise from the absolute solid mass densities Ym_ = whereIs * Ys * rho_
-//  so that sum_i Y_i,s = 1 (where solid exists). Ym_ is then rescaled
-//  to (1-porosity_) for downstream diagnostic use (mass-per-total-volume).
+//  Solves bulk-density transport then per-species mass-fraction
+//  transport driven by \c solidChemistry_->RRs(i), and renormalises
+//  Y so that sum_i Y_i,s = 1 where solid exists.
 void volPyrolysis::solveSpeciesMass()
 {
     if (debug)
@@ -187,39 +166,11 @@ void volPyrolysis::solveSpeciesMass()
 }
 
 
-//- Solid temperature equation.
-//
-//  Tag eqZx2uHGn047.
-//
-//  Solves
-//      (rho_s Cp_s (1-porosity)) * dT_s/dt
-//        = div(K_eff . grad T_s) - div(rho_s Cp_s U_s T_s)
-//          + chemistrySh   [heat of heterogeneous reactions]
-//          - heatTransfer  [convective Q to/from gas]
-//          - heatUpGas     [sensible enthalpy needed to bring released
-//                           gas from T_s up to the local gas state]
-//          + radiationSh   [radiative source]
-//
-//  Effective conductivity is \c composedK = K_ * (1-porosity_) *
-//  anisotropyK_, i.e. the intrinsic K of the pure solid scaled by
-//  the solid volume fraction with an optional anisotropy tensor read
-//  from \c anisotropyK (defaults to identity if not present).
-//
-//  Border handling: the diffusion matrix \c TLap has its face
-//  contributions zeroed on cells straddling the porous-medium edge
-//  (whereIsPatch in (0,1)). The diagonal is then rebuilt via
-//  negSumDiag so the surviving in-solid faces still produce a
-//  consistent stencil; the source is reset to zero to cancel the
-//  non-orthogonal correction term coming from div(composedK), which
-//  is spurious at the bed edge and negligible inside.
-//
-//  Heat transfer is also zeroed in cells whose Us_ points outward
-//  (whereIs == 1 and Us_ . grad(whereIsNot) != 0) — this is a
-//  pragmatic patch for the edge-cell convective coupling and is
-//  marked in the code as needing further work (see commented-out
-//  trial 1 block).
-//  TODO: walk through with the user — the masked-out htc on edge
-//  cells is a known compromise and may behave differently with DEM.
+//- Solid temperature equation. Combines a porosity-weighted
+//  diffusion term with the chemistry, convective interphase
+//  heat-transfer, heat-up-gas and radiation sources. Edge-cell
+//  handling (porous-medium border) and the \c anisotropyK option
+//  are applied here — see the body for the exact form.
 void volPyrolysis::solveEnergy()
 {
     if (debug)
@@ -357,8 +308,8 @@ void volPyrolysis::solveEnergy()
                 fvm::ddt(rhoCp, T_)
               - TLap
             ==
-                chemistrySh_ // eqZx2uHGn004, eqZx2uHGn017
-              - heatTransfField // eqZx2uHGn005
+                chemistrySh_
+              - heatTransfField
               - heatUpGas_
               + radiationSh_
             );
@@ -1274,30 +1225,10 @@ void volPyrolysis::preEvolveRegion() {
 }
 
 //- One-step update of the entire solid phase. Driven by
-//  pyrolysisZone.evolve() from the main loop. See volPyrolysis.H for
-//  the high-level sequence; this function is the body of that
-//  sequence.
-//
-//  Order matters:
-//    1. Cache porosity into voidFraction_ (so chemistry sees the
-//       state before this step), refresh CONV_ and ST_ from their
-//       sub-models.
-//    2. Integrate the per-cell heterogeneous chemistry ODE.
-//       solidChemistry_->solve advances RRs/RRg/RRpor for the step
-//       and returns a suggested chemistry time scale used by
-//       updateChemistryTimeStep.H.
-//    3. Publish chemistrySh_ (heat of heterogeneous reactions, tag
-//       eqZx2uHGn004) and heatUpGas_ (sensible enthalpy to lift the
-//       gas released by pyrolysis from T_s to the local gas state).
-//    4. Solid species mass equations (solveSpeciesMass — tag
-//       eqZx2uHGn046).
-//    5. Porosity evolution (evolvePorosity), including optional bed
-//       collapse.
-//    6. solidThermo_.correct refreshes K, Cp, kappa from the new
-//       composition.
-//    7. Solid temperature solve, optionally repeated for
-//       non-orthogonal correctors (nNonOrthCorr_).
-//    8. Mass-transfer diagnostics and info line.
+//  pyrolysisZone.evolve() from the main loop. Drives the chemistry
+//  ODE, publishes chemistrySh_ / heatUpGas_, then solves species
+//  mass, porosity evolution and the solid energy equation in
+//  sequence (read the body for the exact order).
 void volPyrolysis::evolveRegion()
 {
     voidFraction_ = porosity_;
@@ -1340,33 +1271,12 @@ void volPyrolysis::evolveRegion()
 }
 
 //- Evolve the porosity field and (optionally) move bed material.
-//
-//  Porosity transport:
-//      d(porosity)/dt = RRpor(T_s) - div(Us, porosity)
-//  where RRpor is the chemistry-driven porosity growth rate
-//  [1/s] reported by solidChemistry_ and Us is the (smoothed) solid
-//  velocity. Without DEM and without bed collapse, Us == 0 and the
-//  divergence term vanishes.
-//
-//  Bed collapse (when \c bedCollapse=true): cells that reach a
-//  porosity above \c criticalPorosity but with Us_ . grad(whereIs) > 0
-//  are flagged as "flipped". A global routing algorithm finds, for
-//  each flipped cell, a path of consecutive solid cells leading
-//  upward (z+) along which mass should be relocated. Routes are
-//  computed on the master rank then scattered; per-rank execution
-//  rewrites porosity, T_s, rho_s and Ys_ along each route by pulling
-//  state from the next cell up. The end of each route is either
-//  reset to porosity 1 (no replenish) or kept as-is and its added
-//  mass logged (\c replenishSwitch_ == true).
-//
-//  whereIs_/whereIsNot_ masks are refreshed at the end so downstream
-//  equations see the new bed footprint, and surfF_ is rebuilt from
-//  the face-interpolated whereIsPatch so the radiation model knows
-//  the new border layer.
-//
-//  TODO: walk through with the user — the "upper face" criterion
-//  is currently a hard-coded "Cf.z > C.z" test; with non-gravity-aligned
-//  meshes this needs generalising.
+//  Drives porosity transport from \c solidChemistry_->RRpor(T_s); the
+//  bed-collapse branch (gated by \c bedCollapse) reshuffles porosity,
+//  T_s, rho_s and Ys_ along upward routes when partially-converted
+//  cells flip above \c criticalPorosity. The "upward" direction
+//  assumes a gravity-aligned mesh (test \c Cf.z > C.z).
+//  whereIs_/whereIsNot_ masks and surfF_ are refreshed at the end.
 void volPyrolysis::evolvePorosity()
 {
     if (active_)
@@ -1931,27 +1841,11 @@ Foam::tmp<Foam::volScalarField> volPyrolysis::Srho(const label i) const
     }
 }
 
-//- Volumetric interphase convective heat transfer.
-//
-//  Tag eqZx2uHGn005.
-//
-//  Two modes, selected by \c subintegrateHeatTransfer in
-//  constant/pyrolysisProperties:
-//
-//    - Default (subintegrate = false): a direct evaluation
-//          Sh = CONV * (T_s - T_g) * whereIs    [W/m^3]
-//      where CONV = h * SAV is provided by the heatTransferModel.
-//      Stable only when CONV * dt / (rho Cp) is small.
-//
-//    - Subintegrated (subintegrate = true): analytic integration of
-//      the two-temperature relaxation over dt, treating gas and solid
-//      as two lumped capacitances exchanging heat at rate CONV. The
-//      effective deltaT returned is bounded by exp() factors and is
-//      stable for large CONV * dt. Used when running with strong
-//      coupling at coarse time steps.
-//
-//  Either way the returned field has units W/m^3 and is masked to
-//  the solid-bearing cells via whereIs_.
+//- Volumetric interphase convective heat transfer between solid and
+//  gas. Selects between a direct \c CONV*(T_s - T_g) evaluation and
+//  a sub-integrated two-temperature relaxation depending on the
+//  \c subintegrateHeatTransfer switch in
+//  \c constant/pyrolysisProperties.
 Foam::tmp<Foam::volScalarField> volPyrolysis::heatTransfer()
 {
     Foam::tmp<Foam::volScalarField> Sh_ = Foam::tmp<Foam::volScalarField>
@@ -2067,15 +1961,8 @@ Foam::tmp<Foam::volScalarField> volPyrolysis::CONV() const
 }
 
 //- Sensible enthalpy needed to bring gas released by pyrolysis from
-//  the solid temperature T_s up to the local gas temperature T_g
-//  [W/m^3]. Tag eqZx2uHGn018.
-//
-//      heatUpGas = Cp_g * (T_s - T_g) * Srho * whereIs * (1 - porosity)
-//
-//  This term enters the gas energy equation (EEqn.H) with a positive
-//  sign — it represents heat carried into the gas with the freshly
-//  released solid-to-gas mass flow. The (1 - porosity) factor scales
-//  the per-solid-volume source to a per-total-volume source.
+//  the solid temperature T_s up to the local gas temperature T_g.
+//  Feeds the gas energy equation (EEqn.H).
 Foam::tmp<Foam::volScalarField> volPyrolysis::heatUpGasCalc() const
 {
 
@@ -2103,7 +1990,7 @@ Foam::tmp<Foam::volScalarField> volPyrolysis::heatUpGasCalc() const
 
         if (equilibrium_)
         {}
-        else // eqZx2uHGn018
+        else
         {
             volScalarField tempSh = hSh_();
             tempSh = gasThermo_.Cp() * (T_ - gasThermo_.T()) * Srho();

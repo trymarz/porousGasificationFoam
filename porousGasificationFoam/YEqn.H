@@ -1,4 +1,3 @@
-// eqZx2uHGn041
 
 tmp<fv::convectionScheme<scalar>> mvConvection
 (

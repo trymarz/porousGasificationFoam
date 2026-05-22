@@ -25,18 +25,16 @@ Class
     Foam::basicSolidMixture
 
 Description
-    Abstract base for the solid mixture used by HGSSolidThermo.
+    Base for the solid mixture used by HGSSolidThermo.
 
     Holds the list of solid component names (\c components_) and the
-    per-cell mass-fraction fields Y_i (\c Y_). Per-cell mixing rules
-    for the bulk properties (rho, Cp, K, kappa, sigmaS, emissivity, hf,
-    hs, h) are pure-virtual — \c multiComponentSolidMixture provides
-    the standard "mass-fraction-weighted average" implementation.
+    per-cell mass-fraction fields Y_i (\c Y_). The cell-wise mixing
+    rules for the bulk properties live in
+    \c multiComponentSolidMixture (and derived).
 
-    Mass fractions are exposed via overloads of \c Y(): by index or by
-    specie name, const or non-const, list or single. \c contains(name)
-    asks whether a given specie is part of the mixture (used by the
-    chemistry model when wiring up reactions to fields).
+    Mass fractions are exposed via overloads of \c Y() (by index or
+    by name). \c contains(name) reports whether a given specie is
+    part of the mixture.
 
 SourceFiles
     basicSolidMixture.H

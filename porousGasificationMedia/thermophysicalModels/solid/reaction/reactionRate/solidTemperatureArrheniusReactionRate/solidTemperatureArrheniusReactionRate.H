@@ -32,12 +32,9 @@ Description
                  \quad \text{for } T > T_{crit}
     \f]
 
-    Specialisation of the modified-Arrhenius family with n = 1. Used
-    where the leading T dependence is purely linear in front of the
-    Boltzmann factor.
-
-    TODO: walk through with the user — confirm the exact prefactor in
-    solidTemperatureArrheniusReactionRateI.H (n = 1 assumed here).
+    Specialisation of the modified-Arrhenius family. See
+    \c solidTemperatureArrheniusReactionRateI.H for the exact prefactor
+    in the implementation.
 
 SourceFiles
     solidTemperatureArrheniusReactionRate.H

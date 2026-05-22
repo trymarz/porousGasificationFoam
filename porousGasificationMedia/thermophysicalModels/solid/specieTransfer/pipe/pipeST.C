@@ -25,10 +25,9 @@ Description
     Implementation of \c pipeST. See the class Description in the .H.
 
     \c ST() evaluates the volumetric mass transfer coefficient for a
-    gas flowing through cylindrical pores. The SAV is porosity-weighted
-    (eqZx2uHGn007) and the Sherwood number uses the laminar value
+    gas flowing through cylindrical pores. The SAV is porosity-weighted and the Sherwood number uses the laminar value
     \f$\mathrm{Sh} = 3.66\f$ (fully-developed pipe, constant wall
-    concentration, eqZx2uHGn019, eqZx2uHGn020). Gas-phase fields
+    concentration). Gas-phase fields
     (\c U, \c rho, \c mu, \c alpha) are looked up from the mesh
     database at construction.
 
@@ -89,7 +88,6 @@ autoPtr<pipeST> pipeST::New
 
 tmp<volScalarField> pipeST::ST() const
 {
-// eqZx2uHGn007
     Foam::tmp<Foam::volScalarField> STloc_ = Foam::tmp<Foam::volScalarField>
     (
         new volScalarField
@@ -113,7 +111,7 @@ tmp<volScalarField> pipeST::ST() const
     forAll (STloc_(),cellI)
     {
         STloc_.ref()[cellI] = pow(por()[cellI], 0.5) * pow(por0()[cellI], 0.5) * 2.0 / pipeRadius_ *
-            (1.83) / pipeRadius_ * alphap_[cellI];  //eqZx2uHGn019 eqZx2uHGn020
+            (1.83) / pipeRadius_ * alphap_[cellI];
     }
 
     return STloc_;

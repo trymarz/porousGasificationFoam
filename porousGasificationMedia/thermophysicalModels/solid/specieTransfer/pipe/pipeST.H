@@ -27,13 +27,8 @@ Class
 Description
     Pipe-lattice specie-transfer model.
 
-    Mass-transfer analogue of \c pipeCONV: porosity is treated as a
-    regular array of parallel internal-flow pipes whose radius grows
-    as the bed converts. The Sherwood-number correlation mirrors the
-    Nusselt-number correlation in pipeCONV.
-
-    TODO: walk through with the user the exact Sh correlation in
-    pipeST.C.
+    Mass-transfer analogue of \c pipeCONV. See \c pipeST.C for the
+    exact Sh correlation.
 
 SourceFiles
     pipeST.H

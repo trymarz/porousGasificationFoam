@@ -45,10 +45,9 @@ Description
 
     Concrete implementations:
       - \c heterogeneousNoRadiation (type name "none") — zero source;
-      - \c heterogeneousMeanTemp — surface-only mean-temperature model
-        for thin beds with cheap radiation;
-      - \c heterogeneousP1 — P1 diffusion approximation, full
-        volumetric, used for thick beds.
+      - \c heterogeneousMeanTemp — surface-only mean-temperature
+        model;
+      - \c heterogeneousP1 — P1 diffusion approximation.
 
 SourceFiles
     heterogeneousRadiationModel.H

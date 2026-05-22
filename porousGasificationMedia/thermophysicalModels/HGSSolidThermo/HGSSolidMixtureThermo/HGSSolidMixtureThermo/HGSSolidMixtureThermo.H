@@ -35,11 +35,9 @@ Description
                                                  reactions (S + G = S + G).
 
     Owns the cached cell-wise thermal conductivity field \c K_, which
-    is recomputed by \c calculate() in \c correct() — at every step
-    the per-component K(T) is evaluated with the current temperature
-    and weighted by the current mass fractions. \c Cp(), \c Hf() and
-    \c hs() are produced on demand from the same loop. Per-patch
-    overloads follow the same pattern but iterate over a patch's
+    is recomputed by \c calculate() in \c correct(). \c Cp(), \c Hf()
+    and \c hs() are produced on demand from the current temperature
+    and composition. Per-patch overloads iterate over a patch's
     cells/faces.
 
     Multiple inheritance from both \c HGSSolidThermo (the abstract

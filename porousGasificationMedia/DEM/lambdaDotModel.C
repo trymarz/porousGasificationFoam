@@ -98,9 +98,6 @@ lambdaDotModel::lambdaDotModel
 //       finite values into them).
 //    6. Push lambdaDot back into each particle (only where the cell
 //       contains at least one).
-//
-//  TODO: walk through with the user step 1 — currently 1D in y,
-//  which limits the model to gravity-aligned configurations.
 void lambdaDotModel::update()
 {
     // Step 1: cell-wise lambdaDot from the user function.

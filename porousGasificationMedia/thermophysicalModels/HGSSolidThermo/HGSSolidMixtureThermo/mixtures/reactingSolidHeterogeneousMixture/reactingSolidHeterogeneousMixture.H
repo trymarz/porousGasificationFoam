@@ -25,26 +25,17 @@ Class
     Foam::reactingSolidHeterogeneousMixture
 
 Description
-    Multi-component solid mixture with heterogeneous reactions of the
-    form \c S1 + G1 = S2 + G2 (gas species on both sides).
-
-    The canonical mixture used by PGF for gasification, combustion and
-    char oxidation cases. Inherits both the multi-component solid
-    composition (Ys / rho / K / Cp from
-    \c multiComponentSolidMixture) and the PtrList of heterogeneous
-    reactions (each entry is a \c solidHeterogeneousReaction). The
-    reactions are read from the \c solidReactions list in
-    \c chemistryProperties; each entry has the form
-
-    \code
-    irreversibleSolidArrheniusHeterogeneousReaction
-    n_S1 S1 + n_G1 G1  =  n_S2 S2 + n_G2 G2
-    (A Ta Tcrit heatOfReaction n1 n2 ...)
-    \endcode
+    Multi-component solid mixture with heterogeneous reactions
+    (\c S1 + G1 = S2 + G2). Inherits the multi-component solid
+    composition from \c multiComponentSolidMixture and adds a
+    PtrList of \c solidHeterogeneousReaction read from the
+    \c solidReactions list in \c constant/chemistryProperties (see
+    README → Input File Reference → chemistryProperties for the
+    syntax).
 
     Bound to the global gas-phase species list (\c gasPhaseGases) at
-    construction so the chemistry can later map per-reaction gas
-    indices to the solver's gas-species fields.
+    construction so the chemistry can map per-reaction gas indices to
+    the solver's gas-species fields.
 
 SourceFiles
     reactingSolidHeterogeneousMixture.H

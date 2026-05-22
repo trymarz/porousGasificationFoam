@@ -57,9 +57,8 @@ Description
     to return the typed mixture directly (CRTP-style).
 
     \c directionalK() exposes a per-cell symmetric tensor for
-    anisotropic conduction (off-diagonal entries non-zero in fibrous
-    or layered solids). The default returns the isotropic K wrapped
-    as a symmTensor; only models that need anisotropy override.
+    anisotropic conduction. The default wraps the isotropic K as a
+    symmTensor; override in derived classes that need anisotropy.
 
 SourceFiles
     HGSSolidThermo.H

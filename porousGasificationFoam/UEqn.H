@@ -1,5 +1,4 @@
 // Solve the Momentum equation
-// eqZx2uHGn043
 
 MRF.correctBoundaryVelocity(U);
 
@@ -22,8 +21,7 @@ tmp<volTensorField> trTU;
 // Add the porous resistance term R_porous(U) to UEqn.
 // Df is the (anisotropic) Darcy resistance tensor read from constant/Df;
 // the Forchheimer scalar (if any) is read from porosityProperties by
-// fieldPorosityModel and added on top. Tag eqZx2uHGn015 references the
-// porous-resistance equation in the paper.
+// fieldPorosityModel and added on top.
 pZones.addResistance(UEqn,Df);
 
 fvOptions.constrain(UEqn);

@@ -86,7 +86,6 @@ autoPtr<emptyST> emptyST::New
 
 tmp<volScalarField> emptyST::ST() const
 {
-// eqZx2uHGn006
     return tmp<volScalarField>
     (
         new volScalarField

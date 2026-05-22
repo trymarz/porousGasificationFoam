@@ -25,31 +25,15 @@ Class
     Foam::radiationModels::heterogeneousMeanTemp
 
 Description
-    Surface-only mean-wall-temperature radiation model.
-
-    Bypasses the full P1 diffusion equation. The radiative energy
-    impinging on the bed is taken as the Stefan–Boltzmann emission of
-    a representative wall temperature
-    \f[
-        G = \sigma\, T_{wall,mean}^4
-    \f]
-    where \f$T_{wall,mean}\f$ is the area-weighted mean over all
-    patches of type \c wall. The solid radiative source is applied
-    only on the bed surface (cells with \c surfF_[cellI] != 0):
-    \f[
-        S_{rad}(\text{surf}) = 4\, \mathrm{surfF}\,
-            (\mathrm{borderAs}\,G - \mathrm{borderAs}\,\sigma\, T_s^4)
-    \f]
-
-    Fast (no Laplacian solve) but valid only when the bed is optically
-    thin enough that interior cells receive negligible volumetric
-    radiation. Use \c heterogeneousP1 for optically thick beds.
+    Surface-only mean-wall-temperature radiation model — a cheaper
+    alternative to \c heterogeneousP1. Bypasses the diffusion solve
+    and derives the radiation field from the mean wall temperature
+    over patches of type \c wall. The solid radiative source is
+    applied only on bed-surface cells; see \c heterogeneousMeanTemp.C
+    for the exact form.
 
     Requires at least one patch of type \c wall in the case; aborts
-    otherwise. \c surfF_ — the surface-cell mask scaled by
-    \c borderL/dx — is rebuilt from \c surfFI (the binary border mask
-    from volPyrolysis) once per call, accounting for mesh
-    dimensionality (1D/2D/3D).
+    otherwise.
 
 SourceFiles
     heterogeneousMeanTemp.H

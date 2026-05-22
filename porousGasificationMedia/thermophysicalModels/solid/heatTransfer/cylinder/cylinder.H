@@ -36,14 +36,9 @@ Description
     \f$a_c = a_{c0}\sqrt{(1-\varepsilon)/(1-\varepsilon_0)}\f$. The
     SAV is \f$SAV = 2(1-\varepsilon)/a_c\f$.
 
-    Heat-transfer coefficient uses a Nu(Re, Pr) correlation for
-    cross-flow over a cylinder bundle. Re, Pr and Nu are evaluated
+    Heat-transfer coefficient uses a Nu(Re, Pr) correlation evaluated
     per cell from the local gas state (\c Up_, \c rhop_, \c mup_,
-    \c alphap_).
-
-    TODO: walk through with the user — confirm the Nu correlation in
-    cylinder.C (Zukauskas? Churchill-Bernstein?) against the intended
-    reference.
+    \c alphap_). See \c cylinder.C for the exact form.
 
 SourceFiles
     cylinder.H

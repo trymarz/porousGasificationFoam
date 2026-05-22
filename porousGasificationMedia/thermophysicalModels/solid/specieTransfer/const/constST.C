@@ -28,7 +28,7 @@ Description
     [m/s] and surface-area-to-volume ratio \c SAV [1/m] from
     \c constant/specieTransferProperties → \c Parameters.
     \c ST() returns the product \c h*SAV as a spatially uniform
-    volumetric mass transfer coefficient [1/s] (eqZx2uHGn006).
+    volumetric mass transfer coefficient [1/s].
 
 \*---------------------------------------------------------------------------*/
 
@@ -88,7 +88,6 @@ autoPtr<constST> constST::New
 
 tmp<volScalarField> constST::ST() const
 {
-// eqZx2uHGn006
     return tmp<volScalarField>
     (
         new volScalarField

@@ -27,14 +27,8 @@ Class
 Description
     Cylinder-lattice specie-transfer model.
 
-    Mass-transfer analogue of \c cylinderCONV: porosity is treated as
-    a regular array of parallel solid cylinders whose radius shrinks
-    as the bed converts. The Sherwood-number correlation mirrors the
-    Nusselt-number correlation in cylinderCONV (heat–mass-transfer
-    analogy).
-
-    TODO: walk through with the user the exact Sh correlation in
-    cylinderST.C.
+    Mass-transfer analogue of \c cylinderCONV. See \c cylinderST.C for
+    the exact Sh correlation.
 
 SourceFiles
     cylinderST.H
