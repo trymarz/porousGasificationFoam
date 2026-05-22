@@ -21,6 +21,19 @@ License
     You should have received a copy of the GNU General Public License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
+Description
+    Implementation of \c cylinderCONV. See the class Description in
+    the .H.
+
+    \c CONV() evaluates the volumetric convection coefficient cell-by-
+    cell. The surface-area-to-volume ratio uses the current and initial
+    porosities (eqZx2uHGn007), and the convective coefficient uses the
+    Gnielinski-type cylinder Nusselt correlation
+    \f$\mathrm{Nu} = 2 + 1.1\,\mathrm{Re}^{0.6}\,\mathrm{Pr}^{1/3}\f$
+    (eqZx2uHGn019, eqZx2uHGn020). Gas-phase fields (\c U, \c rho,
+    \c thermo:alpha, \c thermo:mu) are looked up from the mesh database
+    at construction.
+
 \*---------------------------------------------------------------------------*/
 
 #include "cylinder.H"

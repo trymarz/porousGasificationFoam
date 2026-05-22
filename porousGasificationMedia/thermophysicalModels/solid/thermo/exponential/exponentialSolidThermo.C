@@ -21,6 +21,16 @@ License
     You should have received a copy of the GNU General Public License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
+Description
+    Template implementation of \c exponentialSolidThermo.
+    See the class Description in the .H.
+
+    The constructor reads \c C0, \c n0, \c Tref [K] and \c Hf [J/kg]
+    from the \c thermodynamics sub-dictionary. Together these define
+    \f$C_p(T) = C_0 (T/T_{ref})^{n_0}\f$. The \c Ostream operator
+    serialises the inherited rhoType state followed by the four
+    coefficients.
+
 \*---------------------------------------------------------------------------*/
 
 #include "exponentialSolidThermo.H"

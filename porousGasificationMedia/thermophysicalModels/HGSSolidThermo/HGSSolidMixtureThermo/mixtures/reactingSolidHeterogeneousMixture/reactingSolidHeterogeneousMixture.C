@@ -21,6 +21,16 @@ License
     You should have received a copy of the GNU General Public License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
+Description
+    Template implementation of \c reactingSolidHeterogeneousMixture.
+    See the class Description in the .H.
+
+    The constructor chains up to \c multiComponentSolidMixture and then
+    reads the \c solidReactions list from \c constant/chemistryProperties
+    via \c solidHeterogeneousReaction::iNew. Reactions are heterogeneous
+    (solid-gas couples) so the constructor also receives a reference to
+    the gas-phase species list to resolve gas-side stoichiometry.
+
 \*---------------------------------------------------------------------------*/
 
 #include "reactingSolidHeterogeneousMixture.H"

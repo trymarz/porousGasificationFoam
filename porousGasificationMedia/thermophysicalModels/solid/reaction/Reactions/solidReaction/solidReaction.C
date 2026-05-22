@@ -21,6 +21,20 @@ License
     You should have received a copy of the GNU General Public License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
+Description
+    Implementation of \c solidReaction.
+    See the class Description in the .H.
+
+    Solid-only (pyrolysis) counterpart to \c solidHeterogeneousReaction.
+    \c setLRhs(Istream&) parses a reaction of the form
+    \c "solid_A = solid_B + gas_C" from an Istream token stream.
+    Species are looked up in \c components_ (solids) or
+    \c pyrolisisGases_ (gas products). The factory \c New() dispatches
+    on the reaction type word.
+
+    Base-class \c kf() returns zero and \c nReact() returns 1; both
+    are overridden in concrete rate sub-types.
+
 \*---------------------------------------------------------------------------*/
 
 #include "solidReaction.H"

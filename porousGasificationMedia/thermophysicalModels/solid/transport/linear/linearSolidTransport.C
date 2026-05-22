@@ -21,6 +21,15 @@ License
     You should have received a copy of the GNU General Public License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
+Description
+    Template implementation of \c linearSolidTransport.
+    See the class Description in the .H.
+
+    The constructor reads \c K0 [W/m/K] and \c A [W/m/K^2] (stored
+    internally as \c n0_) from the \c transport sub-dictionary, giving
+    \f$K(T) = K_0 + A\,(T - T_{ref})\f$. The \c Ostream operator
+    serialises the inherited thermo state followed by K0 and A.
+
 \*---------------------------------------------------------------------------*/
 
 #include "linearSolidTransport.H"

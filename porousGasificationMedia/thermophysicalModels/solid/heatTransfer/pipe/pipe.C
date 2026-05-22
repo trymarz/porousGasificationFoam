@@ -21,6 +21,17 @@ License
     You should have received a copy of the GNU General Public License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
+Description
+    Implementation of \c pipeCONV. See the class Description in the .H.
+
+    \c CONV() evaluates the volumetric convection coefficient cell-by-
+    cell for a gas flowing through cylindrical pores. The SAV uses
+    porosity (eqZx2uHGn007) and the convective coefficient uses the
+    laminar Nusselt value \f$\mathrm{Nu} = 3.66\f$ for fully-developed
+    pipe flow (eqZx2uHGn020). Gas-phase fields (\c U, \c rho,
+    \c thermo:alpha, \c thermo:mu) are looked up from the mesh database
+    at construction.
+
 \*---------------------------------------------------------------------------*/
 
 #include "pipe.H"

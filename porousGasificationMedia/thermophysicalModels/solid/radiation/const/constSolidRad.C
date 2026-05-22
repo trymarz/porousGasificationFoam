@@ -21,6 +21,15 @@ License
     You should have received a copy of the GNU General Public License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
+Description
+    Template implementation of \c constSolidRad.
+    See the class Description in the .H.
+
+    The constructor reads \c kappa [1/m], \c sigmaS [1/m] and
+    \c emissivity [-] from the component's coefficient sub-dictionary,
+    defaulting to 0 if absent. The \c Ostream operator serialises the
+    inherited thermo state followed by the three radiation constants.
+
 \*---------------------------------------------------------------------------*/
 
 #include "constSolidRad.H"

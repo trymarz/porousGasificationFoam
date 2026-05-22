@@ -21,6 +21,22 @@ License
     You should have received a copy of the GNU General Public License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
+Description
+    Implementation of \c heterogeneousP1. See the class Description in
+    the .H for the governing equation.
+
+    \c calculate() steps:
+      1. Fetch a, as, borderAs, E, borderL, sigmaEff.
+      2. Compute \c surfF_ (bed surface area per cell volume), branching
+         on mesh dimension (1-D, 2-D, 3-D).
+      3. Refresh \c whereIs_ / \c whereIsNot_ indicator fields from
+         \c porosityF_ (solid cells = 1, gas-only cells = 0).
+      4. Build the diffusion coefficient field \f$\gamma\f$.
+      5. Assemble and solve the P1 transport equation for \c G_.
+      6. Compute \c solidSh_ — the solid radiative source term — from
+         the absorbed minus emitted radiation in each solid cell.
+      7. Evaluate the boundary radiative flux \c qr_.
+
 \*---------------------------------------------------------------------------*/
 
 #include "heterogeneousP1.H"

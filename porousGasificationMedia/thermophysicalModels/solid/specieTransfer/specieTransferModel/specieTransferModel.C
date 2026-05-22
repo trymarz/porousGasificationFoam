@@ -21,6 +21,18 @@ License
     You should have received a copy of the GNU General Public License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
+Description
+    Base-class constructor and run-time selection factory for
+    \c specieTransferModel. See the class Description in the .H.
+
+    \c New() checks \c constant/chemistryProperties for the flag
+    \c diffusionLimitedReactions. If true it reads the model type from
+    \c constant/specieTransferProperties and dispatches via the run-time
+    selection table; if false it always selects \c emptyST (zero mass
+    transfer coefficient) so that diffusion limitation is skipped with
+    no dictionary required. Concrete implementations: \c constST,
+    \c cylinderST, \c pipeST, \c emptyST.
+
 \*---------------------------------------------------------------------------*/
 
 #include "specieTransferModel.H"

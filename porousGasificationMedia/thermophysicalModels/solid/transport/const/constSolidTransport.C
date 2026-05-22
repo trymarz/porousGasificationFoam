@@ -21,6 +21,15 @@ License
     You should have received a copy of the GNU General Public License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
+Description
+    Template implementation of \c constSolidTransport.
+    See the class Description in the .H.
+
+    The constructor reads the thermal conductivity \c K [W/m/K] from the
+    \c transport sub-dictionary of the component coefficient block. The
+    \c Ostream operator serialises the inherited thermo state followed
+    by K.
+
 \*---------------------------------------------------------------------------*/
 
 #include "constSolidTransport.H"

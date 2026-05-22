@@ -21,6 +21,13 @@ License
     You should have received a copy of the GNU General Public License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
+Description
+    Implementation of \c constRho. See the class Description in the .H.
+
+    Constructor reads the solid true density \c rho [kg/m^3] from the
+    \c density sub-dictionary of the component coefficient block. The
+    \c Ostream operator writes the stored density for serialisation.
+
 \*---------------------------------------------------------------------------*/
 
 #include "constRho.H"

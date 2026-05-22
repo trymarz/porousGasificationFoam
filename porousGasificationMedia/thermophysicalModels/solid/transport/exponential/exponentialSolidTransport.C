@@ -21,6 +21,16 @@ License
     You should have received a copy of the GNU General Public License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
+Description
+    Template implementation of \c exponentialSolidTransport.
+    See the class Description in the .H.
+
+    The constructor reads \c K0 [W/m/K], \c n0 [-] and \c Tref [K]
+    from the \c transport sub-dictionary. Together these define
+    \f$K(T) = K_0 (T/T_{ref})^{n_0}\f$. The \c Ostream operator
+    serialises the inherited thermo state followed by the three
+    transport coefficients.
+
 \*---------------------------------------------------------------------------*/
 
 #include "exponentialSolidTransport.H"

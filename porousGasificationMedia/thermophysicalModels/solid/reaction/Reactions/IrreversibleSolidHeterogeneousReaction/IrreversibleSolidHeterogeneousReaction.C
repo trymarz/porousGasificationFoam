@@ -21,6 +21,21 @@ License
     You should have received a copy of the GNU General Public License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
+Description
+    Template implementation of \c IrreversibleSolidHeterogeneousReaction.
+    See the class Description in the .H.
+
+    Two constructors:
+      - Programmatic: takes a pre-built \c solidHeterogeneousReaction
+        and a rate object.
+      - Stream: reads the stoichiometry via
+        \c solidHeterogeneousReaction(Istream), then reads the rate
+        object \c k_ from the stream followed by \c heatReact_
+        (J/kg, heat of reaction, positive = exothermic) and per-
+        reactant reaction orders \c nReact_.
+    \c kf() delegates to the rate object. \c write() serialises the
+    reaction in human-readable form for diagnostic output.
+
 \*---------------------------------------------------------------------------*/
 
 #include "IrreversibleSolidHeterogeneousReaction.H"

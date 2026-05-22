@@ -21,6 +21,18 @@ License
     You should have received a copy of the GNU General Public License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
+Description
+    Implementation of \c cylinderST. See the class Description in
+    the .H.
+
+    \c ST() evaluates the volumetric mass transfer coefficient cell-by-
+    cell for a gas flowing over cylindrical particles. The SAV is
+    porosity-weighted (eqZx2uHGn007) and the Sherwood number uses
+    the same functional form as the Nusselt correlation in
+    \c cylinderCONV (eqZx2uHGn019, eqZx2uHGn020). Gas-phase fields
+    (\c U, \c rho, \c mu, \c alpha) are looked up from the mesh
+    database at construction.
+
 \*---------------------------------------------------------------------------*/
 
 #include "cylinderST.H"

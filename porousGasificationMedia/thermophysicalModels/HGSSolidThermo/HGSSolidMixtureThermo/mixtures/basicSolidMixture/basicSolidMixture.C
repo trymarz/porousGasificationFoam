@@ -21,6 +21,16 @@ License
     You should have received a copy of the GNU General Public License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
+Description
+    Constructor of \c basicSolidMixture. See the class Description in
+    the .H.
+
+    For each solid component name the constructor attempts to read a
+    field named \c Y<componentName> from the current time directory. If
+    the field is absent it falls back to a field called \c Ydefault,
+    which must exist. Both the read and the fall-back field are
+    registered for AUTO_WRITE so they appear in every time directory.
+
 \*---------------------------------------------------------------------------*/
 
 #include "basicSolidMixture.H"

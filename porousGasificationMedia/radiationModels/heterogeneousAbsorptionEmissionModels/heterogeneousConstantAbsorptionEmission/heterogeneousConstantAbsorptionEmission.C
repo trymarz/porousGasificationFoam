@@ -21,6 +21,17 @@ License
     You should have received a copy of the GNU General Public License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
+Description
+    Implementation of \c heterogeneousConstantAbsorptionEmission.
+    See the class Description in the .H.
+
+    The constructor reads user-supplied scalars (\c a, \c as,
+    \c borderAs, \c E, \c borderL) from the
+    \c heterogeneousConstantAbsorptionEmissionCoeffs sub-dictionary in
+    \c constant/radiationProperties. Every accessor returns a spatially
+    uniform field built from the stored scalar, so there is no
+    per-cell computation at run time.
+
 \*---------------------------------------------------------------------------*/
 
 #include "heterogeneousConstantAbsorptionEmission.H"

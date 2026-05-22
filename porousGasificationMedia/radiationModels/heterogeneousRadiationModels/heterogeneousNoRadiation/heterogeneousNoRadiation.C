@@ -21,6 +21,13 @@ License
     You should have received a copy of the GNU General Public License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
+Description
+    Implementation of \c heterogeneousNoRadiation.
+    See the class Description in the .H.
+
+    All member functions are stubs that return zero. Selected from
+    \c constant/radiationProperties when radiation is disabled.
+
 \*---------------------------------------------------------------------------*/
 
 #include "heterogeneousNoRadiation.H"

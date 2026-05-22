@@ -21,6 +21,15 @@ License
     You should have received a copy of the GNU General Public License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
+Description
+    Template implementation of \c constSolidThermo.
+    See the class Description in the .H.
+
+    The constructor reads \c Cp [J/kg/K] and \c Hf [J/kg] (heat of
+    formation) from the \c thermodynamics sub-dictionary of the
+    component coefficient block. The \c Ostream operator serialises
+    the inherited rhoType state followed by Cp and Hf.
+
 \*---------------------------------------------------------------------------*/
 
 #include "constSolidThermo.H"

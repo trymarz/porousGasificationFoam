@@ -21,6 +21,24 @@ License
     You should have received a copy of the GNU General Public License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
+Description
+    Implementation of \c solidHeterogeneousReaction.
+    See the class Description in the .H.
+
+    \c setLRhs(Istream&) is the stoichiometry parser. It tokenises the
+    reaction equation (e.g. \c "2 C + O2 = CO2") and classifies each
+    token as a solid-component or gas-phase species using
+    \c componentIndex(). Left-hand-side tokens go to \c slhs_ /
+    \c glhs_; right-hand side tokens go to \c srhs_ / \c grhs_. An
+    equals sign (\c =) switches from LHS to RHS; a left-brace halts
+    parsing (for embedded rate data).
+
+    The run-time selection factory \c New() reads the reaction type
+    word from the stream and dispatches to the registered constructor.
+    Base-class \c kf(), \c heatReact(), \c nReact() return zero/empty
+    — overridden in concrete types such as
+    \c IrreversibleSolidHeterogeneousReaction.
+
 \*---------------------------------------------------------------------------*/
 
 #include "solidHeterogeneousReaction.H"

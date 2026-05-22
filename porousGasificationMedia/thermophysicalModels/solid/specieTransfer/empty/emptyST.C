@@ -21,6 +21,15 @@ License
     You should have received a copy of the GNU General Public License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
+Description
+    Implementation of \c emptyST. See the class Description in the .H.
+
+    \c ST() always returns zero, making heterogeneous reactions
+    reaction-rate limited regardless of diffusion. Automatically
+    selected by \c specieTransferModel::New() when
+    \c diffusionLimitedReactions is \c false in
+    \c constant/chemistryProperties.
+
 \*---------------------------------------------------------------------------*/
 
 #include "emptyST.H"

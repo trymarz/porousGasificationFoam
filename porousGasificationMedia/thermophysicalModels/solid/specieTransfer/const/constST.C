@@ -21,6 +21,15 @@ License
     You should have received a copy of the GNU General Public License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
+Description
+    Implementation of \c constST. See the class Description in the .H.
+
+    \c read() fetches the user-supplied mass transfer coefficient \c h
+    [m/s] and surface-area-to-volume ratio \c SAV [1/m] from
+    \c constant/specieTransferProperties → \c Parameters.
+    \c ST() returns the product \c h*SAV as a spatially uniform
+    volumetric mass transfer coefficient [1/s] (eqZx2uHGn006).
+
 \*---------------------------------------------------------------------------*/
 
 #include "constST.H"

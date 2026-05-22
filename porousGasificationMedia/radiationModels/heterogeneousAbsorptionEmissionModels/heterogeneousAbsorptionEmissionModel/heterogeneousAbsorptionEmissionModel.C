@@ -21,6 +21,18 @@ License
     You should have received a copy of the GNU General Public License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
+Description
+    Constructor/destructor and default implementations for the abstract
+    \c heterogeneousAbsorptionEmissionModel. See the class Description in
+    the .H for the full hierarchy.
+
+    All virtual functions that concrete sub-models need not override
+    (as, borderAs, es, borderEs) delegate to their respective \c *Cont
+    variants. The \c *Cont defaults return a spatially uniform zero
+    field so that a sub-model can override only the quantities it cares
+    about. \c addIntensity returns ILambda unchanged (transparent medium
+    fall-back). \c borderL defaults to zero length.
+
 \*---------------------------------------------------------------------------*/
 
 #include "heterogeneousAbsorptionEmissionModel.H"

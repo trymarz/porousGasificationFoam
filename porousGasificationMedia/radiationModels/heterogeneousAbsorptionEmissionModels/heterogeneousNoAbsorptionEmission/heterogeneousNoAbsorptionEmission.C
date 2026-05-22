@@ -21,6 +21,16 @@ License
     You should have received a copy of the GNU General Public License
     along with foam-extend.  If not, see <http://www.gnu.org/licenses/>.
 
+Description
+    Implementation of \c heterogeneousNoAbsorptionEmission.
+    See the class Description in the .H.
+
+    Constructor and destructor only — all absorption/emission
+    coefficients are zero by delegation to the
+    \c heterogeneousAbsorptionEmissionModel base-class defaults.
+    Selected when radiation transport is active but no
+    absorption/emission from the bed is desired.
+
 \*---------------------------------------------------------------------------*/
 
 #include "heterogeneousNoAbsorptionEmission.H"

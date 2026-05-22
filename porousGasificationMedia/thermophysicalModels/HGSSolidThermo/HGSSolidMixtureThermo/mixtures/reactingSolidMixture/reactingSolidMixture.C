@@ -21,6 +21,16 @@ License
     You should have received a copy of the GNU General Public License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
+Description
+    Template implementation of \c reactingSolidMixture.
+    See the class Description in the .H.
+
+    Extends \c multiComponentSolidMixture with solid-only (pyrolysis)
+    reactions. The constructor reads the \c solidReactions list from
+    \c constant/chemistryProperties via \c solidReaction::iNew.
+    Unlike \c reactingSolidHeterogeneousMixture there is no gas-phase
+    species coupling at the stoichiometry-parsing stage.
+
 \*---------------------------------------------------------------------------*/
 
 #include "reactingSolidMixture.H"

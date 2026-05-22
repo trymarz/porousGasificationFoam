@@ -21,6 +21,22 @@ License
     You should have received a copy of the GNU General Public License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
+Description
+    Template implementation of \c multiComponentSolidMixture.
+    See the class Description in the .H.
+
+    Mixing rules used here:
+      - \c rho, \c kappa, \c sigmaS, \c K, \c emissivity — volume
+        fraction (X) weighted average over components.
+      - \c Cp, \c hf, \c hs, \c h — mass fraction (Y) weighted
+        average.
+    Volume fractions are derived from mass fractions using the per-
+    component \c rho(T) evaluated at the current cell temperature.
+
+    \c correctMassFractions() normalises all Y fields to sum to 1
+    after construction; cells where the total is zero are treated as
+    inert (Yt set to 1 to avoid division by zero).
+
 \*---------------------------------------------------------------------------*/
 
 #include "multiComponentSolidMixture.H"

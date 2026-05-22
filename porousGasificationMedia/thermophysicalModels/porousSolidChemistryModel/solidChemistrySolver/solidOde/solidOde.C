@@ -21,6 +21,18 @@ License
     You should have received a copy of the GNU General Public License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
+Description
+    Template implementation of \c solidOde.
+    See the class Description in the .H.
+
+    \c solve() packs the per-cell state into the flat vector
+    \c cTp_ = [c_0, ..., c_{nSpecie-1}, T, p] and drives the
+    registered \c ODESolver between t0 and t0+dt. The solver is
+    selected by \c solidOdeCoeffs/solver in
+    \c constant/chemistryProperties (e.g. \c RKF45, \c RKCK45).
+    Concentrations are clipped to zero after unpacking to protect
+    downstream consumers against integrator overshoots near zero.
+
 \*---------------------------------------------------------------------------*/
 
 #include "solidOde.H"

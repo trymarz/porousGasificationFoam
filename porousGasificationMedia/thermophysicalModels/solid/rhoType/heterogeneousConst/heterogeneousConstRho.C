@@ -21,6 +21,16 @@ License
     You should have received a copy of the GNU General Public License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
+Description
+    Implementation of \c heterogeneousConstRho.
+    See the class Description in the .H.
+
+    Structurally identical to \c constRho but used for the
+    heterogeneous (bed-scale) solid components where a distinct class
+    is needed for the run-time type selection in
+    \c solidThermoPhysicsTypes. Reads \c rho from the \c density
+    sub-dictionary.
+
 \*---------------------------------------------------------------------------*/
 
 #include "heterogeneousConstRho.H"

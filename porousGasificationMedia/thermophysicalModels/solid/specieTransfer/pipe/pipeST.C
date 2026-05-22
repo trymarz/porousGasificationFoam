@@ -21,6 +21,17 @@ License
     You should have received a copy of the GNU General Public License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
+Description
+    Implementation of \c pipeST. See the class Description in the .H.
+
+    \c ST() evaluates the volumetric mass transfer coefficient for a
+    gas flowing through cylindrical pores. The SAV is porosity-weighted
+    (eqZx2uHGn007) and the Sherwood number uses the laminar value
+    \f$\mathrm{Sh} = 3.66\f$ (fully-developed pipe, constant wall
+    concentration, eqZx2uHGn019, eqZx2uHGn020). Gas-phase fields
+    (\c U, \c rho, \c mu, \c alpha) are looked up from the mesh
+    database at construction.
+
 \*---------------------------------------------------------------------------*/
 
 #include "pipeST.H"

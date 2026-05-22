@@ -21,6 +21,17 @@ License
     You should have received a copy of the GNU General Public License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
+Description
+    Base-class constructor and run-time selection factory for
+    \c heatTransferModel. See the class Description in the .H.
+
+    \c New() reads \c heatTransferModel from
+    \c constant/heatTransferProperties without registering the
+    dictionary (it will be re-read by the concrete sub-model
+    constructor) and dispatches via the run-time selection table.
+    Concrete implementations: \c constCONV, \c cylinderCONV,
+    \c pipeCONV.
+
 \*---------------------------------------------------------------------------*/
 
 #include "heatTransferModel.H"

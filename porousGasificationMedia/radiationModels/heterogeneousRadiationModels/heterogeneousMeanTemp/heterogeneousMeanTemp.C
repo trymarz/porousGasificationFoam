@@ -21,6 +21,21 @@ License
     You should have received a copy of the GNU General Public License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
+Description
+    Implementation of \c heterogeneousMeanTemp.
+    See the class Description in the .H for the physical model.
+
+    \c calculate() performs the following steps:
+      1. Fetch border absorption and length scale from the
+         absorption/emission model.
+      2. Compute the per-cell surface factor \c surfF_ (ratio of bed
+         surface area to cell volume) — branch on mesh dimension
+         (1-D, 2-D, 3-D).
+      3. Find all \c wall patches, compute their area-weighted mean
+         temperature \f$T_{wall,mean}\f$; fatal if no wall exists.
+      4. Set \c G_ = \f$\sigma T_{wall,mean}^4\f$ uniformly, then
+         apply the solid source on surface cells.
+
 \*---------------------------------------------------------------------------*/
 
 #include "heterogeneousMeanTemp.H"

@@ -21,6 +21,15 @@ License
     You should have received a copy of the GNU General Public License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
+Description
+    Implementation of \c constCONV. See the class Description in the .H.
+
+    \c read() fetches the user-supplied convective heat transfer
+    coefficient \c h [W/m^2/K] and surface-area-to-volume ratio \c SAV
+    [1/m] from \c constant/heatTransferProperties → \c Parameters.
+    \c CONV() returns the product \c h*SAV as a spatially uniform
+    volumetric convection coefficient [W/m^3/K] (eqZx2uHGn006).
+
 \*---------------------------------------------------------------------------*/
 
 #include "const.H"
