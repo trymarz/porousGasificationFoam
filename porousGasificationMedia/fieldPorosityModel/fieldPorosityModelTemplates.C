@@ -21,6 +21,13 @@ License
     You should have received a copy of the GNU General Public License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
+Description
+    Per-cell numerical core of the porous resistance: builds the
+    Darcy+Forchheimer drag tensor and splits it into an isotropic
+    diagonal contribution and a non-isotropic source contribution
+    going into UEqn. Templated on the rho type so that incompressible
+    and compressible call sites can both use it.
+
 \*---------------------------------------------------------------------------*/
 
 #include "fieldPorosityModel.H"
@@ -28,6 +35,17 @@ License
 
 // * * * * * * * * * * * * * Protected Member Functions  * * * * * * * * * * //
 
+//- Build the Darcy+Forchheimer drag tensor per cell and post it into
+//  the UEqn diagonal/source.
+//
+//  Drag tensor per cell:
+//      D_drag = (mu + f * rho * |U| * sqrt(3) / |Df|) * Df
+//  (with the Forchheimer term gated on |Df| != 0 to avoid div/0).
+//
+//  Split into an isotropic part (trace) which goes implicitly into
+//  the matrix diagonal and a deviatoric part which goes explicitly
+//  into the source — the standard treatment for anisotropic
+//  resistances so the linear solve stays diagonally dominant.
 template<class RhoFieldType>
 void Foam::fieldPorosityModel::addViscousInertialResistance
 (
@@ -38,34 +56,33 @@ void Foam::fieldPorosityModel::addViscousInertialResistance
     const RhoFieldType& rho,
     const scalarField& mu,
     const vectorField& U,
-    tensorField& Df 
+    tensorField& Df
 ) const
 {
     forAll (cells, i)
     {
-        // This is Darcy level only.
-        // tensor dragCoeff = mu[cells[i]] * Df[cells[i]];
-
-        // This is Darcy-Forcheimer level
         tensor dragCoeff;
         if (mag(Df[cells[i]]) != 0)
         {
+            // Darcy + Forchheimer.
             dragCoeff = (
                             mu[cells[i]] + f_*rho[cells[i]]*mag(U[cells[i]])*sqrt(3.)/mag(Df[cells[i]])
                         )*Df[cells[i]];
         }
         else
         {
+            // Pure Darcy (mu * Df) when |Df| == 0.
             dragCoeff = mu[cells[i]]*Df[cells[i]];
         }
 
-
-        // Isotropic part that goes into diagonal part of U matrix.
+        // Isotropic part -> implicit (diagonal).
         scalar isoDragCoeff = tr(dragCoeff);
-        
+
         Udiag[cells[i]] += V[cells[i]]*isoDragCoeff;
 
-        // Non-isotropic part that goes into source part of U matrix
+        // Deviatoric part -> explicit (source). I*tr(d) is the
+        // isotropic projection that was already absorbed into the
+        // diagonal above.
         Usource[cells[i]] -=
             V[cells[i]] * ((dragCoeff - I * isoDragCoeff) & U[cells[i]]);
     }

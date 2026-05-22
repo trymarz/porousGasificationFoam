@@ -22,32 +22,42 @@ License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
 Class
-    Foam::porosityModel
+    Foam::fieldPorosityModel
 
 Description
-    Porous zone definition based on cell zones.
+    Porous resistance model driven by a per-cell porosity field and an
+    anisotropic Darcy tensor field, with an optional global Forchheimer
+    coefficient.
 
-    Porous zone definition based on cell zones and parameters obtained from a
-    control dictionary constructed from the given stream. The orientation of
-    the porous region is defined with the same notation as a coordinateSystem,
-    but only a Cartesian coordinate system is valid.
+    Per cell with \c 0 <= porosityF < 1, the per-unit-volume momentum
+    sink added to UEqn is
+    \f[
+        S_U = -\Big[\mu + f\, \rho\, |U|\, \sqrt{3}/|D_f|\Big]\,
+              D_f \cdot U
+    \f]
+    where:
+      - \f$D_f\f$ is the (anisotropic) Darcy resistance tensor field
+        \c Df read from time 0 — large in gas-only regions to forbid
+        flow, smaller in porous regions based on permeability;
+      - \f$\mu\f$ is the gas dynamic viscosity (looked up by
+        \c thermo:mu or computed as \c rho*nu);
+      - \f$f\f$ is the Forchheimer scalar from
+        \c constant/porosityProperties (default 0 — pure Darcy).
 
-    Implemented porosity models:
+    The isotropic trace of the resulting tensor goes into the UEqn
+    diagonal (\c Udiag) and the deviatoric part into the source
+    (\c Usource) — the standard implicit/explicit split for
+    anisotropic resistances. Cells with \c porosityF >= 1 (pure gas)
+    are skipped.
 
-    Darcy (@e d parameter)
-    @f[
-        S = - (\mu \, d ) U
-    @f]
-
-    Since negative Darcy/Forchheimer parameters are invalid, they can be used
-    to specify a multiplier (of the max component).
-
-    The porousReactingZones method porousReactingZones::ddt() mirrors the normal fvm::ddt()
-    method, but accounts for the effective volume of the cells.
+    The Forchheimer term matters for high-velocity flow through coarse
+    beds. For slow flow inside a fine porous medium the Darcy term
+    alone is usually enough — leave \c porosityProperties absent.
 
 SourceFiles
-   fieldPorosityModel.C
-   fieldPorosityModelTemplates.C
+    fieldPorosityModel.H
+    fieldPorosityModel.C
+    fieldPorosityModelTemplates.C
 
 \*---------------------------------------------------------------------------*/
 

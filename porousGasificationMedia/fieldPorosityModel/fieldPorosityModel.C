@@ -21,6 +21,19 @@ License
     You should have received a copy of the GNU General Public License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
+Description
+    Constructor / destructor / public-API implementation for
+    \c fieldPorosityModel.
+
+    The constructor opens \c constant/porosityProperties if present and
+    reads the \c forchheimerCoeff scalar. Absent file = Darcy only.
+    Informational message is printed in both cases.
+
+    \c addResistance(UEqn, Df) looks up viscosity (or kinematic
+    viscosity * density) from the registry under the standard names
+    \c thermo:mu / \c nu / \c rho and dispatches to the templated
+    \c addViscousInertialResistance below.
+
 \*---------------------------------------------------------------------------*/
 
 #include "fieldPorosityModel.H"
@@ -103,6 +116,13 @@ Foam::fieldPorosityModel::~fieldPorosityModel()
 
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
 
+//- Add the per-cell Darcy + Forchheimer resistance contribution to UEqn.
+//
+//  Build the list of porous cells (where 0 <= porosityF < 1), then
+//  pick a (mu, rho) pair from the field registry — the choice depends
+//  on whether UEqn has force or acceleration units and which of
+//  thermo:mu / nu / rho exist. Defers the per-cell numerical work to
+//  the templated addViscousInertialResistance.
 void Foam::fieldPorosityModel::addResistance
 (
         fvVectorMatrix& UEqn,
