@@ -25,7 +25,36 @@ Application
     porousGasificationFoam
 
 Description
-    Solver for reactive flow through porous medium
+    Transient, compressible, reactive PIMPLE solver for a gas flowing
+    through a reactive porous medium. The solid phase is represented by a
+    cell-centred porosity field \c porosityF in [0,1] (1 = pure gas,
+    0 = pure solid). Solid and gas coexist in every cell and exchange
+    mass, momentum and energy through coupling source terms supplied by
+    the heterogeneous pyrolysis / chemistry / radiation models.
+
+    Per-time-step structure (top-to-bottom in main()):
+      1. Time-step control: combine fluid Courant, solid diffusion and
+         chemistry timescales into a single stable deltaT.
+         See \c setMultiRegionDeltaT.H and \c updateChemistryTimeStep.H.
+      2. Optional DEM coupling (when WITH_YADE is defined): exchange
+         particle state with YADE and build the smoothed solid velocity
+         field. See \c lambdaDotModel::update().
+      3. Heterogeneous radiation: update the solid radiative source.
+         See \c radiation.H and \c heterogeneousRadiationModel.
+      4. Solid-phase evolution: per-cell chemistry ODE, solid species
+         mass conservation, porosity update (optional bed collapse) and
+         the solid energy equation. See \c volPyrolysis::evolveRegion().
+      5. Gas continuity with the solid-to-gas mass source.
+         See \c rhoEqn.H.
+      6. PIMPLE loop: momentum (UEqn.H) with Darcy/Forchheimer porous
+         resistance, gas species (YEqn.H), gas enthalpy (EEqn.H) and
+         pressure correction (pEqn.H or pcEqn.H depending on whether
+         pimple.consistent() is set).
+      7. Turbulence correction.
+
+    Geometry, solid material, reaction set, radiation parameters and
+    porous resistance tensor are all user inputs. See README Part I for
+    the input-file reference.
 
 \*---------------------------------------------------------------------------*/
 
@@ -92,6 +121,10 @@ int main(int argc, char *argv[])
     {
         #include "readTimeControls.H"
 
+        // --- Time-step control.
+        //     Either local-time-stepping (steady-state-like) or a global
+        //     deltaT chosen as the minimum of the fluid Courant, solid
+        //     diffusion and chemistry timescales.
         if (LTS)
         {
             #include "setRDeltaT.H"
@@ -111,21 +144,43 @@ int main(int argc, char *argv[])
         Info<< "Time = " << runTime.timeName() << nl << endl;
 
         #ifdef WITH_YADE
+        // --- DEM coupling step (only when built with WITH_YADE and the
+        //     yadeProperties dictionary has active = true).
+        //     Pushes the current gas state to YADE, advances particles,
+        //     pulls back per-cell aggregates, and produces the smoothed
+        //     solid velocity field Us via lambdaDotModel::update().
         if (DEM)
         {
             vGrad = fvc::grad(U);
             yadeCoupling->setParticleAction(runTime.deltaT().value());
-            lambdaDotUpdater->update(); //DasteXar jadid
-            lambdaDotUpdater->writeParticlesData(); // DasteXar to write ParticlesData.txt in each time step for each rank
+            lambdaDotUpdater->update();
+            lambdaDotUpdater->writeParticlesData();
             yadeCoupling->setSourceZero();
         }
         #endif
 
+        // --- Heterogeneous radiation source for the solid energy
+        //     equation. The active model (heterogeneousP1 /
+        //     heterogeneousMeanTemp / heterogeneousNoRadiation) is
+        //     selected at runtime from constant/radiationProperties.
         #include "radiation.H"
+
+        // --- Solid-phase evolution: heterogeneous chemistry ODE,
+        //     solid species mass conservation, porosity evolution
+        //     (with optional bed collapse) and the solid energy
+        //     equation. The single line below drives steps (4) of the
+        //     per-time-step tour; see volPyrolysis::evolveRegion().
         pyrolysisZone.evolve();
 
+        // --- Gas continuity with the solid-to-gas mass source from
+        //     pyrolysisZone (Srho is set in rhoEqn.H from
+        //     pyrolysisZone.Srho()).
         #include "rhoEqn.H"
 
+        // --- PIMPLE pressure-velocity coupling.
+        //     Momentum predictor (with Darcy/Forchheimer porous
+        //     resistance), gas species, gas enthalpy, then one or more
+        //     pressure corrector iterations.
         while (pimple.loop())
         {
             if (pimple.nCorrPIMPLE() > 0)
@@ -139,7 +194,9 @@ int main(int argc, char *argv[])
             #include "YEqn.H"
             #include "EEqn.H"
 
-            // --- Pressure corrector loop
+            // --- Pressure corrector loop. Two variants of the pressure
+            //     equation: the "consistent" SIMPLEC-style form
+            //     (pcEqn.H) and the standard PISO/PIMPLE form (pEqn.H).
             while (pimple.correct())
             {
                 if (pimple.consistent())

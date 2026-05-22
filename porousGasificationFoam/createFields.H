@@ -1,3 +1,26 @@
+/*---------------------------------------------------------------------------*\
+Global
+    createFields
+
+Description
+    Construct all gas-phase fields and auxiliary objects used by the
+    main solver loop. Pyrolysis-, radiation- and DEM-related fields are
+    created in their own \c create*.H files later.
+
+    Order matters: \c thermo is built first because subsequent fields
+    (rho, p, K, dpdt, ...) take their dimensions from it. The
+    turbulence model is constructed before \c reaction because
+    \c CombustionModel requires the turbulence reference.
+
+    Fields read from disk (\c MUST_READ):     U, porosityF, Df
+    Fields constructed and auto-written:      rho, p, kappa, chemistrySh
+                                              (renamed at write time),
+                                              ddtKinEn, divPhiKinEn,
+                                              radiationF, dpdt, K, Us
+    Fields constructed but not written:       cellVolume, p_thermo
+
+\*---------------------------------------------------------------------------*/
+
 #include "createRDeltaT.H"
 
 Info<< "Reading thermophysical properties\n" << endl;
@@ -164,6 +187,12 @@ volScalarField divPhiKinEn
 );
 
 
+// Df is the (possibly anisotropic) Darcy resistance tensor read from
+// constant/0/Df. Set to large values (e.g. 1e9) in gas-only regions to
+// effectively forbid flow and to a permeability-derived value inside
+// the porous region. Used by fieldPorosityModel::addResistance() in
+// UEqn.H. The Forchheimer (quadratic) addition, if enabled, is a
+// single scalar from constant/porosityProperties.
 Info << "Reading field Df\n" << endl;
 
 volTensorField Df
@@ -179,6 +208,10 @@ volTensorField Df
         mesh
 );
 
+// porosityF in [0,1]: 1 = pure gas cell, 0 = pure solid cell. Read
+// from time 0 and updated each step by volPyrolysis::evolvePorosity.
+// All transport equations of the gas phase are weighted by porosityF
+// (or 1 - porosityF for the solid mass source side).
 Info << "Reading field porosityF\n" << endl;
 
 volScalarField porosityF
@@ -231,6 +264,14 @@ forAll(cellVolume,cellI)
 #include "createMRF.H"
 #include "createFvOptions.H"
 
+// Us is the canonical smoothed solid-velocity field used by the
+// solid-phase transport in volPyrolysis. It is always present
+// (READ_IF_PRESENT, defaults to zero) and may be user-set in 0/Us for
+// non-DEM cases. With DEM enabled, lambdaDotModel::update() overwrites
+// Us with a Laplace-smoothed version of the per-cell DEM aggregate
+// UsDEM (see createDEMFields.H). Do not confuse Us with UsDEM: UsDEM
+// is the raw crude DEM average; Us is the smoothed, solver-facing
+// field.
 volVectorField Us
 (
     IOobject
