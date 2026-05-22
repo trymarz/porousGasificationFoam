@@ -25,26 +25,9 @@ Global
     setMultiRegionDeltaT
 
 Description
-    Pick the next time step so that both the gas Courant number and the
-    solid diffusion number stay below their user limits.
-
-    Inputs (already computed earlier in the main loop):
-      - \c CoNum: maximum compressible Courant number across the mesh
-        (from \c compressibleCourantNo.H).
-      - \c DiNum: maximum solid-region diffusion number
-        \f$\alpha_s \Delta t / \Delta x^2\f$ (from \c solidRegionDiffusionNo.H,
-        computed in \c volPyrolysis::solidRegionDiffNo()).
-      - \c maxCo, \c maxDi, \c maxDeltaT: limits read from
-        \c system/controlDict.
-
-    Algorithm:
-      - Reduce immediately to whatever the limits demand
-        (maxDeltaTFluid, maxDeltaTSolid).
-      - Cap the per-step growth factor at 1.2 to avoid stiff bouncing.
-      - Cap the absolute step at \c maxDeltaT.
-
-    The chemistry timescale is layered on top of this in
-    \c updateChemistryTimeStep.H, which may shrink deltaT further.
+    Reset the timestep to maintain a constant maximum courant and
+    diffusion Numbers. Reduction of time-step is immediate, but
+    increase is damped to avoid unstable oscillations.
 
 \*---------------------------------------------------------------------------*/
 

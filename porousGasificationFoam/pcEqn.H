@@ -1,37 +1,3 @@
-/*---------------------------------------------------------------------------*\
-  =========                 |
-  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
-   \\    /   O peration     |
-    \\  /    A nd           | Copyright held by original author
-     \\/     M anipulation  |
--------------------------------------------------------------------------------
-Global
-    pcEqn
-
-Description
-    "Consistent" PIMPLE pressure equation (SIMPLEC variant) for the
-    porous-medium gas phase. Used when \c pimple.consistent() is true.
-    The non-consistent variant is in pEqn.H.
-
-    Differs from pEqn.H by splitting the diagonal of UEqn into two
-    pieces: \c rAU = 1/A() and \c rAtU = 1/(1/rAU - H1()). The
-    pressure solve uses \c rAtU on the Laplacian and a correction
-    flux \c (rAU - rAtU) grad p is added back to HbyA. The motivation
-    is to reduce under-relaxation requirements compared with the basic
-    pEqn.H — at the cost of one additional Laplacian-magnitude field.
-
-    The porosity-weighted compressibility \f$\varphi\,\psi\,\partial p/
-    \partial t\f$ and the solid-to-gas source \f$\dot{m}_{s\rightarrow g}
-    (1-\varphi)\f$ appear in the same form as in pEqn.H (subsonic
-    branch). The transonic branch uses \c psi*p directly without the
-    porosity factor on the time-derivative.
-
-    After the solve: \c K is updated from |U|^2/2 (used by EEqn.H),
-    \c pressureControl.limit(p) optionally clips p to a [pMin, pMax]
-    range and refreshes rho, and \c dpdt is updated for EEqn.H.
-
-\*---------------------------------------------------------------------------*/
-
 rho = thermo.rho();
 
 volScalarField rAU(1.0/UEqn.A());

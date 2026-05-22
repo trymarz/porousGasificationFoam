@@ -25,36 +25,11 @@ Global
     rhoEqn
 
 Description
-    Gas-phase continuity equation in a porous medium.
-
-    Solves
-    \f[
-        \frac{\partial (\varphi\, \rho)}{\partial t}
-      + \nabla \cdot \phi
-      \;=\;
-        \dot{m}_{s\rightarrow g}\, (1 - \varphi)
-    \f]
-
-    where:
-      - \f$\varphi\f$ is the porosity field (\c porosityF), so the
-        time-derivative carries the gas-occupied fraction of each cell,
-      - \f$\phi\f$ is the compressible mass flux (already a per-cell
-        total quantity),
-      - the source is the total solid-to-gas mass production rate per
-        unit total cell volume, written as the per-solid-volume rate
-        \c Srho times the solid fraction \c (1 - porosityF). \c Srho is
-        the sum over heterogeneous reactions of mass leaving the solid;
-        in YEqn.H the per-species form \c pyrolysisZone.Srho(i) carries
-        the same source split among gas species.
+    Solve the continuity for density.
 
 \*---------------------------------------------------------------------------*/
+// eqZx2uHGn042
 
-// Tag eqZx2uHGn042 — paper cross-reference.
-
-// Refresh the cell-wise solid-to-gas mass production from the pyrolysis
-// model. This was computed in pyrolysisZone.evolve() earlier in the
-// time step; here we just publish it as the source for the gas
-// continuity and (further down) for the pressure equation.
 Srho = pyrolysisZone.Srho();
 
 {

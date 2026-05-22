@@ -21,31 +21,6 @@ License
     You should have received a copy of the GNU General Public License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
-Global
-    setRDeltaT
-
-Description
-    Local-time-stepping (LTS) variant of the time-step controller.
-
-    Builds the per-cell reciprocal-time-step field \c rDeltaT used by
-    \c localEulerDdtScheme when \c LTS == true (set in createFields.H).
-    Combines three timescales:
-
-      - Flow:        \f$1/\Delta t = \sum_f |\phi_f| / (2 \mathrm{maxCo}\, V_c \rho)\f$
-      - Temperature: \f$1/\Delta t = |\dot Q| / (\alpha_T \rho C_p T)\f$
-        if \c alphaTemp < 1
-      - Composition: \f$1/\Delta t = |R(Y_i)| / (\alpha_Y\, Y_{ref}\,\rho V)\f$
-        for each species listed in the \c Yref sub-dict, if \c alphaY < 1
-
-    The element-wise maximum of these gives the final \c rDeltaT, which
-    is then optionally smoothed (\c rDeltaTSmoothingCoeff) and damped
-    against growth (\c rDeltaTDampingCoeff) before use.
-
-    Use LTS only for steady-state or pseudo-transient cases. Transient
-    cases must keep \c LTS off, in which case
-    \c setMultiRegionDeltaT.H + \c updateChemistryTimeStep.H pick a
-    single global deltaT instead.
-
 \*---------------------------------------------------------------------------*/
 
 {

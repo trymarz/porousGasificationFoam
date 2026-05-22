@@ -1,26 +1,3 @@
-/*---------------------------------------------------------------------------*\
-Global
-    createFields
-
-Description
-    Construct all gas-phase fields and auxiliary objects used by the
-    main solver loop. Pyrolysis-, radiation- and DEM-related fields are
-    created in their own \c create*.H files later.
-
-    Order matters: \c thermo is built first because subsequent fields
-    (rho, p, K, dpdt, ...) take their dimensions from it. The
-    turbulence model is constructed before \c reaction because
-    \c CombustionModel requires the turbulence reference.
-
-    Fields read from disk (\c MUST_READ):     U, porosityF, Df
-    Fields constructed and auto-written:      rho, p, kappa, chemistrySh
-                                              (renamed at write time),
-                                              ddtKinEn, divPhiKinEn,
-                                              radiationF, dpdt, K, Us
-    Fields constructed but not written:       cellVolume, p_thermo
-
-\*---------------------------------------------------------------------------*/
-
 #include "createRDeltaT.H"
 
 Info<< "Reading thermophysical properties\n" << endl;
