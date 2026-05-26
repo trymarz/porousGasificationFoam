@@ -3,18 +3,25 @@
 . ./porousGasificationMediaDirectories
 . ./utilities/bash_utils/helpers.sh
 
+# Project root — directory containing this script, resolved at invocation time.
+# Used to locate submodule sources without depending on the caller's CWD.
+PROJECT_ROOT="$(dirname "$(realpath "${BASH_SOURCE[0]}")")"
+
 # ============================================================
 # CONFIGURATION
 # ============================================================
 
-declare -a LIBRARY_TARGETS=(DEM fieldPorosityModel radiationModels thermophysicalModels pyrolysisModels)
+declare -a LIBRARY_TARGETS=(YadeComm MeshTree YadeFoam DEM fieldPorosityModel radiationModels thermophysicalModels pyrolysisModels)
 declare -a APP_TARGETS=(porousGasificationFoam utilities)
 declare -a ALL_TARGETS=("${LIBRARY_TARGETS[@]}" "${APP_TARGETS[@]}")
 declare -a ALL_TARGETS_FLAGS=("${ALL_TARGETS[@]/#/--}")
 declare -a ALL_TARGETS_NO_FLAGS=("${ALL_TARGETS[@]/#/--no-}")
 
 declare -A BUILD_TARGETS=( # default values
-  [DEM]=0 # disabled
+  [YadeComm]=0          # disabled — part of Foam-Yade submodule
+  [MeshTree]=0          # disabled — part of Foam-Yade submodule
+  [YadeFoam]=0          # disabled — part of Foam-Yade submodule
+  [DEM]=0               # disabled — requires Foam-Yade libraries
   [fieldPorosityModel]=1
   [radiationModels]=1
   [thermophysicalModels]=1
@@ -24,6 +31,9 @@ declare -A BUILD_TARGETS=( # default values
 )
 
 declare -A TARGET_DIRS=(
+  [YadeComm]="$PROJECT_ROOT/submodules/foam-yade/pkg/openfoam/coupling/FoamYade/commYade"
+  [MeshTree]="$PROJECT_ROOT/submodules/foam-yade/pkg/openfoam/coupling/FoamYade/meshtree"
+  [YadeFoam]="$PROJECT_ROOT/submodules/foam-yade/pkg/openfoam/coupling/FoamYade"
   [DEM]="$FOAM_HGS/DEM"
   [fieldPorosityModel]="$FOAM_HGS/fieldPorosityModel"
   [radiationModels]="$FOAM_HGS/radiationModels"
@@ -34,6 +44,9 @@ declare -A TARGET_DIRS=(
 )
 
 declare -A BUILD_COMMANDS=(
+  [YadeComm]="wmake -j libso"
+  [MeshTree]="wmake -j libso"
+  [YadeFoam]="wmake -j libso"
   [DEM]="wmake -j libso"
   [fieldPorosityModel]="wmake -j libso"
   [radiationModels]="wmake -j libso"
@@ -44,6 +57,9 @@ declare -A BUILD_COMMANDS=(
 )
 
 declare -A CLEAN_COMMANDS=(
+  [YadeComm]="wclean libso"
+  [MeshTree]="wclean libso"
+  [YadeFoam]="wclean libso"
   [DEM]="wclean libso"
   [fieldPorosityModel]="wclean libso"
   [radiationModels]="wclean libso"
@@ -86,12 +102,25 @@ parse_arguments() {
       set_targets LIBRARY_TARGETS 0
       set_targets APP_TARGETS 1
       ;;
+    # Yade compound shorthand — enables/disables all four Yade-related targets at once
+    --yade)
+      BUILD_TARGETS[YadeComm]=1
+      BUILD_TARGETS[MeshTree]=1
+      BUILD_TARGETS[YadeFoam]=1
+      BUILD_TARGETS[DEM]=1
+      ;;
+    --no-yade)
+      BUILD_TARGETS[YadeComm]=0
+      BUILD_TARGETS[MeshTree]=0
+      BUILD_TARGETS[YadeFoam]=0
+      BUILD_TARGETS[DEM]=0
+      ;;
     # Selective flags
-    --DEM | --fieldPorosityModel | --radiationModels | --thermophysicalModels | --pyrolysisModels | --porousGasificationFoam | --utilities)
+    --YadeComm | --MeshTree | --YadeFoam | --DEM | --fieldPorosityModel | --radiationModels | --thermophysicalModels | --pyrolysisModels | --porousGasificationFoam | --utilities)
       local t="${1#--}"
       BUILD_TARGETS[$t]=1
       ;;
-    --no-DEM | --no-fieldPorosityModel | --no-radiationModels | --no-thermophysicalModels | --no-pyrolysisModels | --no-porousGasificationFoam | --no-utilities)
+    --no-YadeComm | --no-MeshTree | --no-YadeFoam | --no-DEM | --no-fieldPorosityModel | --no-radiationModels | --no-thermophysicalModels | --no-pyrolysisModels | --no-porousGasificationFoam | --no-utilities)
       local t="${1#--no-}"
       BUILD_TARGETS[$t]=0
       ;;
@@ -102,6 +131,7 @@ parse_arguments() {
     --help)
       echo "Usage: $0 [build|clean] [OPTIONS]"
       echo "Options: --reset-all, --all, --libs-only, --apps-only"
+      echo "Yade shorthand: --yade / --no-yade  (enables/disables YadeComm + MeshTree + YadeFoam + DEM)"
       echo "Targets: ${ALL_TARGETS_FLAGS[*]} ${ALL_TARGETS_NO_FLAGS[*]}"
       exit 0
       ;;
@@ -259,6 +289,18 @@ dry_run() {
 
 main() {
   parse_arguments "$@"
+
+  # Auto-export YADE_TRUNK when any Foam-Yade target is active.
+  # Points to the submodule root so that Make/options paths like
+  # $(YADE_TRUNK)pkg/openfoam/... resolve correctly.
+  if [ "${BUILD_TARGETS[YadeComm]:-0}" -eq 1 ] || \
+     [ "${BUILD_TARGETS[MeshTree]:-0}" -eq 1 ] || \
+     [ "${BUILD_TARGETS[YadeFoam]:-0}" -eq 1 ] || \
+     [ "${BUILD_TARGETS[DEM]:-0}" -eq 1 ]; then
+    export YADE_TRUNK="${YADE_TRUNK:-$PROJECT_ROOT/submodules/foam-yade/}"
+    clog INFO "YADE_TRUNK=$YADE_TRUNK"
+  fi
+
   setup_directories || {
     clog ERROR "Setup failed"
     exit 1
@@ -267,7 +309,7 @@ main() {
 }
 
 _build_completion() {
-  local opts="build clean --reset-all --all --libs-only --apps-only ${ALL_TARGETS_FLAGS[*]} ${ALL_TARGETS_NO_FLAGS[*]} --help --dry-run"
+  local opts="build clean --reset-all --all --libs-only --apps-only --yade --no-yade ${ALL_TARGETS_FLAGS[*]} ${ALL_TARGETS_NO_FLAGS[*]} --help --dry-run"
   COMPREPLY=($(compgen -W "$opts" -- "${COMP_WORDS[COMP_CWORD]}"))
 }
 

@@ -91,15 +91,20 @@ porousGasificationFoam/
 
 ### Build targets
 
-| Target | Type | Dependency |
-|---|---|---|
-| DEM (if `WITH_YADE=1`)| library | —  |
-| fieldPorosityModel | library | — |
-| radiationModels | library | solid thermo |
-| thermophysicalModels | library suite | — |
-| pyrolysisModels | library | all above |
-| porousGasificationFoam | executable | all libraries |
-| utilities | executable suite | — |
+| Target | Type | Default | Source |
+|---|---|---|---|
+| YadeComm | library | off | `submodules/foam-yade/…/commYade/` |
+| MeshTree | library | off | `submodules/foam-yade/…/meshtree/` |
+| YadeFoam | library | off | `submodules/foam-yade/…/FoamYade/` |
+| DEM | library | off | `porousGasificationMedia/DEM/` |
+| fieldPorosityModel | library | on | `porousGasificationMedia/fieldPorosityModel/` |
+| radiationModels | library | on | `porousGasificationMedia/radiationModels/` |
+| thermophysicalModels | library suite | on | `porousGasificationMedia/thermophysicalModels/` |
+| pyrolysisModels | library | on | `porousGasificationMedia/pyrolysisModels/` |
+| porousGasificationFoam | executable | on | `applications/porousGasificationFoam/` |
+| utilities | executable suite | on | `applications/utilities/` |
+
+YadeComm, MeshTree, YadeFoam, and DEM are disabled by default because they require Yade DEM to be available (see §YADE DEM coupling below).
 
 ### Fine-grained control with build.sh
 
@@ -121,11 +126,72 @@ Run `build.sh --help` for all options.
 
 ### YADE DEM coupling
 
+pgf couples to [Yade DEM](https://yade-dem.org) via
+[Foam-Yade](https://github.com/zhiwar-ep/Foam-Yade), which is tracked as a git
+submodule under `submodules/foam-yade/`.  The coupling is MPI-based: pgf and
+Yade run as separate processes that exchange particle data (positions,
+velocities, `lambda`, `lambdaDot`) at each time step.
+
+**Step 1 — initialise the submodule** (first time only):
+
 ```bash
-WITH_YADE=1 ./build.sh build --all
+git submodule update --init --depth 1 submodules/foam-yade
 ```
 
-Requires YADE installed with the OpenFOAM coupling module.
+**Step 2 — install Yade system dependencies**:
+
+```bash
+sudo apt update
+sudo apt install -y \
+  build-essential cmake cmake-curses-gui g++ clang git \
+  qtbase5-dev libqt5opengl5-dev freeglut3-dev \
+  python3-dev python3-numpy python3-scipy python3-matplotlib \
+  python3-pyqt5 python3-pyqt5.qtwebengine \
+  libeigen3-dev libboost-all-dev libsuitesparse-dev \
+  libvtk9-dev libqglviewer-dev-qt5 libopenblas-dev \
+  libmetis-dev libgts-dev libyaml-cpp-dev liblog4cxx-dev \
+  libmpfr-dev libmpc-dev libopencv-dev coinor-libclp-dev \
+  python3-pygraphviz python3-mpi4py
+```
+
+**Step 3 — build the Yade DEM engine from the submodule**:
+
+```bash
+mkdir -p ~/yade-build ~/yade-install
+cd ~/yade-build
+cmake \
+  -DCMAKE_INSTALL_PREFIX=$HOME/yade-install \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DENABLE_MPI=ON \
+  -DENABLE_VTK=ON \
+  -DENABLE_OPENMP=ON \
+  -DPYTHON_EXECUTABLE=$(which python3) \
+  /path/to/submodules/foam-yade
+make -j$(nproc)
+make install
+echo 'export PATH=$HOME/yade-install/bin:$PATH' >> ~/.bashrc
+source ~/.bashrc
+yade --version
+```
+
+Replace `/path/to/submodules/foam-yade` with the absolute path to the
+submodule in your clone.
+
+**Step 4 — build the OpenFOAM-side coupling libraries and the pgf DEM bridge**:
+
+```bash
+./build.sh build --yade
+```
+
+`--yade` is a compound shorthand for `--YadeComm --MeshTree --YadeFoam --DEM`.
+The libraries are built in the order `YadeComm → MeshTree → YadeFoam → DEM`,
+matching the sequence in `submodules/foam-yade/pkg/openfoam/coupling/setup.py`.
+`build.sh` auto-exports `YADE_TRUNK` pointing at the submodule root; override
+it by setting `YADE_TRUNK` in the environment before running the script.
+
+The OpenFOAM solvers (`lambdaFoamYade`, `pimpleFoamYade`, …) and example cases
+live under `submodules/foam-yade/pkg/openfoam/coupling/Solvers/` and can be
+built independently with `wmake` from their respective directories.
 
 ### Doxygen documentation
 

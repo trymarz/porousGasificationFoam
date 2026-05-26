@@ -1,0 +1,4 @@
+[submodule "submodules/foam-yade"]
+	path = submodules/foam-yade
+	url = https://github.com/zhiwar-ep/Foam-Yade
+	shallow = true
