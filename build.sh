@@ -298,6 +298,7 @@ main() {
      [ "${BUILD_TARGETS[YadeFoam]:-0}" -eq 1 ] || \
      [ "${BUILD_TARGETS[DEM]:-0}" -eq 1 ]; then
     export YADE_TRUNK="${YADE_TRUNK:-$PROJECT_ROOT/submodules/foam-yade/}"
+    export PATH="$PROJECT_ROOT/submodules/yade-install/bin:$PATH"
     clog INFO "YADE_TRUNK=$YADE_TRUNK"
   fi
 

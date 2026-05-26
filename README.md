@@ -157,25 +157,24 @@ sudo apt install -y \
 **Step 3 — build the Yade DEM engine from the submodule**:
 
 ```bash
-mkdir -p ~/yade-build ~/yade-install
-cd ~/yade-build
+mkdir -p submodules/yade-build submodules/yade-install
+cd submodules/yade-build
 cmake \
-  -DCMAKE_INSTALL_PREFIX=$HOME/yade-install \
+  -DCMAKE_INSTALL_PREFIX=../yade-install \
   -DCMAKE_BUILD_TYPE=Release \
   -DENABLE_MPI=ON \
   -DENABLE_VTK=ON \
   -DENABLE_OPENMP=ON \
   -DPYTHON_EXECUTABLE=$(which python3) \
-  /path/to/submodules/foam-yade
+  ../foam-yade
 make -j$(nproc)
 make install
-echo 'export PATH=$HOME/yade-install/bin:$PATH' >> ~/.bashrc
-source ~/.bashrc
-yade --version
 ```
 
-Replace `/path/to/submodules/foam-yade` with the absolute path to the
-submodule in your clone.
+Run these commands from the pgf project root. The resulting Yade executable
+will be at `submodules/yade-install/bin/yade`. Both `submodules/yade-build/`
+and `submodules/yade-install/` are listed in `.gitignore` and are never
+committed.
 
 **Step 4 — build the OpenFOAM-side coupling libraries and the pgf DEM bridge**:
 

@@ -2,3 +2,7 @@ linux64GccDPInt32Opt/
 *.foam
 lnInclude/
 simulation_logs
+
+# Yade DEM build and install trees (generated; never commit)
+submodules/yade-build/
+submodules/yade-install/
