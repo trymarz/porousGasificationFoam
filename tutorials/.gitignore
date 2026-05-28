@@ -9,3 +9,4 @@ VTK/
 [0-9]*/
 !0*org/
 !0*orig/
+!cases/*/reference/postProcessing/*/[0-9]*/
