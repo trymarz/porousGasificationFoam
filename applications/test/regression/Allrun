@@ -64,9 +64,20 @@ if [ "${#CASES[@]}" -eq 0 ]; then
     exit 0
 fi
 
+# Print run header.
+clog INFO "=================================================="
+clog INFO "  PGF regression suite"
+clog INFO "  cases:   ${#CASES[@]}"
+clog INFO "  rtol:    $RTOL   atol: $ATOL"
+[ "$SKIP_RUN" = true ] && clog INFO "  mode:    compare only (--no-run)"
+[ -n "$ONLY_CASE" ]    && clog INFO "  filter:  $ONLY_CASE"
+clog INFO "=================================================="
+
 passed=()
 failed=()
 skipped=()
+pass_times=()
+fail_times=()
 
 for caseRel in "${CASES[@]}"; do
     if [ -n "$ONLY_CASE" ] && [ "$(basename "$caseRel")" != "$ONLY_CASE" ] && [ "$caseRel" != "$ONLY_CASE" ]; then
@@ -74,48 +85,58 @@ for caseRel in "${CASES[@]}"; do
     fi
 
     caseDir="$REPO_ROOT/$caseRel"
+    caseName="$(basename "$caseRel")"
+
+    clog INFO "--------------------------------------------------"
+    clog INFO "  case: $caseName"
 
     if [ ! -d "$caseDir" ]; then
-        clog ERROR "Case directory missing: $caseDir"
-        failed+=("$caseRel (missing)")
+        clog ERROR "  directory missing: $caseDir"
+        failed+=("$caseName (missing dir)")
+        fail_times+=("-")
         continue
     fi
 
     if [ ! -d "$caseDir/reference/postProcessing" ]; then
-        clog WARNING "No reference baseline at $caseRel/reference/postProcessing/ - skipping"
-        clog WARNING "Capture one locally; see the 'Regression Testing' section in README.md"
-        skipped+=("$caseRel")
+        clog WARNING "  no reference baseline — skipping"
+        clog WARNING "  capture one locally; see README § Regression Testing"
+        skipped+=("$caseName")
         continue
     fi
-
-    clog INFO "=== regression: $caseRel ==="
 
     runFlag=""
     [ "$SKIP_RUN" = true ] && runFlag="--no-run"
 
+    t_start=$(date +%s)
     if "$RUN_CASE" "$caseDir" $runFlag --rtol "$RTOL" --atol "$ATOL" --compare "$COMPARE"; then
-        clog SUCCESS "$caseRel: PASS"
-        passed+=("$caseRel")
+        t_elapsed=$(( $(date +%s) - t_start ))
+        clog SUCCESS "  PASS  (${t_elapsed}s)"
+        passed+=("$caseName")
+        pass_times+=("${t_elapsed}s")
     else
-        clog ERROR "$caseRel: FAIL"
-        failed+=("$caseRel")
+        t_elapsed=$(( $(date +%s) - t_start ))
+        clog ERROR "  FAIL  (${t_elapsed}s)"
+        failed+=("$caseName")
+        fail_times+=("${t_elapsed}s")
     fi
 done
 
+# Summary table.
+total=$(( ${#passed[@]} + ${#failed[@]} + ${#skipped[@]} ))
 echo
-echo "================ regression summary ================"
-echo "  passed:  ${#passed[@]}"
-echo "  failed:  ${#failed[@]}"
-echo "  skipped: ${#skipped[@]}"
-if [ "${#failed[@]}" -gt 0 ]; then
-    echo "  failed cases:"
-    for c in "${failed[@]}"; do echo "    - $c"; done
-fi
-if [ "${#skipped[@]}" -gt 0 ]; then
-    echo "  skipped cases:"
-    for c in "${skipped[@]}"; do echo "    - $c"; done
-fi
-echo "===================================================="
+clog INFO "=================================================="
+clog INFO "  regression summary   ($total cases)"
+clog INFO "=================================================="
+
+i=0
+for c in "${passed[@]}";  do clog SUCCESS "  PASS   ${pass_times[$i]}   $c"; (( i++ )) || true; done
+i=0
+for c in "${failed[@]}";  do clog ERROR   "  FAIL   ${fail_times[$i]}   $c"; (( i++ )) || true; done
+for c in "${skipped[@]}"; do clog SKIP    "  SKIP   -        $c";            done
+
+echo
+clog INFO "  passed: ${#passed[@]}   failed: ${#failed[@]}   skipped: ${#skipped[@]}"
+clog INFO "=================================================="
 
 if [ "${#failed[@]}" -gt 0 ]; then
     exit 1
