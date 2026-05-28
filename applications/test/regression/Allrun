@@ -25,6 +25,7 @@ RTOL="1e-4"
 ATOL="1e-12"
 ONLY_CASE=""
 SKIP_RUN=false
+TAG="fast"
 
 usage() {
     cat <<EOF
@@ -32,19 +33,26 @@ Usage: $0 [options]
 
 Options:
   --case <path>   Run only the named case (must appear in cases.list).
+  --tag  <tag>    Run only cases with this tag (default: fast).
+                  Use 'all' to run every case regardless of tag.
   --rtol <val>    Relative tolerance for compareScalars.py (default 1e-4).
   --atol <val>    Absolute tolerance for compareScalars.py (default 1e-12).
   --no-run        Skip running cases; only compare existing postProcessing/
                   output to reference/.
   -h, --help      Show this help.
+
+Tags defined in cases.list:
+  fast        Run by default and on pre-push hook.
+  convergence Mesh-refinement study; run manually.
 EOF
 }
 
 while [ $# -gt 0 ]; do
     case "$1" in
         --case) ONLY_CASE="$2"; shift 2 ;;
-        --rtol) RTOL="$2"; shift 2 ;;
-        --atol) ATOL="$2"; shift 2 ;;
+        --tag)  TAG="$2";       shift 2 ;;
+        --rtol) RTOL="$2";      shift 2 ;;
+        --atol) ATOL="$2";      shift 2 ;;
         --no-run) SKIP_RUN=true; shift ;;
         -h|--help) usage; exit 0 ;;
         *) clog ERROR "Unknown option: $1"; usage; exit 2 ;;
@@ -57,9 +65,9 @@ if [ ! -f "$CASES_FILE" ]; then
 fi
 
 # Load cases (strip comments and blank lines).
-mapfile -t CASES < <(grep -vE '^\s*(#|$)' "$CASES_FILE")
+mapfile -t CASE_LINES < <(grep -vE '^\s*(#|$)' "$CASES_FILE")
 
-if [ "${#CASES[@]}" -eq 0 ]; then
+if [ "${#CASE_LINES[@]}" -eq 0 ]; then
     clog WARNING "No cases listed in $CASES_FILE"
     exit 0
 fi
@@ -67,7 +75,7 @@ fi
 # Print run header.
 clog INFO "=================================================="
 clog INFO "  PGF regression suite"
-clog INFO "  cases:   ${#CASES[@]}"
+clog INFO "  tag:     $TAG"
 clog INFO "  rtol:    $RTOL   atol: $ATOL"
 [ "$SKIP_RUN" = true ] && clog INFO "  mode:    compare only (--no-run)"
 [ -n "$ONLY_CASE" ]    && clog INFO "  filter:  $ONLY_CASE"
@@ -79,8 +87,20 @@ skipped=()
 pass_times=()
 fail_times=()
 
-for caseRel in "${CASES[@]}"; do
-    if [ -n "$ONLY_CASE" ] && [ "$(basename "$caseRel")" != "$ONLY_CASE" ] && [ "$caseRel" != "$ONLY_CASE" ]; then
+for line in "${CASE_LINES[@]}"; do
+    caseRel=$(awk '{print $1}' <<< "$line")
+    caseTag=$(awk '{print $2}' <<< "$line")
+    [ -z "$caseTag" ] && caseTag="fast"
+
+    # Tag filter (skip unless --tag all or tag matches).
+    if [ "$TAG" != "all" ] && [ "$caseTag" != "$TAG" ]; then
+        continue
+    fi
+
+    # --case filter.
+    if [ -n "$ONLY_CASE" ] && \
+       [ "$(basename "$caseRel")" != "$ONLY_CASE" ] && \
+       [ "$caseRel" != "$ONLY_CASE" ]; then
         continue
     fi
 
@@ -88,7 +108,7 @@ for caseRel in "${CASES[@]}"; do
     caseName="$(basename "$caseRel")"
 
     clog INFO "--------------------------------------------------"
-    clog INFO "  case: $caseName"
+    clog INFO "  case: $caseName  [tag: $caseTag]"
 
     if [ ! -d "$caseDir" ]; then
         clog ERROR "  directory missing: $caseDir"
