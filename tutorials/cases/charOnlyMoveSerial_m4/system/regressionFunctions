@@ -36,21 +36,31 @@ regressionBase
     writeInterval   -1;
 }
 
-// Volume integral of porosity. Bed-motion-sensitive and replenishment-sensitive.
-regressionPorosityIntegral
+// Domain-average void fraction. Increases as the solid bed burns away.
+regressionPorosityAverage
 {
     ${regressionBase}
     enabled         true;
     fields          (porosityF);
-    operation       volIntegrate;
+    operation       volAverage;
 }
 
-// Volume integrals of solid mass fractions. Chemistry-sensitive.
+// Minimum void fraction (densest cell). Sensitive to bed position and packing.
+regressionPorosityMin
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (porosityF);
+    operation       min;
+}
+
+// Volume integrals of solid species mass density [kg/m³] — gives total species
+// mass [kg]. Chemistry- and mass-conservation-sensitive.
 regressionSolidSpeciesIntegrals
 {
     ${regressionBase}
     enabled         true;
-    fields          (Ychar Yash Yhum Yrubberwood);
+    fields          (Ycharm Yashm Yhumm Yrubberwoodm);
     operation       volIntegrate;
 }
 
