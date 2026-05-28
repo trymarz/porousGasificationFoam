@@ -138,6 +138,63 @@ cd doc/Doxygen
 
 Output: `$WM_PROJECT_DIR/doc/Doxygen/html/index.html`. Requires `doxygen` and `graphviz`.
 
+## HPC Deployment (Apptainer)
+
+A self-contained Apptainer image (`container/pgf-yade.def`) packages OpenFOAM v2406,
+YADE, and PGF together and runs on HPC clusters via the **bind-host-MPI** model — the
+cluster's own MPI is mounted over the in-container MPI at runtime so the solver
+communicates across nodes using the site fabric.
+
+### Step 0 — find your cluster's OpenMPI version
+
+The in-container OpenMPI must match the cluster's **major.minor** (e.g. both `4.1.x`).
+
+```bash
+module load <openmpi-module>
+ompi_info | grep "Open MPI:"           # record X.Y.Z
+ompi_info | grep -iE 'ucx|pmix|btl'   # note which transports are built in
+```
+
+### Build the image
+
+Run from the repository root (required — the `%files` section copies `.` into the image):
+
+```bash
+cd /path/to/porousGasificationFoam
+
+# Default (OpenMPI 4.1.6):
+apptainer build container/pgf-yade.sif container/pgf-yade.def
+
+# With a specific OpenMPI version (replace X.Y.Z with the cluster's version):
+apptainer build \
+    --build-arg OMPI_VERSION=X.Y.Z \
+    container/pgf-yade.sif container/pgf-yade.def
+```
+
+Requires Apptainer ≥ 1.0, internet access, and `--fakeroot` or root. Build time: 45–90 min
+(YADE CMake is the bottleneck).
+
+### Run on the cluster
+
+```bash
+# Verify in-container MPI works:
+apptainer exec pgf-yade.sif mpirun -n 2 hostname
+
+# Verify host-bind + ABI match (HOST_MPI = prefix containing bin/mpirun and lib/libmpi.so):
+mpirun -n 2 apptainer exec --bind HOST_MPI:/opt/openmpi pgf-yade.sif hostname
+
+# Parallel solver run with host MPI:
+mpirun -n 4 apptainer exec \
+    --bind HOST_MPI:/opt/openmpi \
+    pgf-yade.sif bash -c \
+    ". /usr/lib/openfoam/openfoam2406/etc/bashrc && \
+     . /opt/pgf-src/porousGasificationMediaDirectories && \
+     porousGasificationFoam -parallel"
+```
+
+See `container/PLAYBOOK.md` (and `apptainer run-help container/pgf-yade.sif`) for the
+full verification ladder, MPI bind failure diagnostics, and architecture rationale.
+
 ## Tutorial Cases
 
 All 14 cases under `tutorials/cases/`:

@@ -1,26 +1,23 @@
 # Apptainer image playbook — porousGasificationFoam + YADE
 
-**For:** the next agent (or human) picking up this work.  
-**What this is:** a complete context transfer. Read this before touching the def file.  
+**For:** HPC operators building and deploying the image.  
 **Last updated:** 2026-05-28
 
 ---
 
-## What we are building and why
+## What this image provides
 
-porousGasificationFoam (PGF) coupled with YADE currently builds and runs in only one
-place: a native Ubuntu 22.04 host with gcc pinned to version 9. The goal is an
-Apptainer image that runs on HPC clusters (where Apptainer is standard and KVM is
-not) using the **bind-host-MPI** model — the host MPI is mounted into the container at
-runtime so the solver can communicate across nodes using the cluster's own fabric.
+A self-contained Apptainer image that runs porousGasificationFoam + YADE DEM on HPC
+clusters using the **bind-host-MPI** model: the cluster's own MPI is mounted over
+`/opt/openmpi` at runtime so the solver communicates across nodes via the site fabric.
 
-This is 90% an infrastructure/dependency problem, not a PGF-source problem. PGF
-itself is a small amount of standard OpenFOAM-style C++. The toolchain constraints
-come from YADE and OpenFOAM.
+The image bundles OpenFOAM v2406 (ESI), YADE (Foam-Yade fork), and PGF itself — all
+built against a single in-container OpenMPI whose version you choose at build time to
+match the cluster.
 
 ---
 
-## Known facts going in
+## Components and constraints
 
 ### YADE fork
 
@@ -111,11 +108,10 @@ replaces `/opt/openmpi` with the cluster's ABI-compatible OpenMPI.
 
 ---
 
-## The one remaining unknown — the most critical input
+## Required before building: host OpenMPI version
 
-**Host OpenMPI exact version `X.Y.Z`** and whether UCX/PMIx are compiled in.
-
-This determines whether the `OMPI_VERSION=4.1.6` default in the def needs changing.
+You must know the cluster's **exact OpenMPI version `X.Y.Z`** and whether UCX/PMIx are
+compiled in. This determines whether the `OMPI_VERSION=4.1.6` default needs changing.
 
 Run this on the cluster (after loading the OpenMPI module) before building:
 
