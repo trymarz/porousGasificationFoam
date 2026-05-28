@@ -138,7 +138,7 @@ Output: `$WM_PROJECT_DIR/doc/Doxygen/html/index.html`. Requires `doxygen` and `g
 
 ## Tutorial Cases
 
-All 13 cases under `tutorials/cases/`:
+All 14 cases under `tutorials/cases/`:
 
 | Case | Description | Notable features |
 |---|---|---|
@@ -152,6 +152,7 @@ All 13 cases under `tutorials/cases/`:
 | `flatPlate/` | Flat plate reactive flow | — |
 | `biomassPressureDrop/` | Pressure drop through biomass bed | — |
 | `charOnlyMove/` | Moving char (no reactions) | Solid material motion test |
+| `charOnlyMoveSerial/` | Small serial cut-down of `charOnlyMove` | Regression fixture (prescribed-`Us` transport) |
 | `MicroTGA-DEM/` | DEM-coupled micro TGA | Requires YADE |
 | `DEM_UsInterp_*/` | DEM solid velocity interpolation tests | Requires YADE |
 
@@ -420,7 +421,7 @@ The framework lives under `applications/test/regression/` (top-level `Allrun`/`A
 
 Two steps per case:
 
-1. Drop a `system/regressionFunctions` file describing the metrics to extract (see `tutorials/cases/charOnlyMove/system/regressionFunctions` for the pilot example). Add `#includeIfPresent "regressionFunctions"` at the bottom of `system/controlDict` inside a `functions { ... }` block.
+1. Drop a `system/regressionFunctions` file describing the metrics to extract (see `tutorials/cases/charOnlyMoveSerial/system/regressionFunctions` for the pilot example). Add `#includeIfPresent "regressionFunctions"` at the bottom of `system/controlDict` inside a `functions { ... }` block.
 2. Add the case path to `applications/test/regression/cases.list`.
 
 Then capture a baseline (see below).
@@ -430,13 +431,13 @@ Then capture a baseline (see below).
 Run the case with the OpenFOAM toolchain available and commit the resulting `postProcessing/` under `reference/`:
 
 ```bash
-cd tutorials/cases/charOnlyMove
+cd tutorials/cases/charOnlyMoveSerial
 ./Allclean
 ./Allrun
 mkdir -p reference
 cp -r postProcessing reference/
 git add reference
-git commit -m "Capture charOnlyMove regression baseline"
+git commit -m "Capture charOnlyMoveSerial regression baseline"
 ```
 
 After commit, every subsequent run of `applications/test/regression/Allrun` compares fresh output against `reference/postProcessing/` and reports PASS/FAIL.
@@ -446,7 +447,7 @@ After commit, every subsequent run of `applications/test/regression/Allrun` comp
 ```bash
 cd applications/test/regression
 ./Allrun                                # run every case in cases.list
-./Allrun --case charOnlyMove            # run a single case
+./Allrun --case charOnlyMoveSerial      # run a single case
 ./Allrun --rtol 1e-3                    # override default relative tolerance
 ```
 
@@ -465,7 +466,7 @@ Defaults: `rtol=1e-4`, `atol=1e-12`. Both can be overridden per-run. The header 
 ### Limitations
 
 - Comparison is over scalar reductions extracted by function objects, not full field comparisons. A regression that perfectly cancels in every selected scalar will go undetected. Add more metrics to catch a wider class of bugs.
-- Floating-point sensitivity to MPI decomposition is real: rerun on the same `numberOfSubdomains` as the baseline. The pilot case `charOnlyMove` uses 4 procs.
+- Floating-point sensitivity to MPI decomposition is real: rerun on the same `numberOfSubdomains` as the baseline. The pilot case `charOnlyMoveSerial` runs **serial (1 proc)** by design — it is a small, fast fixture for the prescribed-`Us` solid-transport path. (The full `charOnlyMove` tutorial is large and its 4-proc run currently hits a processor-boundary breakdown in the moving-solid immersed boundary, so it is not used as a regression baseline.) Because the fixture is serial, this regression does not exercise the parallel path.
 - The reference baseline is only as correct as the run that produced it. When you change the model intentionally, regenerate the baseline and state why in the commit message.
 
 ## Troubleshooting

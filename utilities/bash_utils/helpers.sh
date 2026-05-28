@@ -1,4 +1,10 @@
 # utilis/helpers.sh
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+    echo "helpers.sh is a source-only library — do not execute it directly." >&2
+    echo "Use: source utilities/bash_utils/helpers.sh" >&2
+    exit 1
+fi
+
 [[ -n "$HELPERS_SOURCED" ]] && return
 HELPERS_SOURCED=1
 
