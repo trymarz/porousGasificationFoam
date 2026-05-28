@@ -15,6 +15,7 @@ EXE_LIBS = \
      -L$(FOAM_USER_LIBBIN)	\
      -lMeshTree \
      -lYadeFoam \
-     -L$(FOAM_LIBBIN)/$(FOAM_MPI)/lPstream	\
+     -L$(FOAM_LIBBIN)/$(FOAM_MPI) \
+     -lPstream \
      $(PLIBS)
 
