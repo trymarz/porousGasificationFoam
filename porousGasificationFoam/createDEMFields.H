@@ -174,7 +174,7 @@ volVectorField UsDEM(
     runTime.timeName(),
     mesh,
     IOobject::NO_READ,
-    IOobject::NO_WRITE),
+    IOobject::AUTO_WRITE),
     mesh,
     dimensionedVector("UsDEM", dimensionSet(0,1,-1,0,0,0,0), vector(0,0,0) )
 );
