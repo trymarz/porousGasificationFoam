@@ -75,14 +75,13 @@ void lambdaDotModel::update()
         {
             if (!partPtr) continue;
 
-            label cellI = mesh_.findCell(partPtr->pos);
-            if (cellI >= 0)
-            {
-                nParticles_[cellI] += 1.0;
+            label cellI = partPtr->inCell;
+            if (cellI < 0) continue;
 
-                // sum particle velocities into the cell
-                UsDEM_[cellI] += partPtr->linearVelocity;
-            }
+            nParticles_[cellI] += 1.0;
+
+            // sum particle velocities into the cell
+            UsDEM_[cellI] += partPtr->linearVelocity;
         }
     }
 
@@ -145,8 +144,7 @@ void lambdaDotModel::update()
         {
             if (!partPtr) continue;
 
-            label cellI = mesh_.findCell(partPtr->pos);
-
+            label cellI = partPtr->inCell;
             if (cellI < 0) continue;
             if (nParticles_[cellI] < 0.5) continue;
 
@@ -182,7 +180,7 @@ void lambdaDotModel::writeParticlesData() const
         {
             if (!partPtr) continue;
 
-            label cellI = mesh_.findCell(partPtr->pos);
+            label cellI = partPtr->inCell;
             if (cellI < 0) continue;
             if (nParticles_[cellI] < 0.5) continue;
 
