@@ -23,6 +23,9 @@ declare -A BUILD_TARGETS=( # default values
   [utilities]=1
 )
 
+# Set to 1 via --yade to compile the solver with Yade/DEM coupling support
+WITH_YADE=0
+
 declare -A TARGET_DIRS=(
   [DEM]="$FOAM_HGS/DEM"
   [fieldPorosityModel]="$FOAM_HGS/fieldPorosityModel"
@@ -95,14 +98,21 @@ parse_arguments() {
       local t="${1#--no-}"
       BUILD_TARGETS[$t]=0
       ;;
+    --yade)
+      WITH_YADE=1
+      BUILD_TARGETS[DEM]=1
+      ;;
     --dry-run)
       dry_run
       exit 0
       ;;
     --help)
       echo "Usage: $0 [build|clean] [OPTIONS]"
-      echo "Options: --reset-all, --all, --libs-only, --apps-only"
+      echo "Options: --reset-all, --all, --libs-only, --apps-only, --yade"
       echo "Targets: ${ALL_TARGETS_FLAGS[*]} ${ALL_TARGETS_NO_FLAGS[*]}"
+      echo ""
+      echo "  --yade   Build the DEM library and solver with WITH_YADE=1"
+      echo "           (required for Yade-coupled DEM simulations)"
       exit 0
       ;;
     *)
@@ -169,7 +179,12 @@ execute_target() {
 
   if [ "$MODE" = "build" ]; then
     cmd="${BUILD_COMMANDS[$target]}"
-    clog INFO "Building $target..."
+    if [ "$target" = "porousGasificationFoam" ] && [ "$WITH_YADE" -eq 1 ]; then
+      cmd="WITH_YADE=1 ${cmd}"
+      clog INFO "Building $target (WITH_YADE=1)..."
+    else
+      clog INFO "Building $target..."
+    fi
   else
     cmd="${CLEAN_COMMANDS[$target]}"
     clog INFO "Cleaning $target..."
@@ -211,6 +226,11 @@ dry_run() {
   echo "════════════════════════════════════════════════════════════"
   echo ""
 
+  echo "OPTIONS:"
+  echo "────────────────────────────────────────────────────────────"
+  printf "  WITH_YADE=%s\n" "$WITH_YADE"
+  echo ""
+
   echo "BUILD TARGETS STATUS:"
   echo "────────────────────────────────────────────────────────────"
   for t in "${ALL_TARGETS[@]}"; do
@@ -233,6 +253,9 @@ dry_run() {
       local cmd
       if [ "$MODE" = "build" ]; then
         cmd="${BUILD_COMMANDS[$target]}"
+        if [ "$target" = "porousGasificationFoam" ] && [ "$WITH_YADE" -eq 1 ]; then
+          cmd="WITH_YADE=1 ${cmd}"
+        fi
       else
         cmd="${CLEAN_COMMANDS[$target]}"
       fi

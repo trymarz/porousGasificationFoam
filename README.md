@@ -122,8 +122,10 @@ Run `build.sh --help` for all options.
 ### YADE DEM coupling
 
 ```bash
-WITH_YADE=1 ./build.sh build --all
+./build.sh build --yade
 ```
+
+`--yade` enables the `DEM` library target and compiles the solver with `WITH_YADE=1`, which activates the `#ifdef WITH_YADE` DEM coupling blocks. Without this flag the solver is built without DEM support and Yade will hang waiting for MPI communication.
 
 Requires YADE installed with the OpenFOAM coupling module.
 

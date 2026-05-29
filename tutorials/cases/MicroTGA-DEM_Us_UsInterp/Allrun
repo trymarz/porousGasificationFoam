@@ -1,4 +1,5 @@
 #!/bin/bash
+# Requires a Yade-enabled solver build: ./build.sh --yade
 blockMesh
 
 cp -r 0_orig 0
