@@ -290,7 +290,7 @@ main() {
 }
 
 _build_completion() {
-  local opts="build clean --reset-all --all --libs-only --apps-only ${ALL_TARGETS_FLAGS[*]} ${ALL_TARGETS_NO_FLAGS[*]} --help --dry-run"
+  local opts="build clean --reset-all --all --libs-only --apps-only --yade ${ALL_TARGETS_FLAGS[*]} ${ALL_TARGETS_NO_FLAGS[*]} --help --dry-run"
   COMPREPLY=($(compgen -W "$opts" -- "${COMP_WORDS[COMP_CWORD]}"))
 }
 
