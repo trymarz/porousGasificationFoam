@@ -114,9 +114,9 @@ int main(int argc, char *argv[])
         if (DEM)
         {
             vGrad = fvc::grad(U);
+            lambdaDotUpdater->update();
             yadeCoupling->setParticleAction(runTime.deltaT().value());
-            lambdaDotUpdater->update(); //DasteXar jadid
-            lambdaDotUpdater->writeParticlesData(); // DasteXar to write ParticlesData.txt in each time step for each rank
+            lambdaDotUpdater->writeParticlesData();
             yadeCoupling->setSourceZero();
         }
         #endif
