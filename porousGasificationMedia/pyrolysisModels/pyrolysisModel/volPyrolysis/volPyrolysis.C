@@ -593,18 +593,12 @@ volPyrolysis::volPyrolysis
         dimensionedTensor("one", dimless, tensor(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0))
     ),
     surfF_(whereIs_),
+    // Bind to the single registered "Us" field created by the solver
+    // (createFields.H), rather than owning a duplicate. lambdaDotModel
+    // writes that same object when DEM coupling is active.
     Us_
     (
-        IOobject
-        (
-            "Us",
-            time_.timeName(),
-            mesh_,
-            IOobject::READ_IF_PRESENT,
-            IOobject::AUTO_WRITE
-        ),
-        mesh_,
-        dimensionedVector("Us", dimensionSet(0,1,-1,0,0,0,0), Foam::vector(0,0,0))
+        mesh_.lookupObject<volVectorField>("Us")
     ),
     lostSolidMass_(dimensionedScalar("zero", dimMass, 0.0)),
     addedGasMass_(dimensionedScalar("zero", dimMass, 0.0)),
@@ -992,18 +986,12 @@ volPyrolysis::volPyrolysis
         mesh_,
         dimensionedScalar("zero", dimless, 0.0)
     ),
+    // Bind to the single registered "Us" field created by the solver
+    // (createFields.H), rather than owning a duplicate. lambdaDotModel
+    // writes that same object when DEM coupling is active.
     Us_
     (
-        IOobject
-        (
-            "Us",
-            time_.timeName(),
-            mesh_,
-            IOobject::READ_IF_PRESENT,
-            IOobject::AUTO_WRITE
-        ),
-        mesh_,
-        dimensionedVector("Us", dimensionSet(0,1,-1,0,0,0,0), Foam::vector(0,0,0))
+        mesh_.lookupObject<volVectorField>("Us")
     ),
     lostSolidMass_(dimensionedScalar("zero", dimMass, 0.0)),
     addedGasMass_(dimensionedScalar("zero", dimMass, 0.0)),
