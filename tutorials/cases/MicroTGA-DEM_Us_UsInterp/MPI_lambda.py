@@ -22,7 +22,7 @@ for a in dir(mp):
  """
 #print("YADE: current working directory:", os.getcwd())
 
-writeInterval = 0.1   # seconds ( = OpenFOAM writeInterval controlDict )
+writeInterval = 0.1   # seconds — Yade VTK write interval (separate from OF writeInterval)
 
 
 spring_frame_number = 0
@@ -338,9 +338,11 @@ def printAndSaveDtInfo():
     if mp.rank == 0:
         #print(msg)
 
-        # save to file
-        with open("dtInfo.txt", "w") as f:
-            f.write("iter time yadeDt foamDt ratio\n")
+        # append so all write points are preserved across iterations
+        write_header = not os.path.exists("dtInfo.txt")
+        with open("dtInfo.txt", "a") as f:
+            if write_header:
+                f.write("iter time yadeDt foamDt ratio\n")
             f.write(f"{O.iter} {O.time:.6e} {yadeDt:.6e} {foamDt:.6e} {ratio:.6f}\n")
 
 
@@ -681,8 +683,8 @@ O.engines = [
         NewtonIntegrator(damping=0.99, label='newton', gravity=(0, 0.0, 0)),
         
         PyRunner(command='apply_spring_forces()', iterPeriod=20, firstIterRun=1),
-        PyRunner(command="export_springs()", iterPeriod=timeRatio), # i works!
-        PyRunner(command="export_spheres()", iterPeriod=timeRatio),
+        PyRunner(command="export_springs()", iterPeriod=timeRatio, firstIterRun=1),
+        PyRunner(command="export_spheres()", iterPeriod=timeRatio, firstIterRun=1),
 
         #PyRunner(command='printlambdaDotNew()', iterPeriod=1), #it works! prints a list of sphereID and lambdaDot 
         #VTKRecorder(fileName='spheres/vtk-', recorders=['spheres'], parallelMode=True, virtPeriod=1e-3),

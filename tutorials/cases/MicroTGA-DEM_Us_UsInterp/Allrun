@@ -5,6 +5,10 @@ blockMesh
 cp -r 0_orig 0
 setFields
 decomposePar
-mkdir -p spheres
+mkdir -p spheres springs
 
 mpirun --allow-run-as-root -n 2 yade MPI_lambda.py
+
+ls spheres/spheres_*.vtp > /dev/null 2>&1 || { echo "ERROR: no sphere VTK files written"; exit 1; }
+ls springs/springs_*.vtp > /dev/null 2>&1 || { echo "ERROR: no spring VTK files written"; exit 1; }
+echo "DEM output check passed"

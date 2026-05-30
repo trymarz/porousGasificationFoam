@@ -1,0 +1,12 @@
+# DEM (Yade) tutorial cases for the Yade regression runner (Allrun.yade).
+# Requires: solver built with ./build.sh --yade, Yade installed, mpirun available.
+#
+# Format: one case path per line (relative to repo root).
+# The case's Allrun must exit 0 on success and assert its own output
+# (sphere/spring VTK existence checks are already in each case's Allrun).
+#
+# Run with:
+#   applications/test/regression/Allrun.yade
+
+tutorials/cases/DEM_UsInterp_solidU
+tutorials/cases/DEM_UsInterp_solidU_test2

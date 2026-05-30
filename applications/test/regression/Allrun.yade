@@ -1,0 +1,110 @@
+#!/bin/bash
+# Yade DEM regression runner.
+# Runs each case in cases_yade.list, relying on the case's own Allrun to check
+# DEM output (sphere/spring VTK file presence assertions are in each Allrun).
+#
+# Requirements: solver built with ./build.sh --yade, Yade + mpirun installed.
+#
+# Usage:
+#   applications/test/regression/Allrun.yade [--case <name>]
+
+set -u
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+
+set +u; . "$REPO_ROOT/utilities/bash_utils/helpers.sh"; set -u
+
+CASES_FILE="$SCRIPT_DIR/cases_yade.list"
+ONLY_CASE=""
+
+usage() {
+    cat <<EOF
+Usage: $0 [--case <name>]
+
+  --case <name>   Run only the named case (basename or repo-relative path).
+  -h, --help      Show this help.
+EOF
+}
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --case) ONLY_CASE="$2"; shift 2 ;;
+        -h|--help) usage; exit 0 ;;
+        *) clog ERROR "Unknown option: $1"; usage; exit 2 ;;
+    esac
+done
+
+mapfile -t CASE_LINES < <(grep -vE '^\s*(#|$)' "$CASES_FILE")
+
+if [ "${#CASE_LINES[@]}" -eq 0 ]; then
+    clog WARNING "No cases listed in $CASES_FILE"
+    exit 0
+fi
+
+clog INFO "=================================================="
+clog INFO "  PGF Yade regression suite"
+[ -n "$ONLY_CASE" ] && clog INFO "  filter: $ONLY_CASE"
+clog INFO "=================================================="
+
+passed=()
+failed=()
+pass_times=()
+fail_times=()
+
+for caseRel in "${CASE_LINES[@]}"; do
+    caseName="$(basename "$caseRel")"
+
+    if [ -n "$ONLY_CASE" ] && [ "$caseName" != "$ONLY_CASE" ] && [ "$caseRel" != "$ONLY_CASE" ]; then
+        continue
+    fi
+
+    caseDir="$REPO_ROOT/$caseRel"
+
+    clog INFO "--------------------------------------------------"
+    clog INFO "  case: $caseName"
+
+    if [ ! -d "$caseDir" ]; then
+        clog ERROR "  directory missing: $caseDir"
+        failed+=("$caseName (missing dir)")
+        fail_times+=("-")
+        continue
+    fi
+
+    if [ ! -x "$caseDir/Allclean" ]; then
+        clog WARNING "  no Allclean — proceeding without clean"
+    else
+        (cd "$caseDir" && ./Allclean) >/dev/null 2>&1 || true
+    fi
+
+    t_start=$(date +%s)
+    if (cd "$caseDir" && ./Allrun); then
+        t_elapsed=$(( $(date +%s) - t_start ))
+        clog SUCCESS "  PASS  (${t_elapsed}s)"
+        passed+=("$caseName")
+        pass_times+=("${t_elapsed}s")
+    else
+        t_elapsed=$(( $(date +%s) - t_start ))
+        clog ERROR "  FAIL  (${t_elapsed}s)"
+        failed+=("$caseName")
+        fail_times+=("${t_elapsed}s")
+    fi
+done
+
+total=$(( ${#passed[@]} + ${#failed[@]} ))
+echo
+clog INFO "=================================================="
+clog INFO "  Yade regression summary  ($total cases)"
+clog INFO "=================================================="
+
+i=0
+for c in "${passed[@]}"; do clog SUCCESS "  PASS  ${pass_times[$i]}  $c"; (( i++ )) || true; done
+i=0
+for c in "${failed[@]}"; do clog ERROR   "  FAIL  ${fail_times[$i]}  $c"; (( i++ )) || true; done
+
+echo
+clog INFO "  passed: ${#passed[@]}   failed: ${#failed[@]}"
+clog INFO "=================================================="
+
+[ "${#failed[@]}" -gt 0 ] && exit 1
+exit 0
