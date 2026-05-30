@@ -23,7 +23,7 @@ startTime       0;
 
 stopAt          endTime;
 
-endTime         0.002;  // diagnostic short run — restore to 10 for production
+endTime         10;
 
 deltaT          1e-7;
 

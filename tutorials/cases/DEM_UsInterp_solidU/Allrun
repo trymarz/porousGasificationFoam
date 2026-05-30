@@ -7,7 +7,7 @@ setFields
 decomposePar
 mkdir -p spheres springs
 
-timeout 60 mpirun --allow-run-as-root -n 2 yade MPI_lambda.py 2>&1 | tee run.log || true
+mpirun --allow-run-as-root -n 2 yade MPI_lambda.py
 
 ls spheres/spheres_*.vtp > /dev/null 2>&1 || { echo "ERROR: no sphere VTK files written"; exit 1; }
 ls springs/springs_*.vtp > /dev/null 2>&1 || { echo "ERROR: no spring VTK files written"; exit 1; }
