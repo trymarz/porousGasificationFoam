@@ -11,6 +11,14 @@ IOdictionary yadeCouplingProperties
 
 Switch DEM(yadeCouplingProperties.lookupOrDefault<Switch>("active", false));
 
+Info << "DEM coupling: "
+     << (DEM ? "active" : "inactive (yadeProperties absent or active=false)")
+     << nl;
+
+if (yadeCouplingProperties.size() > 0 && !DEM)
+    WarningIn("createDEMFields.H")
+        << "yadeProperties found but DEM coupling is disabled (active != true)" << nl;
+
 
 dimensionedScalar nu (
     "nu",
