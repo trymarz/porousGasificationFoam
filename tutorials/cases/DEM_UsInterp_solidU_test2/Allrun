@@ -10,8 +10,10 @@ mkdir -p spheres springs
 NSTEPS="${YADE_NSTEPS:-2000000}"
 TIMEOUT="${YADE_TIMEOUT:-3600}"
 echo "  running DEM simulation (NSTEPS=$NSTEPS, timeout=${TIMEOUT}s)..."
-timeout "$TIMEOUT" mpirun --allow-run-as-root -n 2 yade MPI_lambda.py > run.log 2>&1 \
-    || { echo "ERROR: simulation failed or timed out — check run.log"; exit 1; }
+timeout "$TIMEOUT" mpirun --allow-run-as-root -n 2 yade MPI_lambda.py > run.log 2>&1 || true
+pkill -f "porousGasificationFoam" 2>/dev/null || true
+grep -q "RUN FINISH" run.log \
+    || { echo "ERROR: simulation did not complete — check run.log"; exit 1; }
 
 grep -q "DEM coupling: active" run.log \
     || { echo "ERROR: DEM coupling not active — solver built without -DWITH_YADE=1?"; exit 1; }
