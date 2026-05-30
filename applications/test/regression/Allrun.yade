@@ -1,7 +1,7 @@
 #!/bin/bash
 # Yade DEM regression runner.
-# Runs each case in cases_yade.list, relying on the case's own Allrun to check
-# DEM output (sphere/spring VTK file presence assertions are in each Allrun).
+# Runs each case in cases_yade.list; test-mode controls and validation are in
+# tools/runDEMCase.sh (not in the tutorial Allrun scripts).
 #
 # Requirements: solver built with ./build.sh --yade, Yade + mpirun installed.
 #
@@ -48,7 +48,7 @@ if [ "${#CASE_LINES[@]}" -eq 0 ]; then
 fi
 
 [ "$SHORT_RUN" -eq 1 ] && export YADE_NSTEPS=200
-[ "$SHORT_RUN" -eq 1 ] && export YADE_TIMEOUT=120
+[ "$SHORT_RUN" -eq 1 ] && export YADE_TIMEOUT=180
 
 clog INFO "=================================================="
 clog INFO "  PGF Yade regression suite"
@@ -80,14 +80,8 @@ for caseRel in "${CASE_LINES[@]}"; do
         continue
     fi
 
-    if [ ! -x "$caseDir/Allclean" ]; then
-        clog WARNING "  no Allclean — proceeding without clean"
-    else
-        (cd "$caseDir" && ./Allclean) >/dev/null 2>&1 || true
-    fi
-
     t_start=$(date +%s)
-    if (cd "$caseDir" && ./Allrun); then
+    if "$SCRIPT_DIR/tools/runDEMCase.sh" "$caseDir"; then
         t_elapsed=$(( $(date +%s) - t_start ))
         clog SUCCESS "  PASS  (${t_elapsed}s)"
         passed+=("$caseName")

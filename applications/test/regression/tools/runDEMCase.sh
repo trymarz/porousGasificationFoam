@@ -1,0 +1,37 @@
+#!/bin/bash
+# Test-mode runner for a single DEM/Yade case. Called by Allrun.yade — not for direct use.
+# Usage: runDEMCase.sh <abs-path-to-case-dir>
+set -u
+
+CASE_DIR="$1"
+NSTEPS="${YADE_NSTEPS:-2000000}"
+TIMEOUT="${YADE_TIMEOUT:-3600}"
+
+cd "$CASE_DIR"
+./Allclean 2>/dev/null || true
+
+echo "  running DEM simulation (NSTEPS=$NSTEPS, timeout=${TIMEOUT}s)..."
+timeout "$TIMEOUT" bash ./Allrun > run.log 2>&1 || true
+pkill -f "porousGasificationFoam" 2>/dev/null || true
+
+grep -q "RUN FINISH" run.log \
+    || { echo "ERROR: simulation did not complete — check run.log"; exit 1; }
+grep -q "DEM coupling: active" run.log \
+    || { echo "ERROR: DEM coupling not active — solver built without -DWITH_YADE=1?"; exit 1; }
+ls spheres/spheres_*.vtp > /dev/null 2>&1 || { echo "ERROR: no sphere VTK files written"; exit 1; }
+ls springs/springs_*.vtp > /dev/null 2>&1 || { echo "ERROR: no spring VTK files written"; exit 1; }
+echo "  DEM output check passed"
+
+[ -f dtInfo.txt ] \
+    || { echo "ERROR: dtInfo.txt not written — did the run reach iter 1?"; exit 1; }
+if ! python3 - <<'PYCHECK'
+import sys
+lines = [l for l in open("dtInfo.txt") if not l.startswith("iter") and l.strip()]
+if not lines:
+    print("ERROR: dtInfo.txt empty — coupling did not reach iter 1"); sys.exit(1)
+foamDt = float(lines[0].split()[3])
+if foamDt <= 0.0:
+    print("ERROR: foamDt={:.3e} — PGF time step not received".format(foamDt)); sys.exit(1)
+print("  PGF coupling check passed (foamDt={:.3e})".format(foamDt))
+PYCHECK
+then exit 1; fi
