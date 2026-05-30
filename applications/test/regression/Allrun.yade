@@ -17,19 +17,24 @@ set +u; . "$REPO_ROOT/utilities/bash_utils/helpers.sh"; set -u
 
 CASES_FILE="$SCRIPT_DIR/cases_yade.list"
 ONLY_CASE=""
+SHORT_RUN=0
 
 usage() {
     cat <<EOF
-Usage: $0 [--case <name>]
+Usage: $0 [--case <name>] [--short]
 
   --case <name>   Run only the named case (basename or repo-relative path).
+  --short         Fast smoke test: set YADE_NSTEPS=200 so each case runs in
+                  seconds instead of hours. Checks coupling handshake and VTK
+                  output without running a full simulation.
   -h, --help      Show this help.
 EOF
 }
 
 while [ $# -gt 0 ]; do
     case "$1" in
-        --case) ONLY_CASE="$2"; shift 2 ;;
+        --case)  ONLY_CASE="$2"; shift 2 ;;
+        --short) SHORT_RUN=1; shift ;;
         -h|--help) usage; exit 0 ;;
         *) clog ERROR "Unknown option: $1"; usage; exit 2 ;;
     esac
@@ -42,9 +47,12 @@ if [ "${#CASE_LINES[@]}" -eq 0 ]; then
     exit 0
 fi
 
+[ "$SHORT_RUN" -eq 1 ] && export YADE_NSTEPS=200
+
 clog INFO "=================================================="
 clog INFO "  PGF Yade regression suite"
 [ -n "$ONLY_CASE" ] && clog INFO "  filter: $ONLY_CASE"
+[ "$SHORT_RUN" -eq 1 ] && clog INFO "  mode: --short (YADE_NSTEPS=200)"
 clog INFO "=================================================="
 
 passed=()

@@ -54,7 +54,7 @@ O.periodic = False # if true, define O.cell.setBox
 numspheres = 100
 young = 25e6 #5e6
 density = 1200
-NSTEPS = 2000000 #int(2e5)
+NSTEPS = int(os.environ.get('YADE_NSTEPS', 2000000))
 
 O.materials.append(FrictMat(young=young, poisson=0.5, frictionAngle=radians(15), density=density, label='spheremat'))
 O.materials.append(FrictMat(young=young * 100, poisson=0.5, frictionAngle=0, density=0, label='wallmat'))
