@@ -1,34 +1,49 @@
 BootStrap: docker
 From: registry.gitlab.com/yade-dev/docker-yade:ubuntu22.04
 
-# Build-time arguments.
-# Override at build time with:
-#   apptainer build --build-arg OMPI_VERSION=4.1.6 pgf-yade.sif container/pgf-yade.def
+# ── Build-time arguments ───────────────────────────────────────────────────────
 #
-# OMPI_VERSION: must match the HPC cluster's OpenMPI major.minor (e.g. 4.1).
-#   Run `ompi_info | grep "Open MPI:"` on the cluster to find the exact version.
-#   See container/PLAYBOOK.md for the full bind-MPI instructions.
+# Override with:
+#   apptainer build --build-arg OMPI_VERSION=4.1.8 pgf-yade.sif container/pgf-yade.def
+#
+# OMPI_VERSION: the in-container OpenMPI is built at this version; the host cluster's
+#   OpenMPI MUST match the same major.minor (e.g. both 4.1.x) for the bind-MPI model
+#   to work. Run `ompi_info | grep "Open MPI:"` on the cluster to find its version.
+#   Default is 4.1.6 — change this before building for your site.
 #
 # FOAM_YADE_COMMIT: pinned to the last tested commit of the Foam-Yade fork.
-#   Update when pulling a newer Foam-Yade revision.
+#   Update when pulling a newer revision.
+#
+# Compiler: gcc-11 (Ubuntu 22.04 default), the same compiler YADE-dev's CI tests
+#   against. No gcc pin is needed or added. To target Ubuntu 24.04 / gcc-12, change
+#   the From: line above to docker-yade:ubuntu24.04 and independently validate that
+#   -DENABLE_FOAMCOUPLING=ON builds and runs correctly there (YADE-dev's CI does not
+#   yet cover the OpenFOAM coupling on 24.04).
 
 %arguments
     OMPI_VERSION=4.1.6
     FOAM_YADE_REPO=https://github.com/zhiwar-ep/Foam-Yade.git
     FOAM_YADE_COMMIT=9c8b4c7
 
-# Copy this repo (PGF source) from the build-context directory into the image.
-# IMPORTANT: run `apptainer build` from the repository root:
+# Copy this repo (PGF source) and the helper scripts from the build context.
+# IMPORTANT: run `apptainer build` from the repository root so "." resolves correctly:
 #   cd /path/to/porousGasificationFoam
 #   apptainer build container/pgf-yade.sif container/pgf-yade.def
 %files
     . /opt/pgf-src
+    container/scripts/check-mpi-bind.sh /opt/bin/check-mpi-bind
+    container/scripts/pgf-selftest.sh   /opt/bin/pgf-selftest
 
 %post
     set -eux
     export DEBIAN_FRONTEND=noninteractive
+    mkdir -p /opt/pgf-build-logs /opt/bin
 
     # ── Step 1: base packages ──────────────────────────────────────────────────
+    # flex/libfl-dev/zlib1g-dev/libxt-dev  – required by OpenFOAM's wmake and Pstream.
+    # libucx-dev/libpmix-dev               – MPI transport headers for the OpenMPI build.
+    # python3-pip                          – needed to rebuild mpi4py from source.
+    # curl/gnupg/lsb-release/ca-certs      – ESI apt repository setup.
     apt-get update -q
     apt-get install -y --no-install-recommends \
         curl gnupg lsb-release ca-certificates \
@@ -54,8 +69,9 @@ From: registry.gitlab.com/yade-dev/docker-yade:ubuntu22.04
         --enable-mpi-cxx \
         --with-pmix \
         --with-ucx \
-        2>&1 | tail -5
-    make -j"$(nproc)"
+        2>&1 | tee /opt/pgf-build-logs/openmpi-configure.log | tail -5
+    make -j"$(nproc)" \
+        2>&1 | tee /opt/pgf-build-logs/openmpi-make.log | tail -5
     make install
     rm -rf /tmp/ompi-src /tmp/openmpi.tar.gz
 
@@ -63,9 +79,11 @@ From: registry.gitlab.com/yade-dev/docker-yade:ubuntu22.04
     export LD_LIBRARY_PATH=/opt/openmpi/lib:$LD_LIBRARY_PATH
 
     # ── Step 3: mpi4py rebuilt against /opt/openmpi ────────────────────────────
-    # The docker-yade base ships mpi4py linked to the system MPI; rebuild it
-    # so all Python MPI calls (YADE's MPI_lambda.py etc.) use the same ABI.
-    MPICC=/opt/openmpi/bin/mpicc pip3 install --no-binary mpi4py mpi4py
+    # The docker-yade base ships mpi4py linked to the system MPI; rebuild it so
+    # all Python MPI calls (e.g. tutorials/cases/DEM_UsInterp_solidU/MPI_lambda.py)
+    # use the same ABI as Pstream and YADE.
+    MPICC=/opt/openmpi/bin/mpicc pip3 install --no-binary :all: mpi4py \
+        2>&1 | tee /opt/pgf-build-logs/mpi4py.log | tail -5
 
     # ── Step 4: OpenFOAM-v2406 (ESI binary package) ───────────────────────────
     curl -fsSL https://dl.openfoam.com/add-debian-repo.sh | bash
@@ -85,18 +103,18 @@ PREFS
     mkdir -p "$WM_PROJECT_USER_DIR"
     . /usr/lib/openfoam/openfoam2406/etc/bashrc
 
-    # Rebuild Pstream from source against /opt/openmpi so the shared object
-    # carries the correct MPI ABI (the binary package links the distro MPI).
+    # Rebuild Pstream from source against /opt/openmpi — the ESI binary package
+    # links the distro OpenMPI; rebuilding ensures the correct MPI ABI.
     cd "$WM_PROJECT_DIR/src/Pstream"
-    wmake -j libso 2>&1 | tail -20
+    wmake -j libso \
+        2>&1 | tee /opt/pgf-build-logs/pstream.log | tail -10
 
     # ── Step 5: Clone and patch Foam-Yade ─────────────────────────────────────
     git clone "$FOAM_YADE_REPO" /opt/Foam-Yade
     git -C /opt/Foam-Yade checkout "$FOAM_YADE_COMMIT"
 
-    # Fix Make/options link-line pattern in the Foam-Yade fork.
-    # The correct upstream pattern is -L<dir> -lPstream as two tokens;
-    # the fork's files have the same correct split already, but guard anyway.
+    # Guard against the malformed -L/-l split in any version of the fork's
+    # Make/options files (the correct form is two tokens on separate lines).
     for f in \
         /opt/Foam-Yade/pkg/openfoam/coupling/FoamYade/Make/options \
         /opt/Foam-Yade/pkg/openfoam/coupling/FoamYade/meshtree/Make/options; do
@@ -106,9 +124,9 @@ PREFS
     done
 
     # ── Step 6: Build YADE from the Foam-Yade fork ────────────────────────────
-    # The docker-yade base provides YADE *dependencies* (boost, CGAL, VTK,
-    # Eigen, Qt). We rebuild YADE itself so it links /opt/openmpi rather than
-    # the base's system MPI — required for a consistent three-way MPI ABI.
+    # The docker-yade base provides YADE *dependencies* (Boost, CGAL, VTK, Eigen, Qt)
+    # at the versions YADE-dev tests. We rebuild YADE itself so it links /opt/openmpi
+    # rather than the base's system MPI — required for a consistent three-way MPI ABI.
     cmake -S /opt/Foam-Yade -B /opt/Foam-Yade/build \
         -DCMAKE_INSTALL_PREFIX=/opt/yade \
         -DENABLE_MPI=ON \
@@ -119,8 +137,9 @@ PREFS
         -DDISABLE_SAVE_TEMPS=1 \
         -DMPI_HOME=/opt/openmpi \
         -DCMAKE_BUILD_TYPE=Release \
-        2>&1 | tail -20
-    cmake --build /opt/Foam-Yade/build -j"$(nproc)" 2>&1 | tail -20
+        2>&1 | tee /opt/pgf-build-logs/yade-cmake.log | tail -10
+    cmake --build /opt/Foam-Yade/build -j"$(nproc)" \
+        2>&1 | tee /opt/pgf-build-logs/yade-build.log | tail -10
     cmake --install /opt/Foam-Yade/build
     rm -rf /opt/Foam-Yade/build
 
@@ -130,15 +149,16 @@ PREFS
     . /usr/lib/openfoam/openfoam2406/etc/bashrc
 
     cd /opt/Foam-Yade/pkg/openfoam/coupling/FoamYade/meshtree
-    wmake -j libso 2>&1 | tail -10
+    wmake -j libso \
+        2>&1 | tee /opt/pgf-build-logs/meshtree.log | tail -10
 
     cd /opt/Foam-Yade/pkg/openfoam/coupling/FoamYade
-    wmake -j libso 2>&1 | tail -10
+    wmake -j libso \
+        2>&1 | tee /opt/pgf-build-logs/foamyade.log | tail -10
 
     # ── Step 8: Build porousGasificationFoam ──────────────────────────────────
-    # Source was copied into /opt/pgf-src via %files (from the repo root).
-    # The DEM/Make/options fix is already applied in the committed source, but
-    # apply the sed defensively so older checkouts still build correctly.
+    # Defensively apply the -L/-l fix in case an older checkout is used as the
+    # build context; the committed source already has the correct form.
     sed -i \
         's|-L$(FOAM_LIBBIN)/$(FOAM_MPI)/lPstream|-L$(FOAM_LIBBIN)/$(FOAM_MPI) -lPstream|g' \
         /opt/pgf-src/porousGasificationMedia/DEM/Make/options
@@ -148,9 +168,36 @@ PREFS
 
     cd /opt/pgf-src
     . ./porousGasificationMediaDirectories
-    WITH_YADE=1 ./build.sh build --all 2>&1 | tee /tmp/pgf_build.log
-    tail -5 /tmp/pgf_build.log
-    rm /tmp/pgf_build.log
+    WITH_YADE=1 ./build.sh build --all \
+        2>&1 | tee /opt/pgf-build-logs/pgf.log | tail -10
+
+    # ── Step 9: Mark helper scripts executable ────────────────────────────────
+    chmod +x /opt/bin/check-mpi-bind /opt/bin/pgf-selftest
+
+    # ── Step 10: Build manifest ────────────────────────────────────────────────
+    # Written at a fixed path so check-mpi-bind can compare the built-against
+    # OpenMPI version against whatever is live at runtime (after a host bind).
+    MPIPY_VER=$(python3 -c "import mpi4py; print(mpi4py.__version__)" 2>/dev/null || echo unknown)
+    cat > /opt/pgf-manifest.txt << MANIFEST
+OpenFOAM:   v2406
+YADE:       Foam-Yade fork ${FOAM_YADE_COMMIT}
+OpenMPI:    ${OMPI_VERSION}
+gcc:        $(gcc --version | head -1)
+Python:     $(python3 --version 2>&1)
+mpi4py:     ${MPIPY_VER}
+Ubuntu:     $(. /etc/os-release && echo "$PRETTY_NAME")
+MANIFEST
+    echo "=== Build manifest ===" && cat /opt/pgf-manifest.txt
+
+    # ── Step 11: In-container smoke test ──────────────────────────────────────
+    . /usr/lib/openfoam/openfoam2406/etc/bashrc
+    . /opt/pgf-src/porousGasificationMediaDirectories
+    export PATH=/opt/yade/bin:/opt/openmpi/bin:$PATH
+    porousGasificationFoam -help > /dev/null
+    yade --version > /dev/null
+    python3 -c "import mpi4py"
+    mpirun --allow-run-as-root -n 2 hostname > /dev/null
+    echo "=== Build-time smoke test passed ==="
 
 %environment
     # Fixed user-project dir so built binaries are at a known path.
@@ -158,9 +205,9 @@ PREFS
     # MPI selection for OpenFOAM.
     export WM_MPLIB=SYSTEMOPENMPI
     export MPI_ROOT=/opt/openmpi
-    # YADE.
+    # YADE and helper scripts.
     export YADE_TRUNK=/opt/Foam-Yade
-    export PATH=/opt/yade/bin:/opt/openmpi/bin:$PATH
+    export PATH=/opt/yade/bin:/opt/openmpi/bin:/opt/bin:$PATH
     export LD_LIBRARY_PATH=/opt/openmpi/lib:$LD_LIBRARY_PATH
     # OpenFOAM full environment (bash required; silently skipped under plain sh).
     . /usr/lib/openfoam/openfoam2406/etc/bashrc 2>/dev/null || true
@@ -170,83 +217,81 @@ PREFS
 %runscript
     #!/bin/bash
     # Sources the full OpenFOAM + PGF environment, then runs the given command.
-    # Used when invoking via `apptainer run` rather than `apptainer exec`.
     . /usr/lib/openfoam/openfoam2406/etc/bashrc
     . /opt/pgf-src/porousGasificationMediaDirectories
     exec "$@"
+
+%test
+    #!/bin/bash
+    # Run with: apptainer test pgf-yade.sif
+    # Checks that all binaries load and in-container MPI works — no host MPI needed.
+    exec /opt/bin/pgf-selftest
 
 %labels
     Maintainer   porousGasificationFoam contributors
     OpenFOAM     v2406
     YADE         Foam-Yade fork github.com/zhiwar-ep/Foam-Yade @ 9c8b4c7
     MPI_model    bind-host-MPI (host OpenMPI overrides /opt/openmpi at runtime)
-    MPI_version  built against OpenMPI OMPI_VERSION (see build arg)
+    MPI_version  built against OpenMPI OMPI_VERSION (see build arg; default 4.1.6)
+    Compiler     gcc-11 (Ubuntu 22.04 default)
+    Build_logs   /opt/pgf-build-logs/ (full output from each build step)
+    Manifest     /opt/pgf-manifest.txt (versions of all components)
 
 %help
     porousGasificationFoam + YADE DEM coupling — Apptainer image.
 
-    The in-container OpenMPI was built at the version given by the OMPI_VERSION
-    build argument (default 4.1.6).  Your HPC cluster's OpenMPI MUST match the
-    same major.minor (e.g. both 4.1.x).  If they differ, rebuild with the
-    correct version:
+    ── What's in the image ───────────────────────────────────────────────────
+      OpenFOAM v2406 (ESI), YADE (Foam-Yade fork), PGF solver, helper scripts.
+      Built against OpenMPI OMPI_VERSION (default 4.1.6).
+      Compiler: gcc-11 (Ubuntu 22.04 default — no gcc pin needed or added).
 
-        apptainer build --build-arg OMPI_VERSION=X.Y.Z \
-            container/pgf-yade.sif container/pgf-yade.def
+    ── Inspect the build ─────────────────────────────────────────────────────
+        apptainer inspect pgf-yade.sif          # labels: versions, MPI, compiler
+        apptainer exec pgf-yade.sif cat /opt/pgf-manifest.txt   # full manifest
+        apptainer exec pgf-yade.sif ls /opt/pgf-build-logs/     # per-step build logs
 
-    ── Find your cluster OpenMPI version ─────────────────────────────────────
+    ── Before building: find your cluster's OpenMPI version ─────────────────
         module load <openmpi-module>
-        ompi_info | grep "Open MPI:"          # X.Y must match OMPI_VERSION above
+        ompi_info | grep "Open MPI:"          # record X.Y.Z (major.minor must match)
         ompi_info | grep -iE 'ucx|pmix|btl'  # note which transports are built in
 
     ── Build the image (from repo root) ──────────────────────────────────────
         apptainer build container/pgf-yade.sif container/pgf-yade.def
 
-    ── Verification ladder (run on the cluster, stop at first failure) ───────
-        # 1. In-container MPI works:
-        apptainer exec pgf-yade.sif mpirun -n 2 hostname
+        # With a specific OpenMPI version:
+        apptainer build --build-arg OMPI_VERSION=X.Y.Z \
+            container/pgf-yade.sif container/pgf-yade.def
 
-        # 2. Host mpirun + bind works (fills in /path/to/host/ompi):
-        mpirun -n 2 apptainer exec \
-            --bind /path/to/host/ompi:/opt/openmpi \
-            pgf-yade.sif hostname
+    ── In-container self-test (no host MPI needed) ────────────────────────
+        apptainer test pgf-yade.sif
+        # or: apptainer exec pgf-yade.sif pgf-selftest
 
-        # 3. mpi4py ABI correct:
-        mpirun -n 2 apptainer exec \
-            --bind /path/to/host/ompi:/opt/openmpi \
-            pgf-yade.sif python3 -c \
-            "from mpi4py import MPI; print(MPI.COMM_WORLD.Get_rank())"
+    ── Verify host MPI binding ───────────────────────────────────────────────
+        apptainer exec --bind HOST_MPI:/opt/openmpi pgf-yade.sif check-mpi-bind
 
-        # 4. OpenFOAM parallel smoke test:
-        mpirun -n 2 apptainer exec \
-            --bind /path/to/host/ompi:/opt/openmpi \
-            pgf-yade.sif bash -c \
-            ". /usr/lib/openfoam/openfoam2406/etc/bashrc && \
-             cd /opt/pgf-src/tutorials/cases/charOnly && \
-             porousGasificationFoam -parallel"
-
-        # 5. Full DEM coupled case:
-        mpirun --allow-run-as-root -n 2 apptainer exec \
-            --bind /path/to/host/ompi:/opt/openmpi \
-            pgf-yade.sif yade MPI_lambda.py
+        Replace HOST_MPI with the cluster's OpenMPI prefix (the directory
+        containing bin/mpirun and lib/libmpi.so), e.g. /opt/openmpi/4.1.6
 
     ── Running in production ─────────────────────────────────────────────────
-        # Option A: --bind flag (replaces in-container OpenMPI with host's):
         mpirun -n 4 apptainer exec \
-            --bind /path/to/host/ompi:/opt/openmpi \
+            --bind HOST_MPI:/opt/openmpi \
             pgf-yade.sif bash -c \
             ". /usr/lib/openfoam/openfoam2406/etc/bashrc && \
              . /opt/pgf-src/porousGasificationMediaDirectories && \
              porousGasificationFoam -parallel"
 
-        # Option B: prepend host libs via environment variable:
-        export APPTAINERENV_LD_LIBRARY_PATH=/path/to/host/ompi/lib:$LD_LIBRARY_PATH
-        mpirun -n 4 apptainer exec pgf-yade.sif \
-            bash -c ". /usr/lib/openfoam/openfoam2406/etc/bashrc && \
-                     porousGasificationFoam -parallel"
+    ── If the host also needs UCX / ibverbs bound ────────────────────────────
+        # Add extra --bind flags for interconnect libraries (paths are site-specific):
+        --bind /usr/lib/x86_64-linux-gnu/libibverbs.so.1:/usr/lib/x86_64-linux-gnu/libibverbs.so.1 \
+        --bind /etc/libibverbs.d:/etc/libibverbs.d \
+        --bind /usr/lib/x86_64-linux-gnu/libucx*:/usr/lib/x86_64-linux-gnu/
 
-    ── Troubleshoot MPI bind failures ────────────────────────────────────────
+    ── Troubleshoot MPI failures ─────────────────────────────────────────────
+        # Step 1 — check what check-mpi-bind reports:
+        apptainer exec --bind HOST_MPI:/opt/openmpi pgf-yade.sif check-mpi-bind
+
+        # Step 2 — enable verbose BTL output:
         OMPI_MCA_btl_base_verbose=100 mpirun -n 2 apptainer exec \
-            --bind /path/to/host/ompi:/opt/openmpi \
-            pgf-yade.sif hostname
+            --bind HOST_MPI:/opt/openmpi pgf-yade.sif hostname
 
-    See container/PLAYBOOK.md for the full diagnostic rationale and context.
+    See README § Container for the full context and step-by-step verification ladder.
