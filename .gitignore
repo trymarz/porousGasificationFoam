@@ -2,6 +2,7 @@ linux64GccDPInt32Opt/
 *.foam
 lnInclude/
 .plans/
+data/
 simulation_logs
 dtInfo.txt
 run.log
