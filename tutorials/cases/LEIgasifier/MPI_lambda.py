@@ -88,7 +88,10 @@ fluidCoupling.setNumParticles(len(sphereIDs))
 # Radius shrinkage driven by lambdaDot from OpenFOAM
 # ---------------------------------------------------------------------------
 def changeRadius():
-    for b in [O.bodies[i] for i in sphereIDs if O.bodies[i] is not None]:
+    for i in sphereIDs:
+        if i >= len(O.bodies) or O.bodies[i] is None:
+            continue
+        b = O.bodies[i]
         new_rad = b.shape.radius * b.state.lambdaDot
         if new_rad < 1e-4:
             fluidCoupling.eraseId(b.id)
