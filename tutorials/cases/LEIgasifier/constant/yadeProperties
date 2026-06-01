@@ -10,7 +10,11 @@ FoamFile
 
 // YADE-OpenFOAM coupling properties
 
-active          true;
+// Set to true only when launching via `mpirun -n 2 yade MPI_lambda.py`
+// (Yade process must be the MPI parent; OpenFOAM connects as child).
+// With CFD-only runs (porousGasificationFoam -parallel), keep false to
+// avoid MPI_Intercomm_merge failing with no Yade co-process present.
+active          false;
 
 nu              1.8e-5;    // air kinematic viscosity at ~300 K (m2/s)
 
