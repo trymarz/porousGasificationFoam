@@ -6,8 +6,8 @@ computes lambdaDot for each sphere via the solid chemistry model; this script
 applies the resulting radius shrinkage each step and removes particles that
 fall below the minimum threshold.
 
-Usage (MPI, 2 OpenFOAM ranks):
-    mpirun -n 2 yade MPI_lambda.py
+Usage (1 Yade rank, 2 OpenFOAM ranks spawned internally):
+    mpirun -n 1 yade MPI_lambda.py
 """
 import os
 from itertools import count
@@ -20,7 +20,7 @@ from yade.system import O
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
-parallelYade       = True
+parallelYade       = False       # single Yade rank; OF handles its own parallelism
 numProcOF          = 2          # OpenFOAM MPI ranks
 SAVE_VTK_VIRT_PERIOD = 0.01    # VTK sphere output interval (virtual seconds)
 nsteps             = int(2e6)
@@ -162,15 +162,21 @@ O.engines = [
 # ---------------------------------------------------------------------------
 # MPI run
 # ---------------------------------------------------------------------------
-mp.YADE_TIMING        = False
-mp.FLUID_COUPLING     = True
-mp.VERBOSE_OUTPUT     = False
-mp.USE_CPP_INTERS     = True
-mp.ERASE_REMOTE_MASTER = False
-mp.REALLOC_FREQUENCY  = 0
-mp.fluidBodies        = sphereIDs
-mp.DOMAIN_DECOMPOSITION = True
-mp.mpirun(nSteps=nsteps, np=numProcOF)
+# Single Yade rank + 2 OF ranks.
+# np=1 means only the Yade master runs — no Yade domain-decomposition workers.
+# DOMAIN_DECOMPOSITION=False because splitting the Yade domain across multiple
+# Yade ranks would cause each rank to call FoamCoupling::StartFoamSolver, but
+# only the master holds the valid OpenFOAM inter-communicator after
+# MPI_Comm_spawn → worker ranks crash with MPI_Comm_size on a null handle.
+mp.FLUID_COUPLING       = True
+mp.DOMAIN_DECOMPOSITION = False
+mp.YADE_TIMING          = False
+mp.VERBOSE_OUTPUT       = False
+mp.USE_CPP_INTERS       = True
+mp.ERASE_REMOTE_MASTER  = False
+mp.REALLOC_FREQUENCY    = 0
+mp.fluidBodies          = sphereIDs
+mp.mpirun(nSteps=nsteps, np=1)
 
 fluidCoupling.killMPI()
 mp.mprint("LEIgasifier run finished")
