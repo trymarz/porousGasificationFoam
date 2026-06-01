@@ -1,9 +1,9 @@
 #!/bin/bash
-blockMesh
+# Requires a Yade-enabled solver build: ./build.sh --yade
+blockMesh   > /dev/null 2>&1
 
 cp -r 0_orig 0
-setFields
-decomposePar
-mkdir -p spheres
-
+setFields   > /dev/null 2>&1
+decomposePar > /dev/null 2>&1
+mkdir -p spheres springs
 mpirun --allow-run-as-root -n 2 yade MPI_lambda.py

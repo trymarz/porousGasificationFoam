@@ -1,0 +1,113 @@
+#!/bin/bash
+# Yade DEM regression runner.
+# Runs each case in cases_yade.list; test-mode controls and validation are in
+# tools/runDEMCase.sh (not in the tutorial Allrun scripts).
+#
+# Requirements: solver built with ./build.sh --yade, Yade + mpirun installed.
+#
+# Usage:
+#   applications/test/regression/Allrun.yade [--case <name>]
+
+set -u
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+
+set +u; . "$REPO_ROOT/utilities/bash_utils/helpers.sh"; set -u
+
+CASES_FILE="$SCRIPT_DIR/cases_yade.list"
+ONLY_CASE=""
+SHORT_RUN=0
+
+usage() {
+    cat <<EOF
+Usage: $0 [--case <name>] [--short]
+
+  --case <name>   Run only the named case (basename or repo-relative path).
+  --short         Fast smoke test: set YADE_NSTEPS=200 so each case runs in
+                  seconds instead of hours. Checks coupling handshake and VTK
+                  output without running a full simulation.
+  -h, --help      Show this help.
+EOF
+}
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --case)  ONLY_CASE="$2"; shift 2 ;;
+        --short) SHORT_RUN=1; shift ;;
+        -h|--help) usage; exit 0 ;;
+        *) clog ERROR "Unknown option: $1"; usage; exit 2 ;;
+    esac
+done
+
+mapfile -t CASE_LINES < <(grep -vE '^\s*(#|$)' "$CASES_FILE")
+
+if [ "${#CASE_LINES[@]}" -eq 0 ]; then
+    clog WARNING "No cases listed in $CASES_FILE"
+    exit 0
+fi
+
+[ "$SHORT_RUN" -eq 1 ] && export YADE_NSTEPS=200
+[ "$SHORT_RUN" -eq 1 ] && export YADE_TIMEOUT=300
+
+clog INFO "=================================================="
+clog INFO "  PGF Yade regression suite"
+[ -n "$ONLY_CASE" ] && clog INFO "  filter: $ONLY_CASE"
+[ "$SHORT_RUN" -eq 1 ] && clog INFO "  mode: --short (YADE_NSTEPS=200)"
+clog INFO "=================================================="
+
+passed=()
+failed=()
+pass_times=()
+fail_times=()
+
+for caseRel in "${CASE_LINES[@]}"; do
+    caseName="$(basename "$caseRel")"
+
+    if [ -n "$ONLY_CASE" ] && [ "$caseName" != "$ONLY_CASE" ] && [ "$caseRel" != "$ONLY_CASE" ]; then
+        continue
+    fi
+
+    caseDir="$REPO_ROOT/$caseRel"
+
+    clog INFO "--------------------------------------------------"
+    clog INFO "  case: $caseName"
+
+    if [ ! -d "$caseDir" ]; then
+        clog ERROR "  directory missing: $caseDir"
+        failed+=("$caseName (missing dir)")
+        fail_times+=("-")
+        continue
+    fi
+
+    t_start=$(date +%s)
+    if "$SCRIPT_DIR/tools/runDEMCase.sh" "$caseDir"; then
+        t_elapsed=$(( $(date +%s) - t_start ))
+        clog SUCCESS "  PASS  (${t_elapsed}s)"
+        passed+=("$caseName")
+        pass_times+=("${t_elapsed}s")
+    else
+        t_elapsed=$(( $(date +%s) - t_start ))
+        clog ERROR "  FAIL  (${t_elapsed}s)"
+        failed+=("$caseName")
+        fail_times+=("${t_elapsed}s")
+    fi
+done
+
+total=$(( ${#passed[@]} + ${#failed[@]} ))
+echo
+clog INFO "=================================================="
+clog INFO "  Yade regression summary  ($total cases)"
+clog INFO "=================================================="
+
+i=0
+for c in "${passed[@]}"; do clog SUCCESS "  PASS  ${pass_times[$i]}  $c"; (( i++ )) || true; done
+i=0
+for c in "${failed[@]}"; do clog ERROR   "  FAIL  ${fail_times[$i]}  $c"; (( i++ )) || true; done
+
+echo
+clog INFO "  passed: ${#passed[@]}   failed: ${#failed[@]}"
+clog INFO "=================================================="
+
+[ "${#failed[@]}" -gt 0 ] && exit 1
+exit 0

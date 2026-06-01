@@ -1,2 +1,0 @@
-iter time yadeDt foamDt ratio
-1 5.000000e-06 5.000000e-06 1.000000e-06 0.200000

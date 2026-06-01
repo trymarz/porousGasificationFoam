@@ -193,8 +193,12 @@ protected:
         //- border cells inside solid body
         volScalarField surfF_;
 
-        //- solid phase velocity
-        volVectorField Us_;
+        //- Solid-phase velocity. Read-only reference to the single "Us"
+        //  field registered by the solver (createFields.H). With DEM
+        //  coupling it is overwritten each step by lambdaDotModel from the
+        //  Laplace-smoothed UsDEM aggregate; without DEM it is read from
+        //  0/Us. The solid mass flux and porosity advection consume it.
+        const volVectorField& Us_;
 
     // Checks
 
