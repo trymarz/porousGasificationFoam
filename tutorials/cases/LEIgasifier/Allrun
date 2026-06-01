@@ -1,23 +1,55 @@
 #!/bin/sh
+#
+# LEIgasifier — Allrun
+# ====================
+# 2D downdraft gasifier tutorial: fresh moist biomass bed ignited by hot air.
+# Runs a coupled Yade DEM + porousGasificationFoam simulation.
+#
+# PREREQUISITES
+#   - porousGasificationFoam compiled and on PATH (OpenFOAM 8 environment sourced)
+#   - Yade built with FoamCoupling support, `yade` on PATH
+#   - uv + classy-blocks available via utilities/py_utils (for mesh generation)
+#
+# COUPLED RUN (default)
+#   From the case directory:
+#       ./Allrun
+#   or step by step:
+#       uv run --project ../../../utilities/py_utils python system/make_mesh.py
+#       cp -r 0_orig 0 && blockMesh && setFields && decomposePar
+#       mpirun -n 2 yade MPI_lambda.py
+#
+#   mpirun -n 2 starts TWO Yade ranks. FoamCoupling then spawns TWO OpenFOAM
+#   ranks internally (via MPI_Comm_spawn). Do NOT launch porousGasificationFoam
+#   directly — the inter-communicator requires Yade to be the MPI parent.
+#
+# CFD-ONLY RUN (no DEM, faster for debugging chemistry / flow)
+#   1. Set  active false  in constant/yadeProperties
+#   2. cp -r 0_orig 0 && blockMesh && setFields && decomposePar
+#   3. mpirun -n 2 porousGasificationFoam -parallel
+#
+# CLEAN
+#   ./Allclean
+#
+# OUTPUT
+#   Time directories written every 0.25 s (virtual) to the case root.
+#   DEM sphere positions/radii: spheres/spheres_*.vtp  (open spheres/spheres.pvd in ParaView)
+#   Time-step coupling log:     dtInfo.txt
 
-# 1. Generate blockMeshDict from the classy_blocks mesh script.
-#    --project points uv at the pyproject.toml that declares classy-blocks.
+set -e   # abort on first error
+
 CASE_DIR="$(dirname "$(realpath "$0")")"
 PY_UTILS="$CASE_DIR/../../../utilities/py_utils"
+
+# 1. Generate blockMeshDict from the classy_blocks mesh script.
 uv run --project "$PY_UTILS" python "$CASE_DIR/system/make_mesh.py"
 
-# 2. Build the mesh and initialise fields
+# 2. Build the mesh and initialise fields.
 cp -r 0_orig 0
 blockMesh
 setFields
 
-# 3. Decompose for parallel run (2 ranks, split in X direction)
+# 3. Decompose for 2-rank parallel OpenFOAM run (split in X direction).
 decomposePar
 
-# 4. Launch coupled Yade+OpenFOAM run.
-#    Yade is the MPI parent; it spawns OpenFOAM via MPI_Comm_spawn internally.
-#    Do NOT launch porousGasificationFoam directly — the inter-communicator
-#    setup requires Yade to be the spawner.
-#    For a CFD-only test (no DEM): set active false in constant/yadeProperties
-#    and run:  mpirun -n 2 porousGasificationFoam -parallel
+# 4. Coupled Yade + OpenFOAM run.
 mpirun -n 2 yade MPI_lambda.py
