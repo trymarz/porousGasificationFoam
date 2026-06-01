@@ -73,9 +73,9 @@ extr_len = 0.016
 #   Blocks 0-4 share z-constant faces → X-counts must match (NX_MAIN = 20)
 #   Blocks 4, 5, 6 share x-constant faces → Z start_sizes must match
 # ---------------------------------------------------------------------------
-NX_MAIN  = 20     # X cells for blocks 0-4 (0.30 m wide → 0.015 m/cell)
-NX_SHELL =  3     # X cells for outer shells 5 and 6 (0.05 m)
-SS_Z     = 0.015  # Z start_size for all blocks (~0.015 m/cell)
+NX_MAIN  = 10     # X cells for blocks 0-4 (0.30 m wide → 0.030 m/cell)
+NX_SHELL =  2     # X cells for outer shells 5 and 6 (0.05 m)
+SS_Z     = 0.030  # Z start_size for all blocks (~0.030 m/cell)
 
 # ---------------------------------------------------------------------------
 # Patch assignment per block

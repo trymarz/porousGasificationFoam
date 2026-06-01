@@ -15,13 +15,13 @@ FoamFile
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-// Default: gas-only freeboard (no solid)
+// Default: gas-only (freeboard and any unset region)
 defaultFieldValues
 (
-    volScalarFieldValue Ts             400
+    volScalarFieldValue Ts             300
     volScalarFieldValue porosityF      1.0
     volScalarFieldValue porosityF0     1.0
-    volScalarFieldValue Ywood    0.0
+    volScalarFieldValue Ywood          0.0
     volScalarFieldValue Ychar          0.0
     volScalarFieldValue Yhum           0.0
     volScalarFieldValue Yash           0.0
@@ -29,91 +29,24 @@ defaultFieldValues
 
 regions
 (
-    // --- Reduction / freeboard zone (z=0.00→0.30): char bed ---
-    // Includes the throat region; char fills the reduction and constriction zones.
-    // Porosity 0.88 = char packing (from thesis, based on wood→char conversion).
+    // Fresh moist biomass fills the entire bed above the freeboard.
+    // Moisture content 18.5 wt% (Jayah et al., as in Ibrahim 2025).
+    // Porosity 0.40 — representative for wood chips/pellets in a packed bed.
+    // All material cold (300 K). Hot air entering from the top (inlet at 1100 K)
+    // provides the sole ignition source: drying propagates downward, then pyrolysis,
+    // then char oxidation at the combustion zone.
     boxToCell
     {
-        box (-0.21 -0.1 0.00) (0.21 0.1 0.30);
+        box (-0.21 -0.1 0.20) (0.21 0.1 1.01);
         fieldValues
         (
-            volScalarFieldValue Ychar          1.0
-            volScalarFieldValue Yash           0.0
-            volScalarFieldValue Ywood    0.0
-            volScalarFieldValue Yhum           0.0
-            volScalarFieldValue porosityF      0.88
-            volScalarFieldValue porosityF0     0.88
-            volScalarFieldValue Ts             400
-        );
-    }
-
-    // --- Oxidation / expansion zone (z=0.30→0.42): hot char ignition strip ---
-    // Solid temperature raised to 1200 K to ignite reactions at start.
-    boxToCell
-    {
-        box (-0.16 -0.1 0.30) (0.16 0.1 0.42);
-        fieldValues
-        (
-            volScalarFieldValue Ychar          1.0
-            volScalarFieldValue Yash           0.0
-            volScalarFieldValue Ywood    0.0
-            volScalarFieldValue Yhum           0.0
-            volScalarFieldValue porosityF      0.88
-            volScalarFieldValue porosityF0     0.88
-            volScalarFieldValue Ts             1200
-        );
-    }
-
-    // --- Pyrolysis zone (z=0.42→0.70): dry wood ---
-    // 5% residual moisture, 95% dry biomass.
-    // Porosity 0.367 from Ibrahim (2025) thesis Fig. 5.7.
-    boxToCell
-    {
-        box (-0.21 -0.1 0.42) (0.21 0.1 0.70);
-        fieldValues
-        (
-            volScalarFieldValue Ywood    0.95
-            volScalarFieldValue Yhum           0.05
-            volScalarFieldValue Ychar          0.0
-            volScalarFieldValue Yash           0.0
-            volScalarFieldValue porosityF      0.367
-            volScalarFieldValue porosityF0     0.367
-            volScalarFieldValue Ts             400
-        );
-    }
-
-    // --- Drying zone (z=0.70→1.00): moist wood ---
-    // 18.5% moisture content (Jayah et al. baseline, used in Ibrahim 2025).
-    // Porosity 0.257 from Ibrahim (2025) thesis Fig. 5.7.
-    boxToCell
-    {
-        box (-0.21 -0.1 0.70) (0.21 0.1 1.01);
-        fieldValues
-        (
-            volScalarFieldValue Ywood    0.815
+            volScalarFieldValue Ywood          0.815
             volScalarFieldValue Yhum           0.185
             volScalarFieldValue Ychar          0.0
             volScalarFieldValue Yash           0.0
-            volScalarFieldValue porosityF      0.257
-            volScalarFieldValue porosityF0     0.257
-            volScalarFieldValue Ts             400
-        );
-    }
-
-    // --- Freeboard (z=0.00→0.20): gas-only zone ---
-    // No biomass below the char bed; producer gas exits here.
-    boxToCell
-    {
-        box (-0.16 -0.1 0.00) (0.16 0.1 0.20);
-        fieldValues
-        (
-            volScalarFieldValue Ychar          0.0
-            volScalarFieldValue Yash           0.0
-            volScalarFieldValue Ywood    0.0
-            volScalarFieldValue Yhum           0.0
-            volScalarFieldValue porosityF      1.0
-            volScalarFieldValue porosityF0     1.0
-            volScalarFieldValue Ts             400
+            volScalarFieldValue porosityF      0.40
+            volScalarFieldValue porosityF0     0.40
+            volScalarFieldValue Ts             300
         );
     }
 );
