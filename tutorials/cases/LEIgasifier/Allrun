@@ -1,15 +1,10 @@
 #!/bin/sh
 
-# 1. Generate blockMeshDict from the classy_blocks mesh script
-#    Requires classy_blocks in the py_utils venv (run `uv sync` once in
-#    utilities/py_utils/ to set it up).
-VENV="$(dirname "$(realpath "$0")")/../../utilities/py_utils/.venv"
-if [ -d "$VENV" ]; then
-    "$VENV/bin/python3" system/make_mesh.py
-else
-    # Fallback: use whatever python3 is on PATH (must have classy_blocks)
-    python3 system/make_mesh.py
-fi
+# 1. Generate blockMeshDict from the classy_blocks mesh script.
+#    --project points uv at the pyproject.toml that declares classy-blocks.
+CASE_DIR="$(dirname "$(realpath "$0")")"
+PY_UTILS="$CASE_DIR/../../utilities/py_utils"
+uv run --project "$PY_UTILS" python "$CASE_DIR/system/make_mesh.py"
 
 # 2. Build the mesh and initialise fields
 cp -r 0_orig 0
