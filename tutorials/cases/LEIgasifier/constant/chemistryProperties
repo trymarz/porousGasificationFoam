@@ -43,12 +43,21 @@ diffusionLimitedReactions false;
 
 odeCoeffs
 {
-    solver      seulex;
+    solver   seulex;
+    absTol   1e-8;
+    relTol   1e-4;
 }
 
+// RKCK45 (explicit Cash-Karp) avoids Jacobian inversion.
+// seulex requires the Jacobian; when Ychar=Yash=0 (cold start) those rows
+// are identically zero → singular matrix → step-size underflow SIGFPE.
+// Switch back to seulex after rebuilding porousSolidChemistryModel with
+// diagonal regularisation (dfdc[i][i] += SMALL).
 solidOdeCoeffs
 {
-    solver      seulex;
+    solver   RKCK45;
+    absTol   1e-8;
+    relTol   1e-4;
 }
 
 #include "reactions"
