@@ -37,7 +37,9 @@ stoichiometricReactions false;
 showRelativeReactionRates false;
 solidChemistryTimeStepControl false;
 
-diffusionLimitedReactions true;
+// Disabled pending fix of kf0 leak + negative-Y guard in the solid Jacobian
+// (ODESolidHeterogeneousChemistryModel.C). Re-enable after recompile.
+diffusionLimitedReactions false;
 
 odeCoeffs
 {
