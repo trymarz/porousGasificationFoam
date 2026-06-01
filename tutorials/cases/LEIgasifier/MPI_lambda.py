@@ -1,76 +1,96 @@
 """Yade DEM + porousGasificationFoam coupling script for LEIgasifier tutorial.
 
-Spheres represent char/biomass particles in the active reaction zone
-(oxidation + lower pyrolysis zone, z=0.20→0.42 m).  The OpenFOAM solver
-computes lambdaDot for each sphere via the solid chemistry model; this script
-applies the resulting radius shrinkage each step and removes particles that
-fall below the minimum threshold.
+Spheres represent biomass/char particles in the active reaction zone
+(throat + combustion zone, z=0.21→0.41 m).  OpenFOAM computes lambdaDot
+for each sphere via the solid chemistry model; this script applies the
+resulting radius shrinkage each step and removes particles that shrink
+below the minimum threshold.
 
-Usage (1 Yade rank, 2 OpenFOAM ranks spawned internally):
-    mpirun -n 1 yade MPI_lambda.py
+Usage (2 Yade ranks pre-launched, 2 OpenFOAM ranks spawned by FoamCoupling):
+    mpirun -n 2 yade MPI_lambda.py
 """
 import os
-from itertools import count
-
-import numpy as np
-import vtk
-from yade import mpy as mp, pack, ymport
+from yade import mpy as mp
+from yade import export, pack, ymport
 from yade.system import O
+
+comm = mp.comm_slave   # communicator for worker ranks
 
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
-parallelYade       = False       # single Yade rank; OF handles its own parallelism
+parallelYade       = True
 numProcOF          = 2          # OpenFOAM MPI ranks
-SAVE_VTK_VIRT_PERIOD = 0.01    # VTK sphere output interval (virtual seconds)
-nsteps             = int(2e6)
 
-sphere_radius      = 0.004      # initial sphere radius (m) — 4 mm biomass pellets
+writeInterval      = 0.1        # VTK write interval (virtual seconds)
+yadeDtFixed        = 5e-6
+O.dynDt            = False
+O.dt               = yadeDtFixed
 
-# Active packing zone: full bed above the freeboard.
-# Fresh moist wood fills z=0.20→1.00; particles placed just above the
-# freeboard boundary up to the top of the narrow throat/combustion section.
-# The upper bulk (z>0.42) is the wider shell and is handled by the
-# background porous solid phase (Ywood/porosity in PGF); DEM tracks
-# the moving particle layer in the constriction + combustion zone.
+timeRatio = max(1, int(round(writeInterval / yadeDtFixed)))
+NSTEPS    = int(os.environ.get('YADE_NSTEPS', 2000000))
+
+if mp.rank == 0:
+    print(f"[EXPORT] yadeDt={yadeDtFixed}  writeInterval={writeInterval}  iterPeriod={timeRatio}")
+
+sphere_radius = 0.004   # initial radius (m) — 4 mm biomass pellets
+
+# Active packing zone: throat + combustion section (z=0.21→0.41, X within ±0.07)
 pack_box_lo = (-0.07, -0.006, 0.21)
 pack_box_hi = ( 0.07,  0.006, 0.41)
 
 # ---------------------------------------------------------------------------
-# DEM boundary — import mesh faces as rigid walls
+# Materials
+# ---------------------------------------------------------------------------
+young   = 25e6
+density = 1050   # wood/char (kg/m3, from yadeProperties)
+O.materials.append(FrictMat(young=young, poisson=0.5, frictionAngle=radians(15),
+                             density=density, label='spheremat'))
+O.materials.append(FrictMat(young=young * 100, poisson=0.5, frictionAngle=0,
+                             density=0, label='wallmat'))
+
+# ---------------------------------------------------------------------------
+# DEM boundary — gasifier walls from blockMeshDict
 # ---------------------------------------------------------------------------
 facets = ymport.blockMeshDict("system/blockMeshDict")
 O.bodies.append(facets)
 
 # ---------------------------------------------------------------------------
-# Sphere packing — regular hexagonal close-pack inside the active zone
+# Sphere packing — random packing inside the active zone
 # ---------------------------------------------------------------------------
 pred = pack.inAlignedBox(pack_box_lo, pack_box_hi)
-O.bodies.append(
-    pack.regularHexa(pred, radius=sphere_radius, gap=sphere_radius * 0.1)
+sp = pack.SpherePack()
+sp.makeCloud(
+    Vector3(*pack_box_lo),
+    Vector3(*pack_box_hi),
+    rMean=sphere_radius,
+    rRelFuzz=0.0,
 )
+O.bodies.append([sphere(c, r, material='spheremat') for c, r in sp])
+
 sphereIDs = [b.id for b in O.bodies if type(b.shape) == Sphere]
 os.makedirs("spheres", exist_ok=True)
+
+if mp.rank == 0:
+    print(f"[DEM] packed {len(sphereIDs)} spheres in zone {pack_box_lo} → {pack_box_hi}")
 
 # ---------------------------------------------------------------------------
 # Fluid coupling
 # ---------------------------------------------------------------------------
 fluidCoupling = FoamCoupling()
 fluidCoupling.couplingModeParallel = parallelYade
-fluidCoupling.isGaussianInterp = True          # smooth Us field
-
+fluidCoupling.isGaussianInterp     = True
 fluidCoupling.SetOpenFoamSolver("porousGasificationFoam", numProcOF)
 fluidCoupling.setIdList(sphereIDs)
+fluidCoupling.setNumParticles(len(sphereIDs))
 
 # ---------------------------------------------------------------------------
-# Sphere radius shrinkage — driven by OpenFOAM lambdaDot
-# lambdaDot < 1 → particle shrinking (char consumption)
+# Radius shrinkage driven by lambdaDot from OpenFOAM
 # ---------------------------------------------------------------------------
 def changeRadius():
-    bodies = [b for b in O.bodies if type(b.shape) == Sphere]
-    for b in bodies:
+    for b in [O.bodies[i] for i in sphereIDs if O.bodies[i] is not None]:
         new_rad = b.shape.radius * b.state.lambdaDot
-        if new_rad < 1e-4:          # erase particles smaller than 0.1 mm
+        if new_rad < 1e-4:
             fluidCoupling.eraseId(b.id)
             mp.bodyErase(b.id)
         else:
@@ -79,54 +99,87 @@ def changeRadius():
 # ---------------------------------------------------------------------------
 # VTK sphere output
 # ---------------------------------------------------------------------------
-_vtk_counter = count(1)
-_file_names_proc = []
+pvd_spheres    = []
+sphere_frame   = 0
 
+def export_spheres():
+    global sphere_frame
+    local_centers = []
+    local_radii   = []
+    local_vels    = []
+    for b in O.bodies:
+        if isinstance(b.shape, Sphere):
+            local_centers.append(b.state.pos)
+            local_radii.append(b.shape.radius)
+            local_vels.append(b.state.vel)
 
-def write_VTK_spheres():
-    sphr      = [b for b in O.bodies if type(b.shape) == Sphere]
-    centres   = [b.state.pos    for b in sphr]
-    radii     = [b.shape.radius for b in sphr]
-    velocities = [b.state.vel   for b in sphr]
+    all_centers = mp.comm.gather(local_centers, root=0)
+    all_radii   = mp.comm.gather(local_radii,   root=0)
+    all_vels    = mp.comm.gather(local_vels,    root=0)
 
-    points = vtk.vtkPoints()
-    for p in centres:
-        points.InsertNextPoint(p)
+    if mp.rank == 0:
+        centers = [p for sub in all_centers for p in sub]
+        radii   = [r for sub in all_radii   for r in sub]
+        vels    = [v for sub in all_vels    for v in sub]
+        npts    = len(centers)
 
-    verts = vtk.vtkCellArray()
-    for i in range(len(centres)):
-        verts.InsertNextCell(1)
-        verts.InsertCellPoint(i)
+        fp = f"spheres/spheres_{sphere_frame:.1f}.vtp"
+        with open(fp, "w") as f:
+            f.write('<?xml version="1.0"?>\n')
+            f.write('<VTKFile type="PolyData" version="0.1" byte_order="LittleEndian">\n')
+            f.write('  <PolyData>\n')
+            f.write(f'    <Piece NumberOfPoints="{npts}" NumberOfVerts="{npts}">\n')
+            f.write('      <Points>\n')
+            f.write('        <DataArray type="Float32" NumberOfComponents="3" format="ascii">\n')
+            for p in centers:
+                f.write(f'          {p[0]} {p[1]} {p[2]}\n')
+            f.write('        </DataArray>\n      </Points>\n')
+            f.write('      <Verts>\n')
+            f.write('        <DataArray type="Int32" Name="connectivity" format="ascii">\n')
+            for i in range(npts):
+                f.write(f'          {i}\n')
+            f.write('        </DataArray>\n')
+            f.write('        <DataArray type="Int32" Name="offsets" format="ascii">\n')
+            for i in range(npts):
+                f.write(f'          {i+1}\n')
+            f.write('        </DataArray>\n      </Verts>\n')
+            f.write('      <PointData>\n')
+            f.write('        <DataArray type="Float32" Name="radius" format="ascii">\n')
+            for r in radii:
+                f.write(f'          {r}\n')
+            f.write('        </DataArray>\n')
+            f.write('        <DataArray type="Float32" Name="velocity" NumberOfComponents="3" format="ascii">\n')
+            for v in vels:
+                f.write(f'          {v[0]} {v[1]} {v[2]}\n')
+            f.write('        </DataArray>\n      </PointData>\n')
+            f.write('    </Piece>\n  </PolyData>\n</VTKFile>\n')
 
-    polydata = vtk.vtkPolyData()
-    polydata.SetPoints(points)
-    polydata.SetVerts(verts)
+        pvd_spheres.append((float(sphere_frame), os.path.basename(fp)))
+        with open("spheres/spheres.pvd", "w") as f:
+            f.write('<?xml version="1.0"?>\n<VTKFile type="Collection" version="0.1">\n  <Collection>\n')
+            for t, fn in pvd_spheres:
+                f.write(f'    <DataSet timestep="{t:.6f}" file="{fn}"/>\n')
+            f.write('  </Collection>\n</VTKFile>\n')
 
-    radi_arr = vtk.vtkFloatArray()
-    radi_arr.SetName("radius")
-    for r in radii:
-        radi_arr.InsertNextValue(r)
-    polydata.GetPointData().SetScalars(radi_arr)
-
-    vel_arr = vtk.vtkFloatArray()
-    vel_arr.SetNumberOfComponents(3)
-    vel_arr.SetName("velocity")
-    for v in velocities:
-        vel_arr.InsertNextTuple(v)
-    polydata.GetPointData().SetVectors(vel_arr)
-
-    t_stamp  = SAVE_VTK_VIRT_PERIOD * next(_vtk_counter)
-    vtp_name = f"spheres/spheres-rank{mp.rank}-{t_stamp:.4f}.vtp"
-
-    writer = vtk.vtkXMLPolyDataWriter()
-    writer.SetFileName(vtp_name)
-    writer.SetInputData(polydata)
-    writer.SetDataModeToAscii()
-    writer.Write()
-    _file_names_proc.append({"fileName": vtp_name, "timeStamp": t_stamp})
+        sphere_frame += float(writeInterval)
 
 # ---------------------------------------------------------------------------
-# Yade engine list
+# Time-step diagnostics
+# ---------------------------------------------------------------------------
+def printAndSaveDtInfo():
+    if mp.rank != 0:
+        return
+    yadeDt = O.dt
+    foamDt = fluidCoupling.foamDeltaT
+    ratio  = foamDt / yadeDt if yadeDt > 0 else float("inf")
+    write_header = not os.path.exists("dtInfo.txt")
+    with open("dtInfo.txt", "a") as f:
+        if write_header:
+            f.write("iter time yadeDt foamDt ratio\n")
+        f.write(f"{O.iter} {O.time:.6e} {yadeDt:.6e} {foamDt:.6e} {ratio:.6f}\n")
+
+# ---------------------------------------------------------------------------
+# Engines
 # ---------------------------------------------------------------------------
 O.engines = [
     ForceResetter(),
@@ -141,43 +194,32 @@ O.engines = [
     ),
     GlobalStiffnessTimeStepper(
         timestepSafetyCoefficient=0.7,
-        defaultDt=1e-5,
+        defaultDt=yadeDtFixed,
         timeStepUpdateInterval=50,
         parallelMode=True,
         label="ts",
     ),
     fluidCoupling,
     NewtonIntegrator(gravity=(0, 0, -9.81), damping=0.2, label="newton"),
-    PyRunner(
-        command="changeRadius()",
-        virtPeriod=0.1 * SAVE_VTK_VIRT_PERIOD,
-        label="radiusChanger",
-    ),
-    PyRunner(
-        command="write_VTK_spheres()",
-        virtPeriod=SAVE_VTK_VIRT_PERIOD,
-    ),
+    PyRunner(command="changeRadius()",        virtPeriod=writeInterval * 0.1),
+    PyRunner(command="export_spheres()",      iterPeriod=timeRatio, firstIterRun=1),
+    PyRunner(command="printAndSaveDtInfo()",  iterPeriod=timeRatio, firstIterRun=1),
 ]
 
+collider.verletDist = sphere_radius * 0.2
+
 # ---------------------------------------------------------------------------
-# MPI run
+# MPI run  — matches working DEM cases (DEM_UsInterp_solidU, MicroTGA-DEM)
 # ---------------------------------------------------------------------------
-# Single Yade rank + 2 OF ranks.
-# np=1 means only the Yade master runs — no Yade domain-decomposition workers.
-# DOMAIN_DECOMPOSITION=False because splitting the Yade domain across multiple
-# Yade ranks would cause each rank to call FoamCoupling::StartFoamSolver, but
-# only the master holds the valid OpenFOAM inter-communicator after
-# MPI_Comm_spawn → worker ranks crash with MPI_Comm_size on a null handle.
 mp.FLUID_COUPLING       = True
-mp.DOMAIN_DECOMPOSITION = False
+mp.DOMAIN_DECOMPOSITION = True
 mp.YADE_TIMING          = False
 mp.VERBOSE_OUTPUT       = False
-mp.USE_CPP_INTERS       = True
-mp.ERASE_REMOTE_MASTER  = False
-mp.REALLOC_FREQUENCY    = 0
+mp.USE_CPP_INTERS       = False
+mp.ERASE_REMOTE_MASTER  = True
+mp.REALLOC_FREQUENCY    = 12
 mp.fluidBodies          = sphereIDs
-mp.mpirun(nSteps=nsteps, np=1)
-
-fluidCoupling.killMPI()
+mp.mpirun(NSTEPS, np=numProcOF)
 mp.mprint("LEIgasifier run finished")
+
 exit()
