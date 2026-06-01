@@ -15,6 +15,7 @@ compile_commands.json
 # --- Case output ----------------------------------------------------------
 *.foam
 data/
+dynamicCode/
 simulation_logs
 dtInfo.txt
 run.log
