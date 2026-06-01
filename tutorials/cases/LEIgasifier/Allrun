@@ -20,4 +20,4 @@ decomposePar
 #    setup requires Yade to be the spawner.
 #    For a CFD-only test (no DEM): set active false in constant/yadeProperties
 #    and run:  mpirun -n 2 porousGasificationFoam -parallel
-mpirun -n 1 yade MPI_lambda.py
+mpirun -n 2 yade MPI_lambda.py
