@@ -3,7 +3,7 @@
 # 1. Generate blockMeshDict from the classy_blocks mesh script.
 #    --project points uv at the pyproject.toml that declares classy-blocks.
 CASE_DIR="$(dirname "$(realpath "$0")")"
-PY_UTILS="$CASE_DIR/../../utilities/py_utils"
+PY_UTILS="$CASE_DIR/../../../utilities/py_utils"
 uv run --project "$PY_UTILS" python "$CASE_DIR/system/make_mesh.py"
 
 # 2. Build the mesh and initialise fields
@@ -14,5 +14,5 @@ setFields
 # 3. Decompose for parallel run (2 ranks, split in X direction)
 decomposePar
 
-# 4. Launch coupled Yade+OpenFOAM run
-mpirun -n 2 yade MPI_lambda.py
+# 4. Launch solver (CFD-only; for the full coupled run replace with: mpirun -n 2 yade MPI_lambda.py)
+mpirun -n 2 porousGasificationFoam -parallel
