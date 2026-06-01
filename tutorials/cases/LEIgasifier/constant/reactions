@@ -1,0 +1,79 @@
+
+species
+(
+    N2 H2O CO O2 H2 CO2 CH4 tar
+);
+
+
+reactions
+{
+    // R8 — H2 oxidation  (Ibrahim 2025, Table 5.5)
+    OxidationOfHydrogen
+    {
+        type     irreversibleArrheniusReaction;
+        reaction "2 H2 + O2 = 2 H2O";
+        A        1.00e10;
+        beta     0;
+        Ta       15155.16;
+    }
+
+    // R9 — CO oxidation  (Ibrahim 2025, Table 5.5)
+    OxidationOfCarbonMonoxide
+    {
+        type     irreversibleArrheniusReaction;
+        reaction "2 CO + O2 = 2 CO2";
+        A        4.40e11;
+        beta     0;
+        Ta       15155.16;
+    }
+
+    // R10 — CH4 oxidation  (Ibrahim 2025, Table 5.5)
+    OxidationOfMethane
+    {
+        type     irreversibleArrheniusReaction;
+        reaction "CH4 + 1.5 O2 = CO + 2 H2O";
+        A        2.20e9;
+        beta     0;
+        Ta       13110.42;
+    }
+
+    // R11 — Water-gas shift  (Ibrahim 2025, Table 5.5)
+    WaterGasShiftReaction
+    {
+        type     irreversibleArrheniusReaction;
+        reaction "CO + H2O = CO2 + H2";
+        A        2.778e2;
+        beta     0;
+        Ta       1510.705;
+    }
+
+    // R15 — Steam reforming: CH4 + H2O  (Ibrahim 2025, Table 5.5)
+    SteamReformingReaction
+    {
+        type     irreversibleArrheniusReaction;
+        reaction "CH4 + H2O = CO + 3 H2";
+        A        4.99e13;
+        beta     0;
+        Ta       24368.53;
+    }
+
+    // R16 — Partial oxidation: CH4 + O2  (Ibrahim 2025, Table 5.5)
+    SteamReformingReaction2
+    {
+        type     irreversibleArrheniusReaction;
+        reaction "CH4 + 0.5 O2 = CO + 2 H2";
+        A        3.00e8;
+        beta     0;
+        Ta       15034.88;
+    }
+
+    // R25 — Tar cracking  (Ibrahim 2025, Table 5.5)
+    tarCracking
+    {
+        type     irreversibleArrheniusReaction;
+        reaction "tar + 3 O2 = 6 CO + 3 H2";
+        A        1.58e15;
+        beta     0;
+        Ta       24368.53;
+    }
+};

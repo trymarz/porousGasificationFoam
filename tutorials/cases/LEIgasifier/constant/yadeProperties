@@ -1,0 +1,19 @@
+
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      yadeProperties;
+}
+
+// YADE-OpenFOAM coupling properties
+
+active          true;
+
+nu              1.8e-5;    // air kinematic viscosity at ~300 K (m2/s)
+
+partDensity     1050;      // wood / char density (kg/m3)
+
+fluidDensity    0.6;       // approx. air at 800 K (kg/m3)

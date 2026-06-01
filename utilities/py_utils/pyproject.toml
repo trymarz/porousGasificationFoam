@@ -7,6 +7,8 @@ authors = [{ name = "Tadeusz Rymarz", email = "tdrym.dev@pm.me" }]
 requires-python = ">=3.12"
 dependencies = [
     "vtk>=9.5.2",
+    "classy-blocks>=1.9.6",
+    "typing-extensions>=4.15.0",
 ]
 
 [project.scripts]
