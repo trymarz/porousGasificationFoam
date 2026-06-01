@@ -124,6 +124,7 @@ void lambdaDotModel::update()
     );
 
     UsEqn.solve();
+    Us_.correctBoundaryConditions();
 
     forAll(Us_, cellI)
     {

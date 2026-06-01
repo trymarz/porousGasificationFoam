@@ -115,6 +115,7 @@ void volPyrolysis::solveSpeciesMass()
         );
         rhosEqn.relax();
         rhosEqn.solve("rhos");
+        rho_.correctBoundaryConditions();
 
         for (label i = 0; i < Ys_.size(); ++i)
         {
@@ -135,6 +136,7 @@ void volPyrolysis::solveSpeciesMass()
 
             YsEqn.relax();
             YsEqn.solve("Ys");
+            Yi.correctBoundaryConditions();
 
             Yi.max(0.0);
             Mt += Yi * rho_;
@@ -303,6 +305,7 @@ void volPyrolysis::solveEnergy()
 
             TEqn.relax();
             TEqn.solve();
+            T_.correctBoundaryConditions();
         }
 
         scalar minTemp = GREAT;
@@ -1263,6 +1266,7 @@ void volPyrolysis::evolvePorosity()
         );
 
         porosityEqn.solve("porosity");
+        porosity_.correctBoundaryConditions();
 
         Info<< "porosity equation solved. Sources min/max   = " << gMin(porositySource_)
             << ", " << gMax(porositySource_);
@@ -1305,6 +1309,9 @@ void volPyrolysis::evolvePorosity()
                 whereIsNot_[cellI] = 1.0;
             }
         }
+
+        whereIs_.correctBoundaryConditions();
+        whereIsNot_.correctBoundaryConditions();
 
         List<Field<label>> procFlipList(Pstream::nProcs());
         procFlipList[Pstream::myProcNo()] = labelList(flippedStack);

@@ -1,0 +1,16 @@
+#!/bin/sh
+# Run charOnlyMove in serial (1 proc) to capture a reference baseline.
+#
+# Usage:
+#   ./Allrun.serial
+#   cp -r postProcessing reference/
+#
+# The reference/postProcessing captured this way is then used by the parallel
+# regression test (Allrun + compareScalars.py) with rtol=1e-3.
+
+./Allclean
+
+cp -r 0_orig 0
+blockMesh
+setFields
+porousGasificationFoam

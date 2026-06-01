@@ -1,0 +1,78 @@
+#!/bin/sh
+# charOnlyMove serial-vs-parallel cross-validation.
+#
+# Runs the case once serially and once in parallel, then compares the
+# regression function-object outputs to confirm that parallelism does not
+# introduce meaningful numerical differences (rtol=1e-3).
+#
+# Exit codes: 0 PASS  1 FAIL  2 infrastructure error
+#
+# Requires the solver to be compiled and OpenFOAM to be sourced.
+
+COMPARE="$(cd "$(dirname "$0")/../../../applications/test/regression/tools" && pwd)/compareScalars.py"
+RTOL="1e-3"
+ATOL="1e-10"
+
+if [ ! -f "$COMPARE" ]; then
+    echo "ERROR: compareScalars.py not found at $COMPARE" >&2
+    exit 2
+fi
+
+echo "=== charOnlyMove serial-vs-parallel cross-validation ==="
+echo "rtol=$RTOL  atol=$ATOL"
+
+# ── 1. Serial run ────────────────────────────────────────────────────────────
+echo
+echo "--- Running serial ---"
+./Allclean
+cp -r 0_orig 0
+blockMesh
+setFields
+if ! porousGasificationFoam; then
+    echo "ERROR: serial run failed" >&2
+    exit 2
+fi
+
+SERIAL_PP="$(pwd)/postProcessing_serial"
+rm -rf "$SERIAL_PP"
+cp -r postProcessing "$SERIAL_PP"
+echo "Serial postProcessing saved to postProcessing_serial/"
+
+# ── 2. Parallel run ──────────────────────────────────────────────────────────
+echo
+echo "--- Running parallel (4 procs) ---"
+./Allclean
+cp -r 0_orig 0
+blockMesh
+setFields
+decomposePar
+if ! mpirun -np 4 porousGasificationFoam -parallel; then
+    echo "ERROR: parallel run failed" >&2
+    rm -rf "$SERIAL_PP"
+    exit 2
+fi
+
+if [ ! -d postProcessing ]; then
+    echo "ERROR: no postProcessing/ produced by parallel run" >&2
+    rm -rf "$SERIAL_PP"
+    exit 2
+fi
+
+# ── 3. Compare ───────────────────────────────────────────────────────────────
+echo
+echo "--- Comparing serial vs parallel (rtol=$RTOL) ---"
+if python3 "$COMPARE" \
+    --reference "$SERIAL_PP" \
+    --candidate "$(pwd)/postProcessing" \
+    --rtol "$RTOL" \
+    --atol "$ATOL"; then
+    echo
+    echo "PASS: parallel results match serial within rtol=$RTOL"
+    rm -rf "$SERIAL_PP"
+    exit 0
+else
+    echo
+    echo "FAIL: parallel results diverge from serial beyond rtol=$RTOL"
+    echo "Serial data preserved in postProcessing_serial/ for inspection"
+    exit 1
+fi
