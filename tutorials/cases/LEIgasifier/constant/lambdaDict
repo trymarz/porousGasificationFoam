@@ -1,0 +1,32 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  8
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      lambdaDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// lambdaDot is the particle radius change rate per time step.
+// When Yade is active, per-particle lambdaDot is set by FoamCoupling directly.
+// This dictionary provides the fallback fluid-side expression (unused when Yade
+// overwrites the field, but the solver requires the file to be present).
+
+lambdaDot
+{
+    type coded;
+    code
+    #{
+        return 1.0;
+    #};
+}
+
+// ************************************************************************* //
