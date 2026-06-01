@@ -25,12 +25,16 @@ numProcOF          = 2          # OpenFOAM MPI ranks
 SAVE_VTK_VIRT_PERIOD = 0.01    # VTK sphere output interval (virtual seconds)
 nsteps             = int(2e6)
 
-sphere_radius      = 0.004      # initial sphere radius (m) — 4 mm char pellets
+sphere_radius      = 0.004      # initial sphere radius (m) — 4 mm biomass pellets
 
-# Active packing zone: char bed in oxidation + throat region
-# Excludes the freeboard (z<0.20) and the upper biomass (z>0.42)
-pack_box_lo = (-0.14, -0.006, 0.21)
-pack_box_hi = ( 0.14,  0.006, 0.41)
+# Active packing zone: full bed above the freeboard.
+# Fresh moist wood fills z=0.20→1.00; particles placed just above the
+# freeboard boundary up to the top of the narrow throat/combustion section.
+# The upper bulk (z>0.42) is the wider shell and is handled by the
+# background porous solid phase (Ywood/porosity in PGF); DEM tracks
+# the moving particle layer in the constriction + combustion zone.
+pack_box_lo = (-0.07, -0.006, 0.21)
+pack_box_hi = ( 0.07,  0.006, 0.41)
 
 # ---------------------------------------------------------------------------
 # DEM boundary — import mesh faces as rigid walls
