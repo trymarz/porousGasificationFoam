@@ -14,5 +14,10 @@ setFields
 # 3. Decompose for parallel run (2 ranks, split in X direction)
 decomposePar
 
-# 4. Launch solver (CFD-only; for the full coupled run replace with: mpirun -n 2 yade MPI_lambda.py)
-mpirun -n 2 porousGasificationFoam -parallel
+# 4. Launch coupled Yade+OpenFOAM run.
+#    Yade is the MPI parent; it spawns OpenFOAM via MPI_Comm_spawn internally.
+#    Do NOT launch porousGasificationFoam directly — the inter-communicator
+#    setup requires Yade to be the spawner.
+#    For a CFD-only test (no DEM): set active false in constant/yadeProperties
+#    and run:  mpirun -n 2 porousGasificationFoam -parallel
+mpirun -n 1 yade MPI_lambda.py
