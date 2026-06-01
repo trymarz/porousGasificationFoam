@@ -713,9 +713,14 @@ scalar Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, G
         scalar avKf = 1./kf;
         forAll(R.glhs(),i)
         {
-            scalar addAvKf = (ST_[cellI]*gasPhaseGases_[R.glhs()[i]].internalField()[cellI]*rhoG_[cellI]);
+            // Clamp to zero: gas species can go slightly negative due to
+            // explicit over-integration in the CFD transport step. A negative
+            // concentration would make addAvKf negative, causing avKf to
+            // approach zero and 1/avKf to overflow -> SIGFPE.
+            scalar Yg = max(scalar(0), gasPhaseGases_[R.glhs()[i]].internalField()[cellI]);
+            scalar addAvKf = ST_[cellI]*Yg*rhoG_[cellI];
 
-            if (addAvKf != 0)
+            if (addAvKf > VSMALL)
             {
                 avKf += 1./addAvKf;
             }
@@ -1021,9 +1026,15 @@ void Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, Gas
             kf0 *= rhoG_[cellI];
         }
         kf0 *= (1.-porosityF_[cellI]);
+        // Save the kinetic rate before the outer rSj loop; the diffusion
+        // correction (further below) overwrites kf0 with 1/avKf and that
+        // leaked value must not propagate into subsequent rSj iterations.
+        const scalar kf0_kinetic = kf0;
 
         for (label rSj=0; rSj < Ns + Ng; rSj++)
         {
+            kf0 = kf0_kinetic;   // reset to kinetic rate each outer iteration
+
             label sj;
             if (rSj < Ns)
             {
@@ -1114,13 +1125,16 @@ void Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, Gas
 
                 for (label rSi=Ns; rSi < Ns + Ng; rSi++)
                 {
-                    addAvKf = (ST_[cellI]*gasPhaseGases_[R.glhs()[rSi-Ns]].internalField()[cellI])*rhoG_[cellI];
+                    // Same negative-Y guard as in omega(): clamp to prevent
+                    // avKf from crossing zero and causing 1/avKf overflow.
+                    scalar Yg = max(scalar(0), gasPhaseGases_[R.glhs()[rSi-Ns]].internalField()[cellI]);
+                    addAvKf = ST_[cellI]*Yg*rhoG_[cellI];
 
-                    if (addAvKf != 0)
+                    if (addAvKf > VSMALL)
                     {
                         avKf += 1./addAvKf;
                         chosenKf = ST_[cellI] * rhoG_[cellI];
-                        chosenKf0 = (ST_[cellI] * gasPhaseGases_[R.glhs()[rSi - Ns]].internalField()[cellI] * rhoG_[cellI]);
+                        chosenKf0 = addAvKf;
                     }
                     else
                     {

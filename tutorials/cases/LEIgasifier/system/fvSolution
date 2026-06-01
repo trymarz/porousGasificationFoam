@@ -94,6 +94,14 @@ solvers
         $G;
         relTol          0;
     }
+
+    Us
+    {
+        solver          smoothSolver;
+        smoother        symGaussSeidel;
+        tolerance       1e-6;
+        relTol          0.01;
+    }
 }
 
 
