@@ -1205,6 +1205,15 @@ void Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, Gas
         dfdc[i][nSpecie_] = 0.5*(dcdT1[i] - dcdT0[i]) / delta;
     }
 
+    // Regularise the diagonal against singular rows when a solid species
+    // mass fraction is exactly zero (e.g. Ychar=0 on a cold start).
+    // Without this, seulex's implicit solve produces Inf/NaN Newton
+    // corrections → step-size underflow → SIGFPE.
+    for (label i=0; i<nEqns(); i++)
+    {
+        dfdc[i][i] -= SMALL;
+    }
+
 }
 
 
