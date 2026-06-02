@@ -1211,6 +1211,7 @@ void volPyrolysis::evolveRegion()
     else
     {
         CONV_ = CONV();
+        CONV_.correctBoundaryConditions();
     }
 
     ST_ = STmodel_->ST()();
@@ -1222,7 +1223,9 @@ void volPyrolysis::evolveRegion()
     );
 
     chemistrySh_ = solidChemistry_->Sh()(); // eqZx2uHGn004
+    chemistrySh_.correctBoundaryConditions();
     heatUpGas_ = heatUpGasCalc()();
+    heatUpGas_.correctBoundaryConditions();
 
     //DasteXar changed the order of solving otherwise only porosity moves not Y_ 
     evolvePorosity();   
@@ -1902,6 +1905,17 @@ Foam::tmp<Foam::volScalarField> volPyrolysis::heatTransfer()
             }
 
             volScalarField HT(CONV_*(T_-Tgas));
+            forAll(HT, cellI)
+            {
+                if (mag(HT[cellI]) > 1e10)
+                {
+                    Pout << "Large HT cell " << cellI
+                         << ": CONV=" << CONV_[cellI]
+                         << " T_=" << T_[cellI]
+                         << " Tgas=" << Tgas[cellI]
+                         << " whereIs=" << whereIs_[cellI] << endl;
+                }
+            }
             Info << "The heat transfer subintegration info:" << nl
                  << " no subintegration min, max:" << gMin(HT) << " " << gMax(HT) << nl
                  << " subintegration    min, max:" << gMin(Sh_()) << " " << gMax(Sh_()) << endl;
