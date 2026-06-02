@@ -19,3 +19,4 @@
 tutorials/cases/charOnlyMoveCases/serial       fast
 tutorials/cases/charOnlyMoveCases/serial_m2    convergence
 tutorials/cases/charOnlyMoveCases/serial_m4    convergence
+tutorials/cases/charOnlyMoveParallel           fast
