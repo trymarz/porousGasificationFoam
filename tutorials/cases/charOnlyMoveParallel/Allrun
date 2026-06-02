@@ -1,0 +1,8 @@
+#!/bin/sh
+
+cp -r 0_orig 0
+blockMesh
+setFields
+decomposePar
+mpirun -np 2 porousGasificationFoam -parallel
+reconstructPar
