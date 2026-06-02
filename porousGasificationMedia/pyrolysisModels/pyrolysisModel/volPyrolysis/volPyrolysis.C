@@ -115,7 +115,6 @@ void volPyrolysis::solveSpeciesMass()
         );
         rhosEqn.relax();
         rhosEqn.solve("rhos");
-        rho_.correctBoundaryConditions();
 
         for (label i = 0; i < Ys_.size(); ++i)
         {
@@ -136,9 +135,9 @@ void volPyrolysis::solveSpeciesMass()
 
             YsEqn.relax();
             YsEqn.solve("Ys");
-            Yi.correctBoundaryConditions();
 
             Yi.max(0.0);
+            Yi.correctBoundaryConditions();
             Mt += Yi * rho_;
 
             Info<< "solid "<< Ys_[i].name()
@@ -153,6 +152,11 @@ void volPyrolysis::solveSpeciesMass()
             Ym_[i] = whereIs_ * Ys_[i] * rho_;
             Ys_[i] = Ym_[i] / max(Mt,dimensionedScalar("minMass", dimMass/dimVolume, SMALL));
             Ym_[i] *= (1. - porosity_);
+        }
+        for (label i = 0; i < Ys_.size(); ++i)
+        {
+            Ym_[i].correctBoundaryConditions();
+            Ys_[i].correctBoundaryConditions();
         }
     }
 }
@@ -305,7 +309,6 @@ void volPyrolysis::solveEnergy()
 
             TEqn.relax();
             TEqn.solve();
-            T_.correctBoundaryConditions();
         }
 
         scalar minTemp = GREAT;
@@ -1269,7 +1272,6 @@ void volPyrolysis::evolvePorosity()
         );
 
         porosityEqn.solve("porosity");
-        porosity_.correctBoundaryConditions();
 
         Info<< "porosity equation solved. Sources min/max   = " << gMin(porositySource_)
             << ", " << gMax(porositySource_);
@@ -1680,6 +1682,16 @@ void volPyrolysis::evolvePorosity()
             }
         }
 
+        porosity_.correctBoundaryConditions();
+        porosityArch_.correctBoundaryConditions();
+        T_.correctBoundaryConditions();
+        rho_.correctBoundaryConditions();
+        for (label i = 0; i < Ys_.size(); ++i)
+        {
+            Ym_[i].correctBoundaryConditions();
+            Ys_[i].correctBoundaryConditions();
+        }
+
         forAll(porosity_,cellI)
         {
             if (porosity_[cellI] < 0.0001)
@@ -1702,6 +1714,7 @@ void volPyrolysis::evolvePorosity()
         surfF_= surfF_*0;
         porosity_.correctBoundaryConditions();
         whereIs_.correctBoundaryConditions();
+        whereIsNot_.correctBoundaryConditions();
         surfaceScalarField  whereIsPatch  = fvc::interpolate(whereIs_);
         forAll(whereIsPatch,faceI)
         {
@@ -1905,17 +1918,6 @@ Foam::tmp<Foam::volScalarField> volPyrolysis::heatTransfer()
             }
 
             volScalarField HT(CONV_*(T_-Tgas));
-            forAll(HT, cellI)
-            {
-                if (mag(HT[cellI]) > 1e10)
-                {
-                    Pout << "Large HT cell " << cellI
-                         << ": CONV=" << CONV_[cellI]
-                         << " T_=" << T_[cellI]
-                         << " Tgas=" << Tgas[cellI]
-                         << " whereIs=" << whereIs_[cellI] << endl;
-                }
-            }
             Info << "The heat transfer subintegration info:" << nl
                  << " no subintegration min, max:" << gMin(HT) << " " << gMax(HT) << nl
                  << " subintegration    min, max:" << gMin(Sh_()) << " " << gMax(Sh_()) << endl;
