@@ -62,6 +62,30 @@ functions
     // The include is silent if the file is absent, so removing
     // regressionFunctions reverts the case to its original behaviour.
     #includeIfPresent "regressionFunctions"
+
+    // ---- TUI-monitor support (probes panel + heatmap validation) ---- //
+
+    // Probes at inlet/outlet sides, through the solid Z range, so the
+    // monitor's probes panel has live data during a serial run.
+    boundaryProbes
+    {
+        type            probes;
+        libs            (sampling);
+        enabled         true;
+        writePrecision  10;
+        writeControl    timeStep;
+        writeInterval   1;
+        fields          (Ts porosityF Ychar);
+        probeLocations
+        (
+            (0.002 0 0.005)   // inlet-mid
+            (0.018 0 0.005)   // outlet-mid
+            (0.002 0 0.003)   // inlet-bot
+            (0.018 0 0.003)   // outlet-bot
+            (0.002 0 0.007)   // inlet-top
+            (0.018 0 0.007)   // outlet-top
+        );
+    }
 }
 
 // ************************************************************************* //
