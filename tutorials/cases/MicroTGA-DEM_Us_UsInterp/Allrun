@@ -2,7 +2,7 @@
 # Requires a Yade-enabled solver build: ./build.sh --yade
 blockMesh   > /dev/null 2>&1
 
-cp -r 0_orig 0
+cp -r 0.orig 0
 setFields   > /dev/null 2>&1
 decomposePar > /dev/null 2>&1
 mkdir -p spheres springs

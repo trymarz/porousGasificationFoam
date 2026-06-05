@@ -1,6 +1,7 @@
 #!/bin/bash
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+. ${WM_PROJECT_DIR:?}/bin/tools/RunFunctions
 
 runCase() {
 
@@ -25,14 +26,14 @@ runCase() {
   }
   echo "Directory changed to $(pwd)"
 
-  blockMesh
-  setSet -batch makeFaceSet.setSet
-  createPatch -overwrite
-  setFields
+  runApplication blockMesh
+  runApplication setSet -batch makeFaceSet.setSet
+  runApplication createPatch -overwrite
+  runApplication setFields
 
-  decomposePar
+  runApplication decomposePar
 
-  mpirun -np 4 porousGasificationFoam -parallel
+  runParallel $(getApplication)
 }
 
 main() {
