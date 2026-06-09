@@ -1,4 +1,6 @@
 #!/bin/bash
+cd "${0%/*}" || exit
+. ${WM_PROJECT_DIR:?}/bin/tools/RunFunctions
 
 runCase() {
   DF=$1
@@ -9,7 +11,7 @@ runCase() {
     cp Df_and_porosityProperties/porosityProperties_f"$F" "$case"/constant/porosityProperties
     (
       cd "$case" || return
-      porousGasificationFoam
+      runApplication $(getApplication)
     )
   done
 }
