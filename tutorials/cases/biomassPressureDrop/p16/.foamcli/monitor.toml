@@ -1,0 +1,7 @@
+# biomassPressureDrop has no probe function object, so the probes panel is omitted.
+[heatmap]
+fields = ["p", "T", "Ts", "porosityF"]
+
+[monitor]
+refresh_interval = 2.0
+panels = ["progress", "heatmap"]

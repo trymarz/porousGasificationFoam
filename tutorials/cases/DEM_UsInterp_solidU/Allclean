@@ -1,3 +1,4 @@
 #!/bin/bash
 
 rm -rf -- processor* 0 0.[1-9]* [1-9]* log log.analyzed postProcessing constant/polyMesh dynamicCode log* spheres/* springs/* dtInfo.txt run.log
+rm -f  .foamcli/run.pid .foamcli/run.json

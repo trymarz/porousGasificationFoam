@@ -67,7 +67,7 @@ functions
 
     // Probes at inlet/outlet sides, through the solid Z range, so the
     // monitor's probes panel has live data during a serial run.
-    boundaryProbes
+    probes
     {
         type            probes;
         libs            (sampling);

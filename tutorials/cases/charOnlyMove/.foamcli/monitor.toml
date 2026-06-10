@@ -2,8 +2,8 @@
 fields = ["porosityF", "Ts", "T", "p", "Ychar", "Yash"]
 
 [probes]
-labels = ["proc0-mid", "proc1-mid", "proc0-bot", "proc1-bot", "proc0-top", "proc1-top"]
+labels = ["inlet-mid", "outlet-mid", "inlet-bot", "outlet-bot", "inlet-top", "outlet-top"]
 
 [monitor]
-refresh_interval = 2.0
+refresh_interval = 3.0
 panels = ["progress", "probes", "heatmap"]

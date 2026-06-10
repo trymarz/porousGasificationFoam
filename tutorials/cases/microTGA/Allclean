@@ -1,3 +1,4 @@
 #!/bin/bash
 
 rm -rf ./microTGAMeanTemp/ ./microTGAP1/
+rm -f  mircoTGATemplate/.foamcli/run.pid mircoTGATemplate/.foamcli/run.json
