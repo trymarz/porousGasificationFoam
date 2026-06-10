@@ -17,7 +17,7 @@ FoamFile
 
 defaultFieldValues
 (
-    volScalarFieldValue Ts -1
+    //volScalarFieldValue Ts -1
     volScalarFieldValue porosityF  1. 
     volScalarFieldValue porosityF0 1.
     volScalarFieldValue Yrubberwood  0.
@@ -118,7 +118,7 @@ regions
       box (.0 -0.1 0.025) (0.1 0.1 0.05);
       fieldValues
       (
-          volVectorFieldValue Us (0.01 0 0)
+          volVectorFieldValue Us (0.02 0 0)
       );
   }
 
