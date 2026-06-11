@@ -16,6 +16,6 @@
 # DEM/Yade cases use a separate runner: applications/test/regression/Allrun.yade
 # (they require Yade installed and the solver built with ./build.sh --yade).
 
-tutorials/cases/charOnlyMoveSerial        fast
-tutorials/cases/charOnlyMoveSerial_m2     convergence
-tutorials/cases/charOnlyMoveSerial_m4     convergence
+tutorials/cases/charOnlyMoveCases/serial       fast
+tutorials/cases/charOnlyMoveCases/serial_m2    convergence
+tutorials/cases/charOnlyMoveCases/serial_m4    convergence

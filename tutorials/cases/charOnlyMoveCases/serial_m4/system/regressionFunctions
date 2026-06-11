@@ -6,7 +6,7 @@
 |    \\/     M anipulation  |                                                 |
 \*---------------------------------------------------------------------------*/
 //
-// Regression-test function objects for charOnlyMoveSerial.
+// Regression-test function objects for charOnlyMoveCases/serial_m4.
 //
 // Verbatim syntax verified against:
 //   gitlab.com/openfoam/core/openfoam/-/raw/master/tutorials/incompressible/

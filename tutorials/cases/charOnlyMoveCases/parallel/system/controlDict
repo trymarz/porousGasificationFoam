@@ -15,7 +15,7 @@ FoamFile
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-application     porousGasificationFoam;
+application porousGasificationFoam;
 
 startFrom       startTime;
 

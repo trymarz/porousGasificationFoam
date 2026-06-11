@@ -6,7 +6,7 @@
 |    \\/     M anipulation  |                                                 |
 \*---------------------------------------------------------------------------*/
 //
-// Regression-test function objects for charOnlyMoveSerial_m2.
+// Regression-test function objects for charOnlyMoveCases/parallel.
 //
 // Verbatim syntax verified against:
 //   gitlab.com/openfoam/core/openfoam/-/raw/master/tutorials/incompressible/
@@ -36,31 +36,21 @@ regressionBase
     writeInterval   -1;
 }
 
-// Domain-average void fraction. Increases as the solid bed burns away.
-regressionPorosityAverage
+// Volume integral of porosity. Bed-motion-sensitive and replenishment-sensitive.
+regressionPorosityIntegral
 {
     ${regressionBase}
     enabled         true;
     fields          (porosityF);
-    operation       volAverage;
+    operation       volIntegrate;
 }
 
-// Minimum void fraction (densest cell). Sensitive to bed position and packing.
-regressionPorosityMin
-{
-    ${regressionBase}
-    enabled         true;
-    fields          (porosityF);
-    operation       min;
-}
-
-// Volume integrals of solid species mass density [kg/m³] — gives total species
-// mass [kg]. Chemistry- and mass-conservation-sensitive.
+// Volume integrals of solid mass fractions. Chemistry-sensitive.
 regressionSolidSpeciesIntegrals
 {
     ${regressionBase}
     enabled         true;
-    fields          (Ycharm Yashm Yhumm Yrubberwoodm);
+    fields          (Ychar Yash Yhum Yrubberwood);
     operation       volIntegrate;
 }
 
