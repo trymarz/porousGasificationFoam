@@ -20,3 +20,14 @@ log.*
 # foamcli runtime state — keep the tracked monitor.toml config
 **/.foamcli/*
 !**/.foamcli/monitor.toml
+
+# ParaView touch files created by foam or paraFoam
+*.foam
+
+# Runtime-generated sub-case directories (created by parent Allrun scripts
+# via cp -r from the template, then run inside)
+cases/flatPlate/flatPlateCold/
+cases/flatPlate/flatPlateHotImmediate/
+cases/flatPlate/flatPlateStat/
+cases/microTGA/microTGAMeanTemp/
+cases/microTGA/microTGAP1/

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
-rm -rf -- processor* [1-9]* log log.* *.foam postProcessing VTK constant/polyMesh 0
+rm -rf -- processor* 0 0.[0-9]* [1-9]* log log.* *.foam postProcessing VTK constant/polyMesh
 rm -f  .foamcli/run.pid .foamcli/run.json
