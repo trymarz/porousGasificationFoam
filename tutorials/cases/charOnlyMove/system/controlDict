@@ -17,7 +17,7 @@ FoamFile
 
 application     porousGasificationFoam;
 
-startFrom       latestTime;
+startFrom       startTime;
 
 startTime       0; 
 
@@ -25,7 +25,7 @@ stopAt          endTime;
 
 endTime         10;
 
-deltaT          1e-7;
+deltaT          1e-3;
 
 maxDeltaT	    0.001;
 

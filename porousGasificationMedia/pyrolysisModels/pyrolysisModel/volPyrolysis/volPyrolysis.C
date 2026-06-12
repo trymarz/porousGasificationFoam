@@ -1221,8 +1221,10 @@ void volPyrolysis::evolveRegion()
     chemistrySh_ = solidChemistry_->Sh()(); // eqZx2uHGn004
     heatUpGas_ = heatUpGasCalc()();
 
+    //DasteXar changed the order of solving otherwise only porosity moves not Y_ 
+    evolvePorosity();   
     solveSpeciesMass();
-    evolvePorosity();
+    
 
     solidThermo_.correct(); // eqZx2uHGn046
 
@@ -1268,7 +1270,11 @@ void volPyrolysis::evolvePorosity()
         Info<< "; values min Y = " << gMin(por)
             <<" max Y = " << gMax(por) << endl;
 
+        //scalar minTs = min(max(gAverage(T_), scalar(200.0)), scalar(6000.0));
         scalar minTs = -1.;
+
+
+
 
         FIFOStack<label> flippedStack = {};
 
@@ -1585,11 +1591,27 @@ void volPyrolysis::evolvePorosity()
                                  {
                                      faceID = mesh_.boundaryMesh()[patchID].whichFace(mesh_.cells()[realRoutes[routeI][stepI-1] - minLocalGlobalI][faceI]);
                                      if (isA<processorPolyPatch>(mesh_.boundaryMesh()[patchID]))
-                                     {
-                                         scalar cellVolumeRatio = cellVolume_.boundaryField()[patchID].patchNeighbourField()()[faceID]/cellVolume_[realRoutes[routeI][stepI-1] - minLocalGlobalI];
-                                         // this 0.001 is a guardian for too large skewness in cells. It introduces error and will be solved in the future.
-                                         porosity_[realRoutes[routeI][stepI-1] - minLocalGlobalI] = max(1. - (1. - porosity_.boundaryField()[patchID].patchNeighbourField()()[faceID])*cellVolumeRatio
-                                                                                                       ,0.001);
+                                        {
+                                            //DasteXar to pass values from one subdomain to another 
+                                            label neighbourGlobalID =
+                                                globalIndices.boundaryField()[patchID].patchNeighbourField()()[faceID];
+
+                                            if (neighbourGlobalID != realRoutes[routeI][stepI])
+                                            {
+                                                continue;
+                                            }
+
+                                            scalar cellVolumeRatio =
+                                                cellVolume_.boundaryField()[patchID].patchNeighbourField()()[faceID]
+                                            / cellVolume_[realRoutes[routeI][stepI-1] - minLocalGlobalI];
+
+                                            porosity_[realRoutes[routeI][stepI-1] - minLocalGlobalI] =
+                                                max
+                                                (
+                                                    1. - (1. - porosity_.boundaryField()[patchID].patchNeighbourField()()[faceID])
+                                                    * cellVolumeRatio,
+                                                    0.001
+                                                );
                                          porosityArch_[realRoutes[routeI][stepI-1] - minLocalGlobalI] = max(1. - (1. - porosityArch_.boundaryField()[patchID].patchNeighbourField()()[faceID])*cellVolumeRatio
                                                                                                         ,0.001);
                                          T_[realRoutes[routeI][stepI-1] - minLocalGlobalI] = T_.boundaryField()[patchID].patchNeighbourField()()[faceID];
