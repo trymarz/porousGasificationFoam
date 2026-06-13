@@ -17,9 +17,8 @@ dynamicCode/
 # RunFunctions per-step logs (log.blockMesh, log.setFields, log.yade, ...)
 log.*
 
-# foamcli runtime state — keep the tracked monitor.toml config
-**/.foamcli/*
-!**/.foamcli/monitor.toml
+# foamcli runtime state — config lives at case root as .foamcli-monitor.toml
+**/.foamcli-state/
 
 # ParaView touch files created by foam or paraFoam
 *.foam

@@ -2,6 +2,6 @@
 
 for case in p[0-9]*; do
   rm -rf $case/{0.*,1,postProcessing,log,log.*}
-  rm -f  $case/.foamcli/run.pid $case/.foamcli/run.json $case/*.foam
+  rm -f  $case/.foamcli-state/run.pid $case/.foamcli-state/run.json $case/*.foam
 done
 rm -f log.* *.foam

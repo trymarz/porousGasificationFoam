@@ -1,6 +1,6 @@
 #!/bin/bash
 
 rm -rf flatPlateCold flatPlateHotImmediate flatPlateStat
-rm -f  flatPlateTemplate/.foamcli/run.pid flatPlateTemplate/.foamcli/run.json
+rm -f  flatPlateTemplate/.foamcli-state/run.pid flatPlateTemplate/.foamcli-state/run.json
 rm -f  flatPlateTemplate/*.foam log.*
-rm -rf .foamcli
+rm -rf .foamcli-state
