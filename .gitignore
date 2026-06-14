@@ -5,3 +5,4 @@ lnInclude/
 simulation_logs
 dtInfo.txt
 run.log
+.plans/
