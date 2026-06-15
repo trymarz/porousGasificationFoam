@@ -643,7 +643,27 @@ def printlambdaDotNew():
 	    	print(f"particle ID={b.id}  lambdaDot={b.state.lambdaDot}")
 
 	    	#if b: print(f"particle ID=" {b.id}, " lambdaDot="{b.state.lambdaDot},)
-    
+
+
+# PGF-YADE coupling philosophy: YADE particles here are NOT "true" particles —
+# they do not interact with the fluid through drag or lift forces. They serve
+# solely as a Lagrangian proxy for the solid phase: their positions and motions
+# produce the solid-velocity field Us that PGF uses in the porosity-transport
+# equation. The lambdaDot sent back from PGF controls particle shrinkage, which
+# visually represents solid mass loss from pyrolysis.
+def changeRadius():
+    """Apply lambdaDot (received from PGF) to shrink particles."""
+    for b in O.bodies:
+        if not isinstance(b.shape, Sphere):
+            continue
+        new_rad = b.shape.radius * b.state.lambdaDot
+        if new_rad < 0.0001:
+            fluidCoupling.eraseId(b.id)
+            mp.bodyErase(b.id)
+        else:
+            b.shape.radius = new_rad
+
+
 #---------------
 # ENGINES 
 #---------------
@@ -663,6 +683,7 @@ O.engines = [
         PyRunner(command='apply_spring_forces()', iterPeriod=20, firstIterRun=1),
         PyRunner(command="export_springs()", iterPeriod=timeRatio, firstIterRun=1),
         PyRunner(command="export_spheres()", iterPeriod=timeRatio, firstIterRun=1),
+        PyRunner(command="changeRadius()", iterPeriod=timeRatio, firstIterRun=1),
 
         #PyRunner(command='printlambdaDotNew()', iterPeriod=1), #it works! prints a list of sphereID and lambdaDot 
         #VTKRecorder(fileName='spheres/vtk-', recorders=['spheres'], parallelMode=True, virtPeriod=1e-3),

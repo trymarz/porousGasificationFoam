@@ -21,17 +21,16 @@ FoamFile
 // y-coordinate as the single argument `x` (see lambdaDotModel.C). A positive
 // value drives particle shrinkage in MPI_lambda.py.
 //
-// For this demo we use a uniform constant: every occupied cell feeds the same
-// shrink rate back to its particles, so the bed visibly contracts as it
-// pyrolyses. Replace with a function of `x` (the y-coordinate) for a spatially
-// varying rate.
+// Uniform shrink rate: 0.9995 per timestep (0.05 % contraction), so after
+// ~1400 steps particles are at half their original radius.  Replace with a
+// function of `x` (the cell-centre y-coordinate) for a spatially varying rate.
 
 lambdaDot
 {
     type    coded;
     code
     #{
-        return 1.0;
+        return 0.9995;
     #};
 }
 
