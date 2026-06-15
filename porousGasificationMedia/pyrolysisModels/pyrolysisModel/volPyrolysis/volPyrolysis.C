@@ -106,6 +106,17 @@ void volPyrolysis::solveSpeciesMass()
             max(rho_ * (1. - porosity_), dimensionedScalar("minRho",dimMass/dimVolume, SMALL))
         );
 
+        // Indicator: 1 where the cell holds real solid, 0 where rhoLoc has hit
+        // its SMALL floor (empty / pure-gas cells).  Used to keep the explicit
+        // solid-species advection out of empty cells: there rhoLoc is floored to
+        // SMALL while the face-interpolated solid flux is inherited from solid
+        // neighbours, so (dt/rhoLoc)*div(flux) amplifies by ~1/SMALL and blows
+        // Yi up.  No solid => no solid-species transport.
+        volScalarField solidPresent
+        (
+            pos(rho_*(1. - porosity_) - dimensionedScalar("rhoFloor", dimMass/dimVolume, SMALL))
+        );
+
         surfaceScalarField solidPhi = mesh_.Sf() & fvc::interpolate(rho_*Us_);
         fvScalarMatrix rhosEqn
         (
@@ -129,8 +140,11 @@ void volPyrolysis::solveSpeciesMass()
             (
                 fvm::ddt(rhoLoc,Yi)
              ==
-                sRhoSi
-              - fvc::div(solidFlux_, Yi, "div(phiSolid)")
+                solidPresent*
+                (
+                    sRhoSi
+                  - fvc::div(solidFlux_, Yi, "div(phiSolid)")
+                )
             );
 
             YsEqn.relax();
@@ -1263,6 +1277,14 @@ void volPyrolysis::evolvePorosity()
         );
 
         porosityEqn.solve("porosity");
+
+        // Porosity is a void fraction and must stay <= 1.  The explicit solid
+        // advection (fvc::div(Us,por)) can overshoot slightly above 1; left
+        // unchecked, rho*(1-porosity) then goes negative and the rhoLoc floor
+        // (max(...,SMALL)) used in solveSpeciesMass()/solveEnergy() engages,
+        // which amplifies the explicit solid-species advection by ~1/SMALL and
+        // blows the field up (observed Ywood ~ 1e12 at t~0.04 s).  Clamp here.
+        porosity_ = min(porosity_, dimensionedScalar("one", dimless, 1.0));
 
         Info<< "porosity equation solved. Sources min/max   = " << gMin(porositySource_)
             << ", " << gMax(porositySource_);
