@@ -1,0 +1,10 @@
+[heatmap]
+fields = ["porosityF", "Ts", "T", "p", "Ywood", "Yash"]
+
+[probes]
+# 17 probes along the gasifier axis (z = 0 .. 0.17 m), bottom to top.
+labels = ["z=0", "z=1cm", "z=2cm", "z=3cm", "z=4cm", "z=5cm", "z=6cm", "z=7cm", "z=8cm", "z=10cm", "z=11cm", "z=12cm", "z=13cm", "z=14cm", "z=15cm", "z=16cm", "z=17cm"]
+
+[monitor]
+refresh_interval = 2.0
+panels = ["progress", "probes", "heatmap"]

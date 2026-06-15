@@ -1,9 +1,0 @@
-[heatmap]
-fields = ["Ts", "T", "porosityF", "p", "Ychar", "Yash"]
-
-[probes]
-labels = ["proc0-mid", "proc1-mid", "proc0-bot", "proc1-bot", "proc0-top", "proc1-top"]
-
-[monitor]
-refresh_interval = 2.0
-panels = ["progress", "probes", "heatmap"]
