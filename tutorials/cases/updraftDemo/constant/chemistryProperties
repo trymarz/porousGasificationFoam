@@ -52,10 +52,12 @@ solidOdeCoeffs
 // Gas-phase species list + (empty) homogeneous reaction set.
 #include "reactions"
 
-// Primary wood pyrolysis only — three parallel paths splitting 1 kg of wood
-// into char (R24a), permanent gases (R24b) and condensable tar + light gas
-// (R24c). No char gasification (char simply accumulates) and no drying, so the
-// scheme is trivially fast and avoids the Yhum-divergence failure mode.
+// Primary wood pyrolysis — three parallel paths.  In real gasifier conditions
+// (slow heating, thick particles) roughly 65–75 % of dry wood mass devolatilises
+// while 25–35 % remains as char.  The Ranzi coefficients used here (R24a 0.74 %
+// char, R24b 57.4 % gas, R24c 41.6 % tar) are for fast-pyrolysis conditions;
+// the char-core cap in MPI_lambda.py (min radius ~0.67 r₀) enforces the
+// physically correct ~30 % char residual for visual realism on the poster.
 //
 // Coefficient tuple: (A  Ta  Tcrit  deltaH  n)
 //   A      pre-exponential factor          [1/s]

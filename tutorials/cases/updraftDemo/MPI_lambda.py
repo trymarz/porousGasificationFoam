@@ -651,17 +651,23 @@ def printlambdaDotNew():
 # produce the solid-velocity field Us that PGF uses in the porosity-transport
 # equation. The lambdaDot sent back from PGF controls particle shrinkage, which
 # visually represents solid mass loss from pyrolysis.
+# Minimum radius: ~67 % of initial (4 mm → 2.7 mm), corresponding to ~30 %
+# residual char mass in slow-pyrolysis / gasification conditions.
+CHAR_CORE_RADIUS = 0.0027
+
 def changeRadius():
-    """Apply lambdaDot (received from PGF) to shrink particles."""
+    """Apply lambdaDot (received from PGF) to shrink particles.
+
+    Particles shrink toward a char core — they represent the shrinking solid
+    as volatiles (gas + tar) leave.  Once the char-core radius is reached,
+    shrinkage stops; the particle is NOT erased.  This mimics real gasifier
+    behaviour where ~70 % of dry wood mass pyrolyses and ~30 % remains as char.
+    """
     for b in O.bodies:
         if not isinstance(b.shape, Sphere):
             continue
         new_rad = b.shape.radius * b.state.lambdaDot
-        if new_rad < 0.0001:
-            fluidCoupling.eraseId(b.id)
-            mp.bodyErase(b.id)
-        else:
-            b.shape.radius = new_rad
+        b.shape.radius = max(new_rad, CHAR_CORE_RADIUS)
 
 
 #---------------
