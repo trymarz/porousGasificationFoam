@@ -10,7 +10,7 @@ FoamFile
 
 // YADE-OpenFOAM coupling properties
 
-active          false;   // Track A: continuum-only (no DEM coupling)
+active          true;   // Track B: YADE DEM coupling enabled
 
 nu              1.8e-5;    // air kinematic viscosity at ~300 K (m2/s)
 

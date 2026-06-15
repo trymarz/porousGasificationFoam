@@ -54,29 +54,12 @@ regressionSolidSpeciesIntegrals
     operation       volIntegrate;
 }
 
-// Solid temperature reductions. Energy-equation-sensitive.
-regressionTsAverage
-{
-    ${regressionBase}
-    enabled         true;
-    fields          (Ts);
-    operation       volAverage;
-}
-
-regressionTsMax
-{
-    ${regressionBase}
-    enabled         true;
-    fields          (Ts);
-    operation       max;
-}
-
-regressionTsMin
-{
-    ${regressionBase}
-    enabled         true;
-    fields          (Ts);
-    operation       min;
-}
+// Ts metrics intentionally omitted — they measure dead/non-solid cells
+// (regionType all, whereIs=0) and produce non-physical values (~1e11 K avg,
+// −2000 K min) that drift under benign solver changes, generating false alarms.
+// Porosity + species integrals cover the real physical signal.
+//
+// If solid-temperature regression is needed later, restrict Ts reductions
+// to a cellZone masking whereIs==1.
 
 // ************************************************************************* //
