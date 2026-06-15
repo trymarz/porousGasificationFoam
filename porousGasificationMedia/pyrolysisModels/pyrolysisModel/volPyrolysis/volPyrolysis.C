@@ -239,7 +239,7 @@ void volPyrolysis::solveEnergy()
             //this requires further rethinking
             forAll(porosity_,cellI)
             {
-                if ( (whereIs_[cellI] == 1) && ( (Us_[cellI] & whereIsNotGrad[cellI]) != 0)  )
+                if ( (whereIs_[cellI] == 1) && ( (Us_[cellI] & whereIsNotGrad[cellI]) > 0)  )
                 {
                     //Info << rhoCp[cellI] << " " << porosity_[cellI] << " " << rhoCpG[cellI] << " " << heatTransfField[cellI] << " " << T_[cellI] << " " << gasThermo_.T()[cellI]  << " kopytko 2" << endl;
                     const labelList& faces = mesh_.cells()[cellI];
@@ -253,7 +253,7 @@ void volPyrolysis::solveEnergy()
                             //rhoCp[cellI] = rhoCp[cellI] * (1-porosity_[cellI])/(max(1-surfPor[faces[faceI]],SMALL));
                         }
                     }
-                    //if (porosity_[cellI] > 0.999)
+                    if (porosity_[cellI] > 0.999)
                     {
                         heatTransfField[cellI] = 0;
                     }
@@ -317,6 +317,21 @@ void volPyrolysis::solveEnergy()
 
             TEqn.relax();
             TEqn.solve();
+
+            // Clamp solid temperature to physical bounds.  The explicit
+            // heat-transfer coupling and the immersed-boundary treatment
+            // (porous-interface off-diagonal zeroing + non-orthogonal
+            // correction cancellation) can produce unphysical overshoots
+            // in individual cells when the coupling coefficient is large.
+            // Guard here rather than letting garbage propagate into
+            // chemistry / porosity / the next timestep.
+            forAll(T_, cellI)
+            {
+                if (whereIs_[cellI] == 1)
+                {
+                    T_[cellI] = max(1.0, min(T_[cellI], 4000.0));
+                }
+            }
         }
 
         scalar minTemp = GREAT;
@@ -1246,7 +1261,14 @@ void volPyrolysis::evolveRegion()
     {}
     else
     {
-        for (int nonOrth = 0; nonOrth <= nNonOrthCorr_; ++nonOrth)
+        // Iterate the explicit heat-transfer coupling.  heatTransfField is
+        // recomputed inside solveEnergy() from the latest T_, so the fully
+        // explicit Ts<->Tgas coupling needs at least one extra pass to
+        // converge (same idea as nCorrectors for p-U coupling).  The
+        // max(...) preserves a larger nNonOrthCorr_ if one is set.
+        const label minEnergyIters = 2;
+        const label energyIters = max(nNonOrthCorr_, minEnergyIters - 1);
+        for (int nonOrth = 0; nonOrth <= energyIters; ++nonOrth)
         {
             solveEnergy();
         }
