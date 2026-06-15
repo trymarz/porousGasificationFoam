@@ -46,7 +46,9 @@ odeCoeffs
 
 solidOdeCoeffs
 {
-    solver      seulex;
+    solver      RKCK45;
+    absTol      1e-8;
+    relTol      1e-6;
 }
 
 // Gas-phase species list + (empty) homogeneous reaction set.
