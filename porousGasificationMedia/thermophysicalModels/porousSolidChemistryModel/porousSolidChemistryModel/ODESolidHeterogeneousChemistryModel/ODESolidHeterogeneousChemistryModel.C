@@ -1657,7 +1657,47 @@ Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasTherm
             newhi += omegaPreq[nEqns()];
         }
 
-        scalar dTi =  ( newhi == 0 ? 0 : (newhi/(newCp*solidRho))*dt_ );
+        // Solid-phase temperature update.  This divides the reaction heat by
+        // the solid heat capacity (newCp*solidRho).  Cells admitted by the
+        // permissive reacting-cell criterion (porosity < 1, see
+        // volPyrolysis::preEvolveRegion) can carry a vanishing solid fraction:
+        // solidRho -> 0 drives newCp -> 0 too, while the reaction heat newhi is
+        // built from the Ys_ mass-fraction field and the full solid density and
+        // stays finite.  newhi/(newCp*solidRho) then overflows to inf/NaN and
+        // trips FOAM_SIGFPE.  The analogous ODE right-hand side (derivatives())
+        // is protected by a dT/dt limiter; this post-solve update was not.
+        // With no solid mass present there is no solid temperature to advance.
+        const scalar solidHeatCapacity = newCp*solidRho;
+
+        scalar dTi = 0;
+        if (newhi != 0 && solidHeatCapacity > VSMALL)
+        {
+            dTi = (newhi/solidHeatCapacity)*dt_;
+
+            // Mirror the dT/dt limiter applied in derivatives() (see above).
+            dTi = max(min(dTi, 500.0*dt_), -500.0*dt_);
+        }
+        else if (newhi != 0)
+        {
+            // One-shot diagnostic: confirms the guard fired and reports the
+            // offending cell state.  Remove once the fix is validated.
+            static bool reported = false;
+            if (!reported)
+            {
+                reported = true;
+                Pout<< "ODESolidHeterogeneousChemistryModel::calculateSourceTerms:"
+                    << " skipped solid T update (negligible solid heat capacity)"
+                    << " cell=" << celli
+                    << " porosity=" << porosityF_[celli]
+                    << " solidRho=" << solidRho
+                    << " newCp=" << newCp
+                    << " newhi=" << newhi
+                    << " Ti=" << Ti
+                    << " Ywood=" << Ys_[0][celli]
+                    << " Ychar=" << Ys_[1][celli]
+                    << endl;
+            }
+        }
 
         Ti += dTi;
 
