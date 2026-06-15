@@ -114,8 +114,8 @@ int main(int argc, char *argv[])
         if (DEM)
         {
             vGrad = fvc::grad(U);
-            lambdaDotUpdater->update();
             yadeCoupling->setParticleAction(runTime.deltaT().value());
+            lambdaDotUpdater->update();
             lambdaDotUpdater->writeParticlesData();
             yadeCoupling->setSourceZero();
         }
