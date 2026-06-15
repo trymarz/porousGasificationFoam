@@ -55,8 +55,78 @@ maxDi      5000;
 
 functions
 {
-//    #includeFunc  probes
-//    #includeFunc  sample
+    // Bed height tracking (volume-averaged porosity over domain)
+    porosityAve
+    {
+        type            volFieldValue;
+        libs            ("libfieldFunctionObjects.so");
+        writeControl    adjustableRunTime;
+        writeInterval   0.25;
+        operation       volAverage;
+        regionType      all;
+        writeFields     false;
+        fields          (porosityF);
+    }
+
+    // Total solid mass proxy (volume integral of solid mass-fraction fields)
+    solidMass
+    {
+        type            volFieldValue;
+        libs            ("libfieldFunctionObjects.so");
+        writeControl    adjustableRunTime;
+        writeInterval   0.25;
+        operation       volIntegrate;
+        regionType      all;
+        writeFields     false;
+        fields          (Ywood Ychar Yash Yhum);
+    }
+
+    // Centerline probes (z-axis at x=0)
+    centerlineProbes
+    {
+        type            probes;
+        libs            ("libsampling.so");
+        writeControl    adjustableRunTime;
+        writeInterval   0.25;
+        fields          (T Ts porosityF Ywood Ychar Yash Yhum U);
+        // y = -0.016 is the mid-thickness of the 2D mesh
+        // (extruded over y in [-0.024, -0.008]); x=0 is the centerline.
+        probeLocations
+        (
+            (0.0 -0.016 0.10)
+            (0.0 -0.016 0.25)
+            (0.0 -0.016 0.31)
+            (0.0 -0.016 0.37)
+            (0.0 -0.016 0.50)
+            (0.0 -0.016 0.75)
+            (0.0 -0.016 0.90)
+        );
+    }
+
+    // Cut plane for 2D contour extraction
+    samplePlane
+    {
+        type            surfaces;
+        libs            ("libsampling.so");
+        writeControl    adjustableRunTime;
+        writeInterval   0.25;
+        surfaceFormat   vtk;
+        fields          (T Ts porosityF Ywood Ychar Yash Yhum U p);
+        surfaces
+        (
+            midPlane
+            {
+                type        plane;
+                planeType   pointAndNormal;
+                pointAndNormalDict
+                {
+                    point   (0 -0.016 0.5);
+                    normal  (0 1 0);
+                }
+                interpolate true;
+            }
+        );
+    }
 
     // Regression-test scalars (see applications/test/regression/).
     // The include is silent if the file is absent, so removing
