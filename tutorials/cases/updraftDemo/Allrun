@@ -1,0 +1,20 @@
+#!/bin/sh
+cd "${0%/*}" || exit
+. ${WM_PROJECT_DIR:?}/bin/tools/RunFunctions
+
+# Requires a Yade-enabled solver build:  ./build.sh build --yade
+# (a plain porousGasificationFoam binary will NOT run this case correctly —
+#  Yade is the MPI parent and spawns the OpenFOAM ranks itself).
+
+rm -rf 0
+cp -r 0_orig 0
+
+runApplication blockMesh
+runApplication setFields
+runApplication decomposePar
+
+mkdir -p spheres springs
+
+# The solver runs INSIDE Yade via the MPI coupling script — not a plain
+# runParallel. Yade (2 ranks) spawns the 2 OpenFOAM ranks via MPI_Comm_spawn.
+mpirun --allow-run-as-root -n 2 yade MPI_lambda.py 2>&1 | tee log.yade

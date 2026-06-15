@@ -1,0 +1,34 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  8
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      yadeProperties;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// --------------
+// YADE-OpenFOAM coupling properties
+// --------------
+// active=true makes the solver build/use the DEM coupling (only effective in a
+// `./build.sh build --yade` binary). The solver MUST be launched through YADE:
+//   mpirun -n 2 yade MPI_lambda.py
+// not as a bare porousGasificationFoam.
+
+active          true;
+
+nu                 1.8e-5;    // gas kinematic viscosity (m2/s)
+
+partDensity        1050;      // particle density   (kg/m3) — matches wood/char
+
+fluidDensity       0.45;      // hot-N2 density at ~800 K, 1 bar (kg/m3)
+
+// ************************************************************************* //

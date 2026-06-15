@@ -1,0 +1,38 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  8
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      lambdaDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// Per-cell rate of change of the particle "lambda" (rest-length / shrink
+// factor) that PGF sends back to YADE each coupling step. lambdaDotModel reads
+// this as a Function1<scalar> and evaluates it with the cell-centre
+// y-coordinate as the single argument `x` (see lambdaDotModel.C). A positive
+// value drives particle shrinkage in MPI_lambda.py.
+//
+// For this demo we use a uniform constant: every occupied cell feeds the same
+// shrink rate back to its particles, so the bed visibly contracts as it
+// pyrolyses. Replace with a function of `x` (the y-coordinate) for a spatially
+// varying rate.
+
+lambdaDot
+{
+    type    coded;
+    code
+    #{
+        return 1.0;
+    #};
+}
+
+// ************************************************************************* //

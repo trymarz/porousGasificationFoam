@@ -1,0 +1,17 @@
+/*---------------------------------------------------------------------------*\
+  Gas-phase species and reactions for the updraft DEM demo.
+
+  Pyrolysis-only demo: the solid (wood) devolatilises into these gas species,
+  but there is NO gas-phase chemistry (no O2, no combustion). The gas species
+  are produced purely by the heterogeneous solidReactions in
+  chemistryProperties; here the homogeneous reaction set is empty.
+\*---------------------------------------------------------------------------*/
+
+species
+(
+    N2 CO CO2 H2 H2O CH4 tar
+);
+
+reactions
+{
+}

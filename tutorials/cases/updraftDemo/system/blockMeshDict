@@ -1,0 +1,89 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  8
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      blockMeshDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// Simple vertical updraft-gasifier column. Genuinely 3D (not a wedge / empty
+// 2D slice) so the YADE DEM particles have real cells to be located in for the
+// Gaussian-interpolation coupling. Gravity acts along -z; hot gas enters the
+// bottom (inlet) and leaves the top (outlet).
+
+scale 1;
+
+// Cross-section 0.05 x 0.05 m, height 0.5 m.
+xMin  0;
+xMax  0.05;
+yMin  0;
+yMax  0.05;
+zMin  0;
+zMax  0.5;
+
+vertices
+(
+    ($xMin $yMin $zMin)   // 0
+    ($xMax $yMin $zMin)   // 1
+    ($xMax $yMax $zMin)   // 2
+    ($xMin $yMax $zMin)   // 3
+    ($xMin $yMin $zMax)   // 4
+    ($xMax $yMin $zMax)   // 5
+    ($xMax $yMax $zMax)   // 6
+    ($xMin $yMax $zMax)   // 7
+);
+
+// 4 x 4 cells across, 40 cells tall -> 640 cubic cells (~0.0125 m).
+blocks
+(
+    hex (0 1 2 3 4 5 6 7) (4 4 40) simpleGrading (1 1 1)
+);
+
+edges
+(
+);
+
+boundary
+(
+    inlet
+    {
+        type patch;
+        faces
+        (
+            (0 3 2 1)
+        );
+    }
+    outlet
+    {
+        type patch;
+        faces
+        (
+            (4 5 6 7)
+        );
+    }
+    walls
+    {
+        type wall;
+        faces
+        (
+            (0 1 5 4)   // y = yMin
+            (2 3 7 6)   // y = yMax
+            (1 2 6 5)   // x = xMax
+            (3 0 4 7)   // x = xMin
+        );
+    }
+);
+
+mergePatchPairs
+(
+);
+
+// ************************************************************************* //

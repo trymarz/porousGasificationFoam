@@ -1,0 +1,135 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  8
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "system";
+    object      controlDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+application     porousGasificationFoam;
+
+startFrom       latestTime;
+
+startTime       0;
+
+stopAt          endTime;
+
+endTime         20;
+
+deltaT          1e-6;
+
+maxDeltaT       1e-3;
+
+writeControl    adjustableRunTime;
+
+writeInterval   0.5;
+
+purgeWrite      0;
+
+writeFormat     ascii;
+
+writePrecision  8;
+
+writeCompression off;
+
+timeFormat      general;
+
+timePrecision   6;
+
+runTimeModifiable yes;
+
+adjustTimeStep  yes;
+
+maxCo           1;
+
+maxDi           5000;
+
+
+functions
+{
+    // Vertical centreline profiles (poster: T/Ts/gas-composition vs height).
+    centerlineProbes
+    {
+        type            probes;
+        libs            ("libsampling.so");
+        writeControl    adjustableRunTime;
+        writeInterval   0.5;
+        fields          (T Ts N2 CO CO2 H2 H2O CH4 tar Ywood Ychar porosityF);
+        probeLocations
+        (
+            (0.025 0.025 0.05)
+            (0.025 0.025 0.10)
+            (0.025 0.025 0.15)
+            (0.025 0.025 0.20)
+            (0.025 0.025 0.25)
+            (0.025 0.025 0.30)
+            (0.025 0.025 0.40)
+            (0.025 0.025 0.50)
+        );
+    }
+
+    // Solid-phase mass loss (poster time series: wood decay, char growth).
+    solidMass
+    {
+        type            volFieldValue;
+        libs            ("libfieldFunctionObjects.so");
+        writeControl    adjustableRunTime;
+        writeInterval   0.5;
+        writeFields     false;
+        log             false;
+        regionType      all;
+        operation       volIntegrate;
+        fields          (Ywood Ychar);
+    }
+
+    // Domain-averaged porosity (poster time series: bed opening up).
+    porosityAve
+    {
+        type            volFieldValue;
+        libs            ("libfieldFunctionObjects.so");
+        writeControl    adjustableRunTime;
+        writeInterval   0.5;
+        writeFields     false;
+        log             false;
+        regionType      all;
+        operation       volAverage;
+        fields          (porosityF);
+    }
+
+    // Mid-plane (y = 0.025) slices for contour figures.
+    samplePlane
+    {
+        type            surfaces;
+        libs            ("libsampling.so");
+        writeControl    adjustableRunTime;
+        writeInterval   0.5;
+        surfaceFormat   vtk;
+        fields          (T Ts porosityF Ywood Ychar);
+        interpolationScheme cellPoint;
+        surfaces
+        (
+            midPlane
+            {
+                type            cuttingPlane;
+                planeType       pointAndNormal;
+                pointAndNormalDict
+                {
+                    point       (0.025 0.025 0.25);
+                    normal      (0 1 0);
+                }
+                interpolate     true;
+            }
+        );
+    }
+}
+
+// ************************************************************************* //

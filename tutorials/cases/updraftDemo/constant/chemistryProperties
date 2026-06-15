@@ -1,0 +1,84 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  8
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      chemistryProperties;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+chemistry           on;
+
+chemistryType
+{
+    solver            ode;
+}
+
+solidChemistryType
+{
+    solver              solidOde;
+    method              ODESolidHeterogeneousChemistryModel;
+    solidThermoType     const<constRad<constThermo<constRho>>>;
+}
+
+initialChemicalTimeStep 1e-10;
+
+turbulentReaction   off;
+solidReactionEnergyFromEnthalpy false;
+stoichiometricReactions false;
+showRelativeReactionRates false;
+solidChemistryTimeStepControl false;
+
+diffusionLimitedReactions true;
+
+odeCoeffs
+{
+    solver      seulex;
+}
+
+solidOdeCoeffs
+{
+    solver      seulex;
+}
+
+// Gas-phase species list + (empty) homogeneous reaction set.
+#include "reactions"
+
+// Primary wood pyrolysis only — three parallel paths splitting 1 kg of wood
+// into char (R24a), permanent gases (R24b) and condensable tar + light gas
+// (R24c). No char gasification (char simply accumulates) and no drying, so the
+// scheme is trivially fast and avoids the Yhum-divergence failure mode.
+//
+// Coefficient tuple: (A  Ta  Tcrit  deltaH  n)
+//   A      pre-exponential factor          [1/s]
+//   Ta     activation temperature E/R      [K]
+//   Tcrit  no reaction below this T        [K]
+//   deltaH heat of reaction (>0 endothermic) [J/kg]
+//   n      reaction order in the solid
+solidReactions
+(
+    // R24a — char formation (0.74 %)
+    irreversibleSolidArrheniusHeterogeneousReaction
+    0.0074 wood = 0.0074 char
+    (1.38e10 1.9e4 300 3.85e5 1)
+
+    // R24b — permanent-gas release (57.4 %)
+    irreversibleSolidArrheniusHeterogeneousReaction
+    0.5738 wood = 0.2063 CO + 0.3387 CO2 + 0.0288 H2
+    (1.38e10 1.9e4 300 3.85e5 1)
+
+    // R24c — tar + light-gas release (41.6 %)
+    irreversibleSolidArrheniusHeterogeneousReaction
+    0.4158 wood = 0.0567 H2O + 0.0171 CH4 + 0.3420 tar
+    (1.38e10 1.9e4 300 3.85e5 1)
+);
+
+// ************************************************************************* //
