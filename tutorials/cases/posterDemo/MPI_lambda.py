@@ -41,10 +41,10 @@ radius           = 0.005   # diameter 10 mm (exactly 4 across 0.04 m)
 CHAR_CORE_RADIUS = 0.0025  # 50 % of initial (pyrolysis char core)
 
 mn = (radius, radius, radius)
-mx = (0.04 - radius, 0.04 - radius, 0.10 - radius)
+mx = (0.04, 0.04, 0.10)
 
-sp = pack.regularOrtho(pack.inAlignedBox(mn, mx), radius, gap=0)
-O.bodies.append([sphere(c, r, material='spheremat') for c, r in sp])
+sp = pack.regularOrtho(pack.inAlignedBox(mn, mx), radius, gap=0, material='spheremat')
+O.bodies.append(sp)
 
 sphereIDs = [b.id for b in O.bodies if isinstance(b.shape, Sphere)]
 print(f"[YADE] Created {len(sphereIDs)} spheres, z range [{mn[2]:.4f}, {mx[2]:.4f}]")
