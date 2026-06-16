@@ -46,25 +46,46 @@ sp = pack.SpherePack()
 sp.makeCloud(mn, mx, rMean=radius, rRelFuzz=0.1, num=numSpheres)
 O.bodies.append([sphere(c, r, material='spheremat') for c, r in sp])
 
-# ── gravity settling (YADE only, no OF coupling yet) ──
-# Spheres are created at random heights (z=0.05→0.30); let them fall
-# and pack at the floor before starting the coupled simulation.
-# GlobalStiffnessTimeStepper reduces dt to ~1e-7 for stiff contacts,
-# so 5M steps ≈ 0.5s virtual time — enough for all spheres to reach
-# the floor (t_fall = sqrt(2·0.3/9.81) = 0.25s from top of bed).
-print(f"[YADE] Starting gravity settling — {len(O.bodies)} bodies (incl. walls)")
+sphereIDs = [b.id for b in O.bodies if isinstance(b.shape, Sphere)]
+print(f"[YADE] Created {len(sphereIDs)} spheres")
+
+os.makedirs("spheres", exist_ok=True)
+
+# ── gravity settling (pure DEM — no FoamCoupling in engine list) ──
+# FoamCoupling::action() spawns OF on first call via MPI_Comm_spawn.
+# If it's in the engine list during O.run(), it either (a) spawns OF
+# prematurely (double-spawn vs mp.mpirun()) or (b) blocks / zeroes
+# forces if OF isn't live.  Pure DEM settling avoids both.
+# GlobalStiffnessTimeStepper dt ≈ 1e-7 for stiff sphere-sphere contacts.
+# 2M steps ≈ 0.2s virtual — t_fall = sqrt(2·0.3/9.81) = 0.25s.
+O.engines = [
+    ForceResetter(),
+    InsertionSortCollider(
+        [Bo1_Sphere_Aabb(), Bo1_Wall_Aabb()],
+        label="collider",
+    ),
+    InteractionLoop(
+        [Ig2_Sphere_Sphere_ScGeom(), Ig2_Wall_Sphere_ScGeom()],
+        [Ip2_FrictMat_FrictMat_FrictPhys()],
+        [Law2_ScGeom_FrictPhys_CundallStrack()],
+    ),
+    GlobalStiffnessTimeStepper(
+        timestepSafetyCoefficient=0.5,
+        defaultDt=1e-6,
+        timeStepUpdateInterval=50,
+        parallelMode=True,
+        label="ts",
+    ),
+    NewtonIntegrator(gravity=(0, 0, -9.81), damping=0.3, label="newton"),
+]
+print(f"[YADE] Starting gravity settling (pure DEM, no coupling) — {len(O.bodies)} bodies (incl. walls)")
 print(f"[YADE] O.time = {O.time:.6f}")
-O.run(5000000, True)
+O.run(2000000, True)
 zMin = min(b.state.pos[2] for b in O.bodies if isinstance(b.shape, Sphere))
 zMax = max(b.state.pos[2] for b in O.bodies if isinstance(b.shape, Sphere))
 print(f"[YADE] Settled: O.time = {O.time:.4f}s, z range [{zMin:.4f}, {zMax:.4f}]")
 
 counter[0] = 1  # reset VTK counter for coupled phase
-
-sphereIDs = [b.id for b in O.bodies if isinstance(b.shape, Sphere)]
-print(f"[YADE] Created {len(sphereIDs)} spheres")
-
-os.makedirs("spheres", exist_ok=True)
 
 # ── foam coupling ─────────────────────────────────────────────────
 fluidCoupling = FoamCoupling()
