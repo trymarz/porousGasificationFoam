@@ -21,31 +21,31 @@ O.materials.append(FrictMat(
     young=25e8, poisson=0.5, frictionAngle=0,
     density=0, label='wallmat'))
 
-# ── walls (match the quasi-2D blockMesh domain: 0.04 x 0.004 x 0.24 m) ──
-# Floor at z=0 keeps the bed stacked; the column is short so settling is
-# minimal. The x-walls confine the cross-section. The y-walls at y=0 and
-# y=0.004 pin the spheres into a single monolayer at y=0.002 — OpenFOAM's
-# front/back faces are `empty` (2D), so YADE needs its own wall bodies there
-# for collision detection. The monolayer feels no net y-force (every contact
-# lies in the x-z plane), so the symmetric y-wall overlap is static and stable.
+# ── walls (match the quasi-2D blockMesh domain: 0.04 x 0.004 x 0.096 m) ──
+# Floor at z=0 and ceiling at z=0.096 confine the bed to the exact packed
+# height (12 layers × 8 mm diameter) — spheres touch top and bottom walls
+# so there is no room to settle. The only motion is shrinkage-driven.
+# The y-walls at y=0 and y=0.004 (matching OpenFOAM's empty front/back
+# faces) pin the spheres into a single monolayer at y=0.002.
 O.bodies.append(utils.wall(position=0,     axis=2, sense=1,  material='wallmat')) # floor (inlet)
-O.bodies.append(utils.wall(position=0.24,  axis=2, sense=-1, material='wallmat')) # ceiling (outlet)
+O.bodies.append(utils.wall(position=0.096, axis=2, sense=-1, material='wallmat')) # ceiling (outlet)
 O.bodies.append(utils.wall(position=0,     axis=0, sense=1,  material='wallmat')) # xMin
 O.bodies.append(utils.wall(position=0.04,  axis=0, sense=-1, material='wallmat')) # xMax
 O.bodies.append(utils.wall(position=0,     axis=1, sense=1,  material='wallmat')) # yMin
 O.bodies.append(utils.wall(position=0.004, axis=1, sense=-1, material='wallmat')) # yMax
 
 # ── particle bed ──────────────────────────────────────────────────
-# Regular 5×1×12 monolayer of touching spheres (r=0.004) fills the solid
-# region (z=0→0.10, 0.04 m wide) as a single layer at y=0.002 — the centre
-# of the 1-cell-thick quasi-2D mesh. Spheres touch neighbours and walls →
-# self-supporting under gravity, no settling. Smooth Us field for PGF
-# solid-phase advection; porosity via porosityF independently.
+# Regular 5×1×12 monolayer of touching spheres (r=0.004) fills the entire
+# domain (z=0→0.096, 0.04 m wide) as a single layer at y=0.002 — the centre
+# of the 1-cell-thick quasi-2D mesh. Spheres touch neighbours and all six
+# walls → self-supporting, no settling. The only motion is shrinkage-driven
+# rearrangement, producing a sustained Us field for solid-phase advection;
+# porosity via porosityF independently.
 #
 # pack.regularOrtho places grid points at min+r+k·2r and pack.inAlignedBox
 # admits a sphere only if it fits entirely (centre in [min+r, max-r]).
 # So the x range [0,0.041] yields 5 centres (0.004…0.036) and z range
-# [0,0.101] yields 12 (0.004…0.092). For y we want exactly one centre at
+# [0,0.096] yields 12 (0.004…0.092). For y we want exactly one centre at
 # 0.002: min+r = -0.002+0.004 = 0.002 gives the first grid point, and the
 # admit window [0.002, max-r] = [0.002, 0.002] (max=0.006) keeps only it.
 numSpheres       = 60      # 5×1×12 monolayer
@@ -53,7 +53,7 @@ radius           = 0.004   # diameter 8 mm (5 across 0.04 m)
 CHAR_CORE_RADIUS = 0.001   # 25 % of initial (visible char core)
 
 mn = (0,     -0.002, 0)
-mx = (0.041,  0.006, 0.101)
+mx = (0.041,  0.007, 0.096)   # mx[1]-r=0.003 > mn[1]+r=0.002 → arange yields [0.002]
 
 sp = pack.regularOrtho(pack.inAlignedBox(mn, mx), radius, gap=0, material='spheremat')
 O.bodies.append(sp)
