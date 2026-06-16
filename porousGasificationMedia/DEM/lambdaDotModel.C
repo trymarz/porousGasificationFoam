@@ -76,7 +76,7 @@ void lambdaDotModel::update()
             if (!partPtr) continue;
 
             label cellI = partPtr->inCell;
-            if (cellI < 0) continue;
+            if (cellI < 0 || cellI >= mesh_.nCells()) continue;
 
             nParticles_[cellI] += 1.0;
 
@@ -84,6 +84,7 @@ void lambdaDotModel::update()
             UsDEM_[cellI] += partPtr->linearVelocity;
         }
     }
+
 
     // average velocity in cells containing sphere(s)
     // empty cells remain zero
@@ -145,12 +146,13 @@ void lambdaDotModel::update()
             if (!partPtr) continue;
 
             label cellI = partPtr->inCell;
-            if (cellI < 0) continue;
+            if (cellI < 0 || cellI >= mesh_.nCells()) continue;
             if (nParticles_[cellI] < 0.5) continue;
 
             partPtr->lambdaDot = lambdaDot_[cellI];
         }
     }
+
 }
 
 void lambdaDotModel::writeParticlesData() const
@@ -181,7 +183,7 @@ void lambdaDotModel::writeParticlesData() const
             if (!partPtr) continue;
 
             label cellI = partPtr->inCell;
-            if (cellI < 0) continue;
+            if (cellI < 0 || cellI >= mesh_.nCells()) continue;
             if (nParticles_[cellI] < 0.5) continue;
 
             ofs << partPtr->indx << " "

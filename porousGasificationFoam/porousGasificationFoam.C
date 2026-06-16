@@ -115,8 +115,11 @@ int main(int argc, char *argv[])
         {
             vGrad = fvc::grad(U);
             yadeCoupling->setParticleAction(runTime.deltaT().value());
+
             lambdaDotUpdater->update();
+
             lambdaDotUpdater->writeParticlesData();
+
             yadeCoupling->setSourceZero();
         }
         #endif
