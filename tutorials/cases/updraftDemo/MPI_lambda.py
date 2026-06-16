@@ -85,19 +85,16 @@ fluidCoupling.setIdList(sphereIDs)
 # a not-yet-coupled particle clamps to the floor radius rather than collapsing
 # to zero and being destroyed.
 CHAR_CORE_RADIUS = 0.0027
-# Store original radii — changeRadius() must multiply lambdaDot by the
-# original radius, not the current (already-modified) one, to avoid
-# compounding: r = r * λ each step → r₀ * λⁿ instead of r₀ * λ.
-R0 = {b.id: b.shape.radius for b in O.bodies if isinstance(b.shape, Sphere)}
 
 def changeRadius():
     for b in O.bodies:
         if not isinstance(b.shape, Sphere):
             continue
-        r0 = R0.get(b.id)
-        if r0 is None:
-            continue
-        new_rad = r0 * b.state.lambdaDot
+        # lambdaDot (~0.9995 per step) is a PER-STEP multiplier sent by OF.
+        # Multiply by CURRENT radius for compounding shrinkage:
+        #   r = r0 * λ^N after N exchanges  (not r0 * λ).
+        # At ~1000 exchanges/s: visible shrinkage by t=0.5s, full conversion by t=5s.
+        new_rad = b.shape.radius * b.state.lambdaDot
         b.shape.radius = max(new_rad, CHAR_CORE_RADIUS)
 
 # ── VTK export ────────────────────────────────────────────────────
