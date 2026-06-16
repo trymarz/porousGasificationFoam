@@ -12,3 +12,10 @@ labels = ["z=5cm", "z=10cm", "z=15cm", "z=20cm", "z=25cm", "z=30cm", "z=40cm", "
 [monitor]
 refresh_interval = 3.0
 panels = ["progress", "probes", "heatmap"]
+
+[slice]
+# The updraft column is genuinely 3D (4×4×40 cells).  Slice at the mid-y
+# plane (y = 0.025, matching the midPlane cutting plane in controlDict)
+# so the heatmap renders as a 2D xz-slice through the column.
+axis = "y"
+position = 0.025
