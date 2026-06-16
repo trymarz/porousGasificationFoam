@@ -51,6 +51,17 @@ O.bodies.append([sphere(c, r, material='spheremat') for c, r in sp])
 sphereIDs = [b.id for b in O.bodies if isinstance(b.shape, Sphere)]
 print(f"[YADE] Created {len(sphereIDs)} spheres, z range [{mn[2]:.4f}, {mx[2]:.4f}]")
 
+# Initialize lambdaDot=1.0 on all spheres BEFORE coupling.
+# YADE defaults lambdaDot to 0.0 (core/State.hpp), which causes
+# changeRadius() to clamp every sphere to CHAR_CORE_RADIUS on the
+# first PyRunner invocation (before FoamCoupling has set real values).
+# Once clamped, max(new_rad, CHAR_CORE_RADIUS) keeps them stuck.
+# Setting lambdaDot=1.0 preserves the as-created radius until
+# FoamCoupling updates from chemistry/shrinkage data.
+for b in O.bodies:
+    if isinstance(b.shape, Sphere):
+        b.state.lambdaDot = 1.0
+
 os.makedirs("spheres", exist_ok=True)
 
 # ── foam coupling ─────────────────────────────────────────────────
@@ -74,12 +85,19 @@ fluidCoupling.setIdList(sphereIDs)
 # a not-yet-coupled particle clamps to the floor radius rather than collapsing
 # to zero and being destroyed.
 CHAR_CORE_RADIUS = 0.0027
+# Store original radii — changeRadius() must multiply lambdaDot by the
+# original radius, not the current (already-modified) one, to avoid
+# compounding: r = r * λ each step → r₀ * λⁿ instead of r₀ * λ.
+R0 = {b.id: b.shape.radius for b in O.bodies if isinstance(b.shape, Sphere)}
 
 def changeRadius():
     for b in O.bodies:
         if not isinstance(b.shape, Sphere):
             continue
-        new_rad = b.shape.radius * b.state.lambdaDot
+        r0 = R0.get(b.id)
+        if r0 is None:
+            continue
+        new_rad = r0 * b.state.lambdaDot
         b.shape.radius = max(new_rad, CHAR_CORE_RADIUS)
 
 # ── VTK export ────────────────────────────────────────────────────
