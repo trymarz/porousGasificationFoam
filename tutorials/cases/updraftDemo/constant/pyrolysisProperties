@@ -21,7 +21,7 @@ heterogeneousPyrolysisModel  volPyrolysis;
 
 pyrolysisCoeffs
 {
-    subintegrateHeatTransfer true;
+    subintegrateHeatTransfer false;
     bedCollapse false;          // DEM-coupling demo — no continuum bed collapse
     criticalPorosity 0.9999;
     replenish false;
