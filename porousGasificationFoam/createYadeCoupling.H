@@ -14,8 +14,13 @@ if (DEM)
 
   Info << "Particles properties set." << endl;
 
+  // Ts is registered by the solid thermo model (created in
+  // createPyrolysisModel.H, included before this file) and drives the
+  // per-cell shrink rate inside lambdaDotModel::update().
+  const volScalarField& Ts = mesh.lookupObject<volScalarField>("Ts");
+
   lambdaDotUpdater.reset(new lambdaDotModel(mesh, lambdaDot, nParticles, UsDEM,
-                                        Us, porosityF, yadeCoupling()));
+                                        Us, porosityF, Ts, yadeCoupling()));
 
   yadeCoupling().locateAllParticles(); // places the location of spheres from time 0
 }

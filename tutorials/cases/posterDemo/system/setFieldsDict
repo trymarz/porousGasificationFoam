@@ -1,0 +1,49 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  8
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "system";
+    object      setFieldsDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// Pack a dry-wood bed into the lower 5 layers of the column (z = 0 -> 0.15).
+// Outside the bed porosityF = 1 (pure gas, no solid). Inside, porosityF = 0.40
+// and the solid is 100 % wood (Ywood = 1, Ychar = 0). The bed starts hot
+// (Ts = T = 800 K) so the Ts-driven particle shrinkage begins immediately;
+// YADE packs ~120 particles into this same region (see MPI_lambda.py).
+
+defaultFieldValues
+(
+    volScalarFieldValue porosityF  1.0
+    volScalarFieldValue porosityF0 1.0
+    volScalarFieldValue Ywood      0.0
+    volScalarFieldValue Ychar      0.0
+);
+
+regions
+(
+    boxToCell
+    {
+        box (0 0 0) (0.04 0.04 0.15);
+        fieldValues
+        (
+            volScalarFieldValue porosityF  0.40
+            volScalarFieldValue porosityF0 0.40
+            volScalarFieldValue Ywood      1.0
+            volScalarFieldValue Ychar      0.0
+            volScalarFieldValue Ts         800
+            volScalarFieldValue T          800
+        );
+    }
+);
+
+// ************************************************************************* //

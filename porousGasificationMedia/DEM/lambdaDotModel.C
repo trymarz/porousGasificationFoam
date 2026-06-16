@@ -13,6 +13,7 @@ lambdaDotModel::lambdaDotModel
     volVectorField& UsDEM,  // velocity of spheres
     volVectorField& Us, // interpolated velocity of spheres
     volScalarField& porosityF,
+    const volScalarField& Ts, // solid temperature
     FoamYade& yade
 )
 :
@@ -22,6 +23,7 @@ lambdaDotModel::lambdaDotModel
     UsDEM_(UsDEM), // velocity of spheres
     Us_(Us),
     porosityF_(porosityF),
+    Ts_(Ts),
     yade_(yade),
     // to read lambda function from constant/lambdaDict
     lambdaFunc_
@@ -49,15 +51,33 @@ lambdaDotModel::lambdaDotModel
 void lambdaDotModel::update()
 {
     // calc lambdaDot field
+    //
+    // lambdaDot is the per-cell radius-scaling factor sent back to YADE: a
+    // value < 1 shrinks the spheres in that cell each coupling step. Here it
+    // is driven by the local solid temperature Ts: cells below Tref do not
+    // shrink (lambdaDot = 1), and shrinkage ramps linearly up to a maximum
+    // rate as Ts rises from Tref to Tactive. This realises the PGF -> YADE
+    // half of the coupling (hot solid devolatilises and the particles shrink
+    // toward their char core). The legacy lambdaDict / lambdaFunc_ is still
+    // read for backward compatibility but its value is intentionally unused.
+    const scalar Tref            = 500.0;    // below this, no shrinkage
+    const scalar Tactive         = 800.0;    // at this, maximum shrink rate
+    const scalar maxShrinkPerStep = 0.0005;  // lambdaDot = 0.9995 at Tactive
+
     forAll(lambdaDot_, cellI)
     {
-        // direct function
-        //const point& c = mesh_.C()[cellI];
-        //lambdaDot_[cellI] = 0.1 * Foam::sin(c.x());
+        const scalar TsLocal = Ts_[cellI];
 
-        // to read function from constant/lambdaDict
-        const point& c = mesh_.C()[cellI];
-        lambdaDot_[cellI] = lambdaFunc_->value(c.y());
+        if (TsLocal <= Tref)
+        {
+            lambdaDot_[cellI] = 1.0;
+        }
+        else
+        {
+            const scalar frac =
+                min(1.0, (TsLocal - Tref) / (Tactive - Tref));
+            lambdaDot_[cellI] = 1.0 - frac * maxShrinkPerStep;
+        }
     }
 
     lambdaDot_.correctBoundaryConditions();

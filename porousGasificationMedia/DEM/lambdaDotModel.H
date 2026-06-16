@@ -17,6 +17,7 @@ private:
     volVectorField& UsDEM_;     // velocity of spheres
     volVectorField& Us_;    // interpolated sphere velocity
     volScalarField& porosityF_;   // porosity field  get from the main solver
+    const volScalarField& Ts_;    // solid temperature (drives shrinkage rate)
     FoamYade& yade_;
 
     autoPtr<Function1<scalar>> lambdaFunc_;  // to read lambdaFunction from constant/lambdaDict
@@ -31,6 +32,7 @@ public:
         volVectorField& UsDEM,   // velocity of spheres
         volVectorField& Us, // interpolated sphere velocity
         volScalarField& porosityF, // porosity field  get from the main solver
+        const volScalarField& Ts, // solid temperature
         FoamYade& yade
     );
 

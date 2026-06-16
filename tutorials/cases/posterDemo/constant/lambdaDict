@@ -1,0 +1,26 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  8
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      lambdaDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// Dummy entry. lambdaDotModel still constructs a Function1<scalar> from this
+// dict (so it must exist and parse), but in this case the per-cell shrink
+// factor is driven by the solid temperature Ts inside lambdaDotModel::update()
+// and this value is intentionally ignored. Kept as a plain constant to avoid
+// dynamic-code compilation.
+
+lambdaDot       constant 1.0;
+
+// ************************************************************************* //
