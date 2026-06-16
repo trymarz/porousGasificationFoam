@@ -1,9 +1,8 @@
 import os
 from yade import mpy as mp
 from yade import pack, utils
-from itertools import count
 
-counter = count(1)
+counter = [1]   # mutable so we can reset after settling
 
 # ── coupling / run control ──────────────────────────────────────────
 parallelYade = True
@@ -46,6 +45,17 @@ mx = (0.045, 0.045, 0.30 - margin)
 sp = pack.SpherePack()
 sp.makeCloud(mn, mx, rMean=radius, rRelFuzz=0.1, num=numSpheres)
 O.bodies.append([sphere(c, r, material='spheremat') for c, r in sp])
+
+# ── gravity settling (YADE only, no OF coupling yet) ──
+# Spheres are created at random heights (z=0.05→0.30); let them fall
+# and pack at the floor before starting the coupled simulation.
+print(f"[YADE] Starting gravity settling — {len(O.bodies)} bodies (incl. walls)")
+O.run(300000, True)   # ~0.3s virtual time at dt~1e-6
+zMin = min(b.state.pos[2] for b in O.bodies if isinstance(b.shape, Sphere))
+zMax = max(b.state.pos[2] for b in O.bodies if isinstance(b.shape, Sphere))
+print(f"[YADE] Settled: z range [{zMin:.4f}, {zMax:.4f}]")
+
+counter[0] = 1  # reset VTK counter for coupled phase
 
 sphereIDs = [b.id for b in O.bodies if isinstance(b.shape, Sphere)]
 print(f"[YADE] Created {len(sphereIDs)} spheres")
@@ -117,8 +127,10 @@ def write_VTK_spheres():
         vel.InsertNextTuple(v)
     polydata.GetPointData().SetVectors(vel)
 
-    timeStamp = SAVE_VTK_VIRT_PERIOD * next(counter)
-    vtp_name  = f"spheres-rank{mp.rank}-{timeStamp:.4f}.vtp"
+    timeStamp = SAVE_VTK_VIRT_PERIOD * counter[0]
+    counter[0] += 1
+    rank = getattr(mp, 'rank', 0)
+    vtp_name  = f"spheres-rank{rank}-{timeStamp:.4f}.vtp"
     fileName  = f"spheres/{vtp_name}"
     file_names_proc.append({"fileName": fileName, "timeStamp": timeStamp})
 
