@@ -33,9 +33,22 @@ Description
 Srho = pyrolysisZone.Srho();
 
 {
+    // The gas continuity is a diagonal-only system (the only implicit term is
+    // the ddt; div(phi) and Srho are explicit), so OpenFOAM solves it with the
+    // `diagonal` solver: rho[i] = source[i] / diag[i].  The diagonal here is
+    // porosityF*V/deltaT.  volPyrolysis::evolvePorosity() floors the gas void
+    // fraction to exactly 0 in solid-full cells, which makes that diagonal
+    // exactly zero -> division by zero -> SIGFPE in diagonalSolver::solve.
+    // Floor porosityF in the ddt term to a small positive value so the diagonal
+    // stays non-zero; this also pins rho to ~its previous value in those cells
+    // (gas density is physically irrelevant where there is no gas) rather than
+    // letting source/SMALL blow it up.  The explicit (1 - porosityF) source is
+    // left on the true field.
+    const dimensionedScalar porFloor("porFloor", dimless, 1e-3);
+
     fvScalarMatrix rhoEqn
     (
-        fvm::ddt(porosityF, rho)
+        fvm::ddt(max(porosityF, porFloor), rho)
       + fvc::div(phi)
       ==
         Srho * (1.0 - porosityF)
