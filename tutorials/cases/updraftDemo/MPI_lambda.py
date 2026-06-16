@@ -8,7 +8,7 @@ counter = count(1)
 # ── coupling / run control ──────────────────────────────────────────
 parallelYade = True
 numProcOF    = 2
-nsteps       = int(2e6)
+nsteps       = int(2e7)   # ~20s at YADE dt~1e-6 (was 2e6, exhausted at Time=2.064)
 
 SAVE_VTK_VIRT_PERIOD  = 0.001
 
