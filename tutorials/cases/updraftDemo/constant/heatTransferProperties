@@ -19,7 +19,7 @@ heatTransferModel constCONV;
 
 Parameters
 {
-    h    8;      // convective coefficient   [W/m^2/K]
+    h    50;     // convective coefficient   [W/m^2/K]
     SAV  468;    // surface-area-to-volume   [1/m]
 }
 
