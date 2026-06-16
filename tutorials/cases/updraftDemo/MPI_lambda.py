@@ -1,6 +1,6 @@
 import os
 from yade import mpy as mp
-from yade import pack, ymport
+from yade import pack, utils
 from itertools import count
 
 counter = count(1)
@@ -14,30 +14,41 @@ SAVE_VTK_VIRT_PERIOD  = 0.001
 
 # ── materials ─────────────────────────────────────────────────────
 O.materials.append(FrictMat(
-    young=25e6, poisson=0.5, frictionAngle=0.2618,  # ~15 deg
+    young=25e6, poisson=0.5, frictionAngle=0.2618,
     density=650, label='spheremat'))
 O.materials.append(FrictMat(
     young=25e8, poisson=0.5, frictionAngle=0,
     density=0, label='wallmat'))
 
-# ── geometry: import walls from blockMeshDict ─────────────────────
-facets = ymport.blockMeshDict("system/blockMeshDict")
-O.bodies.append(facets)
-for b in O.bodies:
-    if isinstance(b.shape, Facet):
-        b.mat = O.materials[-1]   # wallmat
+# ── walls:  (ymport.blockMeshDict cannot parse \$variable syntax
+#    and DOMAIN_DECOMPOSITION chokes on tiny particle counts.)
+#    Use simple walls instead — floor at z=0 keeps the bed stacked.
+#    Side walls are less critical for a settling column; we rely on
+#    friction / no horizontal velocity.
+# ──────────────────────────────────────────────────────────────────
+O.bodies.append(utils.wall(position=0, axis=2, sense=1,  material='wallmat'))   # floor (inlet)
+O.bodies.append(utils.wall(position=0.5, axis=2, sense=-1, material='wallmat')) # ceiling (outlet)
+O.bodies.append(utils.wall(position=0, axis=0, sense=1,  material='wallmat'))   # xMin
+O.bodies.append(utils.wall(position=0.05, axis=0, sense=-1, material='wallmat'))# xMax
+O.bodies.append(utils.wall(position=0, axis=1, sense=1,  material='wallmat'))   # yMin
+O.bodies.append(utils.wall(position=0.05, axis=1, sense=-1, material='wallmat'))# yMax
 
 # ── particle bed ──────────────────────────────────────────────────
-pred = pack.inAlignedBox((0, 0, 0.05), (0.05, 0.05, 0.30))
+# Bed region in OF coordinates: x,y in [0,0.05], z in [0.05,0.30]
+# Use makeCloud (random packing) rather than regularHexa — fewer
+# spheres avoids YADE's DOMAIN_DECOMPOSITION empty-subdomain bug.
+numSpheres = 100
 radius = 0.004
-O.bodies.append(pack.regularHexa(pred, radius=radius, gap=radius * 0.1))
+margin = 1e-3
+mn = (0.005, 0.005, 0.05 + margin)
+mx = (0.045, 0.045, 0.30 - margin)
 
-# assign sphere material
-for b in O.bodies:
-    if isinstance(b.shape, Sphere):
-        b.mat = O.materials[0]   # spheremat
+sp = pack.SpherePack()
+sp.makeCloud(mn, mx, rMean=radius, rRelFuzz=0.1, num=numSpheres)
+O.bodies.append([sphere(c, r, material='spheremat') for c, r in sp])
 
 sphereIDs = [b.id for b in O.bodies if isinstance(b.shape, Sphere)]
+print(f"[YADE] Created {len(sphereIDs)} spheres")
 
 os.makedirs("spheres", exist_ok=True)
 
@@ -50,10 +61,9 @@ fluidCoupling.SetOpenFoamSolver("porousGasificationFoam", numProcOF)
 fluidCoupling.setIdList(sphereIDs)
 
 # ── particle shrinkage ────────────────────────────────────────────
-CHAR_CORE_RADIUS = 0.0027  # ~67 % of initial -> ~30 % char residual
+CHAR_CORE_RADIUS = 0.0027
 
 def changeRadius():
-    """Shrink particles by lambdaDot; erase below char-core size."""
     for b in O.bodies:
         if not isinstance(b.shape, Sphere):
             continue
@@ -115,11 +125,11 @@ def write_VTK_spheres():
 O.engines = [
     ForceResetter(),
     InsertionSortCollider(
-        [Bo1_Sphere_Aabb(), Bo1_Facet_Aabb()],
+        [Bo1_Sphere_Aabb(), Bo1_Wall_Aabb()],
         label="collider",
     ),
     InteractionLoop(
-        [Ig2_Sphere_Sphere_ScGeom(), Ig2_Facet_Sphere_ScGeom()],
+        [Ig2_Sphere_Sphere_ScGeom(), Ig2_Wall_Sphere_ScGeom()],
         [Ip2_FrictMat_FrictMat_FrictPhys()],
         [Law2_ScGeom_FrictPhys_CundallStrack()],
     ),
