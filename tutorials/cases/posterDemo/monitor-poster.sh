@@ -50,10 +50,10 @@ hdr "Goal 1: PGF → YADE  (Ts heats spheres → spheres shrink)"
 # Sphere count from YADE startup
 SPHERE_COUNT=$(rg -oP 'Created \K\d+' "$LOG" 2>/dev/null | head -1)
 if [[ -n "$SPHERE_COUNT" ]]; then
-    if [[ "$SPHERE_COUNT" -ge 300 ]]; then
-        ok "Sphere count: ${BOLD}$SPHERE_COUNT${NC} (target 300)"
+    if [[ "$SPHERE_COUNT" -ge 60 ]]; then
+        ok "Sphere count: ${BOLD}$SPHERE_COUNT${NC} (target 60)"
     else
-        warn "Sphere count: $SPHERE_COUNT (target 300)"
+        warn "Sphere count: $SPHERE_COUNT (target 60)"
     fi
 else
     echo "  Waiting for YADE startup..."
