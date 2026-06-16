@@ -1,24 +1,38 @@
+# foamcli monitor config for posterDemo 2D monolayer coupling case
+# Run:  foamcli monitor .   (from case directory)
+#
+# Keyboard controls:
+#   p/n  → cycle heatmap fields
+#   f    → full-screen heatmap
+#   r    → refresh
+#   q    → quit (solver keeps running)
+
 [heatmap]
-# Solid-phase fields: bed structure, temperatures, fuel/char conversion.
-# DEM coupling: particle count, reaction rate, porosity fraction.
-fields = [
-    "porosityF", "Ts", "T", "p",
-    "Ywood", "Ychar", "Ydefault",
-    "nParticles", "lambdaDot", "alpha",
-]
+# Model-critical scalar fields, in display order:
+#   1. Ts         — solid temperature (drives lambdaDot / sphere shrinkage)
+#   2. T          — gas temperature
+#   3. porosityF  — bed porosity (solid volume fraction)
+#   4. Ywood      — wood mass fraction (pyrolysis reactant)
+#   5. Ychar      — char mass fraction (pyrolysis product)
+#   6. lambdaDot  — per-cell shrink factor (PGF → YADE coupling)
+#   7. nParticles — number of YADE spheres per cell
+#   8. targas     — gas-phase tar species
+#   9. rho        — gas density
+fields = ["Ts", "T", "porosityF", "Ywood", "Ychar", "lambdaDot", "nParticles", "targas", "rho"]
 
 [probes]
-# 7 centreline probes matching the centerlineProbes function object in
-# controlDict (z along the column axis from z = 0.03 to z = 0.21 m).
-labels = ["z=3cm", "z=6cm", "z=9cm", "z=12cm", "z=15cm", "z=18cm", "z=21cm"]
+# Centerline probes (y=0.002 is mid-plane of quasi-2D domain)
+# Bottom → top through the bed
+labels = ["bed-bottom", "bed-mid", "bed-top", "freeboard-1", "freeboard-2", "freeboard-3", "outlet"]
 
 [monitor]
-refresh_interval = 3.0
-panels = ["progress", "probes", "heatmap"]
+# Refresh every 2 seconds (default)
+refresh_interval = 2.0
+
+# Show all four panels
+panels = ["progress", "probes", "residuals", "heatmap"]
 
 [slice]
-# The poster column is 3D (4×4×8 cells).  Slice at the mid-y plane
-# (y = 0.02, matching the midPlane cutting plane in controlDict)
-# so the heatmap renders as a 2D xz-slice through the column.
+# Cut through the midplane of our 1-cell-thick 2D domain
 axis = "y"
-position = 0.02
+position = 0.002
