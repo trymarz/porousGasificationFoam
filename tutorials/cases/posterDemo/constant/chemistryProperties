@@ -63,11 +63,10 @@ solidOdeCoeffs
 // The 70 % targas is a single lumped gas species replacing the full
 // multi-species tar/CO/CO2/H2/H2O/CH4 set from updraftDemo.
 //
-// Kinetics: Ta=8000 K fires at 600-800 K. deltaH=0: pyrolysis can be either
-// endothermic or exothermic depending on reaction regime; for the DEM-coupling
-// poster demo we decouple thermal effects so Ts change is driven purely by gas
-// transport, not reaction heat. The radius shrinkage via lambdaDot = Tref/Ts
-// remains active.
+// Kinetics: Ta=8000 K fires at 600-800 K. deltaH=-75 kJ/kg (mild exothermic):
+// char-rich pyrolysis at high yield (30 %) is well-documented as exothermic,
+// and this value matches the updraftDemo kinetics. At −75 kJ/kg it is only
+// ~14 % of sensible heat (540 kJ/kg for 500→800 K), so it won't destabilise.
 // Coefficient tuple: (A  Ta  Tcrit  deltaH  n)
 //   A      pre-exponential factor          [1/s]
 //   Ta     activation temperature E/R      [K]
@@ -78,7 +77,7 @@ solidReactions
 (
     irreversibleSolidArrheniusHeterogeneousReaction
     1.0 wood = 0.30 char + 0.70 targas
-    (2.0e5 8000 300 0 1)
+    (2.0e5 8000 300 -75000 1)
 );
 
 // ************************************************************************* //
