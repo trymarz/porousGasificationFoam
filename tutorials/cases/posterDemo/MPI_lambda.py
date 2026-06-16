@@ -36,7 +36,7 @@ O.bodies.append(utils.wall(position=0.004, axis=1, sense=-1, material='wallmat')
 
 # ── particle bed ──────────────────────────────────────────────────
 # Regular 5×1×12 monolayer of touching spheres (r=0.004) fills the entire
-# domain (z=0→0.096, 0.04 m wide) as a single layer at y=0.002 — the centre
+# domain (z=0→0.097, 0.04 m wide) as a single layer at y=0.002 — the centre
 # of the 1-cell-thick quasi-2D mesh. Spheres touch neighbours and all six
 # walls → self-supporting, no settling. The only motion is shrinkage-driven
 # rearrangement, producing a sustained Us field for solid-phase advection;
@@ -45,7 +45,7 @@ O.bodies.append(utils.wall(position=0.004, axis=1, sense=-1, material='wallmat')
 # pack.regularOrtho places grid points at min+r+k·2r and pack.inAlignedBox
 # admits a sphere only if it fits entirely (centre in [min+r, max-r]).
 # So the x range [0,0.041] yields 5 centres (0.004…0.036) and z range
-# [0,0.096] yields 12 (0.004…0.092). For y we want exactly one centre at
+# [0,0.097] yields 12 (0.004…0.092). For y we want exactly one centre at
 # 0.002: min+r = -0.002+0.004 = 0.002 gives the first grid point, and the
 # admit window [0.002, max-r] = [0.002, 0.002] (max=0.006) keeps only it.
 numSpheres       = 60      # 5×1×12 monolayer
@@ -53,7 +53,7 @@ radius           = 0.004   # diameter 8 mm (5 across 0.04 m)
 CHAR_CORE_RADIUS = 0.001   # 25 % of initial (visible char core)
 
 mn = (0,     -0.002, 0)
-mx = (0.041,  0.007, 0.096)   # mx[1]-r=0.003 > mn[1]+r=0.002 → arange yields [0.002]
+mx = (0.041,  0.007, 0.097)   # mx_z-r=0.093 > last-centre 0.092 → all 12 layers fit
 
 sp = pack.regularOrtho(pack.inAlignedBox(mn, mx), radius, gap=0, material='spheremat')
 O.bodies.append(sp)
