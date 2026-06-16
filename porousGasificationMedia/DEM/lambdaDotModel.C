@@ -14,6 +14,7 @@ lambdaDotModel::lambdaDotModel
     volVectorField& Us, // interpolated velocity of spheres
     volScalarField& porosityF,
     const volScalarField& Ts, // solid temperature
+    const volScalarField& Ychar, // solid char mass fraction
     FoamYade& yade
 )
 :
@@ -24,6 +25,7 @@ lambdaDotModel::lambdaDotModel
     Us_(Us),
     porosityF_(porosityF),
     Ts_(Ts),
+    Ychar_(Ychar),
     yade_(yade),
     // to read lambda function from constant/lambdaDict
     lambdaFunc_
@@ -50,34 +52,39 @@ lambdaDotModel::lambdaDotModel
 
 void lambdaDotModel::update()
 {
-    // calc lambdaDot field
+    // ── Ychar-driven lambdaDot ──────────────────────────────────────
     //
-    // lambdaDot is the per-cell radius-scaling factor sent back to YADE: a
-    // value < 1 shrinks the spheres in that cell each coupling step. Here it
-    // is driven by the local solid temperature Ts: cells below Tref do not
-    // shrink (lambdaDot = 1), and shrinkage ramps linearly up to a maximum
-    // rate as Ts rises from Tref to Tactive. This realises the PGF -> YADE
-    // half of the coupling (hot solid devolatilises and the particles shrink
-    // toward their char core). The legacy lambdaDict / lambdaFunc_ is still
-    // read for backward compatibility but its value is intentionally unused.
-    const scalar Tref            = 500.0;    // below this, no shrinkage
-    const scalar Tactive         = 800.0;    // at this, maximum shrink rate
-    const scalar maxShrinkPerStep = 0.005;   // lambdaDot = 0.995 at Tactive (10× faster)
+    // lambdaDot = 1.0 − Ychar / Ychar_final   (clamped to [0.0, 1.0])
+    //
+    // Ychar_final = 0.70 is the stoichiometric char yield from the
+    // posterDemo chemistry:  1.0 wood → 0.70 char + 0.30 targas
+    // (chemistryProperties line 79).
+    //
+    // lambdaDot is now a *wood-remaining fraction* (not a per-step
+    // shrink rate):
+    //   Ychar = 0.00  →  lambdaDot = 1.00  →  r = r₀ = 0.004 m
+    //   Ychar = 0.35  →  lambdaDot = 0.50  →  r = 0.0025 m (halfway)
+    //   Ychar = 0.70  →  lambdaDot = 0.00  →  r = r_core = 0.001 m
+    //
+    // The YADE changeRadius() function (MPI_lambda.py) maps ld to
+    // radius linearly:  r = r_core + (r₀ − r_core) × ld
+    //
+    // The legacy lambdaDict / lambdaFunc_ is still read for backward
+    // compatibility but its value is intentionally unused, as is Ts_.
+    // lambdaDot_.correctBoundaryConditions() is called after the loop
+    // so boundary patches get consistent values.
+
+    const scalar Ychar_final = 0.70;
 
     forAll(lambdaDot_, cellI)
     {
-        const scalar TsLocal = Ts_[cellI];
+        const scalar yc = Ychar_[cellI];
 
-        if (TsLocal <= Tref)
-        {
-            lambdaDot_[cellI] = 1.0;
-        }
-        else
-        {
-            const scalar frac =
-                min(1.0, (TsLocal - Tref) / (Tactive - Tref));
-            lambdaDot_[cellI] = 1.0 - frac * maxShrinkPerStep;
-        }
+        // Guard against unphysical Ychar (should be [0, 0.70] but
+        // advection overshoot can push it a few percent beyond).
+        const scalar ycClipped = max(0.0, min(Ychar_final, yc));
+
+        lambdaDot_[cellI] = 1.0 - ycClipped / Ychar_final;
     }
 
     lambdaDot_.correctBoundaryConditions();

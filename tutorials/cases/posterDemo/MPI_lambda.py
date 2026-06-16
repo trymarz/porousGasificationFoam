@@ -83,23 +83,19 @@ fluidCoupling.SetOpenFoamSolver("porousGasificationFoam", numProcOF)
 fluidCoupling.setIdList(sphereIDs)
 
 # ── particle shrinkage ────────────────────────────────────────────
-# Spheres shrink toward a char core as the gas heats them; the shrink
-# factor lambdaDot is computed per-cell from Ts by lambdaDotModel on the OF
-# side and pushed onto each particle by FoamCoupling. Once CHAR_CORE_RADIUS is
-# reached, shrinkage stops and the particle is NOT erased: erasing a body
-# mid-run is unsafe (FoamCoupling::setHydroForce() dereferences a stale id list
-# -> null deref -> SIGSEGV). Clamping keeps every body alive.
+# Spheres shrink linearly toward CHAR_CORE_RADIUS as the solid pyrolyses.
+# lambdaDot = 1.0 − Ychar/Ychar_final (wood-remaining fraction, [0, 1]):
+#   lambdaDot = 1.00  →  Ychar = 0.00  →  r = r₀ = 0.004 m
+#   lambdaDot = 0.50  →  Ychar = 0.35  →  r = 0.0025 m
+#   lambdaDot = 0.00  →  Ychar = 0.70  →  r = CHAR_CORE_RADIUS = 0.001 m
 #
-# Shrinkage is Ts-driven only — porosityF is NOT involved. The spheres'
-# primary job is to produce a smooth Us field for advecting PGF continuum
-# fields; the visual shrinkage via lambdaDot is secondary.
+# The mapping is a linear interpolation:  r = r_core + (r₀ − r_core) × ld
 #
-# Fallback shrink rate: if FoamCoupling never updates lambdaDot (e.g. a cell
-# with no particles, or Ts <= Tref so lambdaDot stays 1.0), changeRadius leaves
-# the particle untouched (lambdaDot == 1.0 path). A tiny timer-based fallback is
-# kept for robustness but is effectively disabled here because the Ts-driven
-# field does the work.
-SHRINK_FRAC = 0.0   # rely on Ts-driven lambdaDot; no blind timer shrink
+# lambdaDot is computed per-cell on the OF side (lambdaDotModel::update)
+# from the solid char mass fraction Ychar, pushed onto each particle by
+# FoamCoupling, and applied here every 1 ms of sim time.  Once
+# CHAR_CORE_RADIUS is reached, the particle is clamped (never erased —
+# body erasure mid-run is unsafe).
 
 # ── master←worker lambdaDot sync (MPI stopgap) ────────────────────
 # In DOMAIN_DECOMPOSITION mode with ERASE_REMOTE_MASTER=False the YADE master
@@ -146,12 +142,9 @@ def changeRadius():
         if not isinstance(b.shape, Sphere):
             continue
         ld = b.state.lambdaDot
-        # If FoamCoupling updated lambdaDot (<0.9999), use it (correct path)
-        if ld < 0.9999:
-            new_rad = b.shape.radius * ld
-        else:
-            # Fallback: lambdaDot still 1.0 (cold cell / no coupling update)
-            new_rad = b.shape.radius * (1.0 - SHRINK_FRAC)
+        # lambdaDot = 1 − Ychar/Ychar_final ∈ [0, 1]
+        # Linearly interpolate radius between r₀ (all wood) and r_core (all char)
+        new_rad = CHAR_CORE_RADIUS + (radius - CHAR_CORE_RADIUS) * ld
         b.shape.radius = max(new_rad, CHAR_CORE_RADIUS)
 
 # ── VTK export ────────────────────────────────────────────────────
@@ -224,9 +217,8 @@ O.engines = [
     ),
     fluidCoupling,
     NewtonIntegrator(gravity=(0, 0, -9.81), damping=0.3, label="newton"),
-    # Apply the Ts-driven shrink factor frequently (every 1 ms of sim time) so
-    # the radius decays smoothly: at the hottest cells lambdaDot ~ 0.9995, and
-    # ~1400 calls bring r from 0.003 to the 0.0015 char core over the run.
+    # Apply the Ychar-driven shrink factor frequently (every 1 ms of sim time)
+    # so the radius tracks the local char yield smoothly as chemistry advances.
     PyRunner(command="changeRadius()",
              virtPeriod=0.001,
              label="radiusChanger"),
