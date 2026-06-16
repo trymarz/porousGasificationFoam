@@ -8,7 +8,7 @@ This file may lag the codebase. Before acting on any specific claim below, sanit
 
 Also flag if the *Last verified* date below predates significant recent commits in the affected area; in that case, propose a refresh rather than acting on stale guidance.
 
-*Last verified: 2026-05-21*
+*Last verified: 2026-06-16*
 
 ## Documentation split
 
@@ -52,6 +52,23 @@ The full human-facing version of this rule is in README → Development Workflow
 - **Falls-positive rule.** When in doubt whether something is in scope or what the user prefers, surface it. False questions are cheap; unsanctioned changes are expensive.
 - **Do not expand scope.** No incidental refactors, no "while I'm here" cleanups, no new abstractions for hypothetical future needs. Bug fixes do not need surrounding cleanup.
 - **Be explicit about what kind of verification you did.** This is a numerical solver: "type-checks and lints pass" is not the same as "the run produces correct results", and a successful build is not a successful regression. State what was actually exercised — not what the change *should* do, but what was observed.
+
+## DEM role in PGF coupling (frequent point of confusion)
+
+YADE DEM spheres **do not represent porosity**. Porosity is carried by the PGF continuum field `porosityF` and is entirely independent of the sphere positions/sizes. The spheres' sole role is:
+
+1. **Create a smooth `Us` (solid velocity) field** — DEM sphere motion is mapped to the grid as `UsDEM`, smoothed to `Us`, which advects the solid-phase PGF fields (solid fraction, solid enthalpy, solid species).
+2. **Provide lambdaDot** — the thermal shrink signal from the PGF gas phase is pushed onto each sphere via FoamCoupling; `changeRadius()` uses it to shrink spheres (visual/geometrical), but this does NOT drive the porosity field.
+
+**Consequences for setup:**
+- Spheres should be packed **densely enough to produce a smooth, jump-free `Us` field** across the bed region. Sparse spheres (current r=0.003, 11% solid fraction) leave gaps → Us jumps discontinuously where spheres pass → poor advection of solid-phase fields, and spheres fall through without interlocking.
+- The sphere packing density does NOT need to match `porosityF`. The bed `porosityF=0.40` (60% solid) in `setFieldsDict` is independent of how many spheres are placed. You can have `porosityF=0.40` with 11% solid fraction from spheres — but the Us field will be poor.
+- The goal is **dense interlocking spheres** (e.g. r=0.0045, 120–160 spheres in a 4×4×8 grid) so the bed self-supports under gravity and Us varies smoothly cell-to-cell.
+- `CHAR_CORE_RADIUS` (the minimum sphere radius after shrinkage) should be set so spheres stay large enough to maintain grid contact even after full shrinkage — otherwise they lose coupling to the Eulerian mesh.
+
+**What NOT to do:**
+- Do NOT try to make the sphere packing fraction match `porosityF`. That is a common mistake — the spheres represent moving discrete objects that produce a continuum velocity field, not the solid volume fraction itself.
+- Do NOT assume shrinking spheres change the porosity — `porosityF` evolves via its own transport equation with `Us`, not via sphere geometry.
 
 ## Pointers into README
 
