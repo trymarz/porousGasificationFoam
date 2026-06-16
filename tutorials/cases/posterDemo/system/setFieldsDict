@@ -19,7 +19,8 @@ FoamFile
 // Outside the bed porosityF = 1 (pure gas, no solid). Inside, porosityF = 0.40
 // and the solid is 100 % wood (Ywood = 1, Ychar = 0). The bed starts hot
 // (Ts = T = 800 K) so the Ts-driven particle shrinkage begins immediately;
-// YADE packs ~250 particles into this same region (see MPI_lambda.py).
+// YADE packs 60 particles (5x1x12 monolayer) into this same region (see
+// MPI_lambda.py). The box is 1 cell thick in y to match the quasi-2D mesh.
 
 defaultFieldValues
 (
@@ -33,7 +34,7 @@ regions
 (
     boxToCell
     {
-        box (0 0 0) (0.04 0.04 0.10);
+        box (0 0 0) (0.04 0.004 0.10);
         fieldValues
         (
             volScalarFieldValue porosityF  0.40

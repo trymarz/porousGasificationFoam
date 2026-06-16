@@ -30,9 +30,13 @@ boundaryField
         type            fixedValue;
         value           uniform 100000;
     }
-    walls
+    sideWalls
     {
         type            zeroGradient;
+    }
+    frontAndBack
+    {
+        type            empty;
     }
 }
 

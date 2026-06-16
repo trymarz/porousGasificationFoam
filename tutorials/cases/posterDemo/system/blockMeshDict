@@ -14,38 +14,40 @@ FoamFile
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-// Tiny vertical column for the poster DEM-coupling demo. Genuinely 3D so the
-// YADE particles have real cells to be located in. Gravity acts along -z; hot
-// gas enters the bottom (inlet) and leaves the top (outlet). Kept deliberately
-// small (192 cells) so the coupled YADE+OpenFOAM run finishes quickly.
+// Quasi-2D vertical slab for the poster DEM-coupling demo. One cell thick in y
+// (the front/back faces are `empty`, OpenFOAM's standard 2D treatment), so the
+// run solves in the x-z plane while the YADE spheres pack as a single monolayer
+// at y = 0.002 m. Gravity acts along -z; hot gas enters the bottom (inlet) and
+// leaves the top (outlet). Kept deliberately small (48 cells) so the coupled
+// YADE+OpenFOAM run finishes quickly.
 
 scale 1;
 
-// Cross-section 0.04 x 0.04 m, height 0.24 m.
+// Cross-section 0.04 x 0.004 m (1 cell thick in y), height 0.24 m.
 xMin  0;
 xMax  0.04;
 yMin  0;
-yMax  0.04;
+yMax  0.004;
 zMin  0;
 zMax  0.24;
 
 vertices
 (
-    (0    0    0   )   // 0
-    (0.04 0    0   )   // 1
-    (0.04 0.04 0   )   // 2
-    (0    0.04 0   )   // 3
-    (0    0    0.24)   // 4
-    (0.04 0    0.24)   // 5
-    (0.04 0.04 0.24)   // 6
-    (0    0.04 0.24)   // 7
+    (0    0     0   )   // 0
+    (0.04 0     0   )   // 1
+    (0.04 0.004 0   )   // 2
+    (0    0.004 0   )   // 3
+    (0    0     0.24)   // 4
+    (0.04 0     0.24)   // 5
+    (0.04 0.004 0.24)   // 6
+    (0    0.004 0.24)   // 7
 );
 
-// 4 x 4 cells across, 12 cells tall -> 192 cells.
-// dx = dy = 0.01 m, dz = 0.02 m.
+// 4 x 1 cells across, 12 cells tall -> 48 cells.
+// dx = 0.01 m, dy = 0.004 m, dz = 0.02 m.
 blocks
 (
-    hex (0 1 2 3 4 5 6 7) (4 4 12) simpleGrading (1 1 1)
+    hex (0 1 2 3 4 5 6 7) (4 1 12) simpleGrading (1 1 1)
 );
 
 edges
@@ -70,15 +72,22 @@ boundary
             (4 5 6 7)
         );
     }
-    walls
+    sideWalls
     {
         type wall;
         faces
         (
-            (0 1 5 4)   // y = yMin
-            (2 3 7 6)   // y = yMax
             (1 2 6 5)   // x = xMax
             (3 0 4 7)   // x = xMin
+        );
+    }
+    frontAndBack
+    {
+        type empty;
+        faces
+        (
+            (0 1 5 4)   // y = yMin
+            (2 3 7 6)   // y = yMax
         );
     }
 );

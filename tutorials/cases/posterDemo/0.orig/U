@@ -32,9 +32,13 @@ boundaryField
         inletValue      uniform (0 0 0);
         value           uniform (0 0 0);
     }
-    walls
+    sideWalls
     {
         type            slip;
+    }
+    frontAndBack
+    {
+        type            empty;
     }
 }
 

@@ -30,9 +30,13 @@ boundaryField
     {
         type            zeroGradient;
     }
-    walls
+    sideWalls
     {
         type            zeroGradient;
+    }
+    frontAndBack
+    {
+        type            empty;
     }
 }
 

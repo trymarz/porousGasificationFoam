@@ -31,9 +31,13 @@ boundaryField
         type            calculated;
         value           uniform 1;
     }
-    walls
+    sideWalls
     {
         type            zeroGradient;
+    }
+    frontAndBack
+    {
+        type            empty;
     }
 }
 
