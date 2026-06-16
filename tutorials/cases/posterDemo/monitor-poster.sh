@@ -101,7 +101,7 @@ for pd in root.iter('PointData'):
         fi
     fi
 else
-    echo "  Waiting for first VTK write (t=0.05)..."
+    echo "  Waiting for first VTK write..."
 fi
 
 # LambdaDot field from latest processor time dir
