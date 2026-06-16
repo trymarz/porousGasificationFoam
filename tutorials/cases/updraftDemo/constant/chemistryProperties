@@ -73,17 +73,17 @@ solidReactions
     // Poster kinetics: Ta 8kK fires at 600-800K, ΔH negative = exothermic.
     irreversibleSolidArrheniusHeterogeneousReaction
     0.0074 wood = 0.0074 char
-    (5.0e5 8000 300 -7.5e4 1)
+    (2.0e5 8000 300 -7.5e4 1)
 
     // R24b — permanent-gas release (57.4 %)
     irreversibleSolidArrheniusHeterogeneousReaction
     0.5738 wood = 0.2063 CO + 0.3387 CO2 + 0.0288 H2
-    (5.0e5 8000 300 -7.5e4 1)
+    (2.0e5 8000 300 -7.5e4 1)
 
     // R24c — tar + light-gas release (41.6 %)
     irreversibleSolidArrheniusHeterogeneousReaction
     0.4158 wood = 0.0567 H2O + 0.0171 CH4 + 0.3420 tar
-    (5.0e5 8000 300 -7.5e4 1)
+    (2.0e5 8000 300 -7.5e4 1)
 );
 
 // ************************************************************************* //
