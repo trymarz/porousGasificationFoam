@@ -194,7 +194,21 @@ void volPyrolysis::solveEnergy()
                 max
                 (
                     rho_ * solidThermo_.Cp() * (1 - porosity_),
-                    dimensionedScalar("minRhoCp",dimEnergy/dimTemperature/dimVolume,SMALL)
+                    // Floor at 100 J/(m^3 K), not SMALL. In whereIs=0 / pure-gas
+                    // cells (1-porosity)=0, so the solid term vanishes and rhoCp
+                    // would collapse to SMALL (~1e-15). Combined with the
+                    // interface off-diagonal zeroing below, that leaves a TEqn
+                    // diagonal of ~rhoCp*V/dt ~ 1e-18 for those cells, while solid
+                    // cells carry ~1e3. The DIC preconditioner inverts that
+                    // ~1e21 condition number into trillion-scale off-diagonals
+                    // and DICPCG "converges" to physically garbage Ts (e.g.
+                    // -51485 K) in 2 iterations. A 100 floor lifts the isolated
+                    // diagonal to ~0.2, dropping the condition number to ~1e4.
+                    // These cells have no energy sources (chemistry/htf/radiation
+                    // are all zero where 1-porosity=0), so the floor changes only
+                    // the conditioning, never the solid-cell physics (there the
+                    // real rhoCp is 5e5-1e6, far above the floor).
+                    dimensionedScalar("minRhoCp",dimEnergy/dimTemperature/dimVolume,100.0)
                 )
             );
 
@@ -262,6 +276,7 @@ void volPyrolysis::solveEnergy()
             }
 
 
+
             surfaceScalarField solidFluxRhoCp = mesh_.Sf() & surfSolidU * fvc::interpolate(rhoCp,"rhoCpInt");
 
             // Simplistic immersed boundary for heat transport in solid phase.
@@ -295,6 +310,7 @@ void volPyrolysis::solveEnergy()
                }
             }
 
+
             TLap.diag() = 0;
             TLap.negSumDiag();
             // Correct on orthogonal meshes
@@ -315,8 +331,11 @@ void volPyrolysis::solveEnergy()
               + radiationSh_
             );
 
+
+
             TEqn.relax();
             TEqn.solve();
+
 
             // Clamp solid temperature to physical bounds.  The explicit
             // heat-transfer coupling and the immersed-boundary treatment
