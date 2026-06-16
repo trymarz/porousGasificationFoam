@@ -1,0 +1,14 @@
+[heatmap]
+# Key fields for monitoring updraft gasification: solid temperature,
+# gas temperature, porosity (bed opening), fuel/char conversion,
+# and pressure.
+fields = ["porosityF", "Ts", "T", "p", "Ywood", "Ychar", "Ydefault"]
+
+[probes]
+# 8 centreline probes matching the centerlineProbes function object in
+# controlDict (z along the column axis from z = 0.05 to z = 0.50 m).
+labels = ["z=5cm", "z=10cm", "z=15cm", "z=20cm", "z=25cm", "z=30cm", "z=40cm", "z=50cm"]
+
+[monitor]
+refresh_interval = 3.0
+panels = ["progress", "probes", "heatmap"]
