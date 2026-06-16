@@ -115,12 +115,22 @@ if [[ -n "$LATEST_PDIR" ]]; then
 import re
 with open('$LD_FILE', 'rb') as f:
     data = f.read()
-start = data.rfind(b'(')
-if start >= 0:
-    text = data[start+1:].decode('ascii', errors='ignore')
-    vals = [float(x) for x in re.findall(r'[\d.e+-]+', text) if x.strip()]
-    if vals:
-        print(f'{min(vals):.6f} {max(vals):.6f} {sum(vals)/len(vals):.6f} {len(vals)}')
+# Find internalField block and parse scalar values after the opening (
+idx = data.find(b'internalField')
+if idx >= 0:
+    tail = data[idx:].decode('ascii', errors='ignore')
+    m = re.search(r'\(', tail)
+    if m:
+        block = tail[m.start():]
+        # Parse all float tokens, filter out boundary-condition noise
+        vals = []
+        for tok in re.findall(r'[\d.e+\-]+', block):
+            try: vals.append(float(tok))
+            except: pass
+        # Only keep values in the [0.9, 1.0] range (lambdaDot domain)
+        vals = [v for v in vals if 0.9 <= v <= 1.0]
+        if vals:
+            print(f'{min(vals):.6f} {max(vals):.6f} {sum(vals)/len(vals):.6f} {len(vals)}')
 " 2>/dev/null)
         if [[ -n "$LD_VALS" ]]; then
             read LD_MIN LD_MAX LD_MEAN LD_N <<< "$LD_VALS"
@@ -143,7 +153,7 @@ fi
 # ── Goal 2: YADE → PGF (solid advection via Us) ────────────────────
 hdr "Goal 2: YADE → PGF  (DEM motion → Us → solid advection)"
 
-# Us field magnitude
+# Us field magnitude (vector field in nonuniform List<vector> format)
 if [[ -n "$LATEST_PDIR" ]]; then
     US_FILE="$LATEST_PDIR/Us"
     if [[ -f "$US_FILE" ]]; then
@@ -151,18 +161,21 @@ if [[ -n "$LATEST_PDIR" ]]; then
 import re
 with open('$US_FILE', 'rb') as f:
     data = f.read()
-start = data.rfind(b'(')
-if start >= 0:
-    text = data[start+1:].decode('ascii', errors='ignore')
-    # Parse vector values: (x y z)
-    vecs = re.findall(r'\(([\d.e+\- ]+)\)', text)
-    mags = []
-    for v in vecs:
-        parts = v.split()
-        if len(parts) >= 3:
-            try: mags.append((float(parts[0])**2+float(parts[1])**2+float(parts[2])**2)**0.5)
-            except: pass
-    if mags: print(f'{min(mags):.6f} {max(mags):.6f} {sum(mags)/len(mags):.6f} {len(mags)}')
+# Find List<vector> then parse all (x y z) vectors after the opening (
+idx = data.find(b'List<vector>')
+if idx >= 0:
+    tail = data[idx:].decode('ascii', errors='ignore')
+    m = re.search(r'\(', tail)
+    if m:
+        block = tail[m.start():]
+        vecs = re.findall(r'\(([\d.e+\- ]+)\)', block)
+        mags = []
+        for v in vecs:
+            parts = v.split()
+            if len(parts) >= 3:
+                try: mags.append((float(parts[0])**2+float(parts[1])**2+float(parts[2])**2)**0.5)
+                except: pass
+        if mags: print(f'{min(mags):.6f} {max(mags):.6f} {sum(mags)/len(mags):.6f} {len(mags)}')
 " 2>/dev/null)
         if [[ -n "$US_VALS" ]]; then
             read US_MIN US_MAX US_MEAN US_N <<< "$US_VALS"
@@ -203,13 +216,19 @@ if [[ -n "$LATEST_PDIR" ]]; then
 import re
 with open('$PORO_FILE', 'rb') as f:
     data = f.read()
-start = data.rfind(b'(')
-if start >= 0:
-    text = data[start+1:].decode('ascii', errors='ignore')
-    vals = [float(x) for x in re.findall(r'[\d.e+-]+', text) if x.strip()]
-    if vals:
-        bed = [v for v in vals if v < 0.999]
-        if bed: print(f'{min(bed):.4f} {max(bed):.4f} {sum(bed)/len(bed):.4f}')
+idx = data.find(b'internalField')
+if idx >= 0:
+    tail = data[idx:].decode('ascii', errors='ignore')
+    m = re.search(r'\(', tail)
+    if m:
+        block = tail[m.start():]
+        vals = []
+        for tok in re.findall(r'[\d.e+\-]+', block):
+            try: vals.append(float(tok))
+            except: pass
+        if vals:
+            bed = [v for v in vals if v < 0.999]
+            if bed: print(f'{min(bed):.4f} {max(bed):.4f} {sum(bed)/len(bed):.4f}')
 " 2>/dev/null)
         if [[ -n "$PORO_VALS" ]]; then
             read P_MIN P_MAX P_MEAN <<< "$PORO_VALS"
