@@ -73,7 +73,7 @@ O.engines = [
         timestepSafetyCoefficient=0.5,
         defaultDt=1e-6,
         timeStepUpdateInterval=50,
-        parallelMode=True,
+        parallelMode=False,   # no MPI sync needed for pure-DEM settling
         label="ts",
     ),
     NewtonIntegrator(gravity=(0, 0, -9.81), damping=0.3, label="newton"),
