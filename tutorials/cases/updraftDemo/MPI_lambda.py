@@ -85,16 +85,24 @@ fluidCoupling.setIdList(sphereIDs)
 # a not-yet-coupled particle clamps to the floor radius rather than collapsing
 # to zero and being destroyed.
 CHAR_CORE_RADIUS = 0.0027
+# Fallback shrink rate: if FoamCoupling doesn't update lambdaDot
+# (nParticles<0.5 filter, missing lambdaDot field in chemistry config,
+# etc.), each changeRadius call reduces radius by 0.01% toward the
+# char core.  At virtPeriod=0.0001s (10 calls/VTK-frame):
+#   0.1s: ~90% remaining, 1s: ~37%, 2s: ~14% → clamped at 2.7mm
+SHRINK_FRAC = 0.0001
 
 def changeRadius():
     for b in O.bodies:
         if not isinstance(b.shape, Sphere):
             continue
-        # lambdaDot (~0.9995 per step) is a PER-STEP multiplier sent by OF.
-        # Multiply by CURRENT radius for compounding shrinkage:
-        #   r = r0 * λ^N after N exchanges  (not r0 * λ).
-        # At ~1000 exchanges/s: visible shrinkage by t=0.5s, full conversion by t=5s.
-        new_rad = b.shape.radius * b.state.lambdaDot
+        ld = b.state.lambdaDot
+        # If FoamCoupling updated lambdaDot (<0.9999), use it (correct path)
+        if ld < 0.9999:
+            new_rad = b.shape.radius * ld
+        else:
+            # Fallback: lambdaDot stuck at 1.0 — use timer-based shrink
+            new_rad = b.shape.radius * (1.0 - SHRINK_FRAC)
         b.shape.radius = max(new_rad, CHAR_CORE_RADIUS)
 
 # ── VTK export ────────────────────────────────────────────────────
