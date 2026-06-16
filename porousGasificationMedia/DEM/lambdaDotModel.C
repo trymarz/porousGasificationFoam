@@ -62,7 +62,7 @@ void lambdaDotModel::update()
     // read for backward compatibility but its value is intentionally unused.
     const scalar Tref            = 500.0;    // below this, no shrinkage
     const scalar Tactive         = 800.0;    // at this, maximum shrink rate
-    const scalar maxShrinkPerStep = 0.0005;  // lambdaDot = 0.9995 at Tactive
+    const scalar maxShrinkPerStep = 0.005;   // lambdaDot = 0.995 at Tactive (10× faster)
 
     forAll(lambdaDot_, cellI)
     {
