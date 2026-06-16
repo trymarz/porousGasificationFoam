@@ -7,7 +7,7 @@ cd "${0%/*}" || exit
 #  Yade is the MPI parent and spawns the OpenFOAM ranks itself).
 
 rm -rf 0
-cp -r 0_orig 0
+cp -r 0.orig 0
 
 runApplication blockMesh
 runApplication setFields
