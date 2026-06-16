@@ -15,11 +15,11 @@ FoamFile
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-// Pack a dry-wood bed into the lower 5 layers of the column (z = 0 -> 0.15).
+// Pack a dry-wood bed into the lower part of the column (z = 0 -> 0.15).
 // Outside the bed porosityF = 1 (pure gas, no solid). Inside, porosityF = 0.40
 // and the solid is 100 % wood (Ywood = 1, Ychar = 0). The bed starts hot
 // (Ts = T = 800 K) so the Ts-driven particle shrinkage begins immediately;
-// YADE packs ~120 particles into this same region (see MPI_lambda.py).
+// YADE packs ~500 particles into this same region (see MPI_lambda.py).
 
 defaultFieldValues
 (
