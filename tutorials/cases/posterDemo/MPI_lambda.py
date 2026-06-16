@@ -32,15 +32,19 @@ O.bodies.append(utils.wall(position=0,    axis=1, sense=1,  material='wallmat'))
 O.bodies.append(utils.wall(position=0.04, axis=1, sense=-1, material='wallmat')) # yMax
 
 # ── particle bed ──────────────────────────────────────────────────
-# Pack the spheres into the lower 5 mesh layers (z = 0 -> 0.15), aligned with
-# the porous bed set by setFields. O.run() settling is not viable in MPI mode,
-# so the bed is packed dense from the start via makeCloud.
+# Pack spheres densely into the lower 5 mesh layers (z = 0 -> 0.15),
+# aligned with the porous bed set by setFields. O.run() settling is not
+# viable in MPI mode, so the bed is packed dense from the start via
+# makeCloud.  The spheres exist to produce a smooth Us (solid velocity)
+# field for advecting PGF continuum fields; they do NOT represent
+# porosity (that's porosityF).  Packing density targets interlocking
+# for smooth Us, not any specific solid fraction.
 numSpheres       = 120
-radius           = 0.003    # < cell width (0.01), one sphere fits inside a cell
-CHAR_CORE_RADIUS = 0.0015   # half the initial radius (pyrolysis char core)
+radius           = 0.0045   # max that fits inside cell width (0.01)
+CHAR_CORE_RADIUS = 0.00225  # 50 % of initial (pyrolysis char core)
 
-mn = (0.005, 0.005, radius)
-mx = (0.035, 0.035, 0.14)
+mn = (radius, radius, radius)                   # offset from walls
+mx = (0.04 - radius, 0.04 - radius, 0.15 - radius)
 
 sp = pack.SpherePack()
 sp.makeCloud(mn, mx, rMean=radius, rRelFuzz=0.05, num=numSpheres)
@@ -71,12 +75,16 @@ fluidCoupling.SetOpenFoamSolver("porousGasificationFoam", numProcOF)
 fluidCoupling.setIdList(sphereIDs)
 
 # ── particle shrinkage ────────────────────────────────────────────
-# Particles shrink toward a char core as the local solid heats up; the shrink
+# Spheres shrink toward a char core as the gas heats them; the shrink
 # factor lambdaDot is computed per-cell from Ts by lambdaDotModel on the OF
 # side and pushed onto each particle by FoamCoupling. Once CHAR_CORE_RADIUS is
 # reached, shrinkage stops and the particle is NOT erased: erasing a body
 # mid-run is unsafe (FoamCoupling::setHydroForce() dereferences a stale id list
 # -> null deref -> SIGSEGV). Clamping keeps every body alive.
+#
+# Shrinkage is Ts-driven only — porosityF is NOT involved. The spheres'
+# primary job is to produce a smooth Us field for advecting PGF continuum
+# fields; the visual shrinkage via lambdaDot is secondary.
 #
 # Fallback shrink rate: if FoamCoupling never updates lambdaDot (e.g. a cell
 # with no particles, or Ts <= Tref so lambdaDot stays 1.0), changeRadius leaves
