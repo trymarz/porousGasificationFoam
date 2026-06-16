@@ -2,7 +2,7 @@ import os
 from yade import mpy as mp
 from yade import pack, utils
 
-counter = [1]   # mutable so we can reset after settling
+counter = [1]   # VTK frame counter (list for mutable closure capture)
 
 # ── coupling / run control ──────────────────────────────────────────
 parallelYade = True
@@ -33,59 +33,25 @@ O.bodies.append(utils.wall(position=0, axis=1, sense=1,  material='wallmat'))   
 O.bodies.append(utils.wall(position=0.05, axis=1, sense=-1, material='wallmat'))# yMax
 
 # ── particle bed ──────────────────────────────────────────────────
-# Bed region in OF coordinates: x,y in [0,0.05], z in [0.05,0.30]
-# Use makeCloud (random packing) rather than regularHexa — fewer
-# spheres avoids YADE's DOMAIN_DECOMPOSITION empty-subdomain bug.
+# Spheres are placed directly on the floor (radius-offset in z).
+# O.run() settling is NOT viable in MPI mode — YADE's internal MPI
+# sync in the engine loop (GlobalStiffnessTimeStepper, collider, etc.)
+# blocks before mp.mpirun() sets up the coupling framework.
+# Instead, pack spheres into a dense bed from the start using makeCloud.
 numSpheres = 100
 radius = 0.004
-margin = 1e-3
-mn = (0.005, 0.005, 0.05 + margin)
-mx = (0.045, 0.045, 0.30 - margin)
+# Bed: 0.04×0.04 in xy, z from floor (radius) to 6cm (~30% packing at 100 spheres)
+mn = (0.005, 0.005, radius)
+mx = (0.045, 0.045, 0.06)
 
 sp = pack.SpherePack()
 sp.makeCloud(mn, mx, rMean=radius, rRelFuzz=0.1, num=numSpheres)
 O.bodies.append([sphere(c, r, material='spheremat') for c, r in sp])
 
 sphereIDs = [b.id for b in O.bodies if isinstance(b.shape, Sphere)]
-print(f"[YADE] Created {len(sphereIDs)} spheres")
+print(f"[YADE] Created {len(sphereIDs)} spheres, z range [{mn[2]:.4f}, {mx[2]:.4f}]")
 
 os.makedirs("spheres", exist_ok=True)
-
-# ── gravity settling (pure DEM — no FoamCoupling in engine list) ──
-# FoamCoupling::action() spawns OF on first call via MPI_Comm_spawn.
-# If it's in the engine list during O.run(), it either (a) spawns OF
-# prematurely (double-spawn vs mp.mpirun()) or (b) blocks / zeroes
-# forces if OF isn't live.  Pure DEM settling avoids both.
-# GlobalStiffnessTimeStepper dt ≈ 1e-7 for stiff sphere-sphere contacts.
-# 2M steps ≈ 0.2s virtual — t_fall = sqrt(2·0.3/9.81) = 0.25s.
-O.engines = [
-    ForceResetter(),
-    InsertionSortCollider(
-        [Bo1_Sphere_Aabb(), Bo1_Wall_Aabb()],
-        label="collider",
-    ),
-    InteractionLoop(
-        [Ig2_Sphere_Sphere_ScGeom(), Ig2_Wall_Sphere_ScGeom()],
-        [Ip2_FrictMat_FrictMat_FrictPhys()],
-        [Law2_ScGeom_FrictPhys_CundallStrack()],
-    ),
-    GlobalStiffnessTimeStepper(
-        timestepSafetyCoefficient=0.5,
-        defaultDt=1e-6,
-        timeStepUpdateInterval=50,
-        parallelMode=False,   # no MPI sync needed for pure-DEM settling
-        label="ts",
-    ),
-    NewtonIntegrator(gravity=(0, 0, -9.81), damping=0.3, label="newton"),
-]
-print(f"[YADE] Starting gravity settling (pure DEM, no coupling) — {len(O.bodies)} bodies (incl. walls)")
-print(f"[YADE] O.time = {O.time:.6f}")
-O.run(2000000, True)
-zMin = min(b.state.pos[2] for b in O.bodies if isinstance(b.shape, Sphere))
-zMax = max(b.state.pos[2] for b in O.bodies if isinstance(b.shape, Sphere))
-print(f"[YADE] Settled: O.time = {O.time:.4f}s, z range [{zMin:.4f}, {zMax:.4f}]")
-
-counter[0] = 1  # reset VTK counter for coupled phase
 
 # ── foam coupling ─────────────────────────────────────────────────
 fluidCoupling = FoamCoupling()
