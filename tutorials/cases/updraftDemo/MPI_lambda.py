@@ -162,6 +162,7 @@ mp.FLUID_COUPLING         = True
 mp.VERBOSE_OUTPUT         = False
 mp.USE_CPP_INTERS         = False
 mp.ERASE_REMOTE_MASTER    = False
+mp.ERASE_REMOTE           = False
 mp.REALLOC_FREQUENCY      = 0
 mp.fluidBodies            = sphereIDs
 mp.DOMAIN_DECOMPOSITION   = True
