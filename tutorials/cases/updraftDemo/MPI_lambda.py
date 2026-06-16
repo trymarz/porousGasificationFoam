@@ -61,6 +61,17 @@ fluidCoupling.SetOpenFoamSolver("porousGasificationFoam", numProcOF)
 fluidCoupling.setIdList(sphereIDs)
 
 # ── particle shrinkage ────────────────────────────────────────────
+# Particles shrink toward a char core as volatiles (gas + tar) leave;
+# once CHAR_CORE_RADIUS is reached, shrinkage stops and the particle is
+# NOT erased.  Erasing a body mid-run is unsafe: FoamCoupling::setHydroForce()
+# runs every iteration against a bIds list that is only rebuilt on coupling
+# exchanges, and dereferences each id with no null check
+# (FoamCoupling.cpp:655, `Body::byId(...)->state`).  A body erased between
+# exchanges leaves a dangling id there → null deref → SIGSEGV on rank 1.
+# Clamping instead of erasing keeps every body alive, so the id list never
+# goes stale.  It also neutralises the lambdaDot default of 0.0 (core/State.hpp):
+# a not-yet-coupled particle clamps to the floor radius rather than collapsing
+# to zero and being destroyed.
 CHAR_CORE_RADIUS = 0.0027
 
 def changeRadius():
@@ -68,11 +79,7 @@ def changeRadius():
         if not isinstance(b.shape, Sphere):
             continue
         new_rad = b.shape.radius * b.state.lambdaDot
-        if new_rad < CHAR_CORE_RADIUS:
-            fluidCoupling.eraseId(b.id)
-            mp.bodyErase(b.id)
-        else:
-            b.shape.radius = new_rad
+        b.shape.radius = max(new_rad, CHAR_CORE_RADIUS)
 
 # ── VTK export ────────────────────────────────────────────────────
 file_names_proc = []
