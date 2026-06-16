@@ -32,20 +32,24 @@ O.bodies.append(utils.wall(position=0,    axis=1, sense=1,  material='wallmat'))
 O.bodies.append(utils.wall(position=0.04, axis=1, sense=-1, material='wallmat')) # yMax
 
 # ── particle bed ──────────────────────────────────────────────────
-# Pack spheres densely into the lower part of the column (z = 0 -> 0.15),
+# Pack spheres densely into the lower part of the column (z = 0 -> 0.10),
 # aligned with the porous bed set by setFields. O.run() settling is not
 # viable in MPI mode, so the bed is packed dense from the start via
 # makeCloud.  The spheres exist to produce a smooth Us (solid velocity)
 # field for advecting PGF continuum fields; they do NOT represent
 # porosity (that's porosityF).  Packing density targets interlocking
 # for smooth Us, not any specific solid fraction.
-numSpheres       = 500
-radius           = 0.003    # diameter 6 mm, fits ~3 across a cell width
-CHAR_CORE_RADIUS = 0.0015   # 50 % of initial (pyrolysis char core)
+numSpheres       = 250    # target ~3 per bed cell at 26% solid fraction
+radius           = 0.003  # diameter 6 mm
+CHAR_CORE_RADIUS = 0.0015 # 50 % of initial (pyrolysis char core)
 
 mn = (radius, radius, radius)                   # offset from walls
-mx = (0.04 - radius, 0.04 - radius, 0.15 - radius)
+mx = (0.04 - radius, 0.04 - radius, 0.10 - radius)
 
+# Fixed random seed so both MPI ranks create identical sphere packs —
+# avoids rank-0 / rank-1 body-count mismatch that can deadlock MPI.
+import random
+random.seed(42)
 sp = pack.SpherePack()
 sp.makeCloud(mn, mx, rMean=radius, rRelFuzz=0.05, num=numSpheres)
 O.bodies.append([sphere(c, r, material='spheremat') for c, r in sp])

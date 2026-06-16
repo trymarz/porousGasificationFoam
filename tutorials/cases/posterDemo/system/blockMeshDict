@@ -17,7 +17,7 @@ FoamFile
 // Tiny vertical column for the poster DEM-coupling demo. Genuinely 3D so the
 // YADE particles have real cells to be located in. Gravity acts along -z; hot
 // gas enters the bottom (inlet) and leaves the top (outlet). Kept deliberately
-// small (256 cells) so the coupled YADE+OpenFOAM run finishes quickly.
+// small (192 cells) so the coupled YADE+OpenFOAM run finishes quickly.
 
 scale 1;
 
@@ -41,11 +41,11 @@ vertices
     (0    0.04 0.24)   // 7
 );
 
-// 4 x 4 cells across, 16 cells tall -> 256 cells.
-// dx = dy = 0.01 m, dz = 0.015 m.
+// 4 x 4 cells across, 12 cells tall -> 192 cells.
+// dx = dy = 0.01 m, dz = 0.02 m.
 blocks
 (
-    hex (0 1 2 3 4 5 6 7) (4 4 16) simpleGrading (1 1 1)
+    hex (0 1 2 3 4 5 6 7) (4 4 12) simpleGrading (1 1 1)
 );
 
 edges
