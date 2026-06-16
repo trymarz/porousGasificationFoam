@@ -9,9 +9,9 @@ parallelYade = True
 numProcOF    = 2
 nsteps       = int(3e6)   # ~3s headroom at YADE dt~1e-6 (OF stops first at endTime=2s)
 
-# Sphere-VTK cadence: one frame every 0.05 s of sim time, matching the
-# OpenFOAM writeInterval (40 frames over the 2 s run).
-SAVE_VTK_VIRT_PERIOD  = 0.05
+# Sphere-VTK cadence: one frame every 0.01 s of sim time, matching the
+# OpenFOAM writeInterval (200 frames over the 2 s run).
+SAVE_VTK_VIRT_PERIOD  = 0.01
 
 # ── materials ─────────────────────────────────────────────────────
 O.materials.append(FrictMat(

@@ -31,7 +31,7 @@ maxDeltaT       1e-3;
 
 writeControl    adjustableRunTime;
 
-writeInterval   0.05;
+writeInterval   0.01;
 
 purgeWrite      0;
 
@@ -62,7 +62,7 @@ functions
         type            probes;
         libs            ("libsampling.so");
         writeControl    adjustableRunTime;
-        writeInterval   0.05;
+        writeInterval   0.01;
         fields          (T Ts N2 targas Ywood Ychar porosityF);
         probeLocations
         (
@@ -82,7 +82,7 @@ functions
         type            volFieldValue;
         libs            ("libfieldFunctionObjects.so");
         writeControl    adjustableRunTime;
-        writeInterval   0.05;
+        writeInterval   0.01;
         writeFields     false;
         log             false;
         regionType      all;
@@ -96,7 +96,7 @@ functions
         type            volFieldValue;
         libs            ("libfieldFunctionObjects.so");
         writeControl    adjustableRunTime;
-        writeInterval   0.05;
+        writeInterval   0.01;
         writeFields     false;
         log             false;
         regionType      all;
@@ -110,7 +110,7 @@ functions
         type            surfaces;
         libs            ("libsampling.so");
         writeControl    adjustableRunTime;
-        writeInterval   0.05;
+        writeInterval   0.01;
         surfaceFormat   vtk;
         fields          (T Ts porosityF Ywood Ychar);
         interpolationScheme cellPoint;
