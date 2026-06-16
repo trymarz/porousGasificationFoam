@@ -85,7 +85,47 @@ fluidCoupling.setIdList(sphereIDs)
 # field does the work.
 SHRINK_FRAC = 0.0   # rely on Ts-driven lambdaDot; no blind timer shrink
 
+# ── master←worker lambdaDot sync (MPI stopgap) ────────────────────
+# In DOMAIN_DECOMPOSITION mode with ERASE_REMOTE_MASTER=False the YADE master
+# (rank 0) keeps a full copy of every body, but FoamCoupling delivers the
+# Ts-driven lambdaDot only to the worker that owns each body — the master's
+# copies stay frozen at the initial radius. Mirror the worker's lambdaDot onto
+# the master so rank-0 spheres shrink in step with the worker-owned ones.
+#
+# This is the immediately-testable counterpart to the C++ fix
+# (FoamCoupling::syncLambdaDotToMaster): once a YADE built with that fix is in
+# use this Python sync is redundant, but it stays harmless (idempotent).
+#
+# Collective + safe: changeRadius() runs on every rank at identical virtual
+# time (parallel timestepper synchronises dt and iter), so the broadcast below
+# is reached in lockstep on all ranks. Assumes the demo's single-worker
+# topology (rank 1 owns the whole domain); for >1 worker, rely on the C++ fix.
+def _sync_lambdaDot_master_slave():
+    if not parallelYade:
+        return
+    comm = getattr(mp, 'comm', None)
+    if comm is None:
+        from mpi4py import MPI
+        comm = MPI.COMM_WORLD
+    if comm.Get_size() < 2:
+        return
+    rank = comm.Get_rank()
+    # The worker (rank 1) owns the coupled bodies and receives lambdaDot from
+    # FoamCoupling; broadcast its {id: lambdaDot} map to the master.
+    ld_map = None
+    if rank == 1:
+        ld_map = {b.id: b.state.lambdaDot
+                  for b in O.bodies if isinstance(b.shape, Sphere)}
+    ld_map = comm.bcast(ld_map, root=1)
+    if rank == 0 and ld_map:
+        for b in O.bodies:
+            if isinstance(b.shape, Sphere):
+                ld = ld_map.get(b.id)
+                if ld is not None:
+                    b.state.lambdaDot = ld
+
 def changeRadius():
+    _sync_lambdaDot_master_slave()
     for b in O.bodies:
         if not isinstance(b.shape, Sphere):
             continue
