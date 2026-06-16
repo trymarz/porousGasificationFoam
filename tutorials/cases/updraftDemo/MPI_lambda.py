@@ -144,10 +144,10 @@ mp.YADE_TIMING            = False
 mp.FLUID_COUPLING         = True
 mp.VERBOSE_OUTPUT         = False
 mp.USE_CPP_INTERS         = False
-mp.ERASE_REMOTE_MASTER    = True
-mp.REALLOC_FREQUENCY      = 12
+mp.ERASE_REMOTE_MASTER    = False
+mp.REALLOC_FREQUENCY      = 0
 mp.fluidBodies            = sphereIDs
-mp.DOMAIN_DECOMPOSITION   = False  # small domain — all particles on rank 0
+mp.DOMAIN_DECOMPOSITION   = True
 mp.mpirun(nSteps=nsteps, np=numProcOF)
 fluidCoupling.killMPI()
 mp.mprint("Run finished")
