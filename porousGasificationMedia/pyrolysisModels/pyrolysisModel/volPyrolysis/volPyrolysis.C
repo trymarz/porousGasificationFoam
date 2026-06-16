@@ -275,8 +275,6 @@ void volPyrolysis::solveEnergy()
                 }
             }
 
-
-
             surfaceScalarField solidFluxRhoCp = mesh_.Sf() & surfSolidU * fvc::interpolate(rhoCp,"rhoCpInt");
 
             // Simplistic immersed boundary for heat transport in solid phase.
@@ -310,7 +308,6 @@ void volPyrolysis::solveEnergy()
                }
             }
 
-
             TLap.diag() = 0;
             TLap.negSumDiag();
             // Correct on orthogonal meshes
@@ -331,11 +328,8 @@ void volPyrolysis::solveEnergy()
               + radiationSh_
             );
 
-
-
             TEqn.relax();
             TEqn.solve();
-
 
             // Clamp solid temperature to physical bounds.  The explicit
             // heat-transfer coupling and the immersed-boundary treatment
