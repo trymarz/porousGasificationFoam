@@ -1,8 +1,11 @@
 [heatmap]
-# Key fields for monitoring updraft gasification: solid temperature,
-# gas temperature, porosity (bed opening), fuel/char conversion,
-# and pressure.
-fields = ["porosityF", "Ts", "T", "p", "Ywood", "Ychar", "Ydefault"]
+# Solid-phase fields: bed structure, temperatures, fuel/char conversion.
+# DEM coupling: particle count, reaction rate, porosity fraction.
+fields = [
+    "porosityF", "Ts", "T", "p",
+    "Ywood", "Ychar", "Ydefault",
+    "nParticles", "lambdaDot", "alpha",
+]
 
 [probes]
 # 8 centreline probes matching the centerlineProbes function object in
