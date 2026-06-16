@@ -1239,6 +1239,16 @@ void volPyrolysis::preEvolveRegion() {
         }
     }
 
+    // Temporary diagnostic: count reacting vs total cells
+    label nReacting = 0;
+    forAll(T_, cellI)
+    {
+        if (whereIs_[cellI] != 0) nReacting++;
+    }
+    Info<< "DIAG preEvolveRegion: " << nReacting << "/" << mesh_.nCells()
+        << " reacting cells, active_=" << active_ << ", time="
+        << mesh_.time().timeName() << nl;
+
 }
 
 void volPyrolysis::evolveRegion()

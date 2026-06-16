@@ -55,7 +55,7 @@ os.makedirs("spheres", exist_ok=True)
 # ── foam coupling ─────────────────────────────────────────────────
 fluidCoupling = FoamCoupling()
 fluidCoupling.couplingModeParallel = parallelYade
-fluidCoupling.isGaussianInterp = True
+fluidCoupling.isGaussianInterp = False
 
 fluidCoupling.SetOpenFoamSolver("porousGasificationFoam", numProcOF)
 fluidCoupling.setIdList(sphereIDs)

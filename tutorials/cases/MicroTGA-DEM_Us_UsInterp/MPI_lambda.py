@@ -307,7 +307,7 @@ def apply_spring_forces():
 
 fluidCoupling = FoamCoupling()
 fluidCoupling.couplingModeParallel = parallelYade
-fluidCoupling.isGaussianInterp = True
+fluidCoupling.isGaussianInterp = False
 
 
 sphereIDs = [b.id for b in O.bodies if type(b.shape) == Sphere]

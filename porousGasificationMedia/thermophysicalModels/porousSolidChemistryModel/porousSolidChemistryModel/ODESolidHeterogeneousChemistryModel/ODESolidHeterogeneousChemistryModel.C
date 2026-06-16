@@ -1560,6 +1560,22 @@ Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasTherm
         scalar gasRho = rhoG_[celli] * porosityF_[celli];
         scalar Ti = this->solidThermo().T()[celli];
 
+        // Temporary diagnostic: report first 3 reacting cells
+        static label diagCount = 0;
+        if (diagCount < 3)
+        {
+            Info<< "DIAG solveOneCell: cell " << celli
+                << " solidRho=" << solidRho
+                << " Ywood=" << Ys_[0][celli]
+                << " porosityF=" << porosityF_[celli]
+                << " Ti=" << Ti
+                << " deltaT=" << deltaT
+                << " chemistry_=" << this->chemistry_
+                << " time=" << this->time().timeName()
+                << nl;
+            diagCount++;
+        }
+
         scalarField initialSpecieConcentration(nSpecie_, 0.0);
 
         scalarField rR(nReaction_, 0.0);
@@ -1724,6 +1740,21 @@ Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasTherm
 )
 {
    const scalarField changeOfConcentration = specieConcentration_ - initialSpecieConcentration;
+
+    // Temporary diagnostic: report non-zero wood consumption
+    {
+        static label diagCount = 0;
+        if (diagCount < 3 && mag(changeOfConcentration[0]) > SMALL)
+        {
+            Info<< "DIAG updateReactionRates: cell " << celli
+                << " dYwood=" << changeOfConcentration[0]
+                << " dYwood/dt=" << changeOfConcentration[0]/deltaT
+                << " solidRho=" << solidRho
+                << " time=" << this->time().timeName()
+                << nl;
+            diagCount++;
+        }
+    }
 
     // the integration inside time step tends to loose accuracy
     // for conserving the mass we correct for it
