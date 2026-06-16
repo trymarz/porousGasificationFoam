@@ -76,7 +76,7 @@ solidOdeCoeffs
 solidReactions
 (
     irreversibleSolidArrheniusHeterogeneousReaction
-    1.0 wood = 0.30 char + 0.70 targas
+    1.0 wood = 0.70 char + 0.30 targas
     (2.0e5 8000 300 -75000 1)
 );
 

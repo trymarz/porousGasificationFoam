@@ -32,16 +32,18 @@ O.bodies.append(utils.wall(position=0,    axis=1, sense=1,  material='wallmat'))
 O.bodies.append(utils.wall(position=0.04, axis=1, sense=-1, material='wallmat')) # yMax
 
 # ── particle bed ──────────────────────────────────────────────────
-# Regular 4×4×10 grid of touching spheres (r=0.005) fills the bed
-# (z=0→0.10).  Spheres touch neighbours and walls → self-supporting
-# under gravity with no settling.  Smooth Us field for PGF solid-phase
-# advection; porosity is handled independently by porosityF.
-numSpheres       = 160     # 4×4×10 regular grid
-radius           = 0.005   # diameter 10 mm (exactly 4 across 0.04 m)
-CHAR_CORE_RADIUS = 0.0025  # 50 % of initial (pyrolysis char core)
+# Regular 5×5×12 grid of touching spheres (r=0.004) fills the solid
+# region (z=0→0.10, 0.04×0.04 m cross-section). Spheres touch neighbours
+# and walls → self-supporting under gravity, no settling. Smooth Us
+# field for PGF solid-phase advection; porosity via porosityF independently.
+# mn=(0,0,0) so arange starts at r=0.004; mx slightly larger than domain
+# so the edge spheres (extending to x/y=0.04, z=0.10) pass the predicate.
+numSpheres       = 300     # 5×5×12 regular grid
+radius           = 0.004   # diameter 8 mm (5 across 0.04 m)
+CHAR_CORE_RADIUS = 0.001   # 25 % of initial (visible char core)
 
-mn = (radius, radius, radius)
-mx = (0.04, 0.04, 0.10)
+mn = (0, 0, 0)
+mx = (0.041, 0.041, 0.101)
 
 sp = pack.regularOrtho(pack.inAlignedBox(mn, mx), radius, gap=0, material='spheremat')
 O.bodies.append(sp)
