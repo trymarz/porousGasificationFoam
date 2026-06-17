@@ -12,6 +12,7 @@ rm -rf -- \
     dynamicCode \
     spheres \
     springs \
+    compact_positions.txt \
     dtInfo.txt \
     run.log \
     *.foam \

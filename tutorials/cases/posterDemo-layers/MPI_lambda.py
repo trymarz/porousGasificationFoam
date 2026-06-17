@@ -66,13 +66,31 @@ nz      = int((lz - 2*radius) / dz) + 1        # 18 layers
 
 sp = pack.SpherePack()
 z_start = radius
-for y_pos in y_positions:
-    for k in range(nz):
-        z   = z_start + k * dz
-        x0  = radius + (k % 2) * radius          # stagger every other row
-        nx  = nx_even if (k % 2) == 0 else nx_odd
-        for i in range(nx):
-            sp.add((x0 + i * step, y_pos, z), radius)
+
+# Prefer the settled bed from the standalone pre-compaction run (compact.py)
+# when it is present: this starts the coupled run at rest, avoiding the
+# free-fall transient of the fresh grid pack.  compact.py uses the IDENTICAL
+# nested loop below, so the file's line order matches this script's sphere
+# creation order one-to-one — body IDs and the sphereIDs list are identical
+# either way, so no remapping is needed.
+compact_file = "compact_positions.txt"
+use_compacted = os.path.exists(compact_file)
+if use_compacted:
+    with open(compact_file) as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            x, y, z = (float(v) for v in line.split())
+            sp.add((x, y, z), radius)
+else:
+    for y_pos in y_positions:
+        for k in range(nz):
+            z   = z_start + k * dz
+            x0  = radius + (k % 2) * radius          # stagger every other row
+            nx  = nx_even if (k % 2) == 0 else nx_odd
+            for i in range(nx):
+                sp.add((x0 + i * step, y_pos, z), radius)
 
 numSpheres = len(y_positions) * (
     nx_even * ((nz + 1) // 2) + nx_odd * (nz // 2))
@@ -80,10 +98,13 @@ sp.toSimulation(material='spheremat')
 
 sphereIDs = [b.id for b in O.bodies if isinstance(b.shape, Sphere)]
 nlayers_y = len(y_positions)
-print(f"[YADE] Created {len(sphereIDs)} spheres in {nz} z-layers × {nlayers_y} y-layers, "
-      f"z range [{z_start:.4f}, {z_start + (nz-1)*dz:.4f}], "
-      f"y positions: {y_positions}, "
-      f"rows: {nx_even}/{nx_odd}")
+if use_compacted:
+    print(f"[YADE] Created {len(sphereIDs)} spheres from compacted positions")
+else:
+    print(f"[YADE] Created {len(sphereIDs)} spheres in {nz} z-layers × {nlayers_y} y-layers, "
+          f"z range [{z_start:.4f}, {z_start + (nz-1)*dz:.4f}], "
+          f"y positions: {y_positions}, "
+          f"rows: {nx_even}/{nx_odd}")
 
 # Initialize lambdaDot=1.0 on all spheres BEFORE coupling.
 # YADE defaults lambdaDot to 0.0 (core/State.hpp), which causes

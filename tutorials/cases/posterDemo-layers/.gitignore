@@ -4,6 +4,7 @@ render/
 # Runtime artifacts
 *.foam
 log.*
+compact_positions.txt
 postProcessing/
 processor*/
 [0-9]*/
