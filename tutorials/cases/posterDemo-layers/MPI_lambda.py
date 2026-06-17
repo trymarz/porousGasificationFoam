@@ -21,13 +21,12 @@ O.materials.append(FrictMat(
     young=25e8, poisson=0.5, frictionAngle=0,
     density=0, label='wallmat'))
 
-# ── walls (match the 2.5D blockMesh domain: 0.04 x 0.018 x 0.24 m) ──
-# Floor at z=0 and ceiling at z=0.24 give spheres free vertical space above
-# the initial packed height so they can settle as the bed opens up.
+# ── walls (match the 2.5D blockMesh domain: 0.04 x 0.018 x 0.096 m) ──
+# Floor at z=0 and ceiling at z=0.096 enclose the CFD domain — no gap.
 # The y-walls at y=0 and y=0.018 confine three sphere layers (d=6 mm) with
 # the outer spheres flush against the walls (0 mm clearance).
-O.bodies.append(utils.wall(position=0,     axis=2, sense=1,  material='wallmat')) # floor (inlet)
-O.bodies.append(utils.wall(position=0.24,  axis=2, sense=-1, material='wallmat')) # ceiling (outlet)
+O.bodies.append(utils.wall(position=0,     axis=2, sense=1,  material='wallmat')) # floor   (inlet)
+O.bodies.append(utils.wall(position=0.096, axis=2, sense=-1, material='wallmat')) # ceiling (outlet)
 O.bodies.append(utils.wall(position=0,     axis=0, sense=1,  material='wallmat')) # xMin
 O.bodies.append(utils.wall(position=0.04,  axis=0, sense=-1, material='wallmat')) # xMax
 O.bodies.append(utils.wall(position=0,     axis=1, sense=1,  material='wallmat')) # yMin

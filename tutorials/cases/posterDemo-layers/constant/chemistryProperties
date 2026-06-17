@@ -63,10 +63,10 @@ solidOdeCoeffs
 // The 30 % targas is a single lumped gas species replacing the full
 // multi-species tar/CO/CO2/H2/H2O/CH4 set from updraftDemo.
 //
-// Kinetics: Ta=8000 K fires at 600-800 K. deltaH=-75 kJ/kg (mild exothermic):
-// char-rich pyrolysis at high yield (70 %) is well-documented as exothermic,
-// and this value matches the updraftDemo kinetics. At −75 kJ/kg it is only
-// ~14 % of sensible heat (540 kJ/kg for 500→800 K), so it won't destabilise.
+// A = 2.0e3 (100× slower than the default 2.0e5) stretches the wood → char
+// conversion over the full 2 s simulation, producing three poster-ready
+// snapshots: early (mostly fresh), mid (partial conversion, visible gradient),
+// late (near-char-core at bottom, fresh at top).
 // Coefficient tuple: (A  Ta  Tcrit  deltaH  n)
 //   A      pre-exponential factor          [1/s]
 //   Ta     activation temperature E/R      [K]
@@ -77,7 +77,7 @@ solidReactions
 (
     irreversibleSolidArrheniusHeterogeneousReaction
     1.0 wood = 0.70 char + 0.30 targas
-    (2.0e4 8000 300 -75000 1)
+    (2.0e3 8000 300 -75000 1)
 );
 
 // ************************************************************************* //

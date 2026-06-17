@@ -35,9 +35,9 @@ O.materials.append(FrictMat(
     young=25e8, poisson=0.5, frictionAngle=0,
     density=0, label='wallmat'))
 
-# ── walls (must match MPI_lambda.py: 0.04 x 0.018 x 0.24 m domain) ──
-O.bodies.append(utils.wall(position=0,     axis=2, sense=1,  material='wallmat')) # floor (inlet)
-O.bodies.append(utils.wall(position=0.24,  axis=2, sense=-1, material='wallmat')) # ceiling (outlet)
+# ── walls (must match MPI_lambda.py: 0.04 x 0.018 x 0.096 m domain) ──
+O.bodies.append(utils.wall(position=0,     axis=2, sense=1,  material='wallmat')) # floor   (inlet)
+O.bodies.append(utils.wall(position=0.096, axis=2, sense=-1, material='wallmat')) # ceiling (outlet)
 O.bodies.append(utils.wall(position=0,     axis=0, sense=1,  material='wallmat')) # xMin
 O.bodies.append(utils.wall(position=0.04,  axis=0, sense=-1, material='wallmat')) # xMax
 O.bodies.append(utils.wall(position=0,     axis=1, sense=1,  material='wallmat')) # yMin
