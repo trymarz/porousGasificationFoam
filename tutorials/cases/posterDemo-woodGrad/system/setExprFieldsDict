@@ -1,0 +1,51 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  8
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "system";
+    object      setExprFieldsDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// Pre-imposed conversion gradient: bottom already 70 % converted, top fresh.
+//
+// Hot gas enters at the bottom (z=0, inlet at 800 K), so the bottom cells
+// naturally see the highest temperature longest.  An initial Ychar gradient
+// jump-starts differential conversion:
+//
+//   Ychar(z)  =  0.7 * (1 − z / H)     — linear from 0.7 (bottom) → 0 (top)
+//   Ywood(z)  =  1.0 − Ychar(z)        — complementary, sums to 1.0
+//
+// Bottom spheres start at r_core + (r₀−r_core) * λDot  with λDot = 1−Ychar = 0.3
+// → r_bottom ≈ 1.4 mm.  Top spheres stay at r₀ = 3 mm.  This 2:1 ratio provides
+// a striking visual gradient in the VTK renders from t=0 onward.
+//
+// The three-layer porosity from setFieldsDict still applies; only the
+// solid-species fields are set here to the gradient.
+
+expressions
+(
+    Ychar
+    {
+        field        Ychar;
+        expression   "0.7 * (1.0 - min(pos().z() / 0.096, 1.0))";
+        condition    "pos().z() < 0.096";
+    }
+
+    Ywood
+    {
+        field        Ywood;
+        expression   "1.0 - 0.7 * (1.0 - min(pos().z() / 0.096, 1.0))";
+        condition    "pos().z() < 0.096";
+    }
+);
+
+// ************************************************************************* //
