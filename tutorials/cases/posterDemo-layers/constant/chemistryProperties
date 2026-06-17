@@ -63,10 +63,12 @@ solidOdeCoeffs
 // The 30 % targas is a single lumped gas species replacing the full
 // multi-species tar/CO/CO2/H2/H2O/CH4 set from updraftDemo.
 //
-// A = 2.0e3 (100× slower than the default 2.0e5) stretches the wood → char
-// conversion over the full 2 s simulation, producing three poster-ready
-// snapshots: early (mostly fresh), mid (partial conversion, visible gradient),
-// late (near-char-core at bottom, fresh at top).
+// A = 5.0e2 drops the kinetic rate below the diffusion cap so Arrhenius
+// controls the wood→char conversion (with diffusionLimitedReactions acting
+// as a safety floor via harmonic mean). k ≈ 0.023 /s at 800 K gives
+// Ychar_max ≈ 0.30 at t = 2.0 s — three distinct poster snapshots:
+// early (~0.5 s): mostly fresh; mid (~1.2 s): clear shrinkage; late (~1.8 s):
+// bottom near-char-core, top fresh — a clean coupling gradient.
 // Coefficient tuple: (A  Ta  Tcrit  deltaH  n)
 //   A      pre-exponential factor          [1/s]
 //   Ta     activation temperature E/R      [K]
@@ -77,7 +79,7 @@ solidReactions
 (
     irreversibleSolidArrheniusHeterogeneousReaction
     1.0 wood = 0.70 char + 0.30 targas
-    (2.0e3 8000 300 -75000 1)
+    (5.0e2 8000 300 -75000 1)
 );
 
 // ************************************************************************* //
