@@ -24,8 +24,8 @@ O.materials.append(FrictMat(
 # ── walls (match the 2.5D blockMesh domain: 0.04 x 0.018 x 0.24 m) ──
 # Floor at z=0 and ceiling at z=0.24 give spheres free vertical space above
 # the initial packed height so they can settle as the bed opens up.
-# The y-walls at y=0 and y=0.018 confine two sphere layers (d=6 mm) with
-# 1 mm clearance at each wall.
+# The y-walls at y=0 and y=0.018 confine three sphere layers (d=6 mm) with
+# the outer spheres flush against the walls (0 mm clearance).
 O.bodies.append(utils.wall(position=0,     axis=2, sense=1,  material='wallmat')) # floor (inlet)
 O.bodies.append(utils.wall(position=0.24,  axis=2, sense=-1, material='wallmat')) # ceiling (outlet)
 O.bodies.append(utils.wall(position=0,     axis=0, sense=1,  material='wallmat')) # xMin
@@ -34,8 +34,10 @@ O.bodies.append(utils.wall(position=0,     axis=1, sense=1,  material='wallmat')
 O.bodies.append(utils.wall(position=0.018, axis=1, sense=-1, material='wallmat')) # yMax
 
 # ── particle bed ──────────────────────────────────────────────────
-# Staggered hexagonal pack in the xz-plane, repeated in 2 y-layers
-# (y=0.004 m and y=0.010 m) with 1 mm clearance from each y-wall.
+# Staggered hexagonal pack in the xz-plane, repeated in 3 y-layers
+# (y=0.003, 0.009, 0.015 m) for dense 3D interlocking. The outer
+# spherical surfaces are flush with yMin/yMax walls — the frictionless
+# walls (frictionAngle=0 for wallmat) prevent escape without bouncing.
 # Odd-indexed z-rows are offset by r in x so every sphere touches 6
 # neighbours (up to 4 in a square grid).  This gives a mechanically
 # dense pack that self-supports under gravity and produces a smooth
@@ -45,13 +47,13 @@ O.bodies.append(utils.wall(position=0.018, axis=1, sense=-1, material='wallmat')
 # Parameters
 #   r = 0.003 m  →  6 spheres across 0.04 m (row 0), 6 across (row 1)
 #   dz = r·√3 ≈ 0.005196 m  →  18 layers fill the 0.096 m domain
-#   y-positions: 0.004, 0.010 m  (6 mm spacing, 1 mm wall clearance)
-#   Total ≈ 2 × (9×6 + 9×6) = 216 spheres
+#   y-positions: 0.003, 0.009, 0.015 m  (6 mm spacing, 0 mm wall clearance)
+#   Total ≈ 3 × (9×6 + 9×6) = 324 spheres
 import math
 
 radius           = 0.003
 CHAR_CORE_RADIUS = 0.00075   # 25 % of initial (visible char core)
-y_positions      = [0.004, 0.01]  # two y-layers, 1 mm wall clearance
+y_positions      = [0.003, 0.009, 0.015]  # three y-layers, 0 mm wall clearance
 lx, lz           = 0.04, 0.096
 
 step    = 2.0 * radius                       # 0.006
@@ -92,8 +94,7 @@ else:
             for i in range(nx):
                 sp.add((x0 + i * step, y_pos, z), radius)
 
-numSpheres = len(y_positions) * (
-    nx_even * ((nz + 1) // 2) + nx_odd * (nz // 2))
+# Expected total: 3 y-layers × (9 even rows × 6 + 9 odd rows × 6) = 324
 sp.toSimulation(material='spheremat')
 
 sphereIDs = [b.id for b in O.bodies if isinstance(b.shape, Sphere)]

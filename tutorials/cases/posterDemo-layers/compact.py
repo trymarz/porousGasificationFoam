@@ -45,7 +45,7 @@ O.bodies.append(utils.wall(position=0.018, axis=1, sense=-1, material='wallmat')
 
 # ── particle bed (EXACT same parameters & loop order as MPI_lambda.py) ──
 radius      = 0.003
-y_positions = [0.004, 0.01]  # two y-layers, 1 mm wall clearance
+y_positions = [0.003, 0.009, 0.015]  # three y-layers, 0 mm wall clearance
 lx, lz      = 0.04, 0.096
 
 step    = 2.0 * radius                       # 0.006
@@ -68,7 +68,7 @@ for y_pos in y_positions:
 sp.toSimulation(material='spheremat')
 
 sphereIDs = [b.id for b in O.bodies if isinstance(b.shape, Sphere)]
-print(f"[compact] Created {len(sphereIDs)} spheres (expect 216), "
+print(f"[compact] Created {len(sphereIDs)} spheres (expect 324), "
       f"settling under gravity…")
 
 # ── DEM engines (gravity only — no FoamCoupling, no PyRunner, no MPI) ──
