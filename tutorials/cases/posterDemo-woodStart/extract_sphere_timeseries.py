@@ -2,13 +2,13 @@
 """extract_sphere_timeseries — track selected DEM spheres through time.
 
 Extracts radius r(t) and position z(t) for 3 spheres at different initial
-bed heights (top, middle, bottom). Uses nearest-neighbor matching by z-position
+bed heights (top, middle, bottom). Uses nearest-neighbor matching by position
 to follow the same sphere across VTK files.
 
 Usage:
-    uv run python extract_sphere_timeseries.py
-    uv run python extract_sphere_timeseries.py --csv > sphere_ts.csv
-    uv run python extract_sphere_timeseries.py --all  # full stats, all times
+    python3 extract_sphere_timeseries.py
+    python3 extract_sphere_timeseries.py --csv > sphere_ts.csv
+    python3 extract_sphere_timeseries.py --all  # full stats, all times
 
 Output: for each tracked sphere: time, sphere_id, radius, x, y, z.
 Also prints overall stats: count, r_mean, r_min, r_max per time step.
@@ -17,90 +17,81 @@ Also prints overall stats: count, r_mean, r_min, r_max per time step.
 from __future__ import annotations
 
 import argparse
+import math
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-import numpy as np
-
 CASE = Path("/workspace/trymarz/porousGasificationFoam/tutorials/cases/posterDemo-woodStart")
 
 
-def read_sphere_vtp(vtp_path: Path) -> dict[str, np.ndarray]:
-    """Return {positions: (N,3), radii: (N,), lambdaDot: (N,)}."""
+def read_sphere_vtp(vtp_path: Path) -> dict:
+    """Return {positions: [(x,y,z),…], radii: [float,…], lambdaDot: [float,…]}."""
     if not vtp_path.is_file():
-        return {"positions": np.empty((0, 3)), "radii": np.empty(0), "lambdaDot": np.empty(0)}
+        return {"positions": [], "radii": [], "lambdaDot": []}
     tree = ET.parse(str(vtp_path))
     root = tree.getroot()
-    result: dict[str, np.ndarray] = {}
+    result = {"positions": [], "radii": [], "lambdaDot": []}
     for el in root.iter("Points"):
         for da in el.findall("DataArray"):
             if da.text:
                 coords = [float(x) for x in da.text.split()]
-                result["positions"] = np.array(coords).reshape(-1, 3)
+                n = len(coords) // 3
+                result["positions"] = [tuple(coords[i * 3:(i + 1) * 3]) for i in range(n)]
     for pd in root.iter("PointData"):
         for da in pd.findall("DataArray"):
-            if da.get("Name") == "radius" and da.text:
-                result["radii"] = np.array([float(x) for x in da.text.split()])
-            if da.get("Name") == "lambdaDot" and da.text:
-                result["lambdaDot"] = np.array([float(x) for x in da.text.split()])
+            name = da.get("Name") or ""
+            if name == "radius" and da.text:
+                result["radii"] = [float(x) for x in da.text.split()]
+            if name == "lambdaDot" and da.text:
+                result["lambdaDot"] = [float(x) for x in da.text.split()]
     return result
 
 
-def pick_tracked_spheres(vtp_path: Path, n: int = 3) -> np.ndarray:
+def pick_tracked_spheres(vtp_path: Path, n: int = 3) -> list[tuple[float, float, float]]:
     """Pick *n* spheres at different z-heights from the first VTK.
 
-    Returns (n, 3) array of initial positions used for nearest-neighbor matching.
+    Returns list of (x, y, z) initial positions for nearest-neighbor matching.
     """
     data = read_sphere_vtp(vtp_path)
     pos = data["positions"]
     if len(pos) < n:
-        return pos[:, :3]
+        return pos[:n]
 
     # Sort by z, pick evenly spaced
-    idx = np.argsort(pos[:, 2])
-    n_avail = len(pos)
-
-    # Pick at indices: 0 (bottom), n_avail//2 (mid), n_avail-1 (top)
+    sorted_pos = sorted(pos, key=lambda p: p[2])
+    n_avail = len(sorted_pos)
     picks = [0, n_avail // 2, n_avail - 1]
     if n > 3:
-        # Add evenly spaced intermediates
         step = n_avail / (n - 1)
         picks = [int(i * step) for i in range(n)]
-
-    init_positions = pos[idx[picks]]
-    return init_positions[:, :3]
+    return [sorted_pos[i] for i in picks]
 
 
-def track_spheres(
-    data: dict[str, np.ndarray], track_init: np.ndarray
-) -> np.ndarray:
+def track_spheres(data: dict, track_init: list[tuple]) -> list[tuple]:
     """Match *track_init* positions to closest sphere in *data*.
 
-    Returns (n_tracked, 7) array: [z_init, x, y, z, r, lambdaDot, dist]
-    where dist is the distance from the tracked position to the match.
+    Returns list of (z_init, x, y, z, r, lambdaDot, dist) tuples.
     """
     pos = data["positions"]
-    radii = data.get("radii", np.zeros(len(pos)))
-    ld = data.get("lambdaDot", np.ones(len(pos)))
+    radii = data.get("radii", [0.0] * len(pos))
+    ld = data.get("lambdaDot", [1.0] * len(pos))
 
-    if len(pos) == 0:
-        return np.empty((len(track_init), 7))
+    if not pos:
+        return []
 
-    matched = np.zeros((len(track_init), 7))
-    for i, init_pos in enumerate(track_init):
-        # Find nearest neighbor by 3D distance
-        dists = np.linalg.norm(pos - init_pos, axis=1)
-        closest = np.argmin(dists)
-        matched[i] = [
-            init_pos[2],  # z_init for tracking label
-            pos[closest, 0],
-            pos[closest, 1],
-            pos[closest, 2],
-            radii[closest],
-            ld[closest],
-            dists[closest],
-        ]
+    matched = []
+    for init_pos in track_init:
+        ix, iy, iz = init_pos
+        best_i = 0
+        best_dist = float("inf")
+        for i, (px, py, pz) in enumerate(pos):
+            d = math.hypot(px - ix, py - iy, pz - iz)
+            if d < best_dist:
+                best_dist = d
+                best_i = i
+        matched.append((iz, pos[best_i][0], pos[best_i][1], pos[best_i][2],
+                         radii[best_i], ld[best_i], best_dist))
     return matched
 
 
@@ -131,48 +122,56 @@ def main() -> None:
         sys.exit(1)
 
     times = sorted(sphere_map.keys())
-    print(f"Found {len(times)} sphere VTK files, t ∈ [{times[0]:.4f}, {times[-1]:.4f}]")
+    print(f"Found {len(times)} sphere VTK files, t ∈ [{times[0]:.4f}, {times[-1]:.4f}]", file=sys.stderr)
 
     # Pick spheres to track from the first VTK
     first_vtp = sphere_map[times[0]]
-
     track_init = pick_tracked_spheres(first_vtp, n=args.n)
-    print(f"Tracking {len(track_init)} spheres:")
+    print(f"Tracking {len(track_init)} spheres:", file=sys.stderr)
     for i, p in enumerate(track_init):
-        print(f"  sphere {i}: init_z = {p[2]:.4f} m  ({p[0]:.4f}, {p[1]:.4f}, {p[2]:.4f})")
-    print()
+        print(f"  sphere {i}: init_z = {p[2]:.4f} m  ({p[0]:.4f}, {p[1]:.4f}, {p[2]:.4f})", file=sys.stderr)
+    print(file=sys.stderr)
 
     # For --all mode, just print overall stats per time
     if args.all:
         if args.csv:
             print("time,sphere_count,r_mean_mm,r_min_mm,r_max_mm,ld_mean,ld_min,ld_max,z_mean")
         else:
-            header = f"{'Time':>8s}  {'N':>4s}  {'r_mean':>8s}  {'r_min':>8s}  {'r_max':>8s}  {'ld_mean':>8s}  {'z_mean':>8s}"
+            header = (f"{'Time':>8s}  {'N':>4s}  {'r_mean':>8s}  {'r_min':>8s}  "
+                      f"{'r_max':>8s}  {'ld_mean':>8s}  {'z_mean':>8s}")
             print(header)
             print("-" * len(header))
         for t in times:
             vtp = sphere_map[t]
             data = read_sphere_vtp(vtp)
             pos = data["positions"]
-            radii = data.get("radii", np.empty(0))
-            ld = data.get("lambdaDot", np.ones(len(pos)))
+            radii = data.get("radii", [])
+            ld = data.get("lambdaDot", [])
             n = len(pos)
             if n == 0:
                 continue
-            r_mm = radii * 1000  # convert to mm
+            r_mm = [r * 1000 for r in radii]
+            r_mean = sum(r_mm) / n
+            r_min = min(r_mm)
+            r_max = max(r_mm)
+            ld_mean = sum(ld) / n if ld else 1.0
+            ld_min = min(ld) if ld else 1.0
+            ld_max = max(ld) if ld else 1.0
+            z_mean = sum(p[2] for p in pos) / n
             if args.csv:
-                print(f"{t:.3f},{n},{r_mm.mean():.4f},{r_mm.min():.4f},{r_mm.max():.4f},"
-                      f"{ld.mean():.4f},{ld.min():.4f},{ld.max():.4f},{pos[:,2].mean():.4f}")
+                print(f"{t:.3f},{n},{r_mean:.4f},{r_min:.4f},{r_max:.4f},"
+                      f"{ld_mean:.4f},{ld_min:.4f},{ld_max:.4f},{z_mean:.4f}")
             else:
-                print(f"{t:8.3f}  {n:4d}  {r_mm.mean():8.4f}  {r_mm.min():8.4f}  "
-                      f"{r_mm.max():8.4f}  {ld.mean():8.4f}  {pos[:,2].mean():8.4f}")
+                print(f"{t:8.3f}  {n:4d}  {r_mean:8.4f}  {r_min:8.4f}  "
+                      f"{r_max:8.4f}  {ld_mean:8.4f}  {z_mean:8.4f}")
         return
 
     # Track selected spheres through all times
     if args.csv:
         print("time,sphere_id,init_z,x,y,z,radius_mm,lambdaDot,match_dist")
     else:
-        header = f"{'Time':>8s}  {'ID':>4s}  {'z_init':>8s}  {'z_curr':>8s}  {'r(mm)':>8s}  {'lambdaDot':>10s}"
+        header = (f"{'Time':>8s}  {'ID':>4s}  {'z_init':>8s}  {'z_curr':>8s}  "
+                  f"{'r(mm)':>8s}  {'lambdaDot':>10s}")
         print(header)
         print("-" * len(header))
 
@@ -180,7 +179,6 @@ def main() -> None:
         vtp = sphere_map[t]
         data = read_sphere_vtp(vtp)
         matched = track_spheres(data, track_init)
-
         for i, m in enumerate(matched):
             z_init, x, y, z, r, ld, dist = m
             r_mm = r * 1000

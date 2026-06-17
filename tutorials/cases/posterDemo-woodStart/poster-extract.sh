@@ -4,11 +4,14 @@
 # Usage:  ./poster-extract.sh
 #         ./poster-extract.sh  (re-run after any solver re-start to update data)
 
-cd "${0%/*}" || exit
+case "$0" in */*) cd "${0%/*}" || exit ;; esac
 
 echo "╔═══════════════════════════════════════════════╗"
 echo "║  poster-extract.sh — poster data extraction  ║"
 echo "╚═══════════════════════════════════════════════╝"
+
+POSTER_REPORT="python3 poster-report"
+SPHERE_TS="python3 extract_sphere_timeseries.py"
 
 # ── 1. Merge parallel domains ───────────────────────
 echo ""
@@ -23,19 +26,11 @@ fi
 # ── 2. Full time-series report ──────────────────────
 echo ""
 echo "── 2/6  poster-report --all (time-series table) ──"
-if [ -x ./poster-report ]; then
-    ./poster-report --all | tee poster_summary.txt
-else
-    uv run python ./poster-report --all | tee poster_summary.txt
-fi
+$POSTER_REPORT --all | tee poster_summary.txt
 
 echo ""
 echo "── 3/6  poster-report --csv (for plotting) ──"
-if [ -x ./poster-report ]; then
-    ./poster-report --csv > poster_metrics.csv
-else
-    uv run python ./poster-report --csv > poster_metrics.csv
-fi
+$POSTER_REPORT --csv > poster_metrics.csv
 echo "  → wrote poster_metrics.csv"
 
 # ── 4. Poster snapshot details ──────────────────────
@@ -43,20 +38,16 @@ echo ""
 echo "── 4/6  poster snapshots (t=0.67, 1.33, 2.00) ──"
 mkdir -p snapshots
 for t in 0.67 1.33 2.0; do
-    if [ -x ./poster-report ]; then
-        ./poster-report -t "$t" > "snapshots/t${t}.txt"
-    else
-        uv run python ./poster-report -t "$t" > "snapshots/t${t}.txt"
-    fi
+    $POSTER_REPORT -t "$t" > "snapshots/t${t}.txt"
     echo "  → snapshots/t${t}.txt"
 done
 
 # ── 5. Sphere shrinkage time series ─────────────────
 echo ""
 echo "── 5/6  sphere radius tracking ──"
-uv run python extract_sphere_timeseries.py --csv --all > sphere_stats.csv 2>&1
+$SPHERE_TS --csv --all > sphere_stats.csv
 echo "  → sphere_stats.csv (all-sphere stats per frame)"
-uv run python extract_sphere_timeseries.py --csv      > tracked_spheres.csv 2>&1
+$SPHERE_TS --csv      > tracked_spheres.csv
 echo "  → tracked_spheres.csv (3 tracked spheres at 3 heights)"
 
 # ── 6. Copy key VTK files for ParaView ──────────────
