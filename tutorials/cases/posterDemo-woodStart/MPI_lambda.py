@@ -5,6 +5,11 @@ from yade import pack, utils
 counter = [1]   # VTK frame counter (list for mutable closure capture)
 
 # ── coupling / run control ──────────────────────────────────────────
+# 2-proc MPI with manual decomposition: rank 0 owns z=0→0.088 m (all
+# 270 spheres), rank 1 owns z=0.088→0.096 m (empty — no spheres).
+# The MPI boundary sits 12 mm above the highest sphere (z=0.076),
+# eliminating the boundary-coupling VTK flicker that affected the old
+# even-split decomposition.
 parallelYade = True
 numProcOF    = 2
 nsteps       = int(3e6)   # ~3s headroom at YADE dt~1e-6 (OF stops first at endTime=2s)
@@ -45,9 +50,9 @@ O.bodies.append(utils.wall(position=0.018, axis=1, sense=-1, material='wallmat')
 #
 # Parameters
 #   r = 0.003 m  →  6 spheres across 0.04 m (row 0), 6 across (row 1)
-#   dz = r·√3 ≈ 0.005196 m  →  18 layers fill the 0.096 m domain
+#   dz = r·√3 ≈ 0.005196 m  →  15 layers fill z=0.003→0.076 (leaves 0.076→0.096 empty for rank1)
 #   y-positions: 0.003, 0.009, 0.015 m  (6 mm spacing, 0 mm wall clearance)
-#   Total ≈ 3 × (9×6 + 9×6) = 324 spheres
+#   Total ≈ 3 × (8×6 + 7×6) = 270 spheres
 import math
 
 radius           = 0.003
@@ -63,7 +68,7 @@ dz      = radius * math.sqrt(3.0)            # 0.005196 — HCP vertical spacing
 # Constraint:    centre + r ≤ lx  →  last = x0 + (nx-1)·step + r ≤ lx
 nx_even = int((lx - 2*radius) / step) + 1      # 6 — row 0,2,4,…
 nx_odd  = int((lx - 3*radius) / step) + 1      # 6 — row 1,3,5,…  (offset by r)
-nz      = int((lz - 2*radius) / dz) + 1        # 18 layers
+nz      = int((0.080 - 2*radius) / dz) + 1   # 15 layers — leaves rank1 cells (z≥0.088) empty
 
 sp = pack.SpherePack()
 z_start = radius
@@ -93,7 +98,7 @@ else:
             for i in range(nx):
                 sp.add((x0 + i * step, y_pos, z), radius)
 
-# Expected total: 3 y-layers × (9 even rows × 6 + 9 odd rows × 6) = 324
+# Expected total: 3 y-layers × (8 even rows × 6 + 7 odd rows × 6) = 270
 sp.toSimulation(material='spheremat')
 
 sphereIDs = [b.id for b in O.bodies if isinstance(b.shape, Sphere)]
@@ -104,7 +109,7 @@ else:
     print(f"[YADE] Created {len(sphereIDs)} spheres in {nz} z-layers × {nlayers_y} y-layers, "
           f"z range [{z_start:.4f}, {z_start + (nz-1)*dz:.4f}], "
           f"y positions: {y_positions}, "
-          f"rows: {nx_even}/{nx_odd}")
+          f"rows: {nx_even}/{nx_odd} (expect 270)")
 
 # Initialize lambdaDot=1.0 on all spheres BEFORE coupling.
 # YADE defaults lambdaDot to 0.0 (core/State.hpp), which causes

@@ -53,7 +53,7 @@ dz      = radius * math.sqrt(3.0)            # 0.005196 — HCP vertical spacing
 
 nx_even = int((lx - 2*radius) / step) + 1      # 6 — row 0,2,4,…
 nx_odd  = int((lx - 3*radius) / step) + 1      # 6 — row 1,3,5,…  (offset by r)
-nz      = int((lz - 2*radius) / dz) + 1        # 18 layers
+nz      = int((0.080 - 2*radius) / dz) + 1   # 15 layers, max z≈0.076 (rank1 cells empty)
 
 sp = pack.SpherePack()
 z_start = radius
@@ -68,7 +68,7 @@ for y_pos in y_positions:
 sp.toSimulation(material='spheremat')
 
 sphereIDs = [b.id for b in O.bodies if isinstance(b.shape, Sphere)]
-print(f"[compact] Created {len(sphereIDs)} spheres (expect 324), "
+print(f"[compact] Created {len(sphereIDs)} spheres (expect 270), "
       f"settling under gravity…")
 
 # ── DEM engines (gravity only — no FoamCoupling, no PyRunner, no MPI) ──
