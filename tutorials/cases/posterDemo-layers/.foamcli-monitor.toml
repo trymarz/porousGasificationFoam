@@ -69,9 +69,33 @@ position = 0.002
 fields = ["Ywood", "Ychar", "porosityF", "lambdaDot"]
 output = "render/poster/slice_{field}.png"
 
+# ── Timeseries slices (batch, low-dpi, for animation/checking) ──
+[[render.slice]]
+axis = "y"
+position = 0.002
+fields = ["Ywood", "Ychar", "porosityF", "lambdaDot", "T", "Ts"]
+output = "render/timeseries/slice_{field}.png"
+
 # ── YADE particle slices ──
 # VTP files live under spheres/ (spheres-rank{0,1}-*.vtp), not VTK/ or case root.
-# For poster: also render with --yade-property radius (sphere shrinkage proof).
+# Two views for the poster: lambdaDot (shrink signal PGF→YADE, Step 1) and
+# radius (actual sphere size, Step 2 — chemistry-driven shrinkage proof).
+#
+# --all mode uses [render.yade] (lambdaDot). The radius view uses an explicit
+# CLI command because --all only reads one [render.yade] block:
+#
+#   foamcli render . --yade --yade-property radius --yade-dir spheres \
+#       --slice y=0.002 -t 0.02 -o render/poster/t0.02/yade_radius.png \
+#       --dpi 300 --cmap viridis
+#
+# For poster snapshots at 3 times, all YADE renders use explicit -t -o:
+#
+#   foamcli render . --yade --yade-property lambdaDot --yade-dir spheres \
+#       --slice y=0.002 -t 0.02 -o render/poster/t0.02/yade_lambdaDot.png \
+#       --dpi 300 --cmap inferno
+#   foamcli render . --yade --yade-property radius --yade-dir spheres \
+#       --slice y=0.002 -t 0.02 -o render/poster/t0.02/yade_radius.png \
+#       --dpi 300 --cmap viridis
 [render.yade]
 enabled = true
 property = "lambdaDot"
