@@ -28,8 +28,8 @@ FoamFile
 // All layers start at 800 K so chemistry fires immediately everywhere.
 // The gradient is purely in Ywood / Ychar / porosityF.
 //
-// YADE packs staggered hexagonal spheres touching walls and neighbours
-// (see MPI_lambda.py).  Boxes are 1 cell thick in y (quasi-2D mesh).
+// YADE packs staggered hexagonal spheres in two y-layers (see MPI_lambda.py).
+// Boxes span the full y-width (0.018 m) of the 1-cell-thick 2.5D mesh.
 
 defaultFieldValues
 (
@@ -44,7 +44,7 @@ regions
     // Layer 1 — bottom: mostly converted (80 % char), loose packing
     boxToCell
     {
-        box (0 0 0) (0.04 0.004 0.032);
+        box (0 0 0) (0.04 0.018 0.032);
         fieldValues
         (
             volScalarFieldValue porosityF  0.55
@@ -59,7 +59,7 @@ regions
     // Layer 2 — middle: partial conversion (40 % char), medium packing
     boxToCell
     {
-        box (0 0 0.032) (0.04 0.004 0.064);
+        box (0 0 0.032) (0.04 0.018 0.064);
         fieldValues
         (
             volScalarFieldValue porosityF  0.40
@@ -74,7 +74,7 @@ regions
     // Layer 3 — top: fresh wood (0 % char), densest packing
     boxToCell
     {
-        box (0 0 0.064) (0.04 0.004 0.096);
+        box (0 0 0.064) (0.04 0.018 0.096);
         fieldValues
         (
             volScalarFieldValue porosityF  0.30

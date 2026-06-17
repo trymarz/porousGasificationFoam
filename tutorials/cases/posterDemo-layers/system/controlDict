@@ -66,13 +66,13 @@ functions
         fields          (T Ts N2 targas Ywood Ychar porosityF);
         probeLocations
         (
-            (0.02 0.002 0.014)
-            (0.02 0.002 0.028)
-            (0.02 0.002 0.042)
-            (0.02 0.002 0.056)
-            (0.02 0.002 0.070)
-            (0.02 0.002 0.084)
-            (0.02 0.002 0.094)
+            (0.02 0.009 0.014)
+            (0.02 0.009 0.028)
+            (0.02 0.009 0.042)
+            (0.02 0.009 0.056)
+            (0.02 0.009 0.070)
+            (0.02 0.009 0.084)
+            (0.02 0.009 0.094)
         );
     }
 
@@ -104,7 +104,7 @@ functions
         fields          (porosityF);
     }
 
-    // Mid-plane (y = 0.02) slices for contour figures.
+    // Mid-plane (y = 0.009) slices for contour figures.
     samplePlane
     {
         type            surfaces;
@@ -122,7 +122,7 @@ functions
                 planeType       pointAndNormal;
                 pointAndNormalDict
                 {
-                    point       (0.02 0.002 0.048);
+                    point       (0.02 0.009 0.048);
                     normal      (0 1 0);
                 }
                 interpolate     true;

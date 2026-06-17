@@ -21,36 +21,37 @@ O.materials.append(FrictMat(
     young=25e8, poisson=0.5, frictionAngle=0,
     density=0, label='wallmat'))
 
-# ── walls (match the quasi-2D blockMesh domain: 0.04 x 0.004 x 0.096 m) ──
-# Floor at z=0 and ceiling at z=0.096 confine the bed to the exact packed
-# height (12 layers × 8 mm diameter) — spheres touch top and bottom walls
-# so there is no room to settle. The only motion is shrinkage-driven.
-# The y-walls at y=0 and y=0.004 (matching OpenFOAM's empty front/back
-# faces) pin the spheres into a single monolayer at y=0.002.
+# ── walls (match the 2.5D blockMesh domain: 0.04 x 0.018 x 0.24 m) ──
+# Floor at z=0 and ceiling at z=0.24 give spheres free vertical space above
+# the initial packed height so they can settle as the bed opens up.
+# The y-walls at y=0 and y=0.018 confine two sphere layers (d=8 mm) with
+# 1 mm clearance at each wall.
 O.bodies.append(utils.wall(position=0,     axis=2, sense=1,  material='wallmat')) # floor (inlet)
-O.bodies.append(utils.wall(position=0.096, axis=2, sense=-1, material='wallmat')) # ceiling (outlet)
+O.bodies.append(utils.wall(position=0.24,  axis=2, sense=-1, material='wallmat')) # ceiling (outlet)
 O.bodies.append(utils.wall(position=0,     axis=0, sense=1,  material='wallmat')) # xMin
 O.bodies.append(utils.wall(position=0.04,  axis=0, sense=-1, material='wallmat')) # xMax
 O.bodies.append(utils.wall(position=0,     axis=1, sense=1,  material='wallmat')) # yMin
-O.bodies.append(utils.wall(position=0.004, axis=1, sense=-1, material='wallmat')) # yMax
+O.bodies.append(utils.wall(position=0.018, axis=1, sense=-1, material='wallmat')) # yMax
 
 # ── particle bed ──────────────────────────────────────────────────
-# Staggered hexagonal monolayer in the xz-plane (single y-layer at y=0.002
-# to match the quasi-2D mesh).  Odd-indexed z-rows are offset by r in x so
-# every sphere touches 6 neighbours (up to 4 in a square grid).  This gives
-# a mechanically dense pack that self-supports under gravity and produces a
-# smooth Us field (per AGENTS.md recommendation: "dense interlocking spheres
+# Staggered hexagonal pack in the xz-plane, repeated in 2 y-layers
+# (y=0.005 m and y=0.013 m) with 1 mm clearance from each y-wall.
+# Odd-indexed z-rows are offset by r in x so every sphere touches 6
+# neighbours (up to 4 in a square grid).  This gives a mechanically
+# dense pack that self-supports under gravity and produces a smooth
+# Us field (per AGENTS.md recommendation: "dense interlocking spheres
 # so the bed self-supports under gravity and Us varies smoothly").
 #
 # Parameters
 #   r = 0.004 m  →  5 spheres across 0.04 m (row 0), 4 across (row 1)
 #   dz = r·√3 ≈ 0.006928 m  →  13 layers fill the 0.096 m domain
-#   Total ≈ 7×5 + 6×4 = 59 spheres
+#   y-positions: 0.005, 0.013 m  (8 mm spacing, 1 mm wall clearance)
+#   Total ≈ 2 × (7×5 + 6×4) = 118 spheres
 import math
 
 radius           = 0.004
 CHAR_CORE_RADIUS = 0.001    # 25 % of initial (visible char core)
-y_centre         = 0.002    # centre of the 1-cell-thick quasi-2D mesh
+y_positions      = [0.005, 0.013]  # two y-layers, 1 mm wall clearance
 lx, lz           = 0.04, 0.096
 
 step    = 2.0 * radius                       # 0.008
@@ -65,19 +66,23 @@ nz      = int((lz - 2*radius) / dz) + 1        # 13 layers
 
 sp = pack.SpherePack()
 z_start = radius
-for k in range(nz):
-    z   = z_start + k * dz
-    x0  = radius + (k % 2) * radius          # stagger every other row
-    nx  = nx_even if (k % 2) == 0 else nx_odd
-    for i in range(nx):
-        sp.add((x0 + i * step, y_centre, z), radius)
+for y_pos in y_positions:
+    for k in range(nz):
+        z   = z_start + k * dz
+        x0  = radius + (k % 2) * radius          # stagger every other row
+        nx  = nx_even if (k % 2) == 0 else nx_odd
+        for i in range(nx):
+            sp.add((x0 + i * step, y_pos, z), radius)
 
-numSpheres = nx_even * ((nz + 1) // 2) + nx_odd * (nz // 2)
+numSpheres = len(y_positions) * (
+    nx_even * ((nz + 1) // 2) + nx_odd * (nz // 2))
 sp.toSimulation(material='spheremat')
 
 sphereIDs = [b.id for b in O.bodies if isinstance(b.shape, Sphere)]
-print(f"[YADE] Created {len(sphereIDs)} spheres in {nz} staggered layers, "
+nlayers_y = len(y_positions)
+print(f"[YADE] Created {len(sphereIDs)} spheres in {nz} z-layers × {nlayers_y} y-layers, "
       f"z range [{z_start:.4f}, {z_start + (nz-1)*dz:.4f}], "
+      f"y positions: {y_positions}, "
       f"rows: {nx_even}/{nx_odd}")
 
 # Initialize lambdaDot=1.0 on all spheres BEFORE coupling.
@@ -235,7 +240,7 @@ O.engines = [
         label="ts",
     ),
     fluidCoupling,
-    NewtonIntegrator(gravity=(0, 0, -9.81), damping=0.3, label="newton"),
+    NewtonIntegrator(gravity=(0, 0, -9.81), damping=0.1, label="newton"),
     # Apply the Ychar-driven shrink factor frequently (every 1 ms of sim time)
     # so the radius tracks the local char yield smoothly as chemistry advances.
     PyRunner(command="changeRadius()",
