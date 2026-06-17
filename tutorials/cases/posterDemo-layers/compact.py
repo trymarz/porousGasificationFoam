@@ -112,6 +112,22 @@ while O.time < settleTarget:
 
 print(f"[compact] Settled at t = {O.time:.4f} s, {O.iter} iterations")
 
+# ── verify static equilibrium ─────────────────────────────────────
+# Compute residual kinetic energy and max velocity across all spheres;
+# if the pack is truly static both should be zero (to machine precision).
+ke = 0.0
+vmax = 0.0
+for b in O.bodies:
+    if isinstance(b.shape, Sphere):
+        m = b.state.mass
+        v = b.state.vel
+        speed = (v[0]**2 + v[1]**2 + v[2]**2)**0.5
+        ke += 0.5 * m * speed**2
+        if speed > vmax:
+            vmax = speed
+print(f"[compact] Residual kinetic energy = {ke:.3e} J, "
+      f"max speed = {vmax:.3e} m/s")
+
 # ── save final positions (sphere creation order = file line order) ──
 with open("compact_positions.txt", "w") as f:
     for b in O.bodies:
