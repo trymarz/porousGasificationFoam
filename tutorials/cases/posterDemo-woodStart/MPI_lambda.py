@@ -232,6 +232,12 @@ def write_VTK_spheres():
         radi.InsertNextValue(r)
     polydata.GetPointData().SetScalars(radi)
 
+    ld = vtk.vtkFloatArray()
+    ld.SetName("lambdaDot")
+    for b in sphr:
+        ld.InsertNextValue(float(b.state.lambdaDot))
+    polydata.GetPointData().AddArray(ld)
+
     vel = vtk.vtkFloatArray()
     vel.SetNumberOfComponents(3)
     vel.SetName("velocity")

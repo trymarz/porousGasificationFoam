@@ -26,3 +26,6 @@ yade compact.py 2>&1 | tee log.compact
 
 echo "=== Starting coupled CFD-DEM ==="
 mpirun --allow-run-as-root -n 2 yade MPI_lambda.py 2>&1 | tee log.yade
+
+echo "=== Post-run: extracting poster data ==="
+./poster-extract.sh

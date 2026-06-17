@@ -181,17 +181,17 @@ class TimeSnapshot(NamedTuple):
 def snapshot_at(case_dir: Path, time: float, tdir: Path) -> TimeSnapshot:
     """Build a :class:`TimeSnapshot` for one write time."""
     # Sphere VTK (latest file ≤ this time)
-    vtks = sorted(_glob.glob(str(case_dir / "spheres" / "spheres-rank1-*.vtp")))
+    vtks = sorted(_glob.glob(str(case_dir / "spheres" / "spheres-rank0-*.vtp")))
     vtk_count, vtk_rmin, vtk_rmax, vtk_rmean = 0, 0.0, 0.0, 0.0
     for v in vtks:
-        fn = os.path.basename(v).replace("spheres-rank1-", "").replace(".vtp", "")
+        fn = os.path.basename(v).replace("spheres-rank0-", "").replace(".vtp", "")
         try:
             if float(fn) <= time + 1e-6:
                 vtk_count, vtk_rmin, vtk_rmax, vtk_rmean = _read_vtk_spheres(Path(v))
         except ValueError:
             pass
 
-    shrink_pct = (1 - vtk_rmean / 0.004) * 100 if vtk_rmean > 0 else 0.0
+    shrink_pct = (1 - vtk_rmean / 0.003) * 100 if vtk_rmean > 0 else 0.0
 
     # Scalar fields from processor0
     proc0 = case_dir / "processor0" / f"{time:g}"
@@ -277,7 +277,7 @@ def print_summary(snap: TimeSnapshot) -> None:
 
     # Goal 1
     print(f"{BOLD}Goal 1: PGF → YADE  (shrinkage){NC}")
-    if snap.sphere_count == 60:
+    if snap.sphere_count == 270:
         print(_ok(f"Spheres: {snap.sphere_count}  r = {snap.sphere_r:.4f} m ({snap.sphere_shrink_pct:.1f}% shrink)"))
     elif snap.sphere_count > 0:
         print(_warn(f"Spheres: {snap.sphere_count}  r = {snap.sphere_r:.4f} m ({snap.sphere_shrink_pct:.1f}% shrink)"))
