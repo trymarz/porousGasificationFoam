@@ -5,8 +5,8 @@ from yade import pack, utils
 counter = [1]   # VTK frame counter (list for mutable closure capture)
 
 # ── coupling / run control ──────────────────────────────────────────
-parallelYade = True
-numProcOF    = 2
+parallelYade = False
+numProcOF    = 1
 nsteps       = int(3e6)   # ~3s headroom at YADE dt~1e-6 (OF stops first at endTime=2s)
 
 # Sphere-VTK cadence: one frame every 0.01 s of sim time, matching the
@@ -196,13 +196,9 @@ def changeRadius():
 file_names_proc = []
 
 def write_VTK_spheres():
-    # Write VTK only from rank 1, which OWNS the bodies and holds the
-    # authoritative lambdaDot-driven radii. Rank 0 keeps a full body copy
-    # (ERASE_REMOTE_MASTER=false) but its radii can lag when the
-    # _sync_lambdaDot_master_slave() broadcast fails to deliver, producing
-    # stale-radius VTK (spheres snapped back to the initial r=0.003). Guarding
-    # here eliminates that artefact.
-    if getattr(mp, 'rank', 0) != 1:
+    # Multi-proc (numProcOF≥2): rank 1 owns the bodies — write VTK there only.
+    # Single-proc (numProcOF=1): rank 0 is the only rank — write from rank 0.
+    if numProcOF > 1 and getattr(mp, 'rank', 0) != 1:
         return
     import vtk
     sphr = [b for b in O.bodies if isinstance(b.shape, Sphere)]

@@ -12,7 +12,7 @@ cp -r 0.orig 0
 runApplication blockMesh
 runApplication setFields
 runApplication setExprFields
-runApplication decomposePar
+# Single-proc — no domain decomposition needed
 
 mkdir -p spheres
 
@@ -24,8 +24,7 @@ echo "=== Pre-compacting bed (Yade only, no coupling) ==="
 yade compact.py 2>&1 | tee log.compact
 [ -f compact_positions.txt ] || { echo "ERROR: compact_positions.txt not generated!" >&2; exit 1; }
 
-# The solver runs INSIDE Yade via the MPI coupling script — not a plain
-# runParallel. Yade (2 ranks) spawns the 2 OpenFOAM ranks via MPI_Comm_spawn
-# (numProcOF = 2 in MPI_lambda.py).
-echo "=== Starting coupled CFD-DEM ==="
-mpirun --allow-run-as-root -n 2 yade MPI_lambda.py 2>&1 | tee log.yade
+# Single-proc: Yade + 1 OpenFOAM rank (numProcOF=1 in MPI_lambda.py).
+# No mpirun — yade launches directly and spawns the single OF rank internally.
+echo "=== Starting coupled CFD-DEM (single-proc) ==="
+yade MPI_lambda.py 2>&1 | tee log.yade
