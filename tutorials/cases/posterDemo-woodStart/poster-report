@@ -1,0 +1,470 @@
+#!/usr/bin/env python3
+"""poster-report — one-command summary of posterDemo coupling case.
+
+Reads OpenFOAM write directories, YADE sphere VTK files, and function-object
+output to answer the two poster questions in a single glance:
+
+    1. PGF → YADE  (shrinkage):  lambdaDot, sphere count & radius
+    2. YADE → PGF  (advection):  |Us|, Ywood→Ychar, porosity
+
+Usage:
+    ./poster-report              summary of latest write time
+    ./poster-report --all        time-series table of all write times
+    ./poster-report --csv        CSV output (pipeable for plotting)
+    ./poster-report -t 0.10      detail at specific write time
+    ./poster-report --watch      live refresh (5 s interval, q to quit)
+
+Requires:
+    Python ≥ 3.9, + xml.etree (stdlib).  No other dependencies.
+    OpenFOAM is NOT required — all parsing is direct from ascii files.
+"""
+
+from __future__ import annotations
+
+import argparse
+import glob as _glob
+import json
+import os
+import re
+import subprocess as _sp
+import sys
+import time as _time
+import xml.etree.ElementTree as ET
+from pathlib import Path
+from typing import NamedTuple
+
+# ── ANSI ──────────────────────────────────────────────────────────────
+BOLD = "\033[1m"
+GREEN = "\033[32m"
+YELLOW = "\033[33m"
+RED = "\033[31m"
+CYAN = "\033[36m"
+DIM = "\033[2m"
+NC = "\033[0m"
+
+
+# ── helpers ───────────────────────────────────────────────────────────
+def _float_list(raw: str) -> list[float]:
+    """Parse space-separated floats from an ASCII string."""
+    return [float(x) for x in raw.split() if x.replace(".", "").replace("-", "").replace("e", "").replace("+", "").replace("E", "").isdigit()]
+
+
+def _read_of_scalar(path: Path, domain: tuple[float, float] | None = None) -> list[float]:
+    """Read a volScalarField file and return internal-field values.
+
+    Finds the ``internalField`` block, extracts numeric tokens between the
+    opening ``(`` and its matching ``)``, and optionally filters to *domain*.
+    """
+    if not path.is_file():
+        return []
+    data = path.read_bytes()
+    idx = data.find(b"internalField")
+    if idx < 0:
+        return []
+    tail = data[idx:].decode("ascii", errors="ignore")
+    # Find the opening '(' of the internalField value list
+    m = re.search(r"\(", tail)
+    if not m:
+        return []
+    start = m.start()
+    # Find matching ')' by counting paren depth
+    depth = 0
+    end = start
+    for i in range(start, len(tail)):
+        if tail[i] == "(":
+            depth += 1
+        elif tail[i] == ")":
+            depth -= 1
+            if depth == 0:
+                end = i
+                break
+    block = tail[start : end + 1]
+    vals = []
+    for tok in re.findall(r"[\d.eE+\-]+", block):
+        try:
+            v = float(tok)
+            if domain is None or domain[0] <= v <= domain[1]:
+                vals.append(v)
+        except ValueError:
+            pass
+    return vals
+
+
+def _read_of_vector_mag(path: Path) -> list[float]:
+    """Read a volVectorField file, return per-cell magnitudes.
+
+    Handles ``nonuniform List<vector>`` blocks where each vector is a
+    ``(x y z)`` tuple.
+    """
+    if not path.is_file():
+        return []
+    data = path.read_bytes()
+    idx = data.find(b"List<vector>")
+    if idx < 0:
+        # uniform vectors — not implemented; return empty
+        return []
+    tail = data[idx:].decode("ascii", errors="ignore")
+    m = re.search(r"\(", tail)
+    if not m:
+        return []
+    block = tail[m.start() :]
+    vecs = re.findall(r"\(([\d.e+\- ]+)\)", block)
+    mags = []
+    for v in vecs:
+        parts = v.split()
+        if len(parts) >= 3:
+            try:
+                mags.append((float(parts[0]) ** 2 + float(parts[1]) ** 2 + float(parts[2]) ** 2) ** 0.5)
+            except ValueError:
+                pass
+    return mags
+
+
+def _read_vtk_spheres(vtk_path: Path) -> tuple[int, float, float, float]:
+    """Return (count, min_r, max_r, mean_r) from a YADE sphere VTK file."""
+    if not vtk_path.is_file():
+        return (0, 0.0, 0.0, 0.0)
+    tree = ET.parse(str(vtk_path))
+    root = tree.getroot()
+    for pd in root.iter("PointData"):
+        for da in pd.findall("DataArray"):
+            if da.get("Name") == "radius" and da.text:
+                vals = [float(x) for x in da.text.split()]
+                if vals:
+                    return (len(vals), min(vals), max(vals), sum(vals) / len(vals))
+    return (0, 0.0, 0.0, 0.0)
+
+
+def _read_funcobj_dat(path: Path, col: int) -> float | None:
+    """Read *col* (1-indexed) from the last data row of a function-object
+    .dat file (tab-separated, #-comments).
+    """
+    if not path.is_file():
+        return None
+    for line in reversed(path.read_text().splitlines()):
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        parts = line.split("\t")
+        if len(parts) > col:
+            try:
+                return float(parts[col])
+            except ValueError:
+                return None
+    return None
+
+
+# ── data model ────────────────────────────────────────────────────────
+class TimeSnapshot(NamedTuple):
+    time: float
+    sphere_count: int
+    sphere_r: float  # mean radius
+    sphere_shrink_pct: float
+    lambda_dot_mean: float
+    lambda_dot_cells: int  # cells with lambdaDot < 1.0
+    us_mag_mean: float
+    us_mag_max: float
+    us_cells: int
+    porosity_mean: float
+    porosity_range: tuple[float, float]
+    ywood_mean: float
+    ychar_mean: float
+    solid_wood_mass: float | None
+    solid_char_mass: float | None
+    t_mean: float
+    ts_mean: float
+    rho_mean: float
+    rho_min: float
+    rho_max: float
+
+
+def snapshot_at(case_dir: Path, time: float, tdir: Path) -> TimeSnapshot:
+    """Build a :class:`TimeSnapshot` for one write time."""
+    # Sphere VTK (latest file ≤ this time)
+    vtks = sorted(_glob.glob(str(case_dir / "spheres" / "spheres-rank1-*.vtp")))
+    vtk_count, vtk_rmin, vtk_rmax, vtk_rmean = 0, 0.0, 0.0, 0.0
+    for v in vtks:
+        fn = os.path.basename(v).replace("spheres-rank1-", "").replace(".vtp", "")
+        try:
+            if float(fn) <= time + 1e-6:
+                vtk_count, vtk_rmin, vtk_rmax, vtk_rmean = _read_vtk_spheres(Path(v))
+        except ValueError:
+            pass
+
+    shrink_pct = (1 - vtk_rmean / 0.004) * 100 if vtk_rmean > 0 else 0.0
+
+    # Scalar fields from processor0
+    proc0 = case_dir / "processor0" / f"{time:g}"
+    pdir = proc0 if proc0.is_dir() else tdir if tdir.is_dir() else None
+
+    ld_vals = _read_of_scalar(pdir / "lambdaDot", domain=(0.9, 1.0)) if pdir else []
+    ld_active = [v for v in ld_vals if v < 1.0]
+    ld_mean = sum(ld_active) / len(ld_active) if ld_active else 1.0
+
+    us_mags = _read_of_vector_mag(pdir / "Us") if pdir else []
+    us_mean = sum(us_mags) / len(us_mags) if us_mags else 0.0
+    us_max = max(us_mags) if us_mags else 0.0
+
+    poro_vals = _read_of_scalar(pdir / "porosityF", domain=(0.0, 1.0)) if pdir else []
+    bed_poro = [v for v in poro_vals if v < 0.999]
+    poro_mean = sum(bed_poro) / len(bed_poro) if bed_poro else 0.0
+    poro_min = min(bed_poro) if bed_poro else 0.0
+    poro_max = max(bed_poro) if bed_poro else 0.0
+
+    ywood_vals = _read_of_scalar(pdir / "Ywood", domain=(0.0, 1.0)) if pdir else []
+    ywood_mean = sum(ywood_vals) / len(ywood_vals) if ywood_vals else 0.0
+    ychar_vals = _read_of_scalar(pdir / "Ychar", domain=(0.0, 1.0)) if pdir else []
+    ychar_mean = sum(ychar_vals) / len(ychar_vals) if ychar_vals else 0.0
+
+    t_vals = _read_of_scalar(pdir / "T", domain=(1, 5000)) if pdir else []
+    t_mean = sum(t_vals) / len(t_vals) if t_vals else 0.0
+    ts_vals = _read_of_scalar(pdir / "Ts", domain=(1, 5000)) if pdir else []
+    ts_mean = sum(ts_vals) / len(ts_vals) if ts_vals else 0.0
+
+    rho_vals = _read_of_scalar(pdir / "rho", domain=(0.01, 10.0)) if pdir else []
+    if rho_vals:
+        rho_mean = sum(rho_vals) / len(rho_vals)
+        rho_min = min(rho_vals)
+        rho_max = max(rho_vals)
+    else:
+        rho_mean = rho_min = rho_max = 0.0  # rho not in write dirs; read from log instead
+
+    # Function-object data
+    sm_file = case_dir / "postProcessing" / "solidMass" / "0" / "volFieldValue.dat"
+    wood_mass = _read_funcobj_dat(sm_file, 1)
+    char_mass = _read_funcobj_dat(sm_file, 2)
+
+    return TimeSnapshot(
+        time=time,
+        sphere_count=vtk_count,
+        sphere_r=vtk_rmean,
+        sphere_shrink_pct=shrink_pct,
+        lambda_dot_mean=ld_mean,
+        lambda_dot_cells=len(ld_active),
+        us_mag_mean=us_mean,
+        us_mag_max=us_max,
+        us_cells=len(us_mags),
+        porosity_mean=poro_mean,
+        porosity_range=(poro_min, poro_max),
+        ywood_mean=ywood_mean,
+        ychar_mean=ychar_mean,
+        solid_wood_mass=wood_mass,
+        solid_char_mass=char_mass,
+        t_mean=t_mean,
+        ts_mean=ts_mean,
+        rho_mean=rho_mean,
+        rho_min=rho_min,
+        rho_max=rho_max,
+    )
+
+
+# ── display ───────────────────────────────────────────────────────────
+def _ok(msg: str) -> str:
+    return f"  {GREEN}✓{NC} {msg}"
+
+
+def _warn(msg: str) -> str:
+    return f"  {YELLOW}⚠{NC} {msg}"
+
+
+def _bad(msg: str) -> str:
+    return f"  {RED}✗{NC} {msg}"
+
+
+def print_summary(snap: TimeSnapshot) -> None:
+    """Print a single-timepoint summary."""
+    print(f"\n{BOLD}{CYAN}── t = {snap.time:.3f} s ──{NC}\n")
+
+    # Goal 1
+    print(f"{BOLD}Goal 1: PGF → YADE  (shrinkage){NC}")
+    if snap.sphere_count == 60:
+        print(_ok(f"Spheres: {snap.sphere_count}  r = {snap.sphere_r:.4f} m ({snap.sphere_shrink_pct:.1f}% shrink)"))
+    elif snap.sphere_count > 0:
+        print(_warn(f"Spheres: {snap.sphere_count}  r = {snap.sphere_r:.4f} m ({snap.sphere_shrink_pct:.1f}% shrink)"))
+    else:
+        print(f"  Spheres: waiting (no VTK yet)")
+    print(f"  lambdaDot:  mean {snap.lambda_dot_mean:.6f}  ({snap.lambda_dot_cells} cells active)")
+    shrink_step = (1 - snap.lambda_dot_mean) * 100
+    print(f"              shrink {shrink_step:.3f}% / step")
+    print()
+
+    # Goal 2
+    print(f"{BOLD}Goal 2: YADE → PGF  (solid advection){NC}")
+    print(f"  |Us|:       mean {snap.us_mag_mean:.4f} m/s  max {snap.us_mag_max:.4f}  ({snap.us_cells} cells)")
+    print(f"  Ywood:      {snap.ywood_mean:.4f}")
+    print(f"  Ychar:      {snap.ychar_mean:.4f}")
+    if snap.solid_wood_mass is not None and snap.solid_char_mass is not None:
+        total = snap.solid_wood_mass + snap.solid_char_mass
+        print(f"  Solid mass: wood={snap.solid_wood_mass:.2e} kg  char={snap.solid_char_mass:.2e} kg  total={total:.2e}")
+    print(f"  Porosity:   {snap.porosity_mean:.4f}  (bed, range {snap.porosity_range[0]:.4f}–{snap.porosity_range[1]:.4f})")
+    print()
+
+    # State
+    print(f"{BOLD}State{NC}")
+    print(f"  T gas:  mean {snap.t_mean:.1f} K")
+    print(f"  Ts:     mean {snap.ts_mean:.1f} K")
+    print(f"  rho:    mean {snap.rho_mean:.3f}  ({snap.rho_min:.3f}–{snap.rho_max:.3f})")
+
+
+def print_table(snapshots: list[TimeSnapshot]) -> None:
+    """Print a time-series table of all write times."""
+    if not snapshots:
+        print("No data yet.")
+        return
+
+    header = f"{'Time':>8s}  {'r(mm)':>6s}  {'Shrink%':>7s}  {'λDot':>8s}  {'λcells':>6s}  {'|Us|':>7s}  {'Ywood':>6s}  {'Ychar':>6s}  {'Poro':>6s}  {'Tgas':>6s}  {'Ts':>6s}  {'ρ':>6s}"
+    sep = "-" * len(header)
+
+    print(f"\n{BOLD}{CYAN}{header}{NC}")
+    print(f"{DIM}{sep}{NC}")
+
+    for s in snapshots:
+        print(
+            f"{s.time:8.3f}  "
+            f"{s.sphere_r*1000:6.3f}  "
+            f"{s.sphere_shrink_pct:6.1f}%  "
+            f"{s.lambda_dot_mean:8.6f}  "
+            f"{s.lambda_dot_cells:6d}  "
+            f"{s.us_mag_mean:7.4f}  "
+            f"{s.ywood_mean:6.4f}  "
+            f"{s.ychar_mean:6.4f}  "
+            f"{s.porosity_mean:6.4f}  "
+            f"{s.t_mean:6.0f}  "
+            f"{s.ts_mean:6.0f}  "
+            f"{s.rho_mean:6.3f}"
+        )
+
+    print(f"{DIM}{sep}{NC}")
+    print(f"{len(snapshots)} write times\n")
+
+
+def print_csv(snapshots: list[TimeSnapshot]) -> None:
+    """Print CSV for external plotting."""
+    print("time,sphere_r_mm,shrink_pct,lambdaDot,lambdaCells,Us_mean,Us_max,Ywood,Ychar,porosity,Tgas,Ts,rho_mean,rho_min,rho_max")
+    for s in snapshots:
+        print(
+            f"{s.time},{s.sphere_r*1000:.3f},{s.sphere_shrink_pct:.1f},"
+            f"{s.lambda_dot_mean:.6f},{s.lambda_dot_cells},"
+            f"{s.us_mag_mean:.4f},{s.us_mag_max:.4f},"
+            f"{s.ywood_mean:.4f},{s.ychar_mean:.4f},"
+            f"{s.porosity_mean:.4f},"
+            f"{s.t_mean:.1f},{s.ts_mean:.1f},"
+            f"{s.rho_mean:.3f},{s.rho_min:.3f},{s.rho_max:.3f}"
+        )
+
+
+# ── main ──────────────────────────────────────────────────────────────
+def _find_write_times(case_dir: Path) -> list[tuple[float, Path]]:
+    """Sorted list of (time, path) for processor0 write dirs."""
+    proc0 = case_dir / "processor0"
+    if not proc0.is_dir():
+        return []
+    times = []
+    for entry in proc0.iterdir():
+        if not entry.is_dir():
+            continue
+        try:
+            t = float(entry.name)
+            times.append((t, entry))
+        except ValueError:
+            pass
+    times.sort()
+    return times
+
+
+def _build_snapshots(case_dir: Path) -> list[TimeSnapshot]:
+    """Build snapshots for all available write times."""
+    snapshots = []
+    for t, tdir in _find_write_times(case_dir):
+        snapshots.append(snapshot_at(case_dir, t, tdir))
+    return snapshots
+
+
+def _progress(case_dir: Path) -> dict:
+    """Quick progress from log file."""
+    log = case_dir / "log.yade"
+    if not log.is_file():
+        return {"time": None, "steps": 0}
+    data = log.read_text(errors="ignore")
+    times = re.findall(r"^Time = ([\d.e+\-]+)", data, re.MULTILINE)
+    last_time = float(times[-1]) if times else None
+    last_courant = re.findall(r"Courant Number mean:.*?max: ([\d.]+)", data)
+    last_rho = re.findall(r"rho max/min\s*:\s*([\d.]+)\s+([\d.]+)", data)
+    return {
+        "time": last_time,
+        "steps": len(times),
+        "courant": float(last_courant[-1]) if last_courant else None,
+        "rho_max": float(last_rho[-1][0]) if last_rho else None,
+        "rho_min": float(last_rho[-1][1]) if last_rho else None,
+    }
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser(description="posterDemo coupling summary")
+    ap.add_argument("--all", action="store_true", help="Time-series table of all write times")
+    ap.add_argument("--csv", action="store_true", help="CSV output")
+    ap.add_argument("-t", "--time", type=float, help="Detail at specific write time")
+    ap.add_argument("--watch", action="store_true", help="Live refresh (5 s)")
+    ap.add_argument("case", nargs="?", default=".", help="Case directory [default: .]")
+    args = ap.parse_args()
+
+    case_dir = Path(args.case).resolve()
+    os.chdir(case_dir)
+
+    if args.watch:
+        try:
+            while True:
+                os.system("clear" if os.name != "nt" else "cls")
+                snap = _build_snapshots(case_dir)
+                p = _progress(case_dir)
+                print(f"{BOLD}posterDemo — live @ {p['time'] or '?'} s  ({p['steps']} steps){NC}")
+                if p["courant"] is not None:
+                    print(f"Co max: {p['courant']:.3f}  rho: {p['rho_min']:.3f}–{p['rho_max']:.3f}")
+                if snap:
+                    print_summary(snap[-1])
+                else:
+                    print("\n  Waiting for first write...\n")
+                _time.sleep(5)
+        except KeyboardInterrupt:
+            print("\n")
+            return
+        return
+
+    snapshots = _build_snapshots(case_dir)
+
+    if args.time is not None:
+        # Find closest snapshot
+        closest = None
+        best_dist = float("inf")
+        for s in snapshots:
+            d = abs(s.time - args.time)
+            if d < best_dist:
+                best_dist = d
+                closest = s
+        if closest is not None:
+            print_summary(closest)
+        else:
+            print(f"No data near t={args.time}. Available: {[s.time for s in snapshots]}")
+        return
+
+    if args.csv:
+        print_csv(snapshots)
+        return
+
+    if args.all:
+        print_table(snapshots)
+        return
+
+    # Default: latest snapshot summary + progress
+    p = _progress(case_dir)
+    print(f"{BOLD}posterDemo{NC} — solver at t ≈ {p['time'] or '?'} s  ({p['steps']} steps)")
+    if p["courant"] is not None:
+        print(f"Co max: {p['courant']:.3f}  rho: {p['rho_min']:.3f}–{p['rho_max']:.3f}")
+    if snapshots:
+        print_summary(snapshots[-1])
+    else:
+        print("\n  No write directories yet.\n")
+
+
+if __name__ == "__main__":
+    main()
