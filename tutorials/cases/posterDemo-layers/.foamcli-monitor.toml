@@ -74,7 +74,7 @@ output = "render/poster/slice_{field}.png"
 axis = "y"
 position = 0.002
 fields = ["Ywood", "Ychar", "porosityF", "lambdaDot", "T", "Ts"]
-output = "render/timeseries/slice_{field}.png"
+output = "render/timeseries/{field}/{field}.png"
 
 # ── YADE particle slices ──
 # VTP files live under spheres/ (spheres-rank{0,1}-*.vtp), not VTK/ or case root.
