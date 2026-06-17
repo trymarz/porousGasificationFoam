@@ -261,7 +261,7 @@ O.engines = [
         timestepSafetyCoefficient=0.5,
         defaultDt=1e-6,
         timeStepUpdateInterval=50,
-        parallelMode=True,
+        parallelMode=False,
         label="ts",
     ),
     fluidCoupling,
