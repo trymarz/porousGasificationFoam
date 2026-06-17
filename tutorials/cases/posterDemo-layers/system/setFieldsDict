@@ -26,9 +26,10 @@ FoamFile
 // Layer 3  top     z = 0.064 → 0.096  — fresh wood, densest packing
 //
 // All layers start at 800 K so chemistry fires immediately everywhere.
-// The gradient is purely in Ywood / Ychar / porosityF.
+// The gradient is purely in porosityF (three layers) and Ts/T.
+// Ywood / Ychar are set by setExprFieldsDict as a smooth linear z-gradient.
 //
-// YADE packs staggered hexagonal spheres in two y-layers (see MPI_lambda.py).
+// YADE packs hexagonal spheres in three y-layers (see MPI_lambda.py).
 // Boxes span the full y-width (0.018 m) of the 1-cell-thick 2.5D mesh.
 
 defaultFieldValues
@@ -49,8 +50,6 @@ regions
         (
             volScalarFieldValue porosityF  0.55
             volScalarFieldValue porosityF0 0.55
-            volScalarFieldValue Ywood      0.2
-            volScalarFieldValue Ychar      0.8
             volScalarFieldValue Ts         800
             volScalarFieldValue T          800
         );
@@ -64,8 +63,6 @@ regions
         (
             volScalarFieldValue porosityF  0.40
             volScalarFieldValue porosityF0 0.40
-            volScalarFieldValue Ywood      0.6
-            volScalarFieldValue Ychar      0.4
             volScalarFieldValue Ts         800
             volScalarFieldValue T          800
         );
@@ -79,8 +76,6 @@ regions
         (
             volScalarFieldValue porosityF  0.30
             volScalarFieldValue porosityF0 0.30
-            volScalarFieldValue Ywood      1.0
-            volScalarFieldValue Ychar      0.0
             volScalarFieldValue Ts         800
             volScalarFieldValue T          800
         );

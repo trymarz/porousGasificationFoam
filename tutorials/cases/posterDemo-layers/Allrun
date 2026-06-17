@@ -11,6 +11,7 @@ cp -r 0.orig 0
 
 runApplication blockMesh
 runApplication setFields
+runApplication setExprFields
 runApplication decomposePar
 
 mkdir -p spheres

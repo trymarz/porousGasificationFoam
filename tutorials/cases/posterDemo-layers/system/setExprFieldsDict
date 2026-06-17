@@ -1,0 +1,42 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  8
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "system";
+    object      setExprFieldsDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// Smooth linear gradient: 80 % char at bottom (z=0), 0 % at top (z=0.096).
+// Ywood = 1 − Ychar.
+//
+// The three-layer porosity from setFieldsDict still applies; only the
+// solid-species fields are replaced with a continuous z-ramp so the
+// poster shows a smooth coupling gradient rather than artificial stair-steps.
+
+expressions
+(
+    Ychar
+    {
+        field        Ychar;
+        expression   "0.80 * (1 - pos().z() / 0.096)";
+        condition    "pos().z() < 0.096";
+    }
+
+    Ywood
+    {
+        field        Ywood;
+        expression   "1 - 0.80 * (1 - pos().z() / 0.096)";
+        condition    "pos().z() < 0.096";
+    }
+);
+
+// ************************************************************************* //
