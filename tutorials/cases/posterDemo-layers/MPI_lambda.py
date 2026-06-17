@@ -54,15 +54,15 @@ CHAR_CORE_RADIUS = 0.00075   # 25 % of initial (visible char core)
 y_positions      = [0.004, 0.01]  # two y-layers, 1 mm wall clearance
 lx, lz           = 0.04, 0.096
 
-step    = 2.0 * radius                       # 0.008
-dz      = radius * math.sqrt(3.0)            # 0.006928 — HCP vertical spacing
+step    = 2.0 * radius                       # 0.006
+dz      = radius * math.sqrt(3.0)            # 0.005196 — HCP vertical spacing
 
 # Integer counts (avoids floating-point accumulation)
 # First centre:  x_even = r           x_odd = 2r
 # Constraint:    centre + r ≤ lx  →  last = x0 + (nx-1)·step + r ≤ lx
-nx_even = int((lx - 2*radius) / step) + 1      # 5 — row 0,2,4,…
-nx_odd  = int((lx - 3*radius) / step) + 1      # 4 — row 1,3,5,…  (offset by r)
-nz      = int((lz - 2*radius) / dz) + 1        # 13 layers
+nx_even = int((lx - 2*radius) / step) + 1      # 6 — row 0,2,4,…
+nx_odd  = int((lx - 3*radius) / step) + 1      # 6 — row 1,3,5,…  (offset by r)
+nz      = int((lz - 2*radius) / dz) + 1        # 18 layers
 
 sp = pack.SpherePack()
 z_start = radius
@@ -109,8 +109,8 @@ fluidCoupling.setIdList(sphereIDs)
 # ── particle shrinkage ────────────────────────────────────────────
 # Spheres shrink linearly toward CHAR_CORE_RADIUS as the solid pyrolyses.
 # lambdaDot = 1.0 − Ychar (wood-remaining fraction, [0, 1]):
-#   lambdaDot = 1.00  →  Ychar = 0.00  →  r = r₀ = 0.004 m
-#   lambdaDot = 0.00  →  Ychar = 1.00  →  r = CHAR_CORE_RADIUS = 0.001 m
+#   lambdaDot = 1.00  →  Ychar = 0.00  →  r = r₀ = 0.003 m
+#   lambdaDot = 0.00  →  Ychar = 1.00  →  r = CHAR_CORE_RADIUS = 0.00075 m
 #   lambdaDot = 0.50  →  Ychar = 0.50  →  r = 0.0025 m (halfway)
 #
 # The mapping is a linear interpolation:  r = r_core + (r₀ − r_core) × ld
