@@ -1,0 +1,38 @@
+# foamcli monitor config for posterDemo 2D monolayer coupling case
+# Run:  foamcli monitor .   (from case directory)
+#
+# Keyboard controls:
+#   p/n  → cycle heatmap fields
+#   f    → full-screen heatmap
+#   r    → refresh
+#   q    → quit (solver keeps running)
+
+[heatmap]
+# Model-critical scalar fields, in display order:
+#   1. Ts         — solid temperature (drives lambdaDot / sphere shrinkage)
+#   2. T          — gas temperature
+#   3. porosityF  — bed porosity (solid volume fraction)
+#   4. Ywood      — wood mass fraction (pyrolysis reactant)
+#   5. Ychar      — char mass fraction (pyrolysis product)
+#   6. lambdaDot  — per-cell shrink factor (PGF → YADE coupling)
+#   7. nParticles — number of YADE spheres per cell
+#   8. targas     — gas-phase tar species
+#   9. rho        — gas density
+fields = ["Ts", "T", "porosityF", "Ywood", "Ychar", "lambdaDot", "nParticles", "targas", "rho"]
+
+[probes]
+# Centerline probes (y=0.002 is mid-plane of quasi-2D domain)
+# Bottom → top through the bed
+labels = ["bed-bottom", "bed-mid", "bed-top", "freeboard-1", "freeboard-2", "freeboard-3", "outlet"]
+
+[monitor]
+# Refresh every 2 seconds (default)
+refresh_interval = 2.0
+
+# Show all four panels
+panels = ["progress", "probes", "residuals", "heatmap"]
+
+[slice]
+# Cut through the midplane of our 1-cell-thick 2D domain
+axis = "y"
+position = 0.002

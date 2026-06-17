@@ -1,0 +1,54 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  8
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "system";
+    object      setFieldsDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// Fill the entire column with a dry-wood packed bed (z = 0 → 0.096).
+// porosityF = 0.40
+// and the solid is 100 % wood (Ywood = 1, Ychar = 0). The bed starts cold
+// (Ts = T = 600 K) and is heated from below by the hot inlet air, creating a
+// vertical temperature gradient: pyrolysis (and hence sphere shrinkage) fires
+// first at the hot bottom and lags at the cooler top, so Ychar and the sphere
+// radii vary spatially.
+// YADE packs 60 particles (5×1×12 monolayer) into this domain, touching
+// all six walls and neighbours — self-supporting, no settling
+// (see MPI_lambda.py). The box is 1 cell thick in y to match the quasi-2D mesh.
+
+defaultFieldValues
+(
+    volScalarFieldValue porosityF  1.0
+    volScalarFieldValue porosityF0 1.0
+    volScalarFieldValue Ywood      0.0
+    volScalarFieldValue Ychar      0.0
+);
+
+regions
+(
+    boxToCell
+    {
+        box (0 0 0) (0.04 0.004 0.096);
+        fieldValues
+        (
+            volScalarFieldValue porosityF  0.40
+            volScalarFieldValue porosityF0 0.40
+            volScalarFieldValue Ywood      1.0
+            volScalarFieldValue Ychar      0.0
+            volScalarFieldValue Ts         600
+            volScalarFieldValue T          600
+        );
+    }
+);
+
+// ************************************************************************* //

@@ -11,16 +11,29 @@ FoamFile
     format      ascii;
     class       dictionary;
     location    "constant";
-    object      lambdaDict;
+    object      thermophysicalProperties;
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-// Dummy entry. lambdaDotModel still constructs a Function1<scalar> from this
-// dict (so it must exist and parse), but in this case the per-cell shrink
-// factor is driven by the solid char mass fraction Ychar inside lambdaDotModel::update()
-// and this value is intentionally ignored. Kept as a plain constant to avoid
-// dynamic-code compilation.
+thermoType
+{
+    type            hePsiThermo;
+    mixture         reactingMixture;
+    transport       sutherland;
+    thermo          janaf;
+    energy          sensibleEnthalpy;
+    equationOfState perfectGas;
+    specie          specie;
+}
 
-lambdaDot       constant 1.0;
+inertSpecie N2;
+
+chemistryReader     foamChemistryReader;
+
+foamChemistryFile   "<constant>/reactions";
+
+foamChemistryThermoFile "<constant>/thermo.compressibleGas";
+
+solveEnergy true;
 
 // ************************************************************************* //

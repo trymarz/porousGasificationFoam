@@ -11,16 +11,12 @@ FoamFile
     format      ascii;
     class       dictionary;
     location    "constant";
-    object      lambdaDict;
+    object      combustionProperties;
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-// Dummy entry. lambdaDotModel still constructs a Function1<scalar> from this
-// dict (so it must exist and parse), but in this case the per-cell shrink
-// factor is driven by the solid char mass fraction Ychar inside lambdaDotModel::update()
-// and this value is intentionally ignored. Kept as a plain constant to avoid
-// dynamic-code compilation.
+combustionModel  laminar;
 
-lambdaDot       constant 1.0;
+active           false;
 
 // ************************************************************************* //

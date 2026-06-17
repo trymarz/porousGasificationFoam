@@ -7,20 +7,35 @@
 \*---------------------------------------------------------------------------*/
 FoamFile
 {
-    version     2.0;
+    version     2.1;
     format      ascii;
     class       dictionary;
     location    "constant";
-    object      lambdaDict;
+    object      radiationProperties;
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-// Dummy entry. lambdaDotModel still constructs a Function1<scalar> from this
-// dict (so it must exist and parse), but in this case the per-cell shrink
-// factor is driven by the solid char mass fraction Ychar inside lambdaDotModel::update()
-// and this value is intentionally ignored. Kept as a plain constant to avoid
-// dynamic-code compilation.
+radiation       off;
 
-lambdaDot       constant 1.0;
+heterogeneousRadiationModel  none;
+
+solverFreq 1;
+
+heterogeneousAbsorptionEmissionModel heterogeneousConstantAbsorptionEmission;
+
+heterogeneousConstantAbsorptionEmissionCoeffs
+{
+    a               a  [ 0 -1  0 0 0 0 0 ] 0;
+    as              as [ 0 -1  0 0 0 0 0 ] 0;
+    borderAs        borderAs [ 0 -1  0 0 0 0 0 ] 180;
+    E               E  [ 1 -1 -3 0 0 0 0 ] 0.0;
+    borderL         borderL  [ 0 1 0 0 0 0 0 ] 1.5e-3;
+}
+
+scatterModel    constantScatter;
+
+sigma           sigma [ 0 -1 0 0 0 0 0 ] 1;
+C               C [ 0 0 0 0 0 0 0 ] 1; 
+
 
 // ************************************************************************* //

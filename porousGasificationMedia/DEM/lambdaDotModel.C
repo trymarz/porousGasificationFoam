@@ -54,17 +54,18 @@ void lambdaDotModel::update()
 {
     // ── Ychar-driven lambdaDot ──────────────────────────────────────
     //
-    // lambdaDot = 1.0 − Ychar / Ychar_final   (clamped to [0.0, 1.0])
+    // lambdaDot = 1.0 − Ychar   (clamped to [0.0, 1.0])
     //
-    // Ychar_final = 0.70 is the stoichiometric char yield from the
-    // posterDemo chemistry:  1.0 wood → 0.70 char + 0.30 targas
-    // (chemistryProperties line 79).
+    // Ychar is the *solid char mass fraction* char/(wood+char), which runs
+    // from 0 (all wood) to 1 (all char) independently of the chemistry
+    // stoichiometry — so lambdaDot is simply the wood-remaining fraction.
+    // The stoichiometric char yield (0.70 char for posterDemo, 0.30 for
+    // posterDemo-coldBed) only sets how *fast* Ychar climbs, hence how
+    // gradually the spheres shrink; it does not enter this formula.
     //
-    // lambdaDot is now a *wood-remaining fraction* (not a per-step
-    // shrink rate):
     //   Ychar = 0.00  →  lambdaDot = 1.00  →  r = r₀ = 0.004 m
-    //   Ychar = 0.35  →  lambdaDot = 0.50  →  r = 0.0025 m (halfway)
-    //   Ychar = 0.70  →  lambdaDot = 0.00  →  r = r_core = 0.001 m
+    //   Ychar = 0.50  →  lambdaDot = 0.50  →  r = 0.0025 m (halfway)
+    //   Ychar = 1.00  →  lambdaDot = 0.00  →  r = r_core = 0.001 m
     //
     // The YADE changeRadius() function (MPI_lambda.py) maps ld to
     // radius linearly:  r = r_core + (r₀ − r_core) × ld
@@ -74,17 +75,15 @@ void lambdaDotModel::update()
     // lambdaDot_.correctBoundaryConditions() is called after the loop
     // so boundary patches get consistent values.
 
-    const scalar Ychar_final = 0.70;
-
     forAll(lambdaDot_, cellI)
     {
         const scalar yc = Ychar_[cellI];
 
-        // Guard against unphysical Ychar (should be [0, 0.70] but
-        // advection overshoot can push it a few percent beyond).
-        const scalar ycClipped = max(0.0, min(Ychar_final, yc));
+        // Guard against unphysical Ychar (should be [0, 1] but advection
+        // overshoot can push it a few percent beyond).
+        const scalar ycClipped = max(0.0, min(1.0, yc));
 
-        lambdaDot_[cellI] = 1.0 - ycClipped / Ychar_final;
+        lambdaDot_[cellI] = 1.0 - ycClipped;
     }
 
     lambdaDot_.correctBoundaryConditions();

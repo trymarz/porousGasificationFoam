@@ -84,10 +84,12 @@ fluidCoupling.setIdList(sphereIDs)
 
 # ── particle shrinkage ────────────────────────────────────────────
 # Spheres shrink linearly toward CHAR_CORE_RADIUS as the solid pyrolyses.
-# lambdaDot = 1.0 − Ychar (wood-remaining fraction, [0, 1]):
+# lambdaDot = 1.0 − Ychar (wood-remaining fraction, [0, 1]).  Ychar is the
+# solid char mass fraction char/(wood+char), which runs 0 → 1 regardless of
+# the chemistry stoichiometry, so the formula needs no Ychar_final constant:
 #   lambdaDot = 1.00  →  Ychar = 0.00  →  r = r₀ = 0.004 m
+#   lambdaDot = 0.50  →  Ychar = 0.50  →  r = 0.0025 m
 #   lambdaDot = 0.00  →  Ychar = 1.00  →  r = CHAR_CORE_RADIUS = 0.001 m
-#   lambdaDot = 0.50  →  Ychar = 0.50  →  r = 0.0025 m (halfway)
 #
 # The mapping is a linear interpolation:  r = r_core + (r₀ − r_core) × ld
 #
@@ -100,7 +102,7 @@ fluidCoupling.setIdList(sphereIDs)
 # ── master←worker lambdaDot sync (MPI stopgap) ────────────────────
 # In DOMAIN_DECOMPOSITION mode with ERASE_REMOTE_MASTER=False the YADE master
 # (rank 0) keeps a full copy of every body, but FoamCoupling delivers the
-# Ychar-driven lambdaDot only to the worker that owns each body — the master's
+# Ts-driven lambdaDot only to the worker that owns each body — the master's
 # copies stay frozen at the initial radius. Mirror the worker's lambdaDot onto
 # the master so rank-0 spheres shrink in step with the worker-owned ones.
 #

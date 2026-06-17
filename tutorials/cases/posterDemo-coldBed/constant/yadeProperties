@@ -1,0 +1,38 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  8
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      yadeProperties;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// --------------
+// YADE-OpenFOAM coupling properties
+// --------------
+// active=true makes the solver build/use the DEM coupling (only effective in a
+// `./build.sh build --yade` binary). The solver MUST be launched through YADE:
+//   mpirun -n 2 yade MPI_lambda.py
+// not as a bare porousGasificationFoam.
+
+active          true;
+
+// nu MUST be non-zero: FoamYade::setHydroForce() computes a particle Reynolds
+// number Re = |Ur|*d/nu every iteration (FoamYade.C), so nu = 0 divides by
+// zero -> NaN forces -> crash. The drag itself is negligible for this demo;
+// this is just the standard hot-gas kinematic viscosity.
+nu                 1.8e-5;    // gas kinematic viscosity (m2/s)
+
+partDensity        650;       // particle density   (kg/m3)
+
+fluidDensity       1.2;       // gas density (kg/m3)
+
+// ************************************************************************* //
