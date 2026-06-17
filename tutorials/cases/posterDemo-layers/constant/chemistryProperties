@@ -56,15 +56,15 @@ solidOdeCoeffs
 
 // Single lumped wood-pyrolysis reaction for the poster DEM-coupling demo.
 //
-// wood → 0.30 char + 0.70 targas   (mass fractions)
+// wood → 0.70 char + 0.30 targas   (mass fractions)
 //
-// The 30 % char yield matches the poster visual: spheres shrink to a char
-// core of ~half-diameter (volume ~1/8 ≈ mass ~30 % at constant density).
-// The 70 % targas is a single lumped gas species replacing the full
+// The 70 % char yield gives a visible shrinking char core that contracts
+// spheres to ~50 % radial fraction (volume ~12.5 % at constant density).
+// The 30 % targas is a single lumped gas species replacing the full
 // multi-species tar/CO/CO2/H2/H2O/CH4 set from updraftDemo.
 //
 // Kinetics: Ta=8000 K fires at 600-800 K. deltaH=-75 kJ/kg (mild exothermic):
-// char-rich pyrolysis at high yield (30 %) is well-documented as exothermic,
+// char-rich pyrolysis at high yield (70 %) is well-documented as exothermic,
 // and this value matches the updraftDemo kinetics. At −75 kJ/kg it is only
 // ~14 % of sensible heat (540 kJ/kg for 500→800 K), so it won't destabilise.
 // Coefficient tuple: (A  Ta  Tcrit  deltaH  n)
@@ -77,7 +77,7 @@ solidReactions
 (
     irreversibleSolidArrheniusHeterogeneousReaction
     1.0 wood = 0.70 char + 0.30 targas
-    (2.0e5 8000 300 -75000 1)
+    (2.0e4 8000 300 -75000 1)
 );
 
 // ************************************************************************* //

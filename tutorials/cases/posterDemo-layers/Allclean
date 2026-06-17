@@ -1,4 +1,21 @@
 #!/bin/bash
+set -euo pipefail
 
-rm -rf -- processor* 0 0.[0-9]* [1-9]* log log.* postProcessing constant/polyMesh dynamicCode spheres/* springs/* dtInfo.txt run.log *.foam
-rm -f  .foamcli-state/run.pid .foamcli-state/run.json
+rm -rf -- \
+    processor* \
+    0 \
+    0.[0-9]* \
+    [1-9]* \
+    log* \
+    postProcessing \
+    constant/polyMesh \
+    dynamicCode \
+    spheres \
+    springs \
+    dtInfo.txt \
+    run.log \
+    *.foam \
+    2>/dev/null || true
+
+rm -f -- .foamcli-state/run.pid .foamcli-state/run.json 2>/dev/null || true
+rm -f -- yade.running yade.log yade-*.log 2>/dev/null || true

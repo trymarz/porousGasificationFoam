@@ -24,7 +24,7 @@ O.materials.append(FrictMat(
 # ── walls (match the 2.5D blockMesh domain: 0.04 x 0.018 x 0.24 m) ──
 # Floor at z=0 and ceiling at z=0.24 give spheres free vertical space above
 # the initial packed height so they can settle as the bed opens up.
-# The y-walls at y=0 and y=0.018 confine two sphere layers (d=8 mm) with
+# The y-walls at y=0 and y=0.018 confine four sphere layers (d=4 mm) with
 # 1 mm clearance at each wall.
 O.bodies.append(utils.wall(position=0,     axis=2, sense=1,  material='wallmat')) # floor (inlet)
 O.bodies.append(utils.wall(position=0.24,  axis=2, sense=-1, material='wallmat')) # ceiling (outlet)
@@ -34,8 +34,8 @@ O.bodies.append(utils.wall(position=0,     axis=1, sense=1,  material='wallmat')
 O.bodies.append(utils.wall(position=0.018, axis=1, sense=-1, material='wallmat')) # yMax
 
 # ── particle bed ──────────────────────────────────────────────────
-# Staggered hexagonal pack in the xz-plane, repeated in 2 y-layers
-# (y=0.005 m and y=0.013 m) with 1 mm clearance from each y-wall.
+# Staggered hexagonal pack in the xz-plane, repeated in 4 y-layers
+# (y=0.003, 0.007, 0.011, 0.015 m) with 1 mm clearance from each y-wall.
 # Odd-indexed z-rows are offset by r in x so every sphere touches 6
 # neighbours (up to 4 in a square grid).  This gives a mechanically
 # dense pack that self-supports under gravity and produces a smooth
@@ -43,15 +43,15 @@ O.bodies.append(utils.wall(position=0.018, axis=1, sense=-1, material='wallmat')
 # so the bed self-supports under gravity and Us varies smoothly").
 #
 # Parameters
-#   r = 0.004 m  →  5 spheres across 0.04 m (row 0), 4 across (row 1)
-#   dz = r·√3 ≈ 0.006928 m  →  13 layers fill the 0.096 m domain
-#   y-positions: 0.005, 0.013 m  (8 mm spacing, 1 mm wall clearance)
-#   Total ≈ 2 × (7×5 + 6×4) = 118 spheres
+#   r = 0.002 m  →  10 spheres across 0.04 m (row 0), 9 across (row 1)
+#   dz = r·√3 ≈ 0.003464 m  →  27 layers fill the 0.096 m domain
+#   y-positions: 0.003, 0.007, 0.011, 0.015 m  (4 mm spacing, 1 mm wall clearance)
+#   Total ≈ 4 × (14×10 + 13×9) = 1028 spheres
 import math
 
-radius           = 0.004
-CHAR_CORE_RADIUS = 0.001    # 25 % of initial (visible char core)
-y_positions      = [0.005, 0.013]  # two y-layers, 1 mm wall clearance
+radius           = 0.002
+CHAR_CORE_RADIUS = 0.0005    # 25 % of initial (visible char core)
+y_positions      = [0.003, 0.007, 0.011, 0.015]  # four y-layers, 1 mm wall clearance
 lx, lz           = 0.04, 0.096
 
 step    = 2.0 * radius                       # 0.008
