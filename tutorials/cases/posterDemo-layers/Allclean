@@ -13,6 +13,7 @@ rm -rf -- \
     spheres \
     springs \
     compact_positions.txt \
+    log.compact \
     dtInfo.txt \
     run.log \
     *.foam \

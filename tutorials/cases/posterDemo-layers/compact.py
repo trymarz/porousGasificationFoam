@@ -72,8 +72,10 @@ print(f"[compact] Created {len(sphereIDs)} spheres (expect 216), "
       f"settling under gravity…")
 
 # ── DEM engines (gravity only — no FoamCoupling, no PyRunner, no MPI) ──
-# damping=0.4 dissipates the settling kinetic energy quickly so the bed
-# reaches a static configuration within the 1 s window.
+# damping=0.7 (near-critical) dissipates the settling kinetic energy quickly
+# so the bed reaches a static configuration within the 1 s window. It also
+# suppresses elastic rebound at contacts, matching MPI_lambda.py so the
+# compacted bed stays put during coupling instead of drifting upward.
 O.engines = [
     ForceResetter(),
     InsertionSortCollider(
@@ -91,7 +93,7 @@ O.engines = [
         timeStepUpdateInterval=50,
         label="ts",
     ),
-    NewtonIntegrator(gravity=(0, 0, -9.81), damping=0.4, label="newton"),
+    NewtonIntegrator(gravity=(0, 0, -9.81), damping=0.7, label="newton"),
 ]
 
 # ── settle ────────────────────────────────────────────────────────

@@ -261,7 +261,7 @@ O.engines = [
         label="ts",
     ),
     fluidCoupling,
-    NewtonIntegrator(gravity=(0, 0, -9.81), damping=0.1, label="newton"),
+    NewtonIntegrator(gravity=(0, 0, -9.81), damping=0.7, label="newton"),
     # Apply the Ychar-driven shrink factor frequently (every 1 ms of sim time)
     # so the radius tracks the local char yield smoothly as chemistry advances.
     PyRunner(command="changeRadius()",
