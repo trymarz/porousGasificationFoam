@@ -35,31 +35,50 @@ O.bodies.append(utils.wall(position=0,     axis=1, sense=1,  material='wallmat')
 O.bodies.append(utils.wall(position=0.004, axis=1, sense=-1, material='wallmat')) # yMax
 
 # ── particle bed ──────────────────────────────────────────────────
-# Regular 5×1×12 monolayer of touching spheres (r=0.004) fills the entire
-# domain (z=0→0.097, 0.04 m wide) as a single layer at y=0.002 — the centre
-# of the 1-cell-thick quasi-2D mesh. Spheres touch neighbours and all six
-# walls → self-supporting, no settling. The only motion is shrinkage-driven
-# rearrangement, producing a sustained Us field for solid-phase advection;
-# porosity via porosityF independently.
+# Staggered hexagonal monolayer in the xz-plane (single y-layer at y=0.002
+# to match the quasi-2D mesh).  Odd-indexed z-rows are offset by r in x so
+# every sphere touches 6 neighbours (up to 4 in a square grid).  This gives
+# a mechanically dense pack that self-supports under gravity and produces a
+# smooth Us field (per AGENTS.md recommendation: "dense interlocking spheres
+# so the bed self-supports under gravity and Us varies smoothly").
 #
-# pack.regularOrtho places grid points at min+r+k·2r and pack.inAlignedBox
-# admits a sphere only if it fits entirely (centre in [min+r, max-r]).
-# So the x range [0,0.041] yields 5 centres (0.004…0.036) and z range
-# [0,0.097] yields 12 (0.004…0.092). For y we want exactly one centre at
-# 0.002: min+r = -0.002+0.004 = 0.002 gives the first grid point, and the
-# admit window [0.002, max-r] = [0.002, 0.002] (max=0.006) keeps only it.
-numSpheres       = 60      # 5×1×12 monolayer
-radius           = 0.004   # diameter 8 mm (5 across 0.04 m)
-CHAR_CORE_RADIUS = 0.002   # 50 % of initial — stays coupled, no lost particles
+# Parameters
+#   r = 0.004 m  →  5 spheres across 0.04 m (row 0), 4 across (row 1)
+#   dz = r·√3 ≈ 0.006928 m  →  13 layers fill the 0.096 m domain
+#   Total ≈ 7×5 + 6×4 = 59 spheres
+import math
 
-mn = (0,     -0.002, 0)
-mx = (0.041,  0.007, 0.097)   # mx_z-r=0.093 > last-centre 0.092 → all 12 layers fit
+radius           = 0.004
+CHAR_CORE_RADIUS = 0.001    # 25 % of initial (visible char core)
+y_centre         = 0.002    # centre of the 1-cell-thick quasi-2D mesh
+lx, lz           = 0.04, 0.096
 
-sp = pack.regularOrtho(pack.inAlignedBox(mn, mx), radius, gap=0, material='spheremat')
-O.bodies.append(sp)
+step    = 2.0 * radius                       # 0.008
+dz      = radius * math.sqrt(3.0)            # 0.006928 — HCP vertical spacing
+
+# Integer counts (avoids floating-point accumulation)
+# First centre:  x_even = r           x_odd = 2r
+# Constraint:    centre + r ≤ lx  →  last = x0 + (nx-1)·step + r ≤ lx
+nx_even = int((lx - 2*radius) / step) + 1      # 5 — row 0,2,4,…
+nx_odd  = int((lx - 3*radius) / step) + 1      # 4 — row 1,3,5,…  (offset by r)
+nz      = int((lz - 2*radius) / dz) + 1        # 13 layers
+
+sp = pack.SpherePack()
+z_start = radius
+for k in range(nz):
+    z   = z_start + k * dz
+    x0  = radius + (k % 2) * radius          # stagger every other row
+    nx  = nx_even if (k % 2) == 0 else nx_odd
+    for i in range(nx):
+        sp.add((x0 + i * step, y_centre, z), radius)
+
+numSpheres = nx_even * ((nz + 1) // 2) + nx_odd * (nz // 2)
+sp.toSimulation(material='spheremat')
 
 sphereIDs = [b.id for b in O.bodies if isinstance(b.shape, Sphere)]
-print(f"[YADE] Created {len(sphereIDs)} spheres, z range [{mn[2]:.4f}, {mx[2]:.4f}]")
+print(f"[YADE] Created {len(sphereIDs)} spheres in {nz} staggered layers, "
+      f"z range [{z_start:.4f}, {z_start + (nz-1)*dz:.4f}], "
+      f"rows: {nx_even}/{nx_odd}")
 
 # Initialize lambdaDot=1.0 on all spheres BEFORE coupling.
 # YADE defaults lambdaDot to 0.0 (core/State.hpp), which causes
@@ -84,12 +103,10 @@ fluidCoupling.setIdList(sphereIDs)
 
 # ── particle shrinkage ────────────────────────────────────────────
 # Spheres shrink linearly toward CHAR_CORE_RADIUS as the solid pyrolyses.
-# lambdaDot = 1.0 − Ychar (wood-remaining fraction, [0, 1]).  Ychar is the
-# solid char mass fraction char/(wood+char), which runs 0 → 1 regardless of
-# the chemistry stoichiometry, so the formula needs no Ychar_final constant:
+# lambdaDot = 1.0 − Ychar (wood-remaining fraction, [0, 1]):
 #   lambdaDot = 1.00  →  Ychar = 0.00  →  r = r₀ = 0.004 m
-#   lambdaDot = 0.50  →  Ychar = 0.50  →  r = 0.0025 m
 #   lambdaDot = 0.00  →  Ychar = 1.00  →  r = CHAR_CORE_RADIUS = 0.001 m
+#   lambdaDot = 0.50  →  Ychar = 0.50  →  r = 0.0025 m (halfway)
 #
 # The mapping is a linear interpolation:  r = r_core + (r₀ − r_core) × ld
 #
@@ -102,7 +119,7 @@ fluidCoupling.setIdList(sphereIDs)
 # ── master←worker lambdaDot sync (MPI stopgap) ────────────────────
 # In DOMAIN_DECOMPOSITION mode with ERASE_REMOTE_MASTER=False the YADE master
 # (rank 0) keeps a full copy of every body, but FoamCoupling delivers the
-# Ts-driven lambdaDot only to the worker that owns each body — the master's
+# Ychar-driven lambdaDot only to the worker that owns each body — the master's
 # copies stay frozen at the initial radius. Mirror the worker's lambdaDot onto
 # the master so rank-0 spheres shrink in step with the worker-owned ones.
 #

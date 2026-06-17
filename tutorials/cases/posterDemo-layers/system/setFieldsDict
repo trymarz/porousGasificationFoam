@@ -1,0 +1,90 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  8
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "system";
+    object      setFieldsDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// ── Three-layer packed bed for GRC poster showcase ─────────────────────
+// Instead of a uniform bed, we initialise three z-layers with different
+// stages of conversion.  The porosity gradient gives the Us field (from
+// gravity-driven DEM settlement) something to advect, making the PGF↔DEM
+// coupling visible.
+//
+// Layer 1  bottom  z = 0.000 → 0.032  — mostly char, loose packing
+// Layer 2  middle  z = 0.032 → 0.064  — partial conversion
+// Layer 3  top     z = 0.064 → 0.096  — fresh wood, densest packing
+//
+// All layers start at 800 K so chemistry fires immediately everywhere.
+// The gradient is purely in Ywood / Ychar / porosityF.
+//
+// YADE packs staggered hexagonal spheres touching walls and neighbours
+// (see MPI_lambda.py).  Boxes are 1 cell thick in y (quasi-2D mesh).
+
+defaultFieldValues
+(
+    volScalarFieldValue porosityF  1.0
+    volScalarFieldValue porosityF0 1.0
+    volScalarFieldValue Ywood      0.0
+    volScalarFieldValue Ychar      0.0
+);
+
+regions
+(
+    // Layer 1 — bottom: mostly converted (80 % char), loose packing
+    boxToCell
+    {
+        box (0 0 0) (0.04 0.004 0.032);
+        fieldValues
+        (
+            volScalarFieldValue porosityF  0.55
+            volScalarFieldValue porosityF0 0.55
+            volScalarFieldValue Ywood      0.2
+            volScalarFieldValue Ychar      0.8
+            volScalarFieldValue Ts         800
+            volScalarFieldValue T          800
+        );
+    }
+
+    // Layer 2 — middle: partial conversion (40 % char), medium packing
+    boxToCell
+    {
+        box (0 0 0.032) (0.04 0.004 0.064);
+        fieldValues
+        (
+            volScalarFieldValue porosityF  0.40
+            volScalarFieldValue porosityF0 0.40
+            volScalarFieldValue Ywood      0.6
+            volScalarFieldValue Ychar      0.4
+            volScalarFieldValue Ts         800
+            volScalarFieldValue T          800
+        );
+    }
+
+    // Layer 3 — top: fresh wood (0 % char), densest packing
+    boxToCell
+    {
+        box (0 0 0.064) (0.04 0.004 0.096);
+        fieldValues
+        (
+            volScalarFieldValue porosityF  0.30
+            volScalarFieldValue porosityF0 0.30
+            volScalarFieldValue Ywood      1.0
+            volScalarFieldValue Ychar      0.0
+            volScalarFieldValue Ts         800
+            volScalarFieldValue T          800
+        );
+    }
+);
+
+// ************************************************************************* //
