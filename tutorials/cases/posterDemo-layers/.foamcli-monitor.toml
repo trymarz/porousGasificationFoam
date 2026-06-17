@@ -38,25 +38,40 @@ axis = "y"
 position = 0.002
 
 # ── foamcli render configuration ────────────────────────────────────
-# Usage:
-#   foamcli render . --all              # batch render all slices below
-#   foamcli render . --all --watch      # live updates while simulation runs
-#   foamcli render . -f T --slice y=0.002 -o T_slice.png   # single field
-#   foamcli render . --yade --yade-property lambdaDot --slice y=0.002  # particles
+#
+# Quick-start examples (run from this case directory):
+#   foamcli render . --all                   # latest time, all sections below
+#   foamcli render . --all --watch           # live updates while solving
+#   foamcli render . --all --timeseries      # every available time step
+#   foamcli render . --all --timeseries --stride 5 --dpi 100  # every 5th step, fast
+#
+# Single-field examples:
+#   foamcli render . -f Ywood --slice y=0.002 -t 0.02 -o out.png
+#   foamcli render . --yade --yade-property radius --yade-dir spheres --slice y=0.002 -t 0.08 -o out.png
 
 [render]
+# Global defaults (override per-invocation with --dpi/--cmap)
 dpi = 200
 cmap = "inferno"
 
-# PGF field slices — one output per field
+# ── Monitoring slices (quick checks, 8 fields, dpi=100 for speed) ──
 [[render.slice]]
 axis = "y"
 position = 0.002
 fields = ["T", "Ts", "porosityF", "Ywood", "Ychar", "lambdaDot", "nParticles", "targas"]
-output = "render/slice_{field}.png"
+output = "render/monitor/slice_{field}.png"
 
-# YADE particle slice — spheres intersecting the monolayer plane
-# VTP files live under spheres/ (spheres-rank{0,1}-*.vtp), not VTK/ or case root
+# ── Poster slices (publication quality, 4 coupling fields) ──
+# Use --dpi 300 --cmap inferno for final poster PNGs.
+[[render.slice]]
+axis = "y"
+position = 0.002
+fields = ["Ywood", "Ychar", "porosityF", "lambdaDot"]
+output = "render/poster/slice_{field}.png"
+
+# ── YADE particle slices ──
+# VTP files live under spheres/ (spheres-rank{0,1}-*.vtp), not VTK/ or case root.
+# For poster: also render with --yade-property radius (sphere shrinkage proof).
 [render.yade]
 enabled = true
 property = "lambdaDot"
@@ -64,4 +79,4 @@ axis = "y"
 position = 0.002
 tolerance = 0.002
 vtp_dir = "spheres"
-output = "render/yade_slice_lambdaDot.png"
+output = "render/poster/yade_lambdaDot.png"
