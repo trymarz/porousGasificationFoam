@@ -197,7 +197,7 @@ def snapshot_at(case_dir: Path, time: float, tdir: Path) -> TimeSnapshot:
     proc0 = case_dir / "processor0" / f"{time:g}"
     pdir = proc0 if proc0.is_dir() else tdir if tdir.is_dir() else None
 
-    ld_vals = _read_of_scalar(pdir / "lambdaDot", domain=(0.9, 1.0)) if pdir else []
+    ld_vals = _read_of_scalar(pdir / "lambdaDot", domain=(0.0, 1.0)) if pdir else []
     ld_active = [v for v in ld_vals if v < 1.0]
     ld_mean = sum(ld_active) / len(ld_active) if ld_active else 1.0
 
