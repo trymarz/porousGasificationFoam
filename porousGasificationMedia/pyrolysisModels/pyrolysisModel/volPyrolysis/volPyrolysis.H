@@ -133,6 +133,9 @@ protected:
     //- Switch for bed motion model
     Switch bedMotionSwitch_;
 
+    //- Switch for Eulerian solid advection by Us
+    Switch advectSolidFields_;
+
     //- Switch for bed replenishment
     Switch replenishSwitch_;
 
@@ -329,6 +332,14 @@ public:
 
             //- Evolve porosity field
             virtual void evolvePorosity();
+
+
+            virtual void transferSolidStateFromDEM
+            (
+                const DynamicList<label>& fromCells,
+                const DynamicList<label>& toCells,
+                const volScalarField& nParticles
+            );
 
         //Comunication with main region
 

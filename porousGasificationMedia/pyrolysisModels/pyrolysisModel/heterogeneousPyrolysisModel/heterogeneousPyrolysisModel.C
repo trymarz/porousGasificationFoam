@@ -186,6 +186,14 @@ void heterogeneousPyrolysisModel::preEvolveRegion()
 void heterogeneousPyrolysisModel::evolveRegion()
 {}
 
+void heterogeneousPyrolysisModel::transferSolidStateFromDEM
+(
+    const DynamicList<label>&,
+    const DynamicList<label>&,
+    const volScalarField&
+)
+{}
+
 scalar heterogeneousPyrolysisModel::solidRegionDiffNo() const
 {
     return VSMALL;

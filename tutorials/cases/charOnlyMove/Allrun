@@ -1,0 +1,8 @@
+#!/bin/sh
+
+cp -r 0_orig 0
+blockMesh
+setFields
+decomposePar
+touch 0.foam
+mpirun -np 4 porousGasificationFoam -parallel | tee log.txt

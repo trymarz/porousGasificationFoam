@@ -51,6 +51,8 @@ SourceFiles
 #include "heatTransferModel.H"
 #include "specieTransferModel.H"
 
+#include "DynamicList.H"
+
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 namespace Foam
@@ -250,6 +252,15 @@ public:
 
             //- Evolve the film
             virtual void evolve();
+
+
+        //Transfer solid state according to DEM particle cell changes
+            virtual void transferSolidStateFromDEM
+            (
+                const DynamicList<label>& fromCells,
+                const DynamicList<label>& toCells,
+                const volScalarField& nParticles
+            );
 
 
         // Helper function
