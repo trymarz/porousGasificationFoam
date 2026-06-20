@@ -75,6 +75,7 @@ int main(int argc, char *argv[])
     #include "readChemistryTimeControls.H"
     #ifdef WITH_YADE
         #include "createYadeCoupling.H"
+        #include "createPgfCoupling.H"
     #endif // WITH_YADE
 
     turbulence->validate();
@@ -113,14 +114,29 @@ int main(int argc, char *argv[])
         #ifdef WITH_YADE
         if (DEM)
         {
-            vGrad = fvc::grad(U);
-            yadeCoupling->setParticleAction(runTime.deltaT().value());
+            if (couplingBackend == "pgf")
+            {
+                // PGF-native coupling: no drag → no velocity gradient needed.
+                pgfCoupling->setParticleAction(runTime.deltaT().value());
 
-            lambdaDotUpdater->update();
+                pgfLambdaDotUpdater->update();
 
-            lambdaDotUpdater->writeParticlesData();
+                pgfLambdaDotUpdater->writeParticlesData();
 
-            yadeCoupling->setSourceZero();
+                pgfCoupling->setSourceZero();
+            }
+            else
+            {
+                // legacy coupling path — unchanged
+                vGrad = fvc::grad(U);
+                yadeCoupling->setParticleAction(runTime.deltaT().value());
+
+                lambdaDotUpdater->update();
+
+                lambdaDotUpdater->writeParticlesData();
+
+                yadeCoupling->setSourceZero();
+            }
         }
         #endif
 

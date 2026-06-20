@@ -3,7 +3,7 @@ bool gaussianInterp = false;
 autoPtr<FoamYade> yadeCoupling(nullptr);
 autoPtr<lambdaDotModel> lambdaDotUpdater(nullptr);
 
-if (DEM) 
+if (DEM && couplingBackend == "legacy")
 {
   yadeCoupling.reset(new FoamYade(mesh, U, gradP, vGrad, divT, ddtU_f, g,
                               uSourceDrag, alphac, uSource, uParticle, uCoeff,

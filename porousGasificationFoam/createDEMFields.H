@@ -11,9 +11,24 @@ IOdictionary yadeCouplingProperties
 
 Switch DEM(yadeCouplingProperties.lookupOrDefault<Switch>("active", false));
 
+// Coupling backend selector (default: legacy for backward compatibility).
+//   legacy -> FoamYade / FoamCoupling (full hydro-force machinery)
+//   pgf    -> PgfYadeCoupling / PgfCoupling (minimal lambdaDot + Us coupling)
+// The legacy field declarations below are still created unconditionally: they
+// are OpenFOAM field objects (constructed with side effects, so no unused-
+// variable warnings) and must remain in scope for the legacy coupling glue
+// (createYadeCoupling.H). When couplingBackend == "pgf" they simply go unused.
+word couplingBackend
+(
+    yadeCouplingProperties.lookupOrDefault<word>("couplingBackend", "legacy")
+);
+
 Info << "DEM coupling: "
      << (DEM ? "active" : "inactive (yadeProperties absent or active=false)")
      << nl;
+
+if (DEM)
+    Info << "DEM coupling backend: " << couplingBackend << nl;
 
 if (yadeCouplingProperties.size() > 0 && !DEM)
     WarningIn("createDEMFields.H")

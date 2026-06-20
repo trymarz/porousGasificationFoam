@@ -5,6 +5,10 @@
 namespace Foam
 {
 
+// ── constructors ────────────────────────────────────────────────────
+// The two overloads differ only in which coupling backend pointer they set;
+// the heavy member-init (lambdaDict / lambdaFunc_) is identical.
+
 lambdaDotModel::lambdaDotModel
 (
     const fvMesh& mesh,
@@ -26,7 +30,8 @@ lambdaDotModel::lambdaDotModel
     porosityF_(porosityF),
     Ts_(Ts),
     Ychar_(Ychar),
-    yade_(yade),
+    yade_(&yade),
+    pgfYade_(nullptr),
     // to read lambda function from constant/lambdaDict
     lambdaFunc_
     (
@@ -50,7 +55,59 @@ lambdaDotModel::lambdaDotModel
 {}
 
 
-void lambdaDotModel::update()
+lambdaDotModel::lambdaDotModel
+(
+    const fvMesh& mesh,
+    volScalarField& lambdaDot,
+    volScalarField& nParticles,
+    volVectorField& UsDEM,
+    volVectorField& Us,
+    volScalarField& porosityF,
+    const volScalarField& Ts,
+    const volScalarField& Ychar,
+    PgfYadeCoupling& yade
+)
+:
+    mesh_(mesh),
+    lambdaDot_(lambdaDot),
+    nParticles_(nParticles),
+    UsDEM_(UsDEM),
+    Us_(Us),
+    porosityF_(porosityF),
+    Ts_(Ts),
+    Ychar_(Ychar),
+    yade_(nullptr),
+    pgfYade_(&yade),
+    lambdaFunc_
+    (
+        Function1<scalar>::New
+        (
+            "lambdaDot",
+            IOdictionary
+            (
+                IOobject
+                (
+                    "lambdaDict",
+                    mesh.time().constant(),
+                    mesh,
+                    IOobject::MUST_READ,
+                    IOobject::NO_WRITE
+                )
+            ),
+            &mesh
+        )
+    )
+{}
+
+
+// ── shared update logic (templated over the coupling backend) ────────
+// Both FoamYade and PgfYadeCoupling expose `inCommProcs` as a
+// std::vector<std::shared_ptr<...>> of found particles carrying the same
+// `.inCell`, `.linearVelocity`, `.lambdaDot`, `.indx` members, so a single
+// template body compiles for either backend.
+
+template<class CouplingType>
+void lambdaDotModel::updateImpl(CouplingType& yade)
 {
     // ── Ychar-driven lambdaDot ──────────────────────────────────────
     //
@@ -93,7 +150,7 @@ void lambdaDotModel::update()
     nParticles_ = 0.0;
     UsDEM_ = dimensionedVector("zero", UsDEM_.dimensions(), vector::zero);
 
-    for (const auto& procPtr : yade_.inCommProcs)
+    for (const auto& procPtr : yade.inCommProcs)
     {
         if (!procPtr) continue;
 
@@ -163,7 +220,7 @@ void lambdaDotModel::update()
 
     // Assign lambdaDot to particles (only if occupied)
 
-    for (const auto& procPtr : yade_.inCommProcs)
+    for (const auto& procPtr : yade.inCommProcs)
     {
         if (!procPtr) continue;
 
@@ -181,7 +238,9 @@ void lambdaDotModel::update()
 
 }
 
-void lambdaDotModel::writeParticlesData() const
+
+template<class CouplingType>
+void lambdaDotModel::writeParticlesDataImpl(CouplingType& yade) const
 {
     if (!mesh_.time().outputTime()) return;
 
@@ -200,7 +259,7 @@ void lambdaDotModel::writeParticlesData() const
         << " time " << mesh_.time().timeName()
         << " (particleID cellID lambdaDot)\n";
 
-    for (const auto& procPtr : yade_.inCommProcs)
+    for (const auto& procPtr : yade.inCommProcs)
     {
         if (!procPtr) continue;
 
@@ -219,6 +278,21 @@ void lambdaDotModel::writeParticlesData() const
     }
 
     ofs << "\n";
+}
+
+
+// ── public dispatch to the active backend ───────────────────────────
+
+void lambdaDotModel::update()
+{
+    if (pgfYade_) updateImpl(*pgfYade_);
+    else          updateImpl(*yade_);
+}
+
+void lambdaDotModel::writeParticlesData() const
+{
+    if (pgfYade_) writeParticlesDataImpl(*pgfYade_);
+    else          writeParticlesDataImpl(*yade_);
 }
 
 } // namespace Foam
