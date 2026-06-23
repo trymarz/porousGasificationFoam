@@ -110,8 +110,13 @@ void volPyrolysis::solveSpeciesMass()
         // Unlike porLessOne_ (which is geometric — set from porosityF < 1),
         // hasSolidMass is zero when all solid has advected out or been
         // consumed, even though porosityF < 1 and porLessOne_ = 1.
-        // Guards the explicit species advection so empty cells don't inherit
-        // neighbour solid-flux values amplified by 1/rhoLoc.
+        // Gates the chemistry SOURCE only: a cell with porosity<1 but no solid
+        // mass has newCp*solidRho→0, so an Arrhenius source there overflows.
+        // It must NOT gate the advective transport term — doing so annihilates
+        // solid as it advects into fresh (still-empty) downstream cells,
+        // breaking mass conservation (see charOnlyMoveCases). The advection
+        // blowup this once guarded (porosity>1 → rhoLoc<0 → floored) is removed
+        // upstream by the porosity≤1 clamp in evolvePorosity().
         volScalarField hasSolidMass
         (
             pos(rho_*(1. - porosity_) - dimensionedScalar("rhoFloor", dimMass/dimVolume, SMALL))
@@ -140,11 +145,8 @@ void volPyrolysis::solveSpeciesMass()
             (
                 fvm::ddt(rhoLoc,Yi)
              ==
-                hasSolidMass *
-                (
-                    sRhoSi
-                  - fvc::div(solidFlux_, Yi, "div(phiSolid)")
-                )
+                hasSolidMass * sRhoSi
+              - fvc::div(solidFlux_, Yi, "div(phiSolid)")
             );
 
             YsEqn.relax();
