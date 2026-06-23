@@ -106,6 +106,17 @@ void volPyrolysis::solveSpeciesMass()
             max(rho_ * (1. - porosity_), dimensionedScalar("minRho",dimMass/dimVolume, SMALL))
         );
 
+        // Mass-based mask: 1 where meaningful solid density exists.
+        // Unlike porLessOne_ (which is geometric — set from porosityF < 1),
+        // hasSolidMass is zero when all solid has advected out or been
+        // consumed, even though porosityF < 1 and porLessOne_ = 1.
+        // Guards the explicit species advection so empty cells don't inherit
+        // neighbour solid-flux values amplified by 1/rhoLoc.
+        volScalarField hasSolidMass
+        (
+            pos(rho_*(1. - porosity_) - dimensionedScalar("rhoFloor", dimMass/dimVolume, SMALL))
+        );
+
         surfaceScalarField solidPhi = mesh_.Sf() & fvc::interpolate(rho_*Us_);
         fvScalarMatrix rhosEqn
         (
@@ -120,7 +131,7 @@ void volPyrolysis::solveSpeciesMass()
         {
 
             volScalarField& Yi = Ys_[i];
-            Yi.ref() *= whereIs_;
+            Yi.ref() *= porLessOne_;
             volScalarField sRhoSi = solidChemistry_->RRs(i);
 
             surfaceScalarField solidFlux_ = mesh_.Sf() & fvc::interpolate(Us_*rhoLoc);
@@ -129,8 +140,11 @@ void volPyrolysis::solveSpeciesMass()
             (
                 fvm::ddt(rhoLoc,Yi)
              ==
-                sRhoSi
-              - fvc::div(solidFlux_, Yi, "div(phiSolid)")
+                hasSolidMass *
+                (
+                    sRhoSi
+                  - fvc::div(solidFlux_, Yi, "div(phiSolid)")
+                )
             );
 
             YsEqn.relax();
@@ -148,7 +162,7 @@ void volPyrolysis::solveSpeciesMass()
 
         for (label i = 0; i < Ys_.size(); ++i)
         {
-            Ym_[i] = whereIs_ * Ys_[i] * rho_;
+            Ym_[i] = porLessOne_ * Ys_[i] * rho_;
             Ys_[i] = Ym_[i] / max(Mt,dimensionedScalar("minMass", dimMass/dimVolume, SMALL));
             Ym_[i] *= (1. - porosity_);
         }
@@ -205,15 +219,15 @@ void volPyrolysis::solveEnergy()
             surfaceScalarField surfPor = fvc::interpolate(porosity_,"porosityInt");
 
 
-            whereIsNot_.correctBoundaryConditions();
-            volVectorField whereIsNotGrad = fvc::grad(whereIsNot_);        
-            whereIs_.correctBoundaryConditions();
-            surfaceScalarField  whereIsPatch  = fvc::interpolate(whereIs_);
+            porEqlOne_.correctBoundaryConditions();
+            volVectorField porEqlOneGrad = fvc::grad(porEqlOne_);        
+            porLessOne_.correctBoundaryConditions();
+            surfaceScalarField  whereIsPatch  = fvc::interpolate(porLessOne_);
    
             //trial 1 to set energy flux stable via tempereture in the first cell outside porous media 
             //forAll(porosity_,cellI)
             //{
-            //    if ( (whereIsNot_[cellI] == 1) && ( (Us_[cellI] & whereIsNotGrad[cellI]) > 0)  )
+            //    if ( (porEqlOne_[cellI] == 1) && ( (Us_[cellI] & porEqlOneGrad[cellI]) > 0)  )
             //    {
             //        const labelList& faces = mesh_.cells()[cellI];
             //        forAll(faces,faceI)
@@ -240,7 +254,7 @@ void volPyrolysis::solveEnergy()
             //this requires further rethinking
             forAll(porosity_,cellI)
             {
-                if ( (whereIs_[cellI] == 1) && ( (Us_[cellI] & whereIsNotGrad[cellI]) != 0)  )
+                if ( (porLessOne_[cellI] == 1) && ( (Us_[cellI] & porEqlOneGrad[cellI]) != 0)  )
                 {
                     //Info << rhoCp[cellI] << " " << porosity_[cellI] << " " << rhoCpG[cellI] << " " << heatTransfField[cellI] << " " << T_[cellI] << " " << gasThermo_.T()[cellI]  << " kopytko 2" << endl;
                     const labelList& faces = mesh_.cells()[cellI];
@@ -318,6 +332,25 @@ void volPyrolysis::solveEnergy()
 
             TEqn.relax();
             TEqn.solve();
+
+            // NOTE: If the rhoCp floor (100 J/(m³·K) in the minRhoCp
+            // dimensionedScalar above), the energy-solve iteration count
+            // (min 2 passes in evolveRegion()), and the near-empty-cell
+            // heatTransfField zeroing (porosity > 0.999 guard in the
+            // immersed-boundary block below) do not fully prevent
+            // unphysical Ts overshoots at the porous interface, a
+            // per-cell clamp can be inserted here:
+            //
+            //   forAll(T_, cellI) {
+            //       if (porLessOne_[cellI] == 1)
+            //           T_[cellI] = max(1.0, min(T_[cellI], 4000.0));
+            //   }
+            //
+            // This introduces a small energy error (the matrix has
+            // already distributed energy within the timestep; clamping
+            // changes the final temperature). It should only be enabled
+            // if overshoots are observed after the other guards are in
+            // place.
         }
 
         scalar minTemp = GREAT;
@@ -326,7 +359,7 @@ void volPyrolysis::solveEnergy()
 
         forAll(T_,cellI)
         {
-            if (whereIs_[cellI] == 1 )
+            if (porLessOne_[cellI] == 1 )
             {
                 areThere = 1;
                 if (T_[cellI] < minTemp)
@@ -501,7 +534,7 @@ volPyrolysis::volPyrolysis
         mesh_,
         dimensionedScalar("zero", dimless/dimTime, 0.0)
     ),
-    whereIs_
+    porLessOne_
     (
         IOobject
         (
@@ -514,7 +547,7 @@ volPyrolysis::volPyrolysis
         mesh_,
         dimensionedScalar("one", dimless, 1.0)
     ),
-    whereIsNot_
+    porEqlOne_
     (
         IOobject
         (
@@ -607,7 +640,7 @@ volPyrolysis::volPyrolysis
         mesh_,
         dimensionedTensor("one", dimless, tensor(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0))
     ),
-    surfF_(whereIs_),
+    surfF_(porLessOne_),
     // Bind to the single registered "Us" field created by the solver
     // (createFields.H), rather than owning a duplicate. lambdaDotModel
     // writes that same object when DEM coupling is active.
@@ -641,8 +674,8 @@ volPyrolysis::volPyrolysis
     {
         if (porosity_[cellI] == 1)
         {
-             whereIsNot_[cellI] = 1;
-             whereIs_[cellI] = 0;
+             porEqlOne_[cellI] = 1;
+             porLessOne_[cellI] = 0;
              rho0_[cellI] = 3.14;
         }
     }
@@ -701,14 +734,14 @@ volPyrolysis::volPyrolysis
         read();
     }
 
-    forAll(whereIs_,cellI)
+    forAll(porLessOne_,cellI)
     {
-        if (whereIs_[cellI] == 1)
+        if (porLessOne_[cellI] == 1)
         {
             bool surfC = false;
             forAll(mesh_.cellCells()[cellI],cellJ)
             {
-                    if (whereIs_[mesh_.cellCells()[cellI][cellJ]] == 0)
+                    if (porLessOne_[mesh_.cellCells()[cellI][cellJ]] == 0)
                     {
                         surfC = true;
                     }
@@ -883,7 +916,7 @@ volPyrolysis::volPyrolysis
         mesh_,
         dimensionedScalar("zero", dimless/dimTime, 0.0)
     ),
-    whereIs_
+    porLessOne_
     (
         IOobject
         (
@@ -896,7 +929,7 @@ volPyrolysis::volPyrolysis
         mesh_,
         dimensionedScalar("zero", dimless, 0.0)
     ),
-    whereIsNot_
+    porEqlOne_
     (
         IOobject
         (
@@ -1063,13 +1096,13 @@ volPyrolysis::volPyrolysis
     {
         if (porosity_[cellI] < 1.)
         {
-             whereIsNot_[cellI] = 0.;
-             whereIs_[cellI] = 1.;
+             porEqlOne_[cellI] = 0.;
+             porLessOne_[cellI] = 1.;
         }
         else
         {
-             whereIsNot_[cellI] = 1.;
-             whereIs_[cellI] = 0.;
+             porEqlOne_[cellI] = 1.;
+             porLessOne_[cellI] = 0.;
              rho0_[cellI] = 3.14;
         }
     }
@@ -1079,14 +1112,14 @@ volPyrolysis::volPyrolysis
         read();
     }
 
-    forAll(whereIs_, cellI)
+    forAll(porLessOne_, cellI)
     {
-        if (whereIs_[cellI] == 1)
+        if (porLessOne_[cellI] == 1)
         {
             bool surfC = false;
             forAll(mesh_.cellCells()[cellI],cellJ)
             {
-                if (whereIs_[mesh_.cellCells()[cellI][cellJ]] == 0)
+                if (porLessOne_[mesh_.cellCells()[cellI][cellJ]] == 0)
                 {
                     surfC = true;
                 }
@@ -1202,7 +1235,7 @@ void volPyrolysis::preEvolveRegion() {
     // as reacting cell.
     forAll(T_, cellI)
     {
-        if ( active_ && whereIs_[cellI] != 0)
+        if ( active_ && porLessOne_[cellI] != 0)
         {
             solidChemistry_->setCellReacting(cellI, true);
         }
@@ -1301,7 +1334,7 @@ void volPyrolysis::evolvePorosity()
 
         FIFOStack<label> flippedStack = {};
 
-        volVectorField whereIsGrad = fvc::grad(whereIs_);        
+        volVectorField whereIsGrad = fvc::grad(porLessOne_);        
 
         forAll(porosity_,cellI)
         {
@@ -1319,13 +1352,13 @@ void volPyrolysis::evolvePorosity()
             }
             if (porosity_[cellI] < 1.0)
             {
-                whereIs_[cellI] = 1.0;
-                whereIsNot_[cellI] = 0.0;
+                porLessOne_[cellI] = 1.0;
+                porEqlOne_[cellI] = 0.0;
             }
             else
             {
-                whereIs_[cellI] = 0.0;
-                whereIsNot_[cellI] = 1.0;
+                porLessOne_[cellI] = 0.0;
+                porEqlOne_[cellI] = 1.0;
             }
         }
 
@@ -1346,7 +1379,7 @@ void volPyrolysis::evolvePorosity()
         {
             if (evaluate)
             {
-                whereIs_.correctBoundaryConditions();
+                porLessOne_.correctBoundaryConditions();
                 porosity_.correctBoundaryConditions();
                 whereWas_ = whereWas_*0;
 
@@ -1372,7 +1405,7 @@ void volPyrolysis::evolvePorosity()
                     }
                 }
                 Pstream::scatter(globalIndex);
-                volScalarField globalIndices = whereIs_*0;
+                volScalarField globalIndices = porLessOne_*0;
                 forAll(globalIndices,cellI)
                 {
                     globalIndices[cellI] = globalIndex[Pstream::myProcNo()][cellI];
@@ -1381,10 +1414,10 @@ void volPyrolysis::evolvePorosity()
 
                 // this part determines processor based a possible motion paths using the global numbering
                 // it writes into takeFrom the global adress of cell from which the resources will be taken
-                volScalarField takeFrom = whereIs_;
+                volScalarField takeFrom = porLessOne_;
                 forAll(mesh_.cells(),cellI)
                 {
-                    if (whereIs_[cellI] < 1)
+                    if (porLessOne_[cellI] < 1)
                     {
                         takeFrom[cellI] = -1;
                     }
@@ -1403,7 +1436,7 @@ void volPyrolysis::evolvePorosity()
                                     if (isA<processorPolyPatch>(mesh_.boundaryMesh()[patchID]))
                                     {
                                         takeFromGlobalID = globalIndices.boundaryField()[patchID].patchNeighbourField()()[faceID];
-                                        if (whereIs_.boundaryField()[patchID].patchNeighbourField()()[faceID] < 1)
+                                        if (porLessOne_.boundaryField()[patchID].patchNeighbourField()()[faceID] < 1)
                                         {
                                             takeFromGlobalID = -1;
                                         }
@@ -1420,7 +1453,7 @@ void volPyrolysis::evolvePorosity()
                                     {
                                         takeFromGlobalID =  mesh_.faceNeighbour()[mesh_.cells()[cellI][faceI]]; 
                                     }
-                                    if (whereIs_[takeFromGlobalID] < 1)
+                                    if (porLessOne_[takeFromGlobalID] < 1)
                                     {
                                         takeFromGlobalID = -1;
                                     }
@@ -1702,29 +1735,29 @@ void volPyrolysis::evolvePorosity()
             }
             if (porosity_[cellI] < 1.0)
             {
-                whereIs_[cellI] = 1.0;
-                whereIsNot_[cellI] = 0.0;
+                porLessOne_[cellI] = 1.0;
+                porEqlOne_[cellI] = 0.0;
             }
             else
             {
-                whereIs_[cellI] = 0.0;
-                whereIsNot_[cellI] = 1.0;
+                porLessOne_[cellI] = 0.0;
+                porEqlOne_[cellI] = 1.0;
             }
         }
 
         surfF_= surfF_*0;
         porosity_.correctBoundaryConditions();
-        whereIs_.correctBoundaryConditions();
-        surfaceScalarField  whereIsPatch  = fvc::interpolate(whereIs_);
+        porLessOne_.correctBoundaryConditions();
+        surfaceScalarField  whereIsPatch  = fvc::interpolate(porLessOne_);
         forAll(whereIsPatch,faceI)
         {
             if ( (whereIsPatch[faceI] > 0) and (whereIsPatch[faceI] < 1) )
             {
-                if (whereIs_[mesh_.owner()[faceI]] == 1)
+                if (porLessOne_[mesh_.owner()[faceI]] == 1)
                 {
                     surfF_[mesh_.owner()[faceI]] = 1;
                 }
-                if (whereIs_[mesh_.neighbour()[faceI]] == 1)
+                if (porLessOne_[mesh_.neighbour()[faceI]] == 1)
                 {
                     surfF_[mesh_.neighbour()[faceI]] = 1;
                 }
@@ -1738,7 +1771,7 @@ void volPyrolysis::evolvePorosity()
                 {
                     if ( (whereIsPatch.boundaryField()[patchI][faceI] > 0) and (whereIsPatch.boundaryField()[patchI][faceI] < 1) )
                     {
-                        if (whereIs_[mesh_.owner()[faceI + mesh_.boundaryMesh()[patchI].start()]] == 1)
+                        if (porLessOne_[mesh_.owner()[faceI + mesh_.boundaryMesh()[patchI].start()]] == 1)
                         {
                             surfF_[mesh_.owner()[faceI + mesh_.boundaryMesh()[patchI].start()]] = 1;
                         }
@@ -1893,7 +1926,7 @@ Foam::tmp<Foam::volScalarField> volPyrolysis::heatTransfer()
 
             forAll(deltaTemp,cellI)
             {
-                if (whereIs_[cellI] == 1.0 && CONV_[cellI] > 0.0)
+                if (porLessOne_[cellI] == 1.0 && CONV_[cellI] > 0.0)
                 {
                     deltaTemp[cellI] =
                         (Tgas[cellI]
@@ -1914,7 +1947,7 @@ Foam::tmp<Foam::volScalarField> volPyrolysis::heatTransfer()
 
             forAll(Sh_(),cellI)
             {
-                Sh_.ref()[cellI] = deltaTemp[cellI] * rhoCpG[cellI] * whereIs_[cellI] / deltaTime;
+                Sh_.ref()[cellI] = deltaTemp[cellI] * rhoCpG[cellI] * porLessOne_[cellI] / deltaTime;
             }
 
             volScalarField HT(CONV_*(T_-Tgas));
@@ -1927,7 +1960,7 @@ Foam::tmp<Foam::volScalarField> volPyrolysis::heatTransfer()
             // This works only for small CONV otherwise oscillations appear.
             volScalarField Tgas = gasThermo_.T();
             volScalarField HT(CONV_*(T_-Tgas));
-            Sh_ = HT * whereIs_;
+            Sh_ = HT * porLessOne_;
         }
     }
     return Sh_;
@@ -1957,7 +1990,7 @@ Foam::tmp<Foam::volScalarField> volPyrolysis::CONV() const
     {}
     else
     {
-        CONVloc_ = HTmodel_->CONV()*whereIs_;
+        CONVloc_ = HTmodel_->CONV()*porLessOne_;
     }
     return CONVloc_;
 }
@@ -1993,7 +2026,7 @@ Foam::tmp<Foam::volScalarField> volPyrolysis::heatUpGasCalc() const
         {
             volScalarField tempSh = hSh_();
             tempSh = gasThermo_.Cp() * (T_ - gasThermo_.T()) * Srho();
-            hSh_ = tempSh * whereIs_ * (1 - porosity_);
+            hSh_ = tempSh * porLessOne_ * (1 - porosity_);
         }
     }
 

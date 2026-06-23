@@ -171,9 +171,9 @@ protected:
         volScalarField porositySource_;
 
         //- Masks for equations
-        volScalarField whereIs_;
+        volScalarField porLessOne_;   // 1 where porosityF < 1  (porous geometry present)
 
-        volScalarField whereIsNot_;
+        volScalarField porEqlOne_;    // 1 where porosityF = 1  (pure gas / freeboard)
 
         volScalarField whereWas_;
 
