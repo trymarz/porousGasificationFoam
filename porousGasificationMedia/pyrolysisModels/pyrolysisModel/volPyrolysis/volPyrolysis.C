@@ -1279,6 +1279,14 @@ void volPyrolysis::evolvePorosity()
 
         porosityEqn.solve("porosity");
 
+        // Porosity is a void fraction and must stay ≤ 1. The explicit solid
+        // advection (fvc::div(Us,por)) can overshoot slightly above 1; left
+        // unchecked, rho*(1-porosity) then goes negative and the rhoLoc floor
+        // (max(...,SMALL)) used in solveSpeciesMass()/solveEnergy() engages,
+        // which amplifies the explicit solid-species advection by ~1/SMALL and
+        // blows the field up (observed Ywood ~1e12 at t~0.04 s).
+        porosity_ = min(porosity_, dimensionedScalar("one", dimless, 1.0));
+
         Info<< "porosity equation solved. Sources min/max   = " << gMin(porositySource_)
             << ", " << gMax(porositySource_);
 
