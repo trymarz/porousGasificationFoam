@@ -1280,7 +1280,14 @@ void volPyrolysis::evolveRegion()
     {}
     else
     {
-        for (int nonOrth = 0; nonOrth <= nNonOrthCorr_; ++nonOrth)
+        // Iterate the explicit heat-transfer coupling.  heatTransfField is
+        // recomputed inside solveEnergy() from the latest T_, so the fully
+        // explicit Ts<->Tgas coupling needs at least one extra pass to
+        // converge (same idea as nCorrectors for p-U coupling).  The
+        // max(...) preserves a larger nNonOrthCorr_ if one is set.
+        const label minEnergyIters = 2;
+        const label energyIters = max(nNonOrthCorr_, minEnergyIters - 1);
+        for (int nonOrth = 0; nonOrth <= energyIters; ++nonOrth)
         {
             solveEnergy();
         }
