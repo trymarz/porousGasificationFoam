@@ -1671,6 +1671,11 @@ Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasTherm
         if (newhi != 0 && solidHeatCapacity > VSMALL)
         {
             dTi = (newhi/solidHeatCapacity)*dt_;
+
+            // Mirror the dT/dt limiter applied in derivatives() so that the
+            // post-integration temperature update is bounded to the same
+            // ±500 K/s envelope used during ODE integration.
+            dTi = max(min(dTi, 500.0*dt_), -500.0*dt_);
         }
         else if (newhi != 0)
         {
