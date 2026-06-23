@@ -1657,7 +1657,42 @@ Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasTherm
             newhi += omegaPreq[nEqns()];
         }
 
-        scalar dTi =  ( newhi == 0 ? 0 : (newhi/(newCp*solidRho))*dt_ );
+        // Solid-phase temperature update. Divides reaction heat by solid heat
+        // capacity. Cells admitted by the permissive reacting-cell criterion
+        // (porosity < 1, see volPyrolysis::preEvolveRegion) can carry a
+        // vanishing solid fraction: solidRho -> 0 drives newCp -> 0 too,
+        // while reaction heat stays finite (computed from mass fractions,
+        // not absolute mass) -> newhi/(newCp*solidRho) overflows to inf/NaN
+        // -> FOAM_SIGFPE. With no solid mass there is no solid temperature
+        // to advance.
+        const scalar solidHeatCapacity = newCp*solidRho;
+
+        scalar dTi = 0;
+        if (newhi != 0 && solidHeatCapacity > VSMALL)
+        {
+            dTi = (newhi/solidHeatCapacity)*dt_;
+        }
+        else if (newhi != 0)
+        {
+            // One-shot diagnostic: confirms the guard fired and reports the
+            // offending cell state. Remove once the fix is validated.
+            static bool reported = false;
+            if (!reported)
+            {
+                reported = true;
+                Pout<< "ODESolidHeterogeneousChemistryModel::calculateSourceTerms:"
+                    << " skipped solid T update (negligible solid heat capacity)"
+                    << " cell=" << celli
+                    << " porosity=" << porosityF_[celli]
+                    << " solidRho=" << solidRho
+                    << " newCp=" << newCp
+                    << " newhi=" << newhi
+                    << " Ti=" << Ti
+                    << " Ywood=" << Ys_[0][celli]
+                    << " Ychar=" << Ys_[1][celli]
+                    << endl;
+            }
+        }
 
         Ti += dTi;
 
