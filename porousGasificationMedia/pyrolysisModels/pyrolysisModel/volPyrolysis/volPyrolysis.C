@@ -254,7 +254,7 @@ void volPyrolysis::solveEnergy()
             //this requires further rethinking
             forAll(porosity_,cellI)
             {
-                if ( (porLessOne_[cellI] == 1) && ( (Us_[cellI] & porEqlOneGrad[cellI]) != 0)  )
+                if ( (porLessOne_[cellI] == 1) && ( (Us_[cellI] & porEqlOneGrad[cellI]) > 0)  )
                 {
                     //Info << rhoCp[cellI] << " " << porosity_[cellI] << " " << rhoCpG[cellI] << " " << heatTransfField[cellI] << " " << T_[cellI] << " " << gasThermo_.T()[cellI]  << " kopytko 2" << endl;
                     const labelList& faces = mesh_.cells()[cellI];
@@ -268,7 +268,7 @@ void volPyrolysis::solveEnergy()
                             //rhoCp[cellI] = rhoCp[cellI] * (1-porosity_[cellI])/(max(1-surfPor[faces[faceI]],SMALL));
                         }
                     }
-                    //if (porosity_[cellI] > 0.999)
+                    if (porosity_[cellI] > 0.999)
                     {
                         heatTransfField[cellI] = 0;
                     }
