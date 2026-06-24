@@ -1657,7 +1657,25 @@ Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasTherm
             newhi += omegaPreq[nEqns()];
         }
 
-        scalar dTi =  ( newhi == 0 ? 0 : (newhi/(newCp*solidRho))*dt_ );
+        // Solid-phase temperature update. Divides reaction heat by solid heat
+        // capacity.  With the mass-based reacting-cell criterion
+        // (volPyrolysis::preEvolveRegion now marks only cells with real solid
+        // mass), solidRho -> 0 cells are never integrated, so newCp*solidRho is
+        // bounded away from zero here.  The guard below is kept as a defensive
+        // backstop against a future re-loosening of that criterion: it must
+        // never fire in normal operation.
+        const scalar solidHeatCapacity = newCp*solidRho;
+
+        scalar dTi = 0;
+        if (newhi != 0 && solidHeatCapacity > VSMALL)
+        {
+            dTi = (newhi/solidHeatCapacity)*dt_;
+
+            // Mirror the dT/dt limiter applied in derivatives() so that the
+            // post-integration temperature update is bounded to the same
+            // ±500 K/s envelope used during ODE integration.
+            dTi = max(min(dTi, 500.0*dt_), -500.0*dt_);
+        }
 
         Ti += dTi;
 
