@@ -188,6 +188,16 @@ protected:
 
         volScalarField radiationSh_;
 
+        //- Stored solid sensible-energy density [J/m^3] = rho*Cp*(1-porosity)*T,
+        //  clean-zero where there is no solid mass. This is the conserved
+        //  quantity advected with the solid (see solveEnergy): it lets a
+        //  freshly-occupied cell take its temperature from the enthalpy the
+        //  incoming solid actually carries, instead of from a stale Ts left in
+        //  the cell while it was gas-only. Re-stored once per time step at the
+        //  end of evolveRegion(); read on restart if present, else reseeded in
+        //  the constructor body.
+        volScalarField eSolid_;
+
         volTensorField anisotropyK_;
 
         //- border cells inside solid body

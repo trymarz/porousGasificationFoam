@@ -179,28 +179,29 @@ void volPyrolysis::solveEnergy()
         {}
         else
         {
-            volScalarField rhoCp
+            // --- Conserved-energy formulation ---------------------------------
+            // The solid carries a stored sensible-energy density
+            //   eSolid_ [J/m^3] = rho*Cp*(1-porosity)*T   (clean 0 where no solid).
+            // We still solve for T_ (conduction must stay on T), but form the
+            // time derivative and advection against eSolid_, so a freshly
+            // occupied cell takes its temperature from the energy the incoming
+            // solid actually carries, not from a stale sentinel Ts left in the
+            // cell while it was gas-only.  Discretised (ddt + div == cond + S):
+            //   rhoCpReal_new/dt * T_new  +  div(phiUs, eSolid_old)
+            //     - laplacian(composedK, T)
+            //       == eSolid_old/dt  +  chemistry - htf - heatUpGas + radiation.
+            // eSolid_ holds the start-of-step value across evolveRegion()'s two
+            // energy passes and is rolled forward once, after the loop.
+            const dimensionedScalar dt = time_.deltaT();
+
+            // Real (unfloored) solid heat capacity per unit bulk volume.
+            volScalarField rhoCpReal(rho_*solidThermo_.Cp()*(1. - porosity_));
+
+            // 1 where solid mass exists, exactly 0 in empty/pure-gas cells
+            // (same criterion as heatTransfer() and solveSpeciesMass()).
+            volScalarField hasSolidMass
             (
-                max
-                (
-                    rho_ * solidThermo_.Cp() * (1 - porosity_),
-                    // Floor at 100 J/(m³·K), not SMALL. In whereIs=0 / pure-gas
-                    // cells (1-porosity)=0, so the solid term vanishes and rhoCp
-                    // would collapse to SMALL (~1e-15). Combined with the
-                    // immersed-boundary off-diagonal zeroing below, that leaves
-                    // a TEqn diagonal of ~rhoCp*V/dt ~1e-18 for those cells,
-                    // while solid cells carry ~1e3. The DIC preconditioner
-                    // inverts that ~1e21 condition number into trillion-scale
-                    // off-diagonals and DICPCG "converges" to physically
-                    // garbage Ts (e.g. -51485 K) in 2 iterations. A 100 floor
-                    // lifts the isolated diagonal to ~0.2, dropping the
-                    // condition number to ~1e4. These cells have no energy
-                    // sources (chemistry/htf/radiation are all zero where
-                    // 1-porosity=0), so the floor changes only the
-                    // conditioning, never the solid-cell physics (there the
-                    // real rhoCp is 5e5-1e6, far above the floor).
-                    dimensionedScalar("minRhoCp",dimEnergy/dimTemperature/dimVolume,100.0)
-                )
+                pos(rho_*(1. - porosity_) - dimensionedScalar("rhoFloor", dimMass/dimVolume, SMALL))
             );
 
             // heatTransfer() returns the gas<->solid coupling already gated on
@@ -208,20 +209,25 @@ void volPyrolysis::solveEnergy()
             // solid contribute exactly zero, so a dead-cell sentinel Ts can no
             // longer leak spurious cooling into the gas energy equation.
             volScalarField heatTransfField = heatTransfer()();
-            surfaceVectorField surfSolidU = fvc::interpolate(Us_);
+
+            // Kinematic solid volume flux for energy-density advection.  Uses
+            // the same Us field as the species/mass transport, so a cell that
+            // receives solid mass (and is therefore marked hasSolidMass) also
+            // receives its energy across the same faces and is never left
+            // pinned.  This advection MUST stay a separate explicit term: it is
+            // physically the mechanism that fills a fresh cell, so it must not
+            // be wiped by the conduction source() = 0 below.
+            surfaceScalarField phiUs(mesh_.Sf() & fvc::interpolate(Us_));
 
             porosityLessThanOne_.correctBoundaryConditions();
             surfaceScalarField  whereIsPatch  = fvc::interpolate(porosityLessThanOne_);
 
-            surfaceScalarField solidFluxRhoCp = mesh_.Sf() & surfSolidU * fvc::interpolate(rhoCp,"rhoCpInt");
-
-            // Simplistic immersed boundary for heat transport in solid phase.
+            // Conduction only.
             fvScalarMatrix TLap
             (
                 fvm::laplacian(composedK, T_)
-              - fvc::div(solidFluxRhoCp,T_,"div(phiSolid)")
             );
- 
+
             // Setting face fluxes on the border of porous media to 0.
             // this should be instead flux due to the macrscopic motion to smooth at the edges
             forAll(whereIsPatch,faceI)
@@ -255,12 +261,34 @@ void volPyrolysis::solveEnergy()
             // media and negiligble inside porous media in relevant cases.
             TLap.source() = 0.;
 
+            // Empty cells have rhoCpReal = 0, so the ddt diagonal vanishes and
+            // (with the conductive coupling cut above) the row is singular.
+            // Instead of the old 100 J/(m^3 K) rhoCp conditioning floor, pin
+            // those rows to an ambient sentinel with a large penalty diagonal.
+            // hasSolidMass is exactly 0/1, so this term is identically zero in
+            // every solid cell and cannot perturb the physical solution.  It
+            // cannot leak energy either: eSolid_ is re-stored as 0 wherever
+            // hasSolidMass = 0, so the pinned T in empty cells is discarded.
+            const dimensionedScalar pinRate
+            (
+                "pinRate", dimEnergy/dimTemperature/dimVolume/dimTime, 1.0e15
+            );
+            const dimensionedScalar Tpin("Tpin", dimTemperature, 300.0);
+
+            // Energy equation.  ddt is split (fvm::Sp on T_new, eSolid_old/dt on
+            // the rhs) so the "old energy" is the genuine stored eSolid_, clean
+            // 0 in a cell that was empty last step -- not a stale rhoCp_old*T_old
+            // reconstructed from a sentinel temperature.
             fvScalarMatrix TEqn
             (
-                fvm::ddt(rhoCp, T_)
-              - TLap
+                fvm::Sp(rhoCpReal/dt, T_)                  // rhoCpReal_new/dt * T_new
+              + fvm::Sp(pinRate*(1. - hasSolidMass), T_)   // empty-cell pin (implicit)
+              + fvc::div(phiUs, eSolid_, "div(phiSolid)")  // conservative advection of old energy
+              - TLap                                       // conduction
             ==
-                chemistrySh_ // eqZx2uHGn004, eqZx2uHGn017
+                eSolid_/dt                                 // clean old energy / dt
+              + pinRate*(1. - hasSolidMass)*Tpin           // empty-cell pin (source)
+              + chemistrySh_ // eqZx2uHGn004, eqZx2uHGn017
               - heatTransfField // eqZx2uHGn005
               - heatUpGas_
               + radiationSh_
@@ -544,6 +572,19 @@ volPyrolysis::volPyrolysis
         mesh_,
         dimensionedScalar("zero", dimEnergy/dimVolume/dimTime, 0.0)
     ),
+    eSolid_
+    (
+        IOobject
+        (
+            "eSolid",
+            time_.timeName(),
+            mesh_,
+            IOobject::READ_IF_PRESENT,
+            IOobject::AUTO_WRITE
+        ),
+        mesh_,
+        dimensionedScalar("zero", dimEnergy/dimVolume, 0.0)
+    ),
     anisotropyK_
     (
         IOobject
@@ -650,6 +691,13 @@ volPyrolysis::volPyrolysis
     {
         read();
     }
+
+    // Seed the stored solid sensible-energy density from the initial/restart
+    // state. eSolid_ is a derived cache (= rho*Cp*(1-porosity)*T where solid
+    // mass exists, else clean 0), so reconstructing it here from the read
+    // Ts/rhos/porosity also reproduces the on-disk value exactly on restart.
+    eSolid_ = rho_*solidThermo_.Cp()*(1. - porosity_)*T_
+            * pos(rho_*(1. - porosity_) - dimensionedScalar("rhoFloor", dimMass/dimVolume, SMALL));
 
     forAll(porosityLessThanOne_,cellI)
     {
@@ -925,6 +973,19 @@ volPyrolysis::volPyrolysis
         mesh_,
         dimensionedScalar("zero", dimEnergy/dimVolume/dimTime, 0.0)
     ),
+    eSolid_
+    (
+        IOobject
+        (
+            "eSolid",
+            time_.timeName(),
+            mesh_,
+            IOobject::READ_IF_PRESENT,
+            IOobject::AUTO_WRITE
+        ),
+        mesh_,
+        dimensionedScalar("zero", dimEnergy/dimVolume, 0.0)
+    ),
     anisotropyK_
     (
         IOobject
@@ -1028,6 +1089,11 @@ volPyrolysis::volPyrolysis
     {
         read();
     }
+
+    // Seed the stored solid sensible-energy density (derived cache); see the
+    // matching note in the other constructor.
+    eSolid_ = rho_*solidThermo_.Cp()*(1. - porosity_)*T_
+            * pos(rho_*(1. - porosity_) - dimensionedScalar("rhoFloor", dimMass/dimVolume, SMALL));
 
     forAll(porosityLessThanOne_, cellI)
     {
@@ -1212,6 +1278,14 @@ void volPyrolysis::evolveRegion()
         {
             solveEnergy();
         }
+
+        // Roll the stored solid energy density forward ONCE per time step, from
+        // the converged T_.  Both energy passes above advect/ddt against the
+        // start-of-step eSolid_; only here does it become the new "old" value
+        // for the next step.  Clean 0 wherever there is no solid mass, so a cell
+        // the solid has just left carries no phantom energy into the next step.
+        eSolid_ = rho_*solidThermo_.Cp()*(1. - porosity_)*T_
+                * pos(rho_*(1. - porosity_) - dimensionedScalar("rhoFloor", dimMass/dimVolume, SMALL));
     }
 
     calculateMassTransfer();
@@ -1457,6 +1531,7 @@ void volPyrolysis::evolvePorosity()
                 porosityArch_.correctBoundaryConditions();
                 T_.correctBoundaryConditions();
                 rho_.correctBoundaryConditions();
+                eSolid_.correctBoundaryConditions();
                 for (label i = 0; i < Ys_.size(); ++i)
                 {
                     Ym_[i].correctBoundaryConditions();
@@ -1498,6 +1573,11 @@ void volPyrolysis::evolvePorosity()
                                                                                           ,0.001);
                             T_[realRoutes[routeI][stepI-1] - minLocalGlobalI] = T_[realRoutes[routeI][stepI] - minLocalGlobalI];
                             rho_[realRoutes[routeI][stepI-1] - minLocalGlobalI] = rho_[realRoutes[routeI][stepI] - minLocalGlobalI];
+                            // Move the stored solid energy density with the solid
+                            // so this step's ddt sees consistent old->new energy
+                            // for the relocated material (it is re-derived from
+                            // T_/rho_/porosity_ at the end of evolveRegion()).
+                            eSolid_[realRoutes[routeI][stepI-1] - minLocalGlobalI] = eSolid_[realRoutes[routeI][stepI] - minLocalGlobalI];
                             for (label i = 0; i < Ys_.size(); ++i)
                             {
                                 Ym_[i][realRoutes[routeI][stepI-1] - minLocalGlobalI] = Ym_[i][realRoutes[routeI][stepI] - minLocalGlobalI];
@@ -1605,6 +1685,8 @@ void volPyrolysis::evolvePorosity()
                                                                                                         ,0.001);
                                          T_[realRoutes[routeI][stepI-1] - minLocalGlobalI] = T_.boundaryField()[patchID].patchNeighbourField()()[faceID];
                                          rho_[realRoutes[routeI][stepI-1] - minLocalGlobalI] = rho_.boundaryField()[patchID].patchNeighbourField()()[faceID];
+                                         // Carry the stored solid energy density across the processor route (see intra-core copy above).
+                                         eSolid_[realRoutes[routeI][stepI-1] - minLocalGlobalI] = eSolid_.boundaryField()[patchID].patchNeighbourField()()[faceID];
                                          for (label i = 0; i < Ys_.size(); ++i)
                                          {
                                              Ym_[i][realRoutes[routeI][stepI-1] - minLocalGlobalI] = Ym_[i].boundaryField()[patchID].patchNeighbourField()()[faceID];
@@ -1995,7 +2077,9 @@ void volPyrolysis::info() const
         << indent << "Total solid mass lost    [kg] = " << lostSolidMass_.value() << nl
         << indent << "Total mass replenished   [kg] = " << totRepMass_ << nl
         << indent << "Realese rate of pyrolysis gases  [kg/s] = " << totalGasMassFlux_.value() << nl
-        << indent << "Heat release rate [J/s] = " << totalHeatRR_.value() << nl;
+        << indent << "Heat release rate [J/s] = " << totalHeatRR_.value() << nl
+        << indent << "Total stored solid energy [J] = "
+        << fvc::domainIntegrate(eSolid_).value() << nl;
 
         if (timeChem_ < GREAT )
         {
