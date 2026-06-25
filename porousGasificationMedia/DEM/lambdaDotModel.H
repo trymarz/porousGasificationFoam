@@ -1,5 +1,7 @@
 #ifndef lambdaDotModel_H
 #define lambdaDotModel_H
+#include "DynamicList.H"
+#include "Map.H"
 
 #include "fvMesh.H"
 #include "FoamYade.H"
@@ -18,6 +20,27 @@ private:
     volVectorField& Us_;    // interpolated sphere velocity
     volScalarField& porosityF_;   // porosity field  get from the main solver
     FoamYade& yade_;
+    word lambdaMode_;  // to switch between single value or function
+    scalar lambdaValue_;
+
+
+    // DasteXar interpolation Us from UsDEM (June 12 2026)
+    Switch interpolateUs_;
+    scalar solidPorosityCutoff_;
+    scalar demVelocityAnchorCoeff_;
+    scalar backgroundUsAnchorCoeff_;
+    label nUsInterpolationCorrectors_;
+
+    void interpolateUsFromDEM();
+    // Ta inja 
+
+    // to pass values from one cell to another
+    Map<label> previousParticleCell_;
+    DynamicList<label> movedFromCells_;
+    DynamicList<label> movedToCells_;
+    //
+
+
 
     autoPtr<Function1<scalar>> lambdaFunc_;  // to read lambdaFunction from constant/lambdaDict
 
@@ -34,9 +57,13 @@ public:
         FoamYade& yade
     );
 
-    void update();
-    void writeParticlesData() const;  // to write ParticlesData.txt in each time step for each rank
+        void updateLambdaDot();
+    void updateParticleFields();
 
+    const DynamicList<label>& movedFromCells() const;
+    const DynamicList<label>& movedToCells() const;
+
+    void writeParticlesData() const;  // to write ParticlesData.txt in each time step for each rank
 };
 
 }

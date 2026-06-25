@@ -1,6 +1,10 @@
+#include "surfaceInterpolate.H"
+#include "fvmSup.H"
+
 #include "lambdaDotModel.H"
 #include "IOdictionary.H"
 #include "fvmLaplacian.H"
+
 
 namespace Foam
 {
@@ -23,6 +27,18 @@ lambdaDotModel::lambdaDotModel
     Us_(Us),
     porosityF_(porosityF),
     yade_(yade),
+    lambdaMode_("constant"),
+    lambdaValue_(0.0),
+
+    //DasteXar for interpolation of UsDEM into Us
+    interpolateUs_(true),
+    solidPorosityCutoff_(0.999),
+    demVelocityAnchorCoeff_(1e6),
+    backgroundUsAnchorCoeff_(1e-12),
+    nUsInterpolationCorrectors_(1),
+
+
+
     // to read lambda function from constant/lambdaDict
     lambdaFunc_
     (
@@ -43,29 +59,84 @@ lambdaDotModel::lambdaDotModel
             &mesh
         )
     )
-{}
 
-
-void lambdaDotModel::update()
 {
-    // calc lambdaDot field
+    IOdictionary lambdaDict
+    (
+        IOobject
+        (
+            "lambdaDict",
+            mesh.time().constant(),
+            mesh,
+            IOobject::MUST_READ,
+            IOobject::NO_WRITE
+        )
+    );
+
+    lambdaMode_ = lambdaDict.lookupOrDefault<word>("lambdaMode", "constant");
+    lambdaValue_ = lambdaDict.lookupOrDefault<scalar>("lambdaValue", 0.0);
+
+
+    //DasteXar interpolation
+        interpolateUs_ =
+        lambdaDict.lookupOrDefault<Switch>("interpolateUs", true);
+
+    solidPorosityCutoff_ =
+        lambdaDict.lookupOrDefault<scalar>("solidPorosityCutoff", 0.999);
+
+    demVelocityAnchorCoeff_ =
+        lambdaDict.lookupOrDefault<scalar>("demVelocityAnchorCoeff", 1e6);
+
+    backgroundUsAnchorCoeff_ =
+        lambdaDict.lookupOrDefault<scalar>("backgroundUsAnchorCoeff", 1e-12);
+
+    nUsInterpolationCorrectors_ =
+        lambdaDict.lookupOrDefault<label>("nUsInterpolationCorrectors", 1);
+
+        // ta inja 
+}
+
+
+void lambdaDotModel::updateLambdaDot()
+{
+    const volScalarField* TsPtr = nullptr;
+
+    if (lambdaMode_ == "Ts")
+    {
+        TsPtr = &mesh_.lookupObject<volScalarField>("Ts");
+    }
+
     forAll(lambdaDot_, cellI)
     {
-        // direct function
-        //const point& c = mesh_.C()[cellI];
-        //lambdaDot_[cellI] = 0.1 * Foam::sin(c.x());
-
-        // to read function from constant/lambdaDict
-        const point& c = mesh_.C()[cellI];
-        lambdaDot_[cellI] = lambdaFunc_->value(c.y());
+        if (lambdaMode_ == "constant")
+        {
+            lambdaDot_[cellI] = lambdaValue_;
+        }
+        else if (lambdaMode_ == "Ts")
+        {
+            lambdaDot_[cellI] = lambdaFunc_->value((*TsPtr)[cellI]);
+        }
+        else
+        {
+            FatalErrorInFunction
+                << "Unknown lambdaMode '" << lambdaMode_
+                << "'. Valid options are: constant, Ts"
+                << exit(FatalError);
+        }
     }
 
     lambdaDot_.correctBoundaryConditions();
+}
 
+void lambdaDotModel::updateParticleFields()
+{
     // count particles per cell
     // and sum velocities per cell
     nParticles_ = 0.0;
     UsDEM_ = dimensionedVector("zero", UsDEM_.dimensions(), vector::zero);
+
+    movedFromCells_.clear();
+    movedToCells_.clear();
 
     for (const auto& procPtr : yade_.inCommProcs)
     {
@@ -77,6 +148,29 @@ void lambdaDotModel::update()
 
             label cellI = partPtr->inCell;
             if (cellI < 0) continue;
+
+
+
+
+                        const label particleI = partPtr->indx;
+
+            if (previousParticleCell_.found(particleI))
+            {
+                const label oldCellI = previousParticleCell_[particleI];
+
+                if (oldCellI >= 0 && oldCellI != cellI)
+                {
+                    movedFromCells_.append(oldCellI);
+                    movedToCells_.append(cellI);
+                }
+            }
+
+            previousParticleCell_.set(particleI, cellI);
+
+
+
+
+
 
             nParticles_[cellI] += 1.0;
 
@@ -102,36 +196,39 @@ void lambdaDotModel::update()
 
     UsDEM_.correctBoundaryConditions();
 
-    // interpolated velocity of spheres for cells withough sphere but containing solid matterial
+    // Raw DEM velocity in occupied cells. Keep empty cells at zero while
+    // validating the coupled data path; broad smoothing can destabilize
+    // solid species/porosity transport before the DEM velocity is limited.
+    // Us_ = UsDEM_;
 
-    Us_ = UsDEM_;
+    // forAll(Us_, cellI)
+    // {
+    //     if (porosityF_[cellI] >= 0.999)
+    //     {
+    //         Us_[cellI] = vector::zero;
+    //     }
+    // }
 
-    forAll(Us_, cellI)
+
+        if (interpolateUs_)
     {
-        if (porosityF_[cellI] >= 0.999)
+        interpolateUsFromDEM();
+    }
+    else
+    {
+        Us_ = UsDEM_;
+
+        forAll(Us_, cellI)
         {
-            Us_[cellI] = vector::zero;
+            if (porosityF_[cellI] >= solidPorosityCutoff_)
+            {
+                Us_[cellI] = vector::zero;
+            }
         }
+
+        Us_.correctBoundaryConditions();
     }
 
-    fvVectorMatrix UsEqn
-    (
-        fvm::laplacian
-            (
-                dimensionedScalar("one", dimless, 1.0),
-                Us_
-            )
-    );
-
-    UsEqn.solve();
-
-    forAll(Us_, cellI)
-    {
-        if (porosityF_[cellI] >= 0.999)
-        {
-            Us_[cellI] = vector::zero;
-        }
-    }
 
 
     // Assign lambdaDot to particles (only if occupied)
@@ -152,6 +249,144 @@ void lambdaDotModel::update()
         }
     }
 }
+
+
+//DasteXar interpolation
+
+void lambdaDotModel::interpolateUsFromDEM()
+{
+    volScalarField solidMask
+    (
+        IOobject
+        (
+            "solidVelocityInterpolationMask",
+            mesh_.time().timeName(),
+            mesh_,
+            IOobject::NO_READ,
+            IOobject::NO_WRITE
+        ),
+        mesh_,
+        dimensionedScalar("zero", dimless, 0.0)
+    );
+
+    volScalarField anchor
+    (
+        IOobject
+        (
+            "solidVelocityInterpolationAnchor",
+            mesh_.time().timeName(),
+            mesh_,
+            IOobject::NO_READ,
+            IOobject::NO_WRITE
+        ),
+        mesh_,
+        dimensionedScalar
+        (
+            "zero",
+            dimensionSet(0, -2, 0, 0, 0, 0, 0),
+            0.0
+        )
+    );
+
+    Us_ = UsDEM_;
+
+    forAll(Us_, cellI)
+    {
+        const bool occupied = nParticles_[cellI] > 0.5;
+        const bool solid = (porosityF_[cellI] < solidPorosityCutoff_) || occupied;
+
+        const scalar length2 = max(pow(mesh_.V()[cellI], 2.0/3.0), VSMALL);
+
+        if (solid)
+        {
+            solidMask[cellI] = 1.0;
+        }
+        else
+        {
+            Us_[cellI] = vector::zero;
+        }
+
+        scalar coeff = backgroundUsAnchorCoeff_;
+
+        if (!solid || occupied)
+        {
+            coeff = demVelocityAnchorCoeff_;
+        }
+
+        anchor[cellI] = coeff/length2;
+    }
+
+    volVectorField sourceUs
+    (
+        IOobject
+        (
+            "UsDEMInterpolationSource",
+            mesh_.time().timeName(),
+            mesh_,
+            IOobject::NO_READ,
+            IOobject::NO_WRITE
+        ),
+        Us_
+    );
+
+    surfaceScalarField gamma
+    (
+        IOobject
+        (
+            "solidVelocityInterpolationGamma",
+            mesh_.time().timeName(),
+            mesh_,
+            IOobject::NO_READ,
+            IOobject::NO_WRITE
+        ),
+        fvc::interpolate(solidMask)
+    );
+
+    forAll(gamma, faceI)
+    {
+        if
+        (
+            solidMask[mesh_.owner()[faceI]] < 0.5
+         || solidMask[mesh_.neighbour()[faceI]] < 0.5
+        )
+        {
+            gamma[faceI] = 0.0;
+        }
+    }
+
+    for (label corr = 0; corr < nUsInterpolationCorrectors_; ++corr)
+    {
+        fvVectorMatrix UsEqn
+        (
+          - fvm::laplacian(gamma, Us_)
+          + fvm::Sp(anchor, Us_)
+         ==
+            anchor * sourceUs
+        );
+
+        UsEqn.relax();
+        UsEqn.solve("UsDEMInterpolation");
+    }
+
+    forAll(Us_, cellI)
+    {
+               if (nParticles_[cellI] > 0.5)
+        {
+            Us_[cellI] = UsDEM_[cellI];
+        }
+        else if (porosityF_[cellI] >= solidPorosityCutoff_)
+        {
+            Us_[cellI] = vector::zero;
+        }
+    }
+
+    Us_.correctBoundaryConditions();
+}
+
+
+//-------------------------
+
+
 
 void lambdaDotModel::writeParticlesData() const
 {
@@ -192,5 +427,18 @@ void lambdaDotModel::writeParticlesData() const
 
     ofs << "\n";
 }
+
+
+const DynamicList<label>& lambdaDotModel::movedFromCells() const
+{
+    return movedFromCells_;
+}
+
+
+const DynamicList<label>& lambdaDotModel::movedToCells() const
+{
+    return movedToCells_;
+}
+
 
 } // namespace Foam
