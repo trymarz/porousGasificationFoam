@@ -1,0 +1,80 @@
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      lambdaDict;
+}
+
+
+lambdaMode constant; // or Ts  or constant
+lambdaValue 0.5;
+
+
+// lambdaDot
+// {
+//     type coded;
+//     code
+//     #{
+//         return 0.1*sin(x);
+//     #};
+// }
+
+
+// lambdaDot
+// {
+//     type coded;
+//     code
+//     #{
+//         const scalar factor = 10;
+//         return factor*x;
+//     #};
+// }
+
+
+lambdaDot
+{
+    type coded;
+    code
+    #{
+        
+        return 0.001*x;
+    #};
+}
+
+
+interpolateUs true; // true: interpolate UsDEM into a continuous Us field inside solid cells. false: use only raw UsDEM, so cells without sphere centers keep Us = 0.
+
+interpolationMode laplaceSetValues; //laplaceAnchored; 
+// laplaceAnchored: current soft anchored solve. 
+// laplaceSetValues: pgfVeloInt hard setValues Laplace solve.
+
+
+
+     solidPorosityCutoff 0.999; // Cells with porosityF below this value are treated as solid containing cells and receive interpolated Us. Larger value: more nearly-empty cells are included. Smaller value: only denser solid cells are included.
+
+
+//laplaceSetValues mode parameters
+nLaplaceSetValuesCorrectors 0; // 0: no extra corrector. 1 or more: extra pseudo-time diffusion smoothing steps after laplaceSetValues interpolation.
+
+
+
+//laplaceAnchored mode parameters
+   
+        demVelocityAnchorCoeff 1e6; // constraint strength that keeps cells with sphere centers close to their raw UsDEM value. Larger value: occupied cells follow UsDEM more strictly. Smaller value: occupied-cell velocity is smoothed more by neighbors.
+        //Larger demVelocityAnchorCoeff strengthens the influence of DEM cells.
+
+        backgroundUsAnchorCoeff 1e-12; // small regularization for empty solid cells so the interpolation equation remains well posed. Larger value: empty solid cells are weakly pulled toward zero. Smaller value: interpolation spreads more freely from DEM cells.
+
+        nUsInterpolationCorrectors 2; // Number of interpolation/smoothing solves used to fill Us in solid cells without particles. Larger value: smoother and more diffused Us field. Smaller value: sharper, more local interpolation.
+
+
+
+
+
+
+
+
+
+

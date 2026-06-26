@@ -1,6 +1,7 @@
 #include "surfaceInterpolate.H"
 #include "fvmSup.H"
-
+#include "fvmDdt.H"
+#include "processorPolyPatch.H"
 #include "lambdaDotModel.H"
 #include "IOdictionary.H"
 #include "fvmLaplacian.H"
@@ -32,10 +33,13 @@ lambdaDotModel::lambdaDotModel
 
     //DasteXar for interpolation of UsDEM into Us
     interpolateUs_(true),
-    solidPorosityCutoff_(0.999),
+    interpolationMode_("laplaceSetValues"), // primary logic
+
+    solidPorosityCutoff_(1),
     demVelocityAnchorCoeff_(1e6),
     backgroundUsAnchorCoeff_(1e-12),
     nUsInterpolationCorrectors_(1),
+    nLaplaceSetValuesCorrectors_(0),
 
 
 
@@ -78,11 +82,20 @@ lambdaDotModel::lambdaDotModel
 
 
     //DasteXar interpolation
-        interpolateUs_ =
+    interpolateUs_ =
         lambdaDict.lookupOrDefault<Switch>("interpolateUs", true);
 
+
+    // Select the UsDEM-to-Us interpolation method:
+    // laplaceAnchored keeps the current soft anchored diffusion solve,
+    // laplaceSetValues uses the pgfVeloInt hard setValues Laplace solve.
+
+
+    interpolationMode_ =
+        lambdaDict.lookupOrDefault<word>("laplaceAnchored", "interpolationMode");
+
     solidPorosityCutoff_ =
-        lambdaDict.lookupOrDefault<scalar>("solidPorosityCutoff", 0.999);
+        lambdaDict.lookupOrDefault<scalar>("solidPorosityCutoff", 1);
 
     demVelocityAnchorCoeff_ =
         lambdaDict.lookupOrDefault<scalar>("demVelocityAnchorCoeff", 1e6);
@@ -93,7 +106,10 @@ lambdaDotModel::lambdaDotModel
     nUsInterpolationCorrectors_ =
         lambdaDict.lookupOrDefault<label>("nUsInterpolationCorrectors", 1);
 
-        // ta inja 
+    nLaplaceSetValuesCorrectors_ =
+        lambdaDict.lookupOrDefault<label>("nLaplaceSetValuesCorrectors", 0);
+
+    // ta inja
 }
 
 
@@ -251,9 +267,32 @@ void lambdaDotModel::updateParticleFields()
 }
 
 
+
 //DasteXar interpolation
 
 void lambdaDotModel::interpolateUsFromDEM()
+{
+    if (interpolationMode_ == "laplaceAnchored")
+    {
+        interpolateUsLaplaceAnchored();
+    }
+    else if (interpolationMode_ == "laplaceSetValues")
+    {
+        interpolateUsLaplaceSetValues();
+    }
+    else
+    {
+        FatalErrorInFunction
+            << "Unknown interpolationMode '" << interpolationMode_
+            << "'. Valid options are: laplaceAnchored, laplaceSetValues"
+            << exit(FatalError);
+    }
+}
+
+
+
+void lambdaDotModel::interpolateUsLaplaceAnchored()
+
 {
     volScalarField solidMask
     (
@@ -384,7 +423,194 @@ void lambdaDotModel::interpolateUsFromDEM()
 }
 
 
+void lambdaDotModel::interpolateUsLaplaceSetValues()
+{
+    Us_ = UsDEM_;
+
+    volScalarField whereIs
+    (
+        IOobject
+        (
+            "solidVelocityInterpolationWhereIs",
+            mesh_.time().timeName(),
+            mesh_,
+            IOobject::NO_READ,
+            IOobject::NO_WRITE
+        ),
+        pos(-(porosityF_ - scalar(1.0)))
+    );
+
+    surfaceScalarField whereIsPatch = fvc::interpolate(whereIs);
+
+    dimensionedScalar coeffD
+    (
+        "solidVelocityInterpolationDiffusivity",
+        dimensionSet(0, 2, 0, 0, 0, 0, 0),
+        1e-4
+    );
+
+    dimensionedScalar coeffDt
+    (
+        "solidVelocityInterpolationCorrectorDt",
+        dimensionSet(0, 0, 1, 0, 0, 0, 0),
+        1e-4
+    );
+
+    vector oldInitialResidual = vector(1e6, 1e6, 1e6);
+    bool solved = false;
+    label keepSolving = 0;
+
+    while ((keepSolving < 5) && (!solved))
+    {
+        fvVectorMatrix UsLap
+        (
+            fvm::laplacian(coeffD, Us_)
+        );
+
+        forAll(whereIsPatch, faceI)
+        {
+            if ((whereIsPatch[faceI] > 0) && (whereIsPatch[faceI] < 1))
+            {
+                UsLap.upper()[faceI] = 0;
+            }
+        }
+
+        forAll(whereIsPatch.boundaryField(), patchI)
+        {
+            if (isA<processorPolyPatch>(mesh_.boundaryMesh()[patchI]))
+            {
+                forAll(whereIsPatch.boundaryField()[patchI], faceI)
+                {
+                    if
+                    (
+                        (whereIsPatch.boundaryField()[patchI][faceI] > 0)
+                     && (whereIsPatch.boundaryField()[patchI][faceI] < 1)
+                    )
+                    {
+                        UsLap.boundaryCoeffs()[patchI][faceI] = vector(0, 0, 0);
+                        UsLap.internalCoeffs()[patchI][faceI] = vector(0, 0, 0);
+                    }
+                }
+            }
+        }
+
+        UsLap.diag() = 0;
+        UsLap.negSumDiag();
+        UsLap.source() = vector(0, 0, 0);
+
+        fvVectorMatrix UsEqn
+        (
+            UsLap
+        );
+
+        List<label> cellList = {};
+        Field<vector> UsList = {};
+
+        forAll(UsDEM_, cellI)
+        {
+            if (mag(UsDEM_[cellI]) > 0)
+            {
+                cellList.append(cellI);
+                UsList.append(UsDEM_[cellI]);
+            }
+        }
+
+        const labelUList& cellUList = cellList;
+        const Field<vector>& UsUList = UsList;
+
+        UsEqn.setValues(cellUList, UsUList);
+
+        UsEqn.relax();
+        Foam::SolverPerformance<Foam::vector> sp = UsEqn.solve();
+
+        Info << sp.initialResidual() << endl;
+
+        if
+        (
+            mag(mag(oldInitialResidual)/max(mag(sp.initialResidual()), VSMALL) - 1.0) < 1e-1
+         && mag(sp.initialResidual()) < 1e-3
+        )
+        {
+            solved = true;
+        }
+
+        oldInitialResidual = sp.initialResidual();
+
+        keepSolving++;
+    }
+
+    if (nLaplaceSetValuesCorrectors_ > 0)
+    {
+        fvVectorMatrix UsLap
+        (
+            fvm::laplacian(coeffD, Us_)
+        );
+
+        forAll(whereIsPatch, faceI)
+        {
+            if ((whereIsPatch[faceI] > 0) && (whereIsPatch[faceI] < 1))
+            {
+                UsLap.upper()[faceI] = 0;
+            }
+        }
+
+        forAll(whereIsPatch.boundaryField(), patchI)
+        {
+            if (isA<processorPolyPatch>(mesh_.boundaryMesh()[patchI]))
+            {
+                forAll(whereIsPatch.boundaryField()[patchI], faceI)
+                {
+                    if
+                    (
+                        (whereIsPatch.boundaryField()[patchI][faceI] > 0)
+                     && (whereIsPatch.boundaryField()[patchI][faceI] < 1)
+                    )
+                    {
+                        UsLap.boundaryCoeffs()[patchI][faceI] = vector(0, 0, 0);
+                        UsLap.internalCoeffs()[patchI][faceI] = vector(0, 0, 0);
+                    }
+                }
+            }
+        }
+
+        UsLap.diag() = 0;
+        UsLap.negSumDiag();
+        UsLap.source() = vector(0, 0, 0);
+
+        for (label corr = 0; corr < nLaplaceSetValuesCorrectors_; ++corr)
+        {
+            Info << "calculating laplaceSetValues corrector step" << endl;
+
+            fvVectorMatrix UsCorrectorEqn
+            (
+                fvm::ddt(coeffDt, Us_)
+              - UsLap
+            );
+
+            UsCorrectorEqn.solve();
+        }
+    }
+
+    forAll(Us_, cellI)
+    {
+        if (nParticles_[cellI] > 0.5)
+        {
+            Us_[cellI] = UsDEM_[cellI];
+        }
+        else if (porosityF_[cellI] >= solidPorosityCutoff_)
+        {
+            Us_[cellI] = vector::zero;
+        }
+    }
+
+    Us_.correctBoundaryConditions();
+
+}
+
+
 //-------------------------
+
+
 
 
 

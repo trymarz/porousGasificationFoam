@@ -26,12 +26,16 @@ private:
 
     // DasteXar interpolation Us from UsDEM (June 12 2026)
     Switch interpolateUs_;
+    word interpolationMode_; // change the mode of interpolation (June 26)
     scalar solidPorosityCutoff_;
     scalar demVelocityAnchorCoeff_;
     scalar backgroundUsAnchorCoeff_;
     label nUsInterpolationCorrectors_;
+    label nLaplaceSetValuesCorrectors_;
 
     void interpolateUsFromDEM();
+    void interpolateUsLaplaceAnchored();
+    void interpolateUsLaplaceSetValues();
     // Ta inja 
 
     // to pass values from one cell to another
