@@ -179,30 +179,54 @@ void volPyrolysis::solveEnergy()
         {}
         else
         {
-            // --- Conserved-energy formulation ---------------------------------
-            // The solid carries a stored sensible-energy density
-            //   eSolid_ [J/m^3] = rho*Cp*(1-porosity)*T   (clean 0 where no solid).
-            // We still solve for T_ (conduction must stay on T), but form the
-            // time derivative and advection against eSolid_, so a freshly
-            // occupied cell takes its temperature from the energy the incoming
-            // solid actually carries, not from a stale sentinel Ts left in the
-            // cell while it was gas-only.  Discretised (ddt + div == cond + S):
-            //   rhoCpReal_new/dt * T_new  +  div(phiUs, eSolid_old)
-            //     - laplacian(composedK, T)
-            //       == eSolid_old/dt  +  chemistry - htf - heatUpGas + radiation.
+            // --- Conservative operator-split solid-energy transport ----------
+            // The solid carries an EXTENSIVE sensible-energy density
+            //   eSolid_ [J/m^3] = rho*Cp*(1-porosity)*T,  clean 0 where no solid.
+            // Advecting the intensive temperature directly (div(Us*rhoCp, T))
+            // divides the energy a filling front cell receives -- weighted by its
+            // dense upstream neighbour -- by the receiver's own near-floor
+            // capacity, so T overshoots (~4e4 K at the 1%-solid moving front).
+            // Instead we operator-split:
+            //   1. advect the EXTENSIVE eSolid_ explicitly, with the SAME
+            //      kinematic Us flux and SuperBee limiter that porosity uses in
+            //      evolvePorosity(), so eSolid_ and (1-porosity) -- hence the
+            //      recovery capacity rhoCp -- move in lockstep;
+            //   2. recover T from the advected energy and the CURRENT (floored)
+            //      capacity in one symmetric solve: T = eSolidStar/rhoCp + cond.
+            //      As a cell fills, numerator (advected energy) and denominator
+            //      (current capacity) grow together, so T stays bounded.
+            // The advection telescopes over faces -> conservative: it cannot
+            // CREATE solid energy (a decrease is physical -- heat shed to the gas
+            // and the blob advecting out of the domain).  Discretised:
+            //   eSolidStar = eSolid_ - dt*div(phiU, eSolid_)
+            //              + dt*(chemistry - htf - heatUpGas + radiation)
+            //   (rhoCp/dt) T - laplacian(composedK, T) == eSolidStar/dt.
             // eSolid_ holds the start-of-step value across evolveRegion()'s two
             // energy passes and is rolled forward once, after the loop.
             const dimensionedScalar dt = time_.deltaT();
 
-            // Real (unfloored) solid heat capacity per unit bulk volume.
-            volScalarField rhoCpReal(rho_*solidThermo_.Cp()*(1. - porosity_));
-
-            // 1 where solid mass exists, exactly 0 in empty/pure-gas cells
-            // (same criterion as heatTransfer() and solveSpeciesMass()).
-            volScalarField hasSolidMass
+            // rhoCp floor [J/(m^3 K)], defined once so the empty-cell criterion
+            // below shares the SAME threshold.  Floor at 100, not SMALL: in
+            // gas-only cells (1-porosity)=0 so the real rhoCp collapses to
+            // ~1e-15; with the immersed-boundary off-diagonal zeroing below that
+            // would leave a TEqn diagonal of ~1e-18 against ~1e3 in solid cells
+            // -- a ~1e21 condition number DIC/PCG "converges" into garbage Ts.
+            // The floor lifts the isolated diagonal to ~0.2 (condition ~1e4).
+            const dimensionedScalar minRhoCp
             (
-                pos(rho_*(1. - porosity_) - dimensionedScalar("rhoFloor", dimMass/dimVolume, SMALL))
+                "minRhoCp", dimEnergy/dimTemperature/dimVolume, 100.0
             );
+
+            // Real (unfloored) and floored solid heat capacity per bulk volume.
+            // rhoCp is the recovery denominator; rhoCpReal classifies front and
+            // empty cells (the floor never enters those classifications).
+            volScalarField rhoCpReal(rho_*solidThermo_.Cp()*(1. - porosity_));
+            volScalarField rhoCp(max(rhoCpReal, minRhoCp));
+
+            // 1 where the real solid heat capacity clears the floor, exactly 0
+            // below it: empty/gas-only cells whose recovered T is physically
+            // meaningless and is reset to ambient after the solve.
+            volScalarField hasSolidMass(pos(rhoCpReal - minRhoCp));
 
             // heatTransfer() returns the gas<->solid coupling already gated on
             // real solid mass (see volPyrolysis::heatTransfer): cells with no
@@ -210,14 +234,31 @@ void volPyrolysis::solveEnergy()
             // longer leak spurious cooling into the gas energy equation.
             volScalarField heatTransfField = heatTransfer()();
 
-            // Kinematic solid volume flux for energy-density advection.  Uses
-            // the same Us field as the species/mass transport, so a cell that
-            // receives solid mass (and is therefore marked hasSolidMass) also
-            // receives its energy across the same faces and is never left
-            // pinned.  This advection MUST stay a separate explicit term: it is
-            // physically the mechanism that fills a fresh cell, so it must not
-            // be wiped by the conduction source() = 0 below.
-            surfaceScalarField phiUs(mesh_.Sf() & fvc::interpolate(Us_));
+            // Kinematic solid volume flux -- IDENTICAL to the one porosity is
+            // advected with in evolvePorosity() (same Us interpolation, same
+            // SuperBee limiter via the div(phiSolid) scheme).  Sharing porosity's
+            // flux is what keeps the advected eSolid_ and (1-porosity) in
+            // lockstep, so the recovered T = eSolidStar/rhoCp stays bounded as a
+            // cell fills.  Note this is the bare velocity flux (no rho/rhoCp
+            // weight): eSolid_ is already the extensive quantity being moved.
+            surfaceScalarField phiU(mesh_.Sf() & fvc::interpolate(Us_, "Us"));
+
+            // Start-of-step solid energy, conservatively advected, plus the
+            // explicit volumetric sources integrated over the step.  div(phiU,..)
+            // telescopes over faces, so summed over the domain this MOVES energy
+            // between cells without creating it.
+            volScalarField eSolidStar
+            (
+                eSolid_
+              - dt*fvc::div(phiU, eSolid_, "div(phiSolid)")
+              + dt*
+                (
+                    chemistrySh_      // eqZx2uHGn004, eqZx2uHGn017
+                  - heatTransfField   // eqZx2uHGn005
+                  - heatUpGas_
+                  + radiationSh_
+                )
+            );
 
             porosityLessThanOne_.correctBoundaryConditions();
             surfaceScalarField  whereIsPatch  = fvc::interpolate(porosityLessThanOne_);
@@ -261,41 +302,67 @@ void volPyrolysis::solveEnergy()
             // media and negiligble inside porous media in relevant cases.
             TLap.source() = 0.;
 
-            // Empty cells have rhoCpReal = 0, so the ddt diagonal vanishes and
-            // (with the conductive coupling cut above) the row is singular.
-            // Instead of the old 100 J/(m^3 K) rhoCp conditioning floor, pin
-            // those rows to an ambient sentinel with a large penalty diagonal.
-            // hasSolidMass is exactly 0/1, so this term is identically zero in
-            // every solid cell and cannot perturb the physical solution.  It
-            // cannot leak energy either: eSolid_ is re-stored as 0 wherever
-            // hasSolidMass = 0, so the pinned T in empty cells is discarded.
-            const dimensionedScalar pinRate
-            (
-                "pinRate", dimEnergy/dimTemperature/dimVolume/dimTime, 1.0e15
-            );
-            const dimensionedScalar Tpin("Tpin", dimTemperature, 300.0);
-
-            // Energy equation.  ddt is split (fvm::Sp on T_new, eSolid_old/dt on
-            // the rhs) so the "old energy" is the genuine stored eSolid_, clean
-            // 0 in a cell that was empty last step -- not a stale rhoCp_old*T_old
-            // reconstructed from a sentinel temperature.
+            // Bounded recovery + implicit conduction in one symmetric SPD solve.
+            // fvm::Sp(rhoCp/dt, T_) is the recovery denominator (the current,
+            // floored capacity); the conservatively advected start-of-step energy
+            // and the explicit sources are eSolidStar/dt on the rhs.  There is no
+            // transient against T_old and no intensive-T advection -- the "old
+            // energy" IS the advected eSolid_, so a filling cell takes T from the
+            // energy its incoming solid actually carries, divided by its own grown
+            // capacity.  Sp + (-TLap) is symmetric positive-definite -> PCG/DIC,
+            // no per-case linear-solver change.
             fvScalarMatrix TEqn
             (
-                fvm::Sp(rhoCpReal/dt, T_)                  // rhoCpReal_new/dt * T_new
-              + fvm::Sp(pinRate*(1. - hasSolidMass), T_)   // empty-cell pin (implicit)
-              + fvc::div(phiUs, eSolid_, "div(phiSolid)")  // conservative advection of old energy
-              - TLap                                       // conduction
+                fvm::Sp(rhoCp/dt, T_)
+              - TLap
             ==
-                eSolid_/dt                                 // clean old energy / dt
-              + pinRate*(1. - hasSolidMass)*Tpin           // empty-cell pin (source)
-              + chemistrySh_ // eqZx2uHGn004, eqZx2uHGn017
-              - heatTransfField // eqZx2uHGn005
-              - heatUpGas_
-              + radiationSh_
+                eSolidStar/dt
             );
 
             TEqn.relax();
             TEqn.solve();
+
+            // --- Front-cell clamp (safety net only) --------------------------
+            // The lockstep-flux transport above is the cure; this clamp is a
+            // one-step guard at the porosity-flip, applied ONLY in marginal front
+            // cells whose real capacity is within clampFactor of the floor.  The
+            // clamp-free interior keeps conservation honest -- if the clamp ever
+            // moves a meaningful fraction of the stored energy, the transport is
+            // wrong, and the diagnostic below makes that VISIBLE rather than
+            // letting the clamp quietly do the work.
+            const dimensionedScalar Tlo("Tlo", dimTemperature, 298.0);
+            const dimensionedScalar Thi("Thi", dimTemperature, 602.0);
+            const scalar clampFactor = 10.0;
+            volScalarField isFrontCell(pos(clampFactor*minRhoCp - rhoCpReal));
+
+            // Energy-balance diagnostic: integral of REAL stored energy
+            // (rhoCpReal*T, so empty cells contribute ~0) across the clamp.  A
+            // shift > 2% of the total means the transport, not the clamp, needs
+            // fixing -- so we WARN rather than hide it behind the clamp.
+            const scalar eBeforeClamp = fvc::domainIntegrate(rhoCpReal*T_).value();
+
+            T_ = T_*(1. - isFrontCell) + max(min(T_, Thi), Tlo)*isFrontCell;
+
+            const scalar eAfterClamp = fvc::domainIntegrate(rhoCpReal*T_).value();
+            if (mag(eBeforeClamp) > VSMALL)
+            {
+                const scalar clampShift =
+                    mag(eAfterClamp - eBeforeClamp)/mag(eBeforeClamp);
+                if (clampShift > 0.02)
+                {
+                    WarningInFunction
+                        << "front-cell T clamp moved " << 100.0*clampShift
+                        << "% of the stored solid energy (> 2%): the eSolid"
+                        << " transport is not in lockstep with the capacity;"
+                        << " the clamp should not be load-bearing." << endl;
+                }
+            }
+
+            // Empty/gas-only cells carry no solid energy; reset their (masked,
+            // physically meaningless) temperature to ambient.  hasSolidMass is
+            // exactly 0/1, so every real solid cell is left untouched.
+            const dimensionedScalar Tamb("Tamb", dimTemperature, 300.0);
+            T_ = T_*hasSolidMass + Tamb*(1. - hasSolidMass);
         }
 
         scalar minTemp = GREAT;
@@ -1280,10 +1347,11 @@ void volPyrolysis::evolveRegion()
         }
 
         // Roll the stored solid energy density forward ONCE per time step, from
-        // the converged T_.  Both energy passes above advect/ddt against the
-        // start-of-step eSolid_; only here does it become the new "old" value
-        // for the next step.  Clean 0 wherever there is no solid mass, so a cell
-        // the solid has just left carries no phantom energy into the next step.
+        // the converged T_.  Both energy passes above conservatively advect the
+        // SAME start-of-step eSolid_ and recover T from it; only here does it
+        // become the new "old" value for the next step.  Clean 0 wherever there
+        // is no solid mass, so a cell the solid has just left carries no phantom
+        // energy into the next step.
         eSolid_ = rho_*solidThermo_.Cp()*(1. - porosity_)*T_
                 * pos(rho_*(1. - porosity_) - dimensionedScalar("rhoFloor", dimMass/dimVolume, SMALL));
     }
