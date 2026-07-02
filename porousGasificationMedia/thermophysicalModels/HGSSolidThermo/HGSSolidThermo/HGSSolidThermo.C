@@ -122,7 +122,6 @@ Foam::HGSSolidThermo::HGSSolidThermo
         dimless
     )
 {
-Info << "kopytko -1" << endl;
 }
 
 
@@ -211,7 +210,6 @@ Foam::HGSSolidThermo::HGSSolidThermo
         dimless
     )
 {
-Info << "kopytko 0" << endl;
 }
 
 Foam::HGSSolidThermo::HGSSolidThermo
@@ -299,7 +297,6 @@ Foam::HGSSolidThermo::HGSSolidThermo
         dimless
     )
 {
-Info << "kopytko 1" << endl;
 }
 
 // * * * * * * * * * * * * * * * * Destructor  * * * * * * * * * * * * * * * //

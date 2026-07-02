@@ -41,48 +41,6 @@ autoPtr<heterogeneousPyrolysisModel> heterogeneousPyrolysisModel::New
     const fvMesh& mesh,
     HGSSolidThermo& solidThermo,
     psiReactionThermo& gasThermo,
-    volScalarField& whereIs
-)
-{
-    // Get model name, but do not register the dictionary.
-    const word modelType
-    (
-        IOdictionary
-        (
-            IOobject
-            (
-                "pyrolysisProperties",
-                mesh.time().constant(),
-                mesh,
-                IOobject::MUST_READ,
-                IOobject::NO_WRITE,
-                false
-            )
-        ).lookup("heterogeneousPyrolysisModel")
-    );
-
-    Info<< "Selecting heterogeneousPyrolysisModel " << modelType << endl;
-
-    auto cstrIter =
-        noRadiationConstructorTablePtr_->find(modelType);
-
-    if (cstrIter == noRadiationConstructorTablePtr_->end())
-    {
-        FatalErrorIn("heterogeneousPyrolysisModel::New(const fvMesh&)")
-            << "Unknown heterogeneousPyrolysisModel type " << modelType
-            << nl << nl << "Valid heterogeneousPyrolisisModel types are:" << nl
-            << noRadiationConstructorTablePtr_->sortedToc()
-            << exit(FatalError);
-    }
-
-    return autoPtr<heterogeneousPyrolysisModel>(cstrIter()(modelType, mesh, solidThermo, gasThermo, whereIs));
-}
-
-autoPtr<heterogeneousPyrolysisModel> heterogeneousPyrolysisModel::New
-(
-    const fvMesh& mesh,
-    HGSSolidThermo& solidThermo,
-    psiReactionThermo& gasThermo,
     volScalarField& whereIs,
     volScalarField& radiation
 )

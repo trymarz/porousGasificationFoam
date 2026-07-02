@@ -121,6 +121,9 @@ protected:
         // Non-const access to temperature
         volScalarField& T_;
 
+        // Non-const access to energy of solid phase
+        autoPtr<volScalarField> solidH_;
+
     //- Name of the radiative flux in the primary region
     word primaryRadFluxName_;
 
@@ -131,7 +134,7 @@ protected:
     Switch subintegrateSwitch_;
 
     //- Switch for bed motion model
-    Switch bedMotionSwitch_;
+    Switch bedCollapseSwitch_;
 
     //- Switch for bed replenishment
     Switch replenishSwitch_;
@@ -231,11 +234,14 @@ protected:
 
         // Equations
 
+            //- Solve solid species mass conservation
+            void solveSpeciesMass();
+
             //- Solve energy
             void solveEnergy();
 
-            //- Solve solid species mass conservation
-            void solveSpeciesMass();
+            //- Evolve porosity field
+            void solvePorosity();
 
 public:
 
@@ -244,16 +250,6 @@ public:
 
 
     // Constructors
-
-        //- Construct from type name, mesh and main region gas list
-        volPyrolysis
-        (
-            const word& modelType,
-            const fvMesh& mesh,
-            HGSSolidThermo& solidThermo,
-            psiReactionThermo& gasThermo,
-            volScalarField& whereIs
-        );
 
         //- Construct from type name, mesh, main region gas list and radiation
         volPyrolysis
@@ -326,9 +322,6 @@ public:
 
             //- Evolve the pyrolysis equations
             virtual void evolveRegion();
-
-            //- Evolve porosity field
-            virtual void evolvePorosity();
 
         //Comunication with main region
 
