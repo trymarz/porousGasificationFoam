@@ -780,23 +780,52 @@ void volPyrolysis::solveSpeciesMass()
             // transported onward (it advects with Us like any other Ym).
 
             // The max(0) clip below is a safety net that CREATES mass when
-            // it fires, so any clipped mass is accounted and reported.
-            // With the TVD-limited flux acting on Ym itself it should
-            // never fire beyond round-off.
-            scalar clippedMass = 0.0;
+            // it fires.  With the TVD-limited flux acting on Ym itself it
+            // should never fire beyond round-off, so the clipped mass is
+            // accumulated across all timesteps and the run ABORTS once the
+            // total exceeds 1e-6 of the initial solid inventory: round-off
+            // undershoots are ~1e-16 of a cell value per step, which stays
+            // below 1e-11 of the inventory even after 1e5 steps, so
+            // crossing the threshold means a genuine conservation
+            // violation that must not be silenced by clipping.
+            scalar clippedMassThisStep = 0.0;
             forAll(mesh_.C(), cellI)
             {
                 if (Ym_i[cellI] < 0.0)
                 {
-                    clippedMass -= Ym_i[cellI] * mesh_.V()[cellI];
+                    clippedMassThisStep -= Ym_i[cellI] * mesh_.V()[cellI];
                 }
             }
-            reduce(clippedMass, sumOp<scalar>());
-            if (clippedMass > SMALL)
+            reduce(clippedMassThisStep, sumOp<scalar>());
+            cumulativeYmClip_ += clippedMassThisStep;
+
+            // Before the budget diagnostic below has initialized
+            // initialTotalYmMass_ (first call, value still -1) the abort
+            // check is skipped; the clip still applies and the mass is
+            // already accumulated, so later steps see the full total.
+            if
+            (
+                initialTotalYmMass_ > SMALL
+             && cumulativeYmClip_/initialTotalYmMass_ > 1e-6
+            )
+            {
+                FatalErrorInFunction
+                    << "Cumulative mass created by max(0) clipping exceeds "
+                    << "tolerance." << nl
+                    << "  species = " << Ym_i.name() << nl
+                    << "  cumulative clipped = " << cumulativeYmClip_
+                    << " kg" << nl
+                    << "  fraction of initial = "
+                    << cumulativeYmClip_/initialTotalYmMass_
+                    << exit(FatalError);
+            }
+            else if (clippedMassThisStep > SMALL)
             {
                 WarningInFunction
                     << "max(0) clip on " << Ym_i.name()
-                    << " created " << clippedMass << " kg" << endl;
+                    << " created " << clippedMassThisStep << " kg"
+                    << " (cumulative = " << cumulativeYmClip_ << " kg)"
+                    << endl;
             }
 
             Ym_i.max(0.0);                       // mass concentration >= 0
@@ -1349,7 +1378,8 @@ volPyrolysis::volPyrolysis
     totalHeatRR_(dimensionedScalar("zero", dimEnergy/dimTime, 0.0)),
     timeChem_(1.0),
     initialTotalYmMass_(-1.0),  // -1 = not yet computed; lazily initialized
-    cumulativeYmOutflow_(0.0)
+    cumulativeYmOutflow_(0.0),
+    cumulativeYmClip_(0.0)
 {
 
     mesh.setFluxRequired(T_.name());

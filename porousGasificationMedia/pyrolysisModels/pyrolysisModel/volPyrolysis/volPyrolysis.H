@@ -234,6 +234,13 @@ protected:
         //  checkable in domains with an open outlet.
         scalar cumulativeYmOutflow_;
 
+        //- Cumulative mass created by the max(0) clip on Ym [kg]
+        //  The clip fabricates mass when a numerical undershoot drives
+        //  Ym negative; the run aborts once the total exceeds a small
+        //  fraction of the initial solid inventory (see
+        //  solveSpeciesMass()).
+        scalar cumulativeYmClip_;
+
 
     // Protected member functions
 
