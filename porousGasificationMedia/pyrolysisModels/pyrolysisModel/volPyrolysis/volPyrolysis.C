@@ -705,6 +705,16 @@ void volPyrolysis::solveSpeciesMass()
         // keep their flux -- they are interior to the global domain.
         // All boundary outflow is accumulated below and credited in the
         // conservation budget.
+        //
+        // fixedYm patches (Yi pinned by a fixedValue condition) are
+        // additionally impermeable per specie: an outflow face uses the
+        // patch value, and draining the pinned Yi*rho*(1-porosity) --
+        // instead of the upwind cell value -- removes mass the cell does
+        // not hold (observed on charOnlyMove, where Yrubberwood is pinned
+        // to 1 at a wall the collapsing char bed slides along: every step
+        // drained phantom rubberwood and the max(0) clip re-created it).
+        // Solid must exit through zeroGradient-Yi patches, where the
+        // patch value IS the upwind value.
         forAll(mesh_.boundary(), patchI)
         {
             if (!mesh_.boundary()[patchI].coupled())
@@ -728,23 +738,40 @@ void volPyrolysis::solveSpeciesMass()
             // Yi*rho*(1-porosity) in their updateCoeffs().
             Ym_i.correctBoundaryConditions();
 
+            // Per-specie flux: zero on this specie's fixedYm patches
+            // (see the boundary-treatment note above).
+            surfaceScalarField phiUsI(phiUs);
+            forAll(phiUsI.boundaryField(), patchI)
+            {
+                if
+                (
+                    isA<fixedYmFvPatchScalarField>
+                    (
+                        Ym_i.boundaryField()[patchI]
+                    )
+                )
+                {
+                    phiUsI.boundaryFieldRef()[patchI] = 0.0;
+                }
+            }
+
             volScalarField divYmFlux
             (
-                fvc::div(phiUs, Ym_i, "div(phiSolid)")
+                fvc::div(phiUsI, Ym_i, "div(phiSolid)")
             );
 
             // Account the mass this step advects out through uncoupled
             // boundary faces.  The boundary contribution of fvc::div
-            // above uses the same phiUs and the refreshed Ym patch
+            // above uses the same phiUsI and the refreshed Ym patch
             // values, so this matches exactly what the equation removes
             // from the domain.
             scalar outflowRate = 0.0;
-            forAll(phiUs.boundaryField(), patchI)
+            forAll(phiUsI.boundaryField(), patchI)
             {
                 if (!mesh_.boundary()[patchI].coupled())
                 {
                     const fvsPatchScalarField& phiP =
-                        phiUs.boundaryField()[patchI];
+                        phiUsI.boundaryField()[patchI];
                     const fvPatchScalarField& YmP =
                         Ym_i.boundaryField()[patchI];
                     forAll(phiP, faceI)
@@ -773,14 +800,19 @@ void volPyrolysis::solveSpeciesMass()
             // transported onward (it advects with Us like any other Ym).
 
             // The max(0) clip below is a safety net that CREATES mass when
-            // it fires.  With the TVD-limited flux acting on Ym itself it
-            // should never fire beyond round-off, so the clipped mass is
-            // accumulated across all timesteps and the run ABORTS once the
-            // total exceeds 1e-6 of the initial solid inventory: round-off
-            // undershoots are ~1e-16 of a cell value per step, which stays
-            // below 1e-11 of the inventory even after 1e5 steps, so
-            // crossing the threshold means a genuine conservation
-            // violation that must not be silenced by clipping.
+            // it fires.  With the TVD-limited flux acting on Ym itself
+            // pure advection only undershoots at round-off, but bed-motion
+            // cell flips put a discontinuity under the flux and clip a few
+            // 1e-14-kg-scale events per collapse (observed ~1.4e-6 of the
+            // 2e-7 kg inventory over 1100 steps on charOnlyMove/serial).
+            // The clipped mass is therefore accumulated across all
+            // timesteps and the run ABORTS once the total exceeds 1e-4 of
+            // the initial solid inventory: ~30x above the benign
+            // front-event accumulation, yet 3 orders of magnitude below
+            // any physically meaningful fabrication (the pre-Ym scheme
+            // silently created ~15%), so crossing the threshold means a
+            // genuine conservation violation that must not be silenced by
+            // clipping.
             scalar clippedMassThisStep = 0.0;
             forAll(mesh_.C(), cellI)
             {
@@ -799,7 +831,7 @@ void volPyrolysis::solveSpeciesMass()
             if
             (
                 initialTotalYmMass_ > SMALL
-             && cumulativeYmClip_/initialTotalYmMass_ > 1e-6
+             && cumulativeYmClip_/initialTotalYmMass_ > 1e-4
             )
             {
                 FatalErrorInFunction

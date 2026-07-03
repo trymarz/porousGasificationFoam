@@ -37,6 +37,11 @@ Description
     porosity as they evolve (mirrors the fixedSolidH pattern for T/solidH).
     The Yi field is found by stripping the trailing "m" from the Ym name.
 
+    A fixedYm patch is impermeable to solid mass: solveSpeciesMass() zeroes
+    the solid flux on it, because an outflow face would drain the pinned
+    value instead of the upwind cell value and thereby remove mass the cell
+    does not hold.  Solid leaves the domain through zeroGradient-Yi patches.
+
 SourceFiles
     fixedYmFvPatchScalarField.C
 
