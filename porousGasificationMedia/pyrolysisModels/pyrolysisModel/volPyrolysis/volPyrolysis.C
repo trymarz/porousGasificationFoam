@@ -38,6 +38,8 @@ License
 #include "DynamicList.H"
 #include "processorPolyPatch.H"
 
+#include "BCs/fixedSolidH/fixedSolidHFvPatchScalarField.H"
+
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 namespace Foam
@@ -49,7 +51,6 @@ namespace heterogeneousPyrolysisModels
 
 defineTypeNameAndDebug(volPyrolysis, 0);
 
-addToRunTimeSelectionTable(heterogeneousPyrolysisModel, volPyrolysis, noRadiation);
 addToRunTimeSelectionTable(heterogeneousPyrolysisModel, volPyrolysis, radiation);
 
 // * * * * * * * * * * * * Protected Member Functions  * * * * * * * * * * * //
@@ -88,1161 +89,7 @@ bool volPyrolysis::read(const dictionary& dict)
     }
 }
 
-void volPyrolysis::solveSpeciesMass()
-{
-// eqZx2uHGn045
-// eqZx2uHGn046
-
-    if (debug)
-    {
-        Info<< "volPyrolysis:+solveSpeciesMass()" << endl;
-    }
-
-    if (active_)
-    {
-        volScalarField Mt(0.0 * Ym_[0]);
-        volScalarField rhoLoc
-        (
-            max(rho_ * (1. - porosity_), dimensionedScalar("minRho",dimMass/dimVolume, SMALL))
-        );
-
-        surfaceScalarField solidPhi = mesh_.Sf() & fvc::interpolate(rho_*Us_);
-        fvScalarMatrix rhosEqn
-        (
-            fvm::ddt(rho_)
-         ==
-          - fvc::div(solidPhi)
-        );
-        rhosEqn.relax();
-        rhosEqn.solve("rhos");
-
-        for (label i = 0; i < Ys_.size(); ++i)
-        {
-
-            volScalarField& Yi = Ys_[i];
-            Yi.ref() *= whereIs_;
-            volScalarField sRhoSi = solidChemistry_->RRs(i);
-
-            surfaceScalarField solidFlux_ = mesh_.Sf() & fvc::interpolate(Us_*rhoLoc);
-
-            fvScalarMatrix YsEqn
-            (
-                fvm::ddt(rhoLoc,Yi)
-             ==
-                sRhoSi
-              - fvc::div(solidFlux_, Yi, "div(phiSolid)")
-            );
-
-            YsEqn.relax();
-            YsEqn.solve("Ys");
-
-            Yi.max(0.0);
-            Mt += Yi * rho_;
-
-            Info<< "solid "<< Ys_[i].name()
-                << " equation solved. Sources min/max   = " << gMin(sRhoSi)
-                << ", " << gMax(sRhoSi)
-                << "; values min Y = " << gMin(Ys_[i])
-                << " max Y = " << gMax(Ys_[i]) << endl;
-        }
-
-        for (label i = 0; i < Ys_.size(); ++i)
-        {
-            Ym_[i] = whereIs_ * Ys_[i] * rho_;
-            Ys_[i] = Ym_[i] / max(Mt,dimensionedScalar("minMass", dimMass/dimVolume, SMALL));
-            Ym_[i] *= (1. - porosity_);
-        }
-    }
-}
-
-
-void volPyrolysis::solveEnergy()
-{
-// eqZx2uHGn047
-
-    if (debug)
-    {
-        Info<< "volPyrolysis::solveEnergy()" << endl;
-    }
-
-    if (active_)
-    {
-
-        volTensorField composedK(K_ * (1 - porosity_) * anisotropyK_);
-        radiationSh_ = radiation_;
-
-        if (equilibrium_)
-        {}
-        else
-        {
-            volScalarField rhoCp
-            (
-                max
-                (
-                    rho_ * solidThermo_.Cp() * (1 - porosity_),
-                    dimensionedScalar("minRhoCp",dimEnergy/dimTemperature/dimVolume,SMALL)
-                )
-            );
-
-            volScalarField heatTransfField = heatTransfer()();
-            volScalarField rhoCpG(gasThermo_.rho() * gasThermo_.Cp() * porosity_);
-            surfaceVectorField surfSolidU = fvc::interpolate(Us_);
-            surfaceScalarField surfPor = fvc::interpolate(porosity_,"porosityInt");
-
-
-            whereIsNot_.correctBoundaryConditions();
-            volVectorField whereIsNotGrad = fvc::grad(whereIsNot_);        
-            whereIs_.correctBoundaryConditions();
-            surfaceScalarField  whereIsPatch  = fvc::interpolate(whereIs_);
-   
-            //trial 1 to set energy flux stable via tempereture in the first cell outside porous media 
-            //forAll(porosity_,cellI)
-            //{
-            //    if ( (whereIsNot_[cellI] == 1) && ( (Us_[cellI] & whereIsNotGrad[cellI]) > 0)  )
-            //    {
-            //        const labelList& faces = mesh_.cells()[cellI];
-            //        forAll(faces,faceI)
-            //        {
-            //            //Info << faces << " " << faceI << " " << faces[faceI] << " " << mesh_.isInternalFace(faces[faceI]) << mesh_.Sf()[faces[faceI]]  << " " << TPatch[faces[faceI]] << " " << whereIsPatch[faces[faceI]] <<  endl;
-            //            //Info << (Us_[cellI] & mesh_.Sf()[faces[faceI]]) / mag(mesh_.Sf()[faces[faceI]]) << endl;
-            //            if (mesh_.isInternalFace(faces[faceI]) && ( whereIsPatch[faces[faceI]] > 0 ))
-            //            {
-            //                //if  ( T_[cellI] < 0 )
-            //                //{
-            //                    //Info << faces[faceI] << " " << mesh_.isInternalFace(faces[faceI]) << endl;
-            //                    //Info << mesh_.faceOwner()[faces[faceI]] << " "  <<  mesh_.faceNeighbour()[faces[faceI]] << endl;
-            //                    //Info << T_[mesh_.faceOwner()[faces[faceI]]] << " " <<  T_[mesh_.faceNeighbour()[faces[faceI]]] << endl;
-            //                    //Info << cellI << endl;
-            //                    T_[cellI] = T_[mesh_.faceOwner()[faces[faceI]]];
-            //                    //Info << rhoCp[cellI] << " " << heatTransfField[cellI] << " kopytko 1" << endl; 
-            //                //}
-            //            }
-            //        }
-            //    }
-            //}
-
-            //trial to set source terms at the bourders for htc to some rescaled value, but failinig so far thus 0 on the solid phase side.
-            //this requires further rethinking
-            forAll(porosity_,cellI)
-            {
-                if ( (whereIs_[cellI] == 1) && ( (Us_[cellI] & whereIsNotGrad[cellI]) != 0)  )
-                {
-                    //Info << rhoCp[cellI] << " " << porosity_[cellI] << " " << rhoCpG[cellI] << " " << heatTransfField[cellI] << " " << T_[cellI] << " " << gasThermo_.T()[cellI]  << " kopytko 2" << endl;
-                    const labelList& faces = mesh_.cells()[cellI];
-                    forAll(faces,faceI)
-                    {
-                        if (mesh_.isInternalFace(faces[faceI])  )
-                        {
-                            //Info << surfPor[faces[faceI]] << " kopytko 3" << endl;
-                            //Info <<  surfPor[faces[faceI]]  << " " << (1-porosity_[cellI])/(max(1-surfPor[faces[faceI]],SMALL)) << " kopytko 4" << endl;
-                            //heatTransfField[cellI] = heatTransfField[cellI] * (1-porosity_[cellI])/(max(1-surfPor[faces[faceI]],SMALL));
-                            //rhoCp[cellI] = rhoCp[cellI] * (1-porosity_[cellI])/(max(1-surfPor[faces[faceI]],SMALL));
-                        }
-                    }
-                    //if (porosity_[cellI] > 0.999)
-                    {
-                        heatTransfField[cellI] = 0;
-                    }
-                    //Info << "kopytko 5" << endl;
-                }
-            }
-
-
-            surfaceScalarField solidFluxRhoCp = mesh_.Sf() & surfSolidU * fvc::interpolate(rhoCp,"rhoCpInt");
-
-            // Simplistic immersed boundary for heat transport in solid phase.
-            fvScalarMatrix TLap
-            (
-                fvm::laplacian(composedK, T_)
-              - fvc::div(solidFluxRhoCp,T_,"div(phiSolid)")
-            );
- 
-            // Setting face fluxes on the border of porous media to 0.
-            // this should be instead flux due to the macrscopic motion to smooth at the edges
-            forAll(whereIsPatch,faceI)
-            {
-               if ( (whereIsPatch[faceI] > 0) and (whereIsPatch[faceI] < 1) )
-               {
-                   TLap.upper()[faceI] = 0.;
-               }
-            }
-            forAll(whereIsPatch.boundaryField(),patchI)
-            {
-               if (isA<processorPolyPatch>(mesh_.boundaryMesh()[patchI]))
-               {
-                   forAll(whereIsPatch.boundaryField()[patchI],faceI)
-                   {
-                       if ( (whereIsPatch.boundaryField()[patchI][faceI] > 0) and (whereIsPatch.boundaryField()[patchI][faceI] < 1) )
-                       {
-                           TLap.boundaryCoeffs()[patchI][faceI] = 0;
-                           TLap.internalCoeffs()[patchI][faceI] = 0;
-                       }
-                   }
-               }
-            }
-
-            TLap.diag() = 0;
-            TLap.negSumDiag();
-            // Correct on orthogonal meshes
-            // For non-orthogona meshes
-            // TLap.source() = 0. cancels the non-orthogonal correction from the
-            // divergence of composedK, which is spurious on the edges of porous
-            // media and negiligble inside porous media in relevant cases.
-            TLap.source() = 0.;
-
-            fvScalarMatrix TEqn
-            (
-                fvm::ddt(rhoCp, T_)
-              - TLap
-            ==
-                chemistrySh_ // eqZx2uHGn004, eqZx2uHGn017
-              - heatTransfField // eqZx2uHGn005
-              - heatUpGas_
-              + radiationSh_
-            );
-
-            TEqn.relax();
-            TEqn.solve();
-        }
-
-        scalar minTemp = GREAT;
-        scalar maxTemp = -GREAT;
-        scalar areThere = 0;
-
-        forAll(T_,cellI)
-        {
-            if (whereIs_[cellI] == 1 )
-            {
-                areThere = 1;
-                if (T_[cellI] < minTemp)
-                {
-                    minTemp = T_[cellI];
-                }
-                if (T_[cellI] > maxTemp)
-                {
-                    maxTemp = T_[cellI];
-                }
-            }
-        }
-        reduce(maxTemp, maxOp<scalar>());
-        reduce(minTemp, minOp<scalar>());
-        reduce(areThere, maxOp<scalar>());
-
-        if (areThere == 1)
-        {
-            Info<< " pyrolysis min/max(T) = " << minTemp << ", " << maxTemp << endl;
-        }
-        else
-        {
-            Info<< " no solid phase " << endl;
-        }
-    }
-}
-
-void volPyrolysis::calculateMassTransfer()
-{
-    if (infoOutput_)
-    {
-        totalGasMassFlux_ = fvc::domainIntegrate(solidChemistry_->RRg());
-        totalHeatRR_ = fvc::domainIntegrate(chemistrySh_);
-
-        addedGasMass_ +=
-            fvc::domainIntegrate(solidChemistry_->RRg()) * time_.deltaT();
-        lostSolidMass_ +=
-            fvc::domainIntegrate(solidChemistry_->RRs()) * time_.deltaT();
-    }
-}
-
-// * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
-
-volPyrolysis::volPyrolysis
-(
-    const word& modelType,
-    const fvMesh& mesh,
-    HGSSolidThermo& solidThermo,
-    psiReactionThermo& gasThermo,
-    volScalarField& whereIs
-)
-:
-    heterogeneousPyrolysisModel(modelType, mesh),
-    porosity_(whereIs),
-    porosityArch_
-    (
-        IOobject
-        (
-            "porosityF0",
-            time_.timeName(),
-            mesh_,
-            IOobject::MUST_READ,
-            IOobject::AUTO_WRITE
-        ),
-        mesh_
-    ),
-    STmodel_(specieTransferModel::New(porosity_,porosityArch_)),
-    ST_
-    (
-        IOobject
-        (
-            "STvol",
-            time_.timeName(),
-            mesh_,
-            IOobject::NO_READ,
-            IOobject::NO_WRITE
-        ),
-        mesh_,
-        dimensionedScalar("zero",dimless/dimTime, 0.0)
-    ),
-    gasThermo_(gasThermo),
-    Ygas_(gasThermo.composition().Y()),
-    solidThermo_(solidThermo),
-    solidChemistry_
-    (
-        porousThermoSolidChemistryModel<HGSSolidThermo>::New
-        (
-            solidThermo_,
-            Ygas_,
-            gasThermo.thermoName()
-        )
-    ),
-    kappa_(solidThermo_.kappa()),
-    K_(solidThermo_.K()),
-    rho_(solidThermo_.rho()),
-    rho0_
-    (
-        IOobject
-        (
-            "rhos0",
-            time_.timeName(),
-            mesh_,
-            IOobject::NO_READ,
-            IOobject::AUTO_WRITE
-        ),
-        mesh_,
-        dimensionedScalar("zero", dimMass/dimVolume, 0.0)
-    ),
-    Ys_(solidThermo_.composition().Y()),
-    Ym_(Ys_.size()),
-    Msolid_(Ys_.size()),
-    Msolidtotal_(
-        IOobject
-        (
-            "Msolidtotal",
-            time_.timeName(),
-            mesh_,
-            IOobject::NO_READ,
-            IOobject::NO_WRITE
-        ),
-        mesh_,
-        dimensionedScalar("zero", dimMass, 0.0)
-    ),
-    T_(solidThermo_.T()),
-    equilibrium_(false),
-    subintegrateSwitch_(false),
-    bedMotionSwitch_(false),
-    replenishSwitch_(false),
-    critPorosity_(0.9999),
-    totRepMass_(0.),
-    nNonOrthCorr_(-1),
-    maxDiff_(10),
-    porosity0_(whereIs),
-    voidFraction_(whereIs),
-    radiation_(whereIs),
-    phiHsGas_
-    (
-        IOobject
-        (
-            "phiHsGass",
-            time_.timeName(),
-            mesh_,
-            IOobject::NO_READ,
-            IOobject::NO_WRITE
-        ),
-        mesh_,
-        dimensionedScalar("zero", dimEnergy/dimTime, 0.0)
-    ),
-    chemistrySh_
-    (
-        IOobject
-        (
-            "solidChemistrySh",
-            time_.timeName(),
-            mesh_,
-            IOobject::NO_READ,
-            IOobject::AUTO_WRITE
-        ),
-        mesh_,
-        dimensionedScalar("zero", dimEnergy/dimTime/dimVolume, 0.0)
-    ),
-    porositySource_
-    (
-        IOobject
-        (
-            "porosityS",
-            time_.timeName(),
-            mesh_,
-            IOobject::NO_READ,
-            IOobject::AUTO_WRITE
-        ),
-        mesh_,
-        dimensionedScalar("zero", dimless/dimTime, 0.0)
-    ),
-    whereIs_
-    (
-        IOobject
-        (
-            "whereIs",
-            time_.timeName(),
-            mesh_,
-            IOobject::NO_READ,
-            IOobject::NO_WRITE
-        ),
-        mesh_,
-        dimensionedScalar("one", dimless, 1.0)
-    ),
-    whereIsNot_
-    (
-        IOobject
-        (
-            "whereIsNot",
-            time_.timeName(),
-            mesh_,
-            IOobject::NO_READ,
-            IOobject::NO_WRITE
-        ),
-        mesh_,
-        dimensionedScalar("zero", dimless, 0.0)
-    ),
-    whereWas_
-    (
-        IOobject
-        (
-            "whereWas",
-            time_.timeName(),
-            mesh_,
-            IOobject::NO_READ,
-            IOobject::NO_WRITE
-        ),
-        mesh_,
-        dimensionedScalar("zero", dimless, 0.0)
-    ),
-    cellVolume_
-    (
-        IOobject
-        (
-            "cellVolume",
-            time_.timeName(),
-            mesh_,
-            IOobject::NO_READ,
-            IOobject::NO_WRITE
-        ),
-        mesh_,
-        dimensionedScalar("zero", dimless, 0.0)
-    ),
-    heatUpGas_
-    (
-        IOobject
-        (
-            "heatUpGas",
-            time_.timeName(),
-            mesh_,
-            IOobject::NO_READ,
-            IOobject::AUTO_WRITE
-        ),
-        mesh_,
-        dimensionedScalar("zero", dimEnergy/dimTime/dimVolume, 0.0)
-    ),
-    HTmodel_(heatTransferModel::New(porosity_,porosityArch_)),
-    CONV_
-    (
-        IOobject
-        (
-            "CONVvol",
-            time_.timeName(),
-            mesh_,
-            IOobject::NO_READ,
-            IOobject::AUTO_WRITE
-        ),
-        mesh_,
-        dimensionedScalar("zero",dimEnergy/dimTime/dimTemperature/dimVolume , 0.0)
-
-    ),
-    radiationSh_
-    (
-        IOobject
-        (
-            "radiationSh",
-            time_.timeName(),
-            mesh_,
-            IOobject::NO_READ,
-            IOobject::AUTO_WRITE
-        ),
-        mesh_,
-        dimensionedScalar("zero", dimEnergy/dimVolume/dimTime, 0.0)
-    ),
-    anisotropyK_
-    (
-        IOobject
-        (
-            "anisotropyK",
-            time_.timeName(),
-            mesh_,
-            IOobject::READ_IF_PRESENT,
-            IOobject::AUTO_WRITE
-        ),
-        mesh_,
-        dimensionedTensor("one", dimless, tensor(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0))
-    ),
-    surfF_(whereIs_),
-    // Bind to the single registered "Us" field created by the solver
-    // (createFields.H), rather than owning a duplicate. lambdaDotModel
-    // writes that same object when DEM coupling is active.
-    Us_
-    (
-        mesh_.lookupObject<volVectorField>("Us")
-    ),
-    lostSolidMass_(dimensionedScalar("zero", dimMass, 0.0)),
-    addedGasMass_(dimensionedScalar("zero", dimMass, 0.0)),
-    totalGasMassFlux_(dimensionedScalar("zero", dimMass/dimTime, 0.0)),
-    totalHeatRR_(dimensionedScalar("zero", dimEnergy/dimTime, 0.0)),
-    timeChem_(1.0)
-{
-    mesh.setFluxRequired(T_.name());
-
-    ST_ = STmodel_->ST()();
-    CONV_ = CONV();
-    rho0_.ref() = rho_.ref();
-
-    subintegrateSwitch_ = coeffs().lookupOrDefault("subintegrateHeatTransfer",false);
-    bedMotionSwitch_ = coeffs().lookupOrDefault("bedCollapse",false);
-    replenishSwitch_ = coeffs().lookupOrDefault("replenish",false);
-
-    Info << endl;
-    Info << "subintegrateHeatTransfer " << subintegrateSwitch_ << endl;
-    Info << "bedCollapse              " << bedMotionSwitch_    << endl;
-    Info << "replenish                " << replenishSwitch_    << endl;
-    Info << endl;
-
-    forAll(rho_,cellI)
-    {
-        if (porosity_[cellI] == 1)
-        {
-             whereIsNot_[cellI] = 1;
-             whereIs_[cellI] = 0;
-             rho0_[cellI] = 3.14;
-        }
-    }
-
-    forAll(Ys_, fieldI)
-    {
-        Ym_.set
-        (
-            fieldI,
-            new volScalarField
-            (
-                IOobject
-                (
-                    Ys_[fieldI].name() + "m",
-                    time_.timeName(),
-                    mesh_,
-                    IOobject::NO_READ,
-                    IOobject::AUTO_WRITE
-                ),
-                mesh_,
-                dimensionedScalar("zero", dimMass/dimVolume, 0.0)
-            )
-        );
-        Ym_[fieldI].ref() = Ys_[fieldI].ref() * rho_.ref();
-
-        // Msolid is used for renormalization of mass fractions of solid species.
-        Msolid_.set
-        (
-            fieldI,
-            new volScalarField
-            (
-                IOobject
-                (
-                    Ys_[fieldI].name() + "m2",
-                    time_.timeName(),
-                    mesh_,
-                    IOobject::NO_READ,
-                    IOobject::AUTO_WRITE
-                ),
-                mesh_,
-                dimensionedScalar("zero", dimMass, 0.0)
-            )
-        );
-        forAll(rho_,cellI)
-        {
-            Msolid_[fieldI][cellI] =
-                Ys_[fieldI][cellI]
-               * rho_[cellI]
-               * mesh_.V()[cellI]
-               * (1 - porosity_[cellI]);
-        }
-    }
-
-    if (active_)
-    {
-        read();
-    }
-
-    forAll(whereIs_,cellI)
-    {
-        if (whereIs_[cellI] == 1)
-        {
-            bool surfC = false;
-            forAll(mesh_.cellCells()[cellI],cellJ)
-            {
-                    if (whereIs_[mesh_.cellCells()[cellI][cellJ]] == 0)
-                    {
-                        surfC = true;
-                    }
-            }
-            if (surfC)
-            {
-                surfF_[cellI] = 1;
-            }
-        }
-    }
-
-    forAll(rho_,cellI)
-    {
-        Msolidtotal_[cellI] = 0.0;
-
-        for (label i = 0; i < Ys_.size(); ++i)
-        {
-             Msolid_[i][cellI]=
-                Ys_[i][cellI]
-               *rho_[cellI]
-               *mesh_.V()[cellI]
-               *(1 - porosity_[cellI]);
-
-             Msolidtotal_[cellI] += Msolid_[i][cellI];
-        }
-
-        for (label i = 0; i < Ys_.size(); ++i)
-        {
-            if(Msolidtotal_[cellI] > 0.0)
-            {
-               Ys_[i][cellI] = (Msolid_[i][cellI] / (Msolidtotal_[cellI]));
-            }
-        }
-    }
-
-    forAll(cellVolume_,cellI)
-    {
-        cellVolume_[cellI] = mesh_.V()[cellI];
-    }
-    cellVolume_.correctBoundaryConditions();
-}
-
-volPyrolysis::volPyrolysis
-(
-    const word& modelType,
-    const fvMesh& mesh,
-    HGSSolidThermo& solidThermo,
-    psiReactionThermo& gasThermo,
-    volScalarField& whereIs,
-    volScalarField& radiation
-)
-:
-    heterogeneousPyrolysisModel(modelType, mesh),
-    porosity_(whereIs),
-    porosityArch_
-    (
-        IOobject
-        (
-            "porosityF0",
-            time_.timeName(),
-            mesh_,
-            IOobject::MUST_READ,
-            IOobject::AUTO_WRITE
-        ),
-        mesh_
-    ),
-    STmodel_(specieTransferModel::New(porosity_,porosityArch_)),
-    ST_
-    (
-        IOobject
-        (
-            "STvol",
-            time_.timeName(),
-            mesh_,
-            IOobject::NO_READ,
-            IOobject::NO_WRITE
-        ),
-        mesh_,
-        dimensionedScalar("zero",dimless/dimTime, 0.0)
-    ),
-    gasThermo_(gasThermo),
-    Ygas_(gasThermo.composition().Y()),
-    solidThermo_(solidThermo),
-    solidChemistry_
-    (
-        porousThermoSolidChemistryModel<HGSSolidThermo>::New
-        (
-            solidThermo_,
-            Ygas_,
-            gasThermo.thermoName()
-        )
-    ),
-    kappa_(solidThermo_.kappa()),
-    K_(solidThermo_.K()),
-    rho_(solidThermo_.rho()),
-    rho0_
-    (
-        IOobject
-        (
-            "rhos0",
-            time_.timeName(),
-            mesh_,
-            IOobject::NO_READ,
-            IOobject::AUTO_WRITE
-        ),
-        mesh_,
-        dimensionedScalar("zero", dimMass/dimVolume, 0.0)
-    ),
-    Ys_(solidThermo_.composition().Y()),
-    Ym_(Ys_.size()),
-    Msolid_(Ys_.size()),
-    Msolidtotal_(
-        IOobject
-        (
-            "Msolidtotal",
-            time_.timeName(),
-            mesh_,
-            IOobject::NO_READ,
-            IOobject::NO_WRITE
-        ),
-        mesh_,
-        dimensionedScalar("zero", dimMass, 0.0)
-    ),
-    T_(solidThermo_.T()),
-    equilibrium_(false),
-    subintegrateSwitch_(false),
-    bedMotionSwitch_(false),
-    replenishSwitch_(false),
-    critPorosity_(0.9999),
-    totRepMass_(0.),
-    nNonOrthCorr_(-1),
-    maxDiff_(10),
-    porosity0_(whereIs),
-    voidFraction_(whereIs),
-    radiation_(radiation),
-    phiHsGas_
-    (
-        IOobject
-        (
-            "phiHsGass",
-            time_.timeName(),
-            mesh_,
-            IOobject::NO_READ,
-            IOobject::NO_WRITE
-        ),
-        mesh_,
-        dimensionedScalar("zero", dimEnergy/dimTime, 0.0)
-    ),
-    chemistrySh_
-    (
-        IOobject
-        (
-            "solidChemistrySh",
-            time_.timeName(),
-            mesh_,
-            IOobject::NO_READ,
-            IOobject::AUTO_WRITE
-        ),
-        mesh_,
-        dimensionedScalar("zero", dimEnergy/dimTime/dimVolume, 0.0)
-    ),
-    porositySource_
-    (
-        IOobject
-        (
-            "porosityS",
-            time_.timeName(),
-            mesh_,
-            IOobject::NO_READ,
-            IOobject::AUTO_WRITE
-        ),
-        mesh_,
-        dimensionedScalar("zero", dimless/dimTime, 0.0)
-    ),
-    whereIs_
-    (
-        IOobject
-        (
-            "whereIs",
-            time_.timeName(),
-            mesh_,
-            IOobject::NO_READ,
-            IOobject::AUTO_WRITE
-        ),
-        mesh_,
-        dimensionedScalar("zero", dimless, 0.0)
-    ),
-    whereIsNot_
-    (
-        IOobject
-        (
-            "whereIsNot",
-            time_.timeName(),
-            mesh_,
-            IOobject::NO_READ,
-            IOobject::AUTO_WRITE
-        ),
-        mesh_,
-        dimensionedScalar("one", dimless, 1.0)
-    ),
-    whereWas_
-    (
-        IOobject
-        (
-            "whereWas",
-            time_.timeName(),
-            mesh_,
-            IOobject::NO_READ,
-            IOobject::NO_WRITE
-        ),
-        mesh_,
-        dimensionedScalar("zero", dimless, 0.0)
-    ),
-    cellVolume_
-    (
-        IOobject
-        (
-            "cellVolume",
-            time_.timeName(),
-            mesh_,
-            IOobject::NO_READ,
-            IOobject::NO_WRITE
-        ),
-        mesh_,
-        dimensionedScalar("zero", dimless, 0.0)
-    ),
-    heatUpGas_
-    (
-        IOobject
-        (
-            "heatUpGas",
-            time_.timeName(),
-            mesh_,
-            IOobject::NO_READ,
-            IOobject::AUTO_WRITE
-        ),
-        mesh_,
-        dimensionedScalar("zero", dimEnergy/dimTime/dimVolume, 0.0)
-    ),
-    HTmodel_(heatTransferModel::New(porosity_,porosityArch_)),
-    CONV_
-    (
-        IOobject
-        (
-            "CONVvol",
-            time_.timeName(),
-            mesh_,
-            IOobject::NO_READ,
-            IOobject::AUTO_WRITE
-        ),
-        mesh_,
-        dimensionedScalar("zero",dimEnergy/dimTime/dimTemperature/dimVolume , 0.0)
-    ),
-    radiationSh_
-    (
-        IOobject
-        (
-            "radiationSh",
-            time_.timeName(),
-            mesh_,
-            IOobject::NO_READ,
-            IOobject::AUTO_WRITE
-        ),
-        mesh_,
-        dimensionedScalar("zero", dimEnergy/dimVolume/dimTime, 0.0)
-    ),
-    anisotropyK_
-    (
-        IOobject
-        (
-            "anisotropyK",
-            time_.timeName(),
-            mesh_,
-            IOobject::READ_IF_PRESENT,
-            IOobject::AUTO_WRITE
-        ),
-        mesh_,
-        dimensionedTensor("one", dimless, tensor(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0))
-    ),
-    surfF_
-    (
-        IOobject
-        (
-            "surfF",
-            time_.timeName(),
-            mesh_,
-            IOobject::NO_READ,
-            IOobject::NO_WRITE
-        ),
-        mesh_,
-        dimensionedScalar("zero", dimless, 0.0)
-    ),
-    // Bind to the single registered "Us" field created by the solver
-    // (createFields.H), rather than owning a duplicate. lambdaDotModel
-    // writes that same object when DEM coupling is active.
-    Us_
-    (
-        mesh_.lookupObject<volVectorField>("Us")
-    ),
-    lostSolidMass_(dimensionedScalar("zero", dimMass, 0.0)),
-    addedGasMass_(dimensionedScalar("zero", dimMass, 0.0)),
-    totalGasMassFlux_(dimensionedScalar("zero", dimMass/dimTime, 0.0)),
-    totalHeatRR_(dimensionedScalar("zero", dimEnergy/dimTime, 0.0)),
-    timeChem_(1.0)
-{
-
-    mesh.setFluxRequired(T_.name());
-
-    ST_ = STmodel_->ST()();
-    CONV_ = CONV();
-    rho0_.ref() = rho_.ref();
-
-    subintegrateSwitch_ = coeffs().lookupOrDefault("subintegrateHeatTransfer",false);
-    bedMotionSwitch_ = coeffs().lookupOrDefault("bedCollapse",false);
-    replenishSwitch_ = coeffs().lookupOrDefault("replenish",false);
-    critPorosity_ = coeffs().lookupOrDefault("criticalPorosity",0.9999);
-
-    Info << endl;
-    Info << "subintegrateHeatTransfer " << subintegrateSwitch_ << endl;
-    Info << "bedCollapse              " << bedMotionSwitch_    << endl;
-    if (bedMotionSwitch_) 
-    {
-        Info << "criticalPorosity         " << critPorosity_  << endl;
-    }
-    Info << "replenish                " << replenishSwitch_    << endl;
-    Info << endl;
-
-    forAll(Ys_, fieldI)
-    {
-          Ym_.set
-          (
-                fieldI,
-                new volScalarField
-                (
-                    IOobject
-                    (
-                        Ys_[fieldI].name() + "m",
-                        time_.timeName(),
-                        mesh_,
-                        //IOobject::NO_READ,
-                        IOobject::READ_IF_PRESENT,  // DasteXar 2
-                        IOobject::AUTO_WRITE
-                    ),
-                    mesh_,
-                    dimensionedScalar("zero",dimMass/dimVolume,0.0)
-                )
-          );
-          Ym_[fieldI].ref() = Ys_[fieldI].ref() * rho_;
-    }
-
-    forAll(rho_,cellI)
-    {
-        if (porosity_[cellI] < 1.)
-        {
-             whereIsNot_[cellI] = 0.;
-             whereIs_[cellI] = 1.;
-        }
-        else
-        {
-             whereIsNot_[cellI] = 1.;
-             whereIs_[cellI] = 0.;
-             rho0_[cellI] = 3.14;
-        }
-    }
-
-    if (active_)
-    {
-        read();
-    }
-
-    forAll(whereIs_, cellI)
-    {
-        if (whereIs_[cellI] == 1)
-        {
-            bool surfC = false;
-            forAll(mesh_.cellCells()[cellI],cellJ)
-            {
-                if (whereIs_[mesh_.cellCells()[cellI][cellJ]] == 0)
-                {
-                    surfC = true;
-                }
-            }
-            if (surfC) surfF_[cellI] = 1;
-        }
-    }
-
-    forAll(cellVolume_,cellI)
-    {
-        cellVolume_[cellI] = mesh_.V()[cellI];
-    }
-    cellVolume_.correctBoundaryConditions();
-
-}
-
-// * * * * * * * * * * * * * * * * Destructor  * * * * * * * * * * * * * * * //
-
-volPyrolysis::~volPyrolysis()
-{}
-
-
-// * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * * //
-volScalarField& volPyrolysis::rhoConst() const
-{
-    return rho_;
-}
-
-volScalarField& volPyrolysis::rho()
-{
-    return rho_;
-}
-
-const volScalarField& volPyrolysis::T() const
-{
-    return T_;
-}
-
-const tmp<volScalarField> volPyrolysis::Cp() const
-{
-    return solidThermo_.Cp();
-}
-
-
-const volScalarField& volPyrolysis::kappa() const
-{
-    return kappa_;
-}
-
-const volScalarField& volPyrolysis::K() const
-{
-    return K_;
-}
-
-const volScalarField& volPyrolysis::surf() const
-{
-    return surfF_;
-}
-
-scalar volPyrolysis::maxDiff() const
-{
-    return maxDiff_;
-}
-
-scalar volPyrolysis::solidRegionDiffNo() const
-{
-    scalar NumCprho = 0.0;
-    scalar DiNum = 0.0;
-
-    if (mesh_.nInternalFaces() > 0)
-    {
-        surfaceScalarField KrhoCpbyDelta
-        (
-            mesh_.surfaceInterpolation::deltaCoeffs()
-          * fvc::interpolate(K_)
-        );
-
-        surfaceScalarField Cprho
-        (
-            fvc::interpolate(Cp()*rho_)
-        );
-
-        NumCprho = max(Cprho.ref()).value();
-        reduce(NumCprho, maxOp<scalar>());
-        if (NumCprho != 0.)
-        {
-            DiNum = gMax(KrhoCpbyDelta.internalField())*time_.deltaTValue()/NumCprho;
-        }
-        else
-        {
-            DiNum = SMALL;
-        }
-    }
-
-    return DiNum;
-}
-
-scalar volPyrolysis::maxTime() const
-{
-return timeChem_;
-}
-
-Switch volPyrolysis::equilibrium() const
-{
-    return equilibrium_;
-}
-
-void volPyrolysis::preEvolveRegion() {
-    // Added for completeness
-    heterogeneousPyrolysisModel::preEvolveRegion();
-
-    // Iterates over every cell and sets cells containing solid phase
-    // as reacting cell.
-    forAll(T_, cellI)
-    {
-        if ( active_ && whereIs_[cellI] != 0)
-        {
-            solidChemistry_->setCellReacting(cellI, true);
-        }
-        else
-        {
-            solidChemistry_->setCellReacting(cellI, false);
-        }
-    }
-
-}
-
-void volPyrolysis::evolveRegion()
-{
-    voidFraction_ = porosity_;
-
-    if (equilibrium_)
-    {}
-    else
-    {
-        CONV_ = CONV();
-    }
-
-    ST_ = STmodel_->ST()();
-
-    timeChem_ = solidChemistry_->solve
-    (
-        time_.value() - time_.deltaTValue(),
-        time_.deltaTValue()
-    );
-
-    chemistrySh_ = solidChemistry_->Sh()(); // eqZx2uHGn004
-    heatUpGas_ = heatUpGasCalc()();
-
-    //DasteXar changed the order of solving otherwise only porosity moves not Y_ 
-    evolvePorosity();   
-    solveSpeciesMass();
-    
-
-    solidThermo_.correct(); // eqZx2uHGn046
-
-    if (equilibrium_)
-    {}
-    else
-    {
-        for (int nonOrth = 0; nonOrth <= nNonOrthCorr_; ++nonOrth)
-        {
-            solveEnergy();
-        }
-    }
-
-    calculateMassTransfer();
-    info();
-}
-
-void volPyrolysis::evolvePorosity()
+void volPyrolysis::solvePorosity()
 {
     if (active_)
     {
@@ -1270,11 +117,7 @@ void volPyrolysis::evolvePorosity()
         Info<< "; values min Y = " << gMin(por)
             <<" max Y = " << gMax(por) << endl;
 
-        //scalar minTs = min(max(gAverage(T_), scalar(200.0)), scalar(6000.0));
-        scalar minTs = -1.;
-
-
-
+        scalar minTs = 0;
 
         FIFOStack<label> flippedStack = {};
 
@@ -1292,7 +135,7 @@ void volPyrolysis::evolvePorosity()
             if (porosity_[cellI] < 0.0001)
             {
                 porosity_[cellI] = 0.0;
-                Info << "b porosity 0 in cell " << cellI << endl;
+                Info << "porosity 0 in cell " << cellI << endl;
             }
             if (porosity_[cellI] < 1.0)
             {
@@ -1319,7 +162,7 @@ void volPyrolysis::evolvePorosity()
             }
         }
 
-        if (bedMotionSwitch_)
+        if (bedCollapseSwitch_)
         {
             if (evaluate)
             {
@@ -1675,7 +518,7 @@ void volPyrolysis::evolvePorosity()
             if (porosity_[cellI] < 0.0001)
             {
                 porosity_[cellI] = 0.0;
-                Info << "b porosity 0 in cell " << cellI << endl;
+                Info << "porosity 0 in cell " << cellI << endl;
             }
             if (porosity_[cellI] < 1.0)
             {
@@ -1727,6 +570,757 @@ void volPyrolysis::evolvePorosity()
     else
     {}
 }
+
+void volPyrolysis::solveSpeciesMass()
+{
+// eqZx2uHGn045
+// eqZx2uHGn046
+
+    if (debug)
+    {
+        Info<< "volPyrolysis:+solveSpeciesMass()" << endl;
+    }
+
+    if (active_)
+    {
+        volScalarField Mt(0.0 * Ym_[0]);
+        volScalarField rhoLoc
+        (
+            max(rho_ * (1. - porosity_), dimensionedScalar("minRho",dimMass/dimVolume, SMALL))
+        );
+
+        surfaceScalarField solidPhi =  mesh_.Sf() & fvc::interpolate(Us_);
+        fvScalarMatrix rhosEqn
+        (
+            fvm::ddt(rho_)
+         ==
+          - fvc::div(solidPhi,rho_,"div(phiSolid)")
+        );
+        rhosEqn.relax();
+        rhosEqn.solve("rhos");
+
+        for (label i = 0; i < Ys_.size(); ++i)
+        {
+
+            volScalarField& Yi = Ys_[i];
+            Yi.ref() *= whereIs_;
+            volScalarField sRhoSi = solidChemistry_->RRs(i);
+
+            surfaceScalarField solidFlux_ =  mesh_.Sf() & fvc::interpolate(Us_);
+
+            fvScalarMatrix YsEqn
+            (
+                fvm::ddt(rhoLoc,Yi)
+             ==
+                sRhoSi
+              - rhoLoc*fvc::div(solidFlux_, Yi, "div(phiSolid)")
+            );
+
+            YsEqn.relax();
+            YsEqn.solve("Ys");
+
+            Yi.max(0.0);
+
+
+            Info<< "solid "<< Ys_[i].name()
+                << " equation solved. Sources min/max   = " << gMin(sRhoSi)
+                << ", " << gMax(sRhoSi)
+                << "; values min Y = " << gMin(Ys_[i])
+                << " max Y = " << gMax(Ys_[i]) << endl;
+        }
+
+        solvePorosity();   
+        rhoLoc = max(rho_ * (1. - porosity_), dimensionedScalar("minRho",dimMass/dimVolume, SMALL));
+
+        for (label i = 0; i < Ys_.size(); ++i)
+        {
+            volScalarField& Yi = Ys_[i];
+            Mt += Yi * rhoLoc;
+        }
+
+        for (label i = 0; i < Ys_.size(); ++i)
+        {
+            Ym_[i] = whereIs_ * Ys_[i] * rhoLoc;
+            Ys_[i] = Ym_[i] / max(Mt,dimensionedScalar("minMass", dimMass/dimVolume, SMALL));
+        }
+    }
+}
+
+
+void volPyrolysis::solveEnergy()
+{
+// eqZx2uHGn047
+
+    if (debug)
+    {
+        Info<< "volPyrolysis::solveEnergy()" << endl;
+    }
+
+    if (active_)
+    {
+
+        volTensorField composedK(K_ * (1 - porosity_) * anisotropyK_);
+        radiationSh_ = radiation_;
+
+        if (equilibrium_)
+        {}
+        else
+        {
+
+            solidThermo_.correct(); // eqZx2uHGn046
+
+            volScalarField rhoCp
+            (
+                max
+                (
+                    rho_ * solidThermo_.Cp() * (1 - porosity_),
+                    dimensionedScalar("minRhoCp",dimEnergy/dimTemperature/dimVolume,SMALL)
+                )
+            );
+
+            whereIs_.correctBoundaryConditions();
+            surfaceScalarField  whereIsPatch  = fvc::interpolate(whereIs_);
+            whereIsNot_.correctBoundaryConditions();
+            volVectorField whereIsNotGrad = fvc::grad(whereIsNot_);        
+
+            volScalarField heatTransfField = whereIs_*heatTransfer()();
+            volScalarField rhoCpG(gasThermo_.rho() * gasThermo_.Cp() * porosity_);
+
+            // Simplistic immersed boundary for heat transport in solid phase.
+            fvScalarMatrix TLap
+            (
+                fvm::laplacian(composedK * pow(rhoCp,-1), solidH_())
+            );
+ 
+            // Setting face fluxes on the border of porous media to 0.
+            // this should be instead flux due to the macrscopic motion to smooth at the edges
+            forAll(whereIsPatch,faceI)
+            {
+               if ( (whereIsPatch[faceI] > 0) and (whereIsPatch[faceI] < 1) )
+               {
+                   TLap.upper()[faceI] = 0.;
+               }
+            }
+            forAll(whereIsPatch.boundaryField(),patchI)
+            {
+               if (isA<processorPolyPatch>(mesh_.boundaryMesh()[patchI]))
+               {
+                   forAll(whereIsPatch.boundaryField()[patchI],faceI)
+                   {
+                       if ( (whereIsPatch.boundaryField()[patchI][faceI] > 0) and (whereIsPatch.boundaryField()[patchI][faceI] < 1) )
+                       {
+                           TLap.boundaryCoeffs()[patchI][faceI] = 0;
+                           TLap.internalCoeffs()[patchI][faceI] = 0;
+                       }
+                   }
+               }
+            }
+
+            TLap.diag() = 0;
+            TLap.negSumDiag();
+            // Correct on orthogonal meshes
+            // For non-orthogona meshes
+            // TLap.source() = 0. cancels the non-orthogonal correction from the
+            // divergence of composedK, which is spurious on the edges of porous
+            // media and negiligble inside porous media in relevant cases.
+            TLap.source() = 0.;
+
+            surfaceScalarField solidFlux =  mesh_.Sf() & fvc::interpolate(Us_);
+
+            fvScalarMatrix TEqn
+            (
+                fvm::ddt(solidH_())
+              - TLap
+            ==
+              - fvc::div(solidFlux , solidH_(),"div(phiRhoCp)")
+            //    chemistrySh_ // eqZx2uHGn004, eqZx2uHGn017
+            //  - heatTransfField // eqZx2uHGn005
+            //  - heatUpGas_
+            //  + radiationSh_
+            );
+
+            TEqn.relax();
+            TEqn.solve();
+
+            T_ =  whereIs_*solidH_()/rhoCp;
+
+        }
+
+        scalar minTemp = GREAT;
+        scalar maxTemp = -GREAT;
+        scalar areThere = 0;
+
+        forAll(T_,cellI)
+        {
+            if (whereIs_[cellI] == 1 )
+            {
+                areThere = 1;
+                if (T_[cellI] < minTemp)
+                {
+                    minTemp = T_[cellI];
+                }
+                if (T_[cellI] > maxTemp)
+                {
+                    maxTemp = T_[cellI];
+                }
+            }
+        }
+        reduce(maxTemp, maxOp<scalar>());
+        reduce(minTemp, minOp<scalar>());
+        reduce(areThere, maxOp<scalar>());
+
+        if (areThere == 1)
+        {
+            Info<< " pyrolysis min/max(T) = " << minTemp << ", " << maxTemp << endl;
+        }
+        else
+        {
+            Info<< " no solid phase " << endl;
+        }
+    }
+}
+
+void volPyrolysis::calculateMassTransfer()
+{
+    if (infoOutput_)
+    {
+        totalGasMassFlux_ = fvc::domainIntegrate(solidChemistry_->RRg());
+        totalHeatRR_ = fvc::domainIntegrate(chemistrySh_);
+
+        addedGasMass_ +=
+            fvc::domainIntegrate(solidChemistry_->RRg()) * time_.deltaT();
+        lostSolidMass_ +=
+            fvc::domainIntegrate(solidChemistry_->RRs()) * time_.deltaT();
+    }
+}
+
+// * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
+
+volPyrolysis::volPyrolysis
+(
+    const word& modelType,
+    const fvMesh& mesh,
+    HGSSolidThermo& solidThermo,
+    psiReactionThermo& gasThermo,
+    volScalarField& whereIs,
+    volScalarField& radiation
+)
+:
+    heterogeneousPyrolysisModel(modelType, mesh),
+    porosity_(whereIs),
+    porosityArch_
+    (
+        IOobject
+        (
+            "porosityF0",
+            time_.timeName(),
+            mesh_,
+            IOobject::MUST_READ,
+            IOobject::AUTO_WRITE
+        ),
+        mesh_
+    ),
+    STmodel_(specieTransferModel::New(porosity_,porosityArch_)),
+    ST_
+    (
+        IOobject
+        (
+            "STvol",
+            time_.timeName(),
+            mesh_,
+            IOobject::NO_READ,
+            IOobject::NO_WRITE
+        ),
+        mesh_,
+        dimensionedScalar("zero",dimless/dimTime, 0.0)
+    ),
+    gasThermo_(gasThermo),
+    Ygas_(gasThermo.composition().Y()),
+    solidThermo_(solidThermo),
+    solidChemistry_
+    (
+        porousThermoSolidChemistryModel<HGSSolidThermo>::New
+        (
+            solidThermo_,
+            Ygas_,
+            gasThermo.thermoName()
+        )
+    ),
+    kappa_(solidThermo_.kappa()),
+    K_(solidThermo_.K()),
+    rho_(solidThermo_.rho()),
+    rho0_
+    (
+        IOobject
+        (
+            "rhos0",
+            time_.timeName(),
+            mesh_,
+            IOobject::NO_READ,
+            IOobject::AUTO_WRITE
+        ),
+        mesh_,
+        dimensionedScalar("zero", dimMass/dimVolume, 0.0)
+    ),
+    Ys_(solidThermo_.composition().Y()),
+    Ym_(Ys_.size()),
+    Msolid_(Ys_.size()),
+    Msolidtotal_(
+        IOobject
+        (
+            "Msolidtotal",
+            time_.timeName(),
+            mesh_,
+            IOobject::NO_READ,
+            IOobject::NO_WRITE
+        ),
+        mesh_,
+        dimensionedScalar("zero", dimMass, 0.0)
+    ),
+    T_(solidThermo_.T()),
+    solidH_(nullptr),
+    equilibrium_(false),
+    subintegrateSwitch_(false),
+    bedCollapseSwitch_(false),
+    replenishSwitch_(false),
+    critPorosity_(0.9999),
+    totRepMass_(0.),
+    nNonOrthCorr_(-1),
+    maxDiff_(10),
+    porosity0_(whereIs),
+    voidFraction_(whereIs),
+    radiation_(radiation),
+    phiHsGas_
+    (
+        IOobject
+        (
+            "phiHsGass",
+            time_.timeName(),
+            mesh_,
+            IOobject::NO_READ,
+            IOobject::NO_WRITE
+        ),
+        mesh_,
+        dimensionedScalar("zero", dimEnergy/dimTime, 0.0)
+    ),
+    chemistrySh_
+    (
+        IOobject
+        (
+            "solidChemistrySh",
+            time_.timeName(),
+            mesh_,
+            IOobject::NO_READ,
+            IOobject::AUTO_WRITE
+        ),
+        mesh_,
+        dimensionedScalar("zero", dimEnergy/dimTime/dimVolume, 0.0)
+    ),
+    porositySource_
+    (
+        IOobject
+        (
+            "porosityS",
+            time_.timeName(),
+            mesh_,
+            IOobject::NO_READ,
+            IOobject::AUTO_WRITE
+        ),
+        mesh_,
+        dimensionedScalar("zero", dimless/dimTime, 0.0)
+    ),
+    whereIs_
+    (
+        IOobject
+        (
+            "whereIs",
+            time_.timeName(),
+            mesh_,
+            IOobject::NO_READ,
+            IOobject::AUTO_WRITE
+        ),
+        mesh_,
+        dimensionedScalar("zero", dimless, 0.0)
+    ),
+    whereIsNot_
+    (
+        IOobject
+        (
+            "whereIsNot",
+            time_.timeName(),
+            mesh_,
+            IOobject::NO_READ,
+            IOobject::AUTO_WRITE
+        ),
+        mesh_,
+        dimensionedScalar("one", dimless, 1.0)
+    ),
+    whereWas_
+    (
+        IOobject
+        (
+            "whereWas",
+            time_.timeName(),
+            mesh_,
+            IOobject::NO_READ,
+            IOobject::NO_WRITE
+        ),
+        mesh_,
+        dimensionedScalar("zero", dimless, 0.0)
+    ),
+    cellVolume_
+    (
+        IOobject
+        (
+            "cellVolume",
+            time_.timeName(),
+            mesh_,
+            IOobject::NO_READ,
+            IOobject::NO_WRITE
+        ),
+        mesh_,
+        dimensionedScalar("zero", dimless, 0.0)
+    ),
+    heatUpGas_
+    (
+        IOobject
+        (
+            "heatUpGas",
+            time_.timeName(),
+            mesh_,
+            IOobject::NO_READ,
+            IOobject::AUTO_WRITE
+        ),
+        mesh_,
+        dimensionedScalar("zero", dimEnergy/dimTime/dimVolume, 0.0)
+    ),
+    HTmodel_(heatTransferModel::New(porosity_,porosityArch_)),
+    CONV_
+    (
+        IOobject
+        (
+            "CONVvol",
+            time_.timeName(),
+            mesh_,
+            IOobject::NO_READ,
+            IOobject::AUTO_WRITE
+        ),
+        mesh_,
+        dimensionedScalar("zero",dimEnergy/dimTime/dimTemperature/dimVolume , 0.0)
+    ),
+    radiationSh_
+    (
+        IOobject
+        (
+            "radiationSh",
+            time_.timeName(),
+            mesh_,
+            IOobject::NO_READ,
+            IOobject::AUTO_WRITE
+        ),
+        mesh_,
+        dimensionedScalar("zero", dimEnergy/dimVolume/dimTime, 0.0)
+    ),
+    anisotropyK_
+    (
+        IOobject
+        (
+            "anisotropyK",
+            time_.timeName(),
+            mesh_,
+            IOobject::READ_IF_PRESENT,
+            IOobject::AUTO_WRITE
+        ),
+        mesh_,
+        dimensionedTensor("one", dimless, tensor(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0))
+    ),
+    surfF_
+    (
+        IOobject
+        (
+            "surfF",
+            time_.timeName(),
+            mesh_,
+            IOobject::NO_READ,
+            IOobject::NO_WRITE
+        ),
+        mesh_,
+        dimensionedScalar("zero", dimless, 0.0)
+    ),
+    // Bind to the single registered "Us" field created by the solver
+    // (createFields.H), rather than owning a duplicate. lambdaDotModel
+    // writes that same object when DEM coupling is active.
+    Us_
+    (
+        mesh_.lookupObject<volVectorField>("Us")
+    ),
+    lostSolidMass_(dimensionedScalar("zero", dimMass, 0.0)),
+    addedGasMass_(dimensionedScalar("zero", dimMass, 0.0)),
+    totalGasMassFlux_(dimensionedScalar("zero", dimMass/dimTime, 0.0)),
+    totalHeatRR_(dimensionedScalar("zero", dimEnergy/dimTime, 0.0)),
+    timeChem_(1.0)
+{
+
+    mesh.setFluxRequired(T_.name());
+
+    ST_ = STmodel_->ST()();
+    CONV_ = CONV();
+    rho0_.ref() = rho_.ref();
+
+    subintegrateSwitch_ = coeffs().lookupOrDefault("subintegrateHeatTransfer",false);
+    bedCollapseSwitch_ = coeffs().lookupOrDefault("bedCollapse",false);
+    replenishSwitch_ = coeffs().lookupOrDefault("replenish",false);
+    critPorosity_ = coeffs().lookupOrDefault("criticalPorosity",0.9999);
+
+    Info << endl;
+    Info << "subintegrateHeatTransfer " << subintegrateSwitch_ << endl;
+    Info << "bedCollapse              " << bedCollapseSwitch_    << endl;
+    if (bedCollapseSwitch_) 
+    {
+        Info << "criticalPorosity         " << critPorosity_  << endl;
+    }
+    Info << "replenish                " << replenishSwitch_    << endl;
+    Info << endl;
+
+    forAll(Ys_, fieldI)
+    {
+          Ym_.set
+          (
+                fieldI,
+                new volScalarField
+                (
+                    IOobject
+                    (
+                        Ys_[fieldI].name() + "m",
+                        time_.timeName(),
+                        mesh_,
+                        //IOobject::NO_READ,
+                        IOobject::READ_IF_PRESENT,  // DasteXar 2
+                        IOobject::AUTO_WRITE
+                    ),
+                    mesh_,
+                    dimensionedScalar("zero",dimMass/dimVolume,0.0)
+                )
+          );
+          Ym_[fieldI].ref() = Ys_[fieldI].ref() * rho_;
+    }
+
+    const volScalarField::Boundary& tbf = T_.boundaryField();
+    wordList tbt(tbf.types());
+
+    forAll(tbf, patchi)
+    {
+        if (isA<fixedValueFvPatchScalarField>(tbf[patchi]))
+        {
+            tbt[patchi] = fixedSolidHFvPatchScalarField::typeName;
+        }
+    }
+
+    solidH_.reset
+    (
+        new volScalarField
+        (
+            IOobject
+            (
+                "solidH",
+                time_.timeName(),
+                mesh_,
+                IOobject::READ_IF_PRESENT,
+                IOobject::AUTO_WRITE
+            ),
+            mesh,
+            dimensionSet(1, -1, -2, 0, 0),
+            tbt
+        )
+    );
+    solidH_() = rho_ * solidThermo_.Cp() * (1 - porosity_) * T_;
+    solidH_().correctBoundaryConditions();
+
+    forAll(rho_,cellI)
+    {
+        if (porosity_[cellI] < 1.)
+        {
+             whereIsNot_[cellI] = 0.;
+             whereIs_[cellI] = 1.;
+        }
+        else
+        {
+             whereIsNot_[cellI] = 1.;
+             whereIs_[cellI] = 0.;
+             rho0_[cellI] = 3.14;
+        }
+    }
+
+    if (active_)
+    {
+        read();
+    }
+
+    forAll(whereIs_, cellI)
+    {
+        if (whereIs_[cellI] == 1)
+        {
+            bool surfC = false;
+            forAll(mesh_.cellCells()[cellI],cellJ)
+            {
+                if (whereIs_[mesh_.cellCells()[cellI][cellJ]] == 0)
+                {
+                    surfC = true;
+                }
+            }
+            if (surfC) surfF_[cellI] = 1;
+        }
+    }
+
+    forAll(cellVolume_,cellI)
+    {
+        cellVolume_[cellI] = mesh_.V()[cellI];
+    }
+    cellVolume_.correctBoundaryConditions();
+
+}
+
+// * * * * * * * * * * * * * * * * Destructor  * * * * * * * * * * * * * * * //
+
+volPyrolysis::~volPyrolysis()
+{}
+
+
+// * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * * //
+volScalarField& volPyrolysis::rhoConst() const
+{
+    return rho_;
+}
+
+volScalarField& volPyrolysis::rho()
+{
+    return rho_;
+}
+
+const volScalarField& volPyrolysis::T() const
+{
+    return T_;
+}
+
+const tmp<volScalarField> volPyrolysis::Cp() const
+{
+    return solidThermo_.Cp();
+}
+
+
+const volScalarField& volPyrolysis::kappa() const
+{
+    return kappa_;
+}
+
+const volScalarField& volPyrolysis::K() const
+{
+    return K_;
+}
+
+const volScalarField& volPyrolysis::surf() const
+{
+    return surfF_;
+}
+
+scalar volPyrolysis::maxDiff() const
+{
+    return maxDiff_;
+}
+
+scalar volPyrolysis::solidRegionDiffNo() const
+{
+    scalar NumCprho = 0.0;
+    scalar DiNum = 0.0;
+
+    if (mesh_.nInternalFaces() > 0)
+    {
+        surfaceScalarField KrhoCpbyDelta
+        (
+            mesh_.surfaceInterpolation::deltaCoeffs()
+          * fvc::interpolate(K_)
+        );
+
+        surfaceScalarField Cprho
+        (
+            fvc::interpolate(Cp()*rho_)
+        );
+
+        NumCprho = max(Cprho.ref()).value();
+        reduce(NumCprho, maxOp<scalar>());
+        if (NumCprho != 0.)
+        {
+            DiNum = gMax(KrhoCpbyDelta.internalField())*time_.deltaTValue()/NumCprho;
+        }
+        else
+        {
+            DiNum = SMALL;
+        }
+    }
+
+    return DiNum;
+}
+
+scalar volPyrolysis::maxTime() const
+{
+return timeChem_;
+}
+
+Switch volPyrolysis::equilibrium() const
+{
+    return equilibrium_;
+}
+
+void volPyrolysis::preEvolveRegion() {
+    // Added for completeness
+    heterogeneousPyrolysisModel::preEvolveRegion();
+
+    // Iterates over every cell and sets cells containing solid phase
+    // as reacting cell.
+    forAll(T_, cellI)
+    {
+        if ( active_ && whereIs_[cellI] != 0)
+        {
+            solidChemistry_->setCellReacting(cellI, true);
+        }
+        else
+        {
+            solidChemistry_->setCellReacting(cellI, false);
+        }
+    }
+
+}
+
+void volPyrolysis::evolveRegion()
+{
+    voidFraction_ = porosity_;
+
+    if (equilibrium_)
+    {}
+    else
+    {
+        CONV_ = CONV();
+    }
+
+    ST_ = STmodel_->ST()();
+
+    timeChem_ = solidChemistry_->solve
+    (
+        time_.value() - time_.deltaTValue(),
+        time_.deltaTValue()
+    );
+
+    chemistrySh_ = solidChemistry_->Sh()(); // eqZx2uHGn004
+    heatUpGas_ = heatUpGasCalc()();
+
+    solveSpeciesMass();
+
+    solveEnergy();
+
+    calculateMassTransfer();
+    info();
+}
+
 
 Foam::tmp<Foam::volScalarField> volPyrolysis::Srho() const
 {

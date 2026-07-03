@@ -35,6 +35,7 @@ divSchemes
     div(phi,K)      Gauss upwind;
     div(((rho*nuEff)*dev2(T(grad(U))))) Gauss linear;
     div(phiSolid) Gauss SuperBee ;
+    div(phiRhoCp) Gauss SuperBee ;
     div(porPhi) Gauss SuperBee ;
 }
 

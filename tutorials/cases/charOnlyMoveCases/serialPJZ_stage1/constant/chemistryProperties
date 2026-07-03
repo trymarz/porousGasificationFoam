@@ -1,0 +1,111 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  8
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      chemistryProperties;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+chemistry           off;
+
+chemistryType
+{
+    solver            ode;
+}
+
+solidChemistryType
+{
+    solver              solidOde;
+    method              ODESolidHeterogeneousChemistryModel;
+    solidThermoType     const<constRad<constThermo<constRho>>>;
+}
+
+initialChemicalTimeStep 1e-10;
+
+turbulentReaction   off;
+solidReactionEnergyFromEnthalpy false;
+stoichiometricReactions false;
+showRelativeReactionRates false;
+solidChemistryTimeStepControl false;
+
+diffusionLimitedReactions true;
+
+odeCoeffs
+{
+    solver      seulex;
+}
+
+solidOdeCoeffs
+{
+    solver      seulex;
+}
+
+// either this
+//species
+//(
+//   N2 H2O CO O2 H2 CO2 CH4 tar
+//);
+// or
+#include "reactions"
+
+solidReactions
+(
+//    // Reaction 1
+//    irreversibleSolidArrheniusHeterogeneousReaction
+//    hum = H2O
+//    (5.13e6 1.0589e4 301 2.256e6 1)
+//
+//    // Reaction 2
+//    irreversibleSolidArrheniusHeterogeneousReaction
+//    0.2 rubberwood = 0.2 char
+//    (1.38e10 1.9e4 300 3.85e5 1) 
+//
+//    // Reaction 2
+//    irreversibleSolidArrheniusHeterogeneousReaction
+//    0.3332 rubberwood = 0.0138 CH4 + 0.0459 H2O + 0.2735 tar
+//    (1.38e10 1.9e4 300 3.85e5 1) 
+//
+//        // Reaction 2
+//    irreversibleSolidArrheniusHeterogeneousReaction
+//    0.4668 rubberwood = 0.0232 H2 + 0.1695 CO + 0.2741 CO2
+//    (1.38e10 1.9e4 300 3.85e5 1)
+
+    // Reaction 3
+    irreversibleSolidArrheniusHeterogeneousReaction
+    char + 1.33 O2 = 2.33 CO
+    (5.61e9 1.96e4 300 -3.95e6 1 1)
+
+    // Reaction 4
+    irreversibleSolidArrheniusHeterogeneousReaction
+    char + 2.66 O2 = 3.66 CO2
+    (5.61e9 1.96e4 300 -8.94e6 1 1)
+
+//    // Reaction 5
+//    irreversibleSolidArrheniusHeterogeneousReaction
+//    char + 0.33 H2 = 1.33 CH4
+//    (4.189 2.31e3 300 -4.66e6 1 1)
+
+    // Reaction 6
+    irreversibleSolidArrheniusHeterogeneousReaction
+    char + 3.66 CO2 = 4.66 CO
+    (3.616e4 9308.39 300 3.07e6 1 1)
+
+//    // Reaction 7
+//    irreversibleSolidArrheniusHeterogeneousReaction
+//    char + 1.5 H2O = 2.33 CO + 0.17 H2 
+//    (1.517e7 1.46e4 300 4.38e6 1 1)
+
+);
+
+// ************************************************************************* //
+
+

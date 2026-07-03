@@ -51,7 +51,7 @@ solvers
         relTol      0;
     }   
 
-    Ts
+    solidH
     {
         solver           PCG;
         preconditioner   DIC;

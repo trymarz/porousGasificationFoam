@@ -30,6 +30,7 @@ divSchemes
     default         none;
 
     div(phiSolid)   Gauss limitedLinear     1;
+    div(phiRhoCp) Gauss SuperBee ;
     div(phi,U)      Gauss linearUpwindV default;
     div(phi,Yi)     Gauss limitedLinear01   1;
     div(phi,h)      Gauss limitedLinear     1;

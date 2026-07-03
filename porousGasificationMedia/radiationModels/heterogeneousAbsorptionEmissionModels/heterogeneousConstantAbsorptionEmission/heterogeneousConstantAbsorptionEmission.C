@@ -58,11 +58,11 @@ heterogeneousConstantAbsorptionEmission::heterogeneousConstantAbsorptionEmission
 :
     heterogeneousAbsorptionEmissionModel(dict, mesh),
     coeffsDict_(dict.subDict(typeName + "Coeffs")),
-    a_(coeffsDict_.lookup("a")),
-    as_(coeffsDict_.lookup("as")),
-    borderAs_(coeffsDict_.lookup("borderAs")),
-    E_(coeffsDict_.lookup("E")),
-    borderL_(coeffsDict_.lookup("borderL"))
+    a_(coeffsDict_.get<dimensionedScalar>("a")),
+    as_(coeffsDict_.get<dimensionedScalar>("as")),
+    borderAs_(coeffsDict_.get<dimensionedScalar>("borderAs")),
+    E_(coeffsDict_.get<dimensionedScalar>("E")),
+    borderL_(coeffsDict_.get<dimensionedScalar>("borderL"))
 {}
 
 
