@@ -10,7 +10,7 @@ FoamFile
     version     2.1;
     format      ascii;
     class       dictionary;
-    object      heatTransferProperties;
+    object      specieTransferProperties;
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
