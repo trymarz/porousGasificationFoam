@@ -67,6 +67,12 @@ private:
         //- Read model controls
         void readReactingOneDimControls();
 
+        //- Derive mass fractions Ys_ from mass concentrations Ym_
+        //  Ys_i = Ym_i / sum_j(Ym_j) in every solid cell (whereIs_ == 1).
+        //  If a cell holds no solid mass, the first specie is assigned
+        //  unity and the rest zero to avoid a division-by-zero NaN.
+        void deriveYiFromYm();
+
 
 protected:
 
@@ -109,14 +115,11 @@ protected:
         //- List of solid components
         PtrList<volScalarField>& Ys_;
 
-       //- List of solid component masses
+       //- List of solid component mass concentrations [kg/m3]
+        //  Ym_i = Yi * rho_s * (1 - porosity) = mass of solid specie i per
+        //  unit total cell volume. This is the primary transported variable;
+        //  the mass fractions Ys_ are derived from it (see deriveYiFromYm()).
         PtrList<volScalarField> Ym_;
-
-        //- List of solid component masses [kg]
-        PtrList<volScalarField> Msolid_;
-
-        //- solid total mass [kg]
-        volScalarField Msolidtotal_;
 
         // Non-const access to temperature
         volScalarField& T_;
@@ -219,6 +222,17 @@ protected:
 
         //- scalar chemistryTime
         scalar timeChem_;
+
+        //- Total Ym mass integral at t=0, for conservation diagnostic [kg]
+        //  Lazily initialized on the first solveSpeciesMass() call
+        //  (-1 = not yet computed); on restart it resets to the restart
+        //  state, so conservation is checked from restart onward.
+        scalar initialTotalYmMass_;
+
+        //- Cumulative solid mass advected out through boundaries [kg]
+        //  Credited in the conservation diagnostic so the budget stays
+        //  checkable in domains with an open outlet.
+        scalar cumulativeYmOutflow_;
 
 
     // Protected member functions

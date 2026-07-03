@@ -37,7 +37,7 @@ solvers
     }
 
 
-    "(U|h|Yi|Ys|porosity)"
+    "(U|h|Yi|Ys|porosity|Ym)"
     {
         solver          PBiCG;
         preconditioner  DILU;
