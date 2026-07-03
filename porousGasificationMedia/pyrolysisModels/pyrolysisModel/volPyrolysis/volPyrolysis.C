@@ -39,6 +39,7 @@ License
 #include "processorPolyPatch.H"
 
 #include "BCs/fixedSolidH/fixedSolidHFvPatchScalarField.H"
+#include "BCs/fixedYm/fixedYmFvPatchScalarField.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -721,19 +722,11 @@ void volPyrolysis::solveSpeciesMass()
             volScalarField& Ym_i = Ym_[i];
             volScalarField sRhoSi = solidChemistry_->RRs(i);
 
-            // Ym carries calculated patches whose values were assigned
-            // once at construction and never updated.  Refresh every
-            // uncoupled patch from the internal field (zeroGradient
-            // behaviour) so the outflow face flux uses the current
-            // upwind cell value instead of the stale t=0 one.
-            forAll(Ym_i.boundaryField(), patchI)
-            {
-                if (!Ym_i.boundaryField()[patchI].coupled())
-                {
-                    Ym_i.boundaryFieldRef()[patchI] ==
-                        Ym_i.boundaryField()[patchI].patchInternalField();
-                }
-            }
+            // Refresh the boundary values before the flux evaluation
+            // below reads them: zeroGradient-inherited patches follow the
+            // internal field and fixedYm patches recompute
+            // Yi*rho*(1-porosity) in their updateCoeffs().
+            Ym_i.correctBoundaryConditions();
 
             volScalarField divYmFlux
             (
@@ -1405,6 +1398,21 @@ volPyrolysis::volPyrolysis
 
     forAll(Ys_, fieldI)
     {
+          // Where the user set a fixedValue condition on Yi, the Ym patch
+          // becomes fixedYm, which keeps Ym = Yi*rho*(1-porosity) current
+          // as rho and porosity evolve at the boundary (mirrors the
+          // fixedSolidH pattern for T/solidH). All other patch types are
+          // inherited from Yi as-is.
+          const volScalarField::Boundary& ybf = Ys_[fieldI].boundaryField();
+          wordList ymTypes(ybf.types());
+          forAll(ybf, patchi)
+          {
+              if (isA<fixedValueFvPatchScalarField>(ybf[patchi]))
+              {
+                  ymTypes[patchi] = fixedYmFvPatchScalarField::typeName;
+              }
+          }
+
           Ym_.set
           (
                 fieldI,
@@ -1419,14 +1427,16 @@ volPyrolysis::volPyrolysis
                         IOobject::AUTO_WRITE
                     ),
                     mesh_,
-                    dimensionedScalar("zero",dimMass/dimVolume,0.0)
+                    dimensionedScalar("zero",dimMass/dimVolume,0.0),
+                    ymTypes
                 )
           );
           // Ym_i = Yi * rho_s * (1 - porosity): mass per unit total volume.
           Ym_[fieldI].ref() =
               Ys_[fieldI].ref() * rho_.ref() * (1.0 - porosity_.ref());
 
-          // Inherit boundary condition types from Yi, scaled to Ym units.
+          // Set initial boundary values from Yi, scaled to Ym units;
+          // updateCoeffs() keeps the fixedYm patches current thereafter.
           forAll(Ym_[fieldI].boundaryField(), patchI)
           {
               Ym_[fieldI].boundaryFieldRef()[patchI] ==

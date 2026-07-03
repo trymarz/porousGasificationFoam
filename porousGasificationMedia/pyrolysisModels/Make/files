@@ -1,5 +1,6 @@
 /* Pyrolysis models */
 BCs/fixedSolidH/fixedSolidHFvPatchScalarField.C
+BCs/fixedYm/fixedYmFvPatchScalarField.C
 
 pyrolysisModel/heterogeneousPyrolysisModel/heterogeneousPyrolysisModel.C
 pyrolysisModel/heterogeneousPyrolysisModel/heterogeneousPyrolysisModelNew.C
