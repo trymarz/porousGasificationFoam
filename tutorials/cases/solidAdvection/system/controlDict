@@ -75,15 +75,15 @@ functions
         writePrecision  10;
         writeControl    timeStep;
         writeInterval   1;
-        fields          (Ts porosityF Ychar);
+        fields          (Ycharm Yashm Yhumm Yrubberwoodm Ts porosityF Ychar);
+        // Z=0.0005 is the mid-cell Z for the single-layer mesh
+        // (Z in [0, 0.001]); Y=0.005 is mid-channel (Y in [0, 0.01]).
         probeLocations
         (
-            (0.002 0 0.005)   // inlet-mid
-            (0.018 0 0.005)   // outlet-mid
-            (0.002 0 0.003)   // inlet-bot
-            (0.018 0 0.003)   // outlet-bot
-            (0.002 0 0.007)   // inlet-top
-            (0.018 0 0.007)   // outlet-top
+            (0.002 0 0.0005)       // inlet-mid
+            (0.018 0 0.0005)       // outlet-mid
+            (0.002 0.005 0.0005)   // inlet-mid-Y
+            (0.018 0.005 0.0005)   // outlet-mid-Y
         );
     }
 }

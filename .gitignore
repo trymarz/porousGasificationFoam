@@ -1,6 +1,7 @@
 linux64GccDPInt32Opt/
 *.foam
 lnInclude/
+.opencode/
 .plans/
 simulation_logs
 dtInfo.txt
