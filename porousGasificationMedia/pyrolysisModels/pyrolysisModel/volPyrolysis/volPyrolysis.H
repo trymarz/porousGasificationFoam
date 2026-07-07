@@ -259,7 +259,10 @@ protected:
             void solveSpeciesMass();
 
             //- Solve energy
-            void solveEnergy();
+            void preSolveEnergy();
+
+            //- Solve energy
+            void postSolveEnergy();
 
             //- Evolve porosity field
             void solvePorosity();

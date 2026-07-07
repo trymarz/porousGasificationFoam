@@ -90,21 +90,6 @@ bool volPyrolysis::read(const dictionary& dict)
     }
 }
 
-// Yi / Ym dual-representation performance note:
-//
-// The solver carries both Ys_ (dimensionless Yi, consumed by chemistry
-// and thermo models) and Ym_ (kg/m3, transported by solveSpeciesMass
-// and solvePorosity bed-motion routes).  deriveYiFromYm() bridges them
-// and is called several times per timestep (after species transport and
-// after bed motion).  Each call costs O(N_cells x N_species).
-//
-// For the ~200-cell verification and tutorial meshes the cost is
-// negligible.  For production meshes (>1e5 cells) with many solid
-// species (>10), the per-step overhead may become measurable.  A
-// single-representation refactor (transport only Ym, derive Ys_ only
-// immediately before chemistry/thermo consumption) would reduce calls
-// to once per timestep.  Until profiling on a production case confirms
-// the cost is non-trivial, the dual representation stays for clarity.
 void volPyrolysis::deriveYiFromYm()
 {
     // Reconstruct the mass fractions Ys_ (consumed by chemistry and thermo)
@@ -641,147 +626,22 @@ void volPyrolysis::solveSpeciesMass()
 
     if (active_)
     {
-        // --- 1. Solve per-specie mass-concentration transport ---
-        //   d(Ym_i)/dt = RRs(i) - div(Us . Ym_i)
-        // Ym_i [kg/m3] is mass of solid specie i per unit total cell volume,
-        // so RRs (already per unit total volume) enters without a (1-eps)
-        // factor. No sum-to-one constraint and no renormalization: each
-        // specie's mass is transported independently.
 
-        // --- Solid species advection: explicit (fvc::div) by design. ---
-        //
-        // The gas phase (YEqn.H) uses an implicit convection scheme
-        // (mvConvection->fvmDiv(phi, Yi)) because gas Courant numbers
-        // routinely reach 0.5-1.0.  The solid phase is different:
-        //
-        //   1. Solid Courant ~ 1e-6  --  explicit advection is stable
-        //      without an implicit matrix contribution.
-        //   2. fvm::div(solidFlux, Ym) would crash: Ym inherits Yi's
-        //      boundary types, and fvm::div calls valueInternalCoeffs()
-        //      on the patch fields, which throws on
-        //      calculatedFvPatchField.
-        //   3. We don't need to solve a coupled matrix for solid
-        //      species -- each Ym_i is independent (no sum-to-1
-        //      constraint), so an explicit source-like divergence
-        //      is sufficient and cleaner.
-        //
-        // A future refactor could mirror the gas-phase pattern by
-        // registering a proper solid convection scheme and fixing
-        // the boundary-type incompatibility.  For now the explicit
-        // form is correct and stable at solid Courant numbers.
-        //
-        // The advected quantity is Ym itself with the volumetric flux
-        // phiUs = Sf & interp(Us) -- NOT the old rhoLoc-weighted flux
-        // interp(Us*rhoLoc) applied to Yi.  Two reasons:
-        //
-        //   1. Consistency.  rhoLoc = rho*(1-porosity) evolves through
-        //      the separately-discretised porosity advection, so
-        //      rhoLoc*Yi drifts away from the transported Ym.  Wherever
-        //      rhoLoc*Yi >> Ym locally (e.g. when the solid front meets
-        //      an outflow boundary), a rhoLoc-weighted flux over-drains
-        //      the cell, drives Ym negative, and the max(0) clip turns
-        //      the undershoot into created mass (observed ~15% gain on
-        //      the solidAdvection advection test).
-        //   2. Boundedness.  The TVD limiter ("div(phiSolid)", SuperBee)
-        //      now acts on the conserved variable itself: a cell with
-        //      Ym = 0 has exactly zero outflux, so Ym stays >= 0 at
-        //      solid Courant numbers without masking or clipping.
-        //
-        // The flux is species-independent, so it is built once outside
-        // the species loop.
         surfaceScalarField phiUs = mesh_.Sf() & fvc::interpolate(Us_);
-
-        // Boundary treatment: solid may LEAVE the domain wherever Us
-        // points outward, but never ENTERS from outside -- the boundary
-        // flux is clamped to outflow (>= 0) on every uncoupled patch.
-        // With the usual zeroGradient Us boundary condition an inward
-        // interior velocity would otherwise advect phantom solid mass
-        // in from outside the domain.  A patch that must be impermeable
-        // to the solid (a grate, a closed wall) should carry a
-        // fixedValue (0 0 0) Us boundary condition, which makes the
-        // face flux vanish naturally; patch names and types are NOT
-        // consulted here because the tutorial meshes declare their
-        // solid exits as type wall.  Coupled (processor/cyclic) patches
-        // keep their flux -- they are interior to the global domain.
-        // All boundary outflow is accumulated below and credited in the
-        // conservation budget.
-        //
-        // fixedYm patches (Yi pinned by a fixedValue condition) are
-        // additionally impermeable per specie: an outflow face uses the
-        // patch value, and draining the pinned Yi*rho*(1-porosity) --
-        // instead of the upwind cell value -- removes mass the cell does
-        // not hold (observed on charOnlyMove, where Yrubberwood is pinned
-        // to 1 at a wall the collapsing char bed slides along: every step
-        // drained phantom rubberwood and the max(0) clip re-created it).
-        // Solid must exit through zeroGradient-Yi patches, where the
-        // patch value IS the upwind value.
-        forAll(mesh_.boundary(), patchI)
-        {
-            if (!mesh_.boundary()[patchI].coupled())
-            {
-                fvsPatchScalarField& phiP = phiUs.boundaryFieldRef()[patchI];
-                forAll(phiP, faceI)
-                {
-                    phiP[faceI] = max(phiP[faceI], 0.0);
-                }
-            }
-        }
 
         for (label i = 0; i < Ys_.size(); ++i)
         {
             volScalarField& Ym_i = Ym_[i];
             volScalarField sRhoSi = solidChemistry_->RRs(i);
 
-            // Refresh the boundary values before the flux evaluation
-            // below reads them: zeroGradient-inherited patches follow the
-            // internal field and fixedYm patches recompute
-            // Yi*rho*(1-porosity) in their updateCoeffs().
             Ym_i.correctBoundaryConditions();
 
-            // Per-specie flux: zero on this specie's fixedYm patches
-            // (see the boundary-treatment note above).
             surfaceScalarField phiUsI(phiUs);
-            forAll(phiUsI.boundaryField(), patchI)
-            {
-                if
-                (
-                    isA<fixedYmFvPatchScalarField>
-                    (
-                        Ym_i.boundaryField()[patchI]
-                    )
-                )
-                {
-                    phiUsI.boundaryFieldRef()[patchI] = 0.0;
-                }
-            }
 
             volScalarField divYmFlux
             (
                 fvc::div(phiUsI, Ym_i, "div(phiSolid)")
             );
-
-            // Account the mass this step advects out through uncoupled
-            // boundary faces.  The boundary contribution of fvc::div
-            // above uses the same phiUsI and the refreshed Ym patch
-            // values, so this matches exactly what the equation removes
-            // from the domain.
-            scalar outflowRate = 0.0;
-            forAll(phiUsI.boundaryField(), patchI)
-            {
-                if (!mesh_.boundary()[patchI].coupled())
-                {
-                    const fvsPatchScalarField& phiP =
-                        phiUsI.boundaryField()[patchI];
-                    const fvPatchScalarField& YmP =
-                        Ym_i.boundaryField()[patchI];
-                    forAll(phiP, faceI)
-                    {
-                        outflowRate += phiP[faceI] * YmP[faceI];
-                    }
-                }
-            }
-            reduce(outflowRate, sumOp<scalar>());
-            cumulativeYmOutflow_ += outflowRate * time_.deltaTValue();
 
             fvScalarMatrix YmEqn
             (
@@ -792,128 +652,9 @@ void volPyrolysis::solveSpeciesMass()
             );
 
             YmEqn.relax();
-            YmEqn.solve("Ym");
-
-            // No whereIs_ masking: advection deposits a small halo of Ym
-            // into gas cells next to the solid interface.  Zeroing it
-            // would destroy that mass, so the halo is left in place to be
-            // transported onward (it advects with Us like any other Ym).
-
-            // The max(0) clip below is a safety net that CREATES mass when
-            // it fires.  With the TVD-limited flux acting on Ym itself
-            // pure advection only undershoots at round-off, but bed-motion
-            // cell flips put a discontinuity under the flux and clip a few
-            // 1e-14-kg-scale events per collapse (observed ~1.4e-6 of the
-            // 2e-7 kg inventory over 1100 steps on charOnlyMove/serial).
-            // The clipped mass is therefore accumulated across all
-            // timesteps and the run ABORTS once the total exceeds 1e-4 of
-            // the initial solid inventory: ~30x above the benign
-            // front-event accumulation, yet 3 orders of magnitude below
-            // any physically meaningful fabrication (the pre-Ym scheme
-            // silently created ~15%), so crossing the threshold means a
-            // genuine conservation violation that must not be silenced by
-            // clipping.
-            scalar clippedMassThisStep = 0.0;
-            forAll(mesh_.C(), cellI)
-            {
-                if (Ym_i[cellI] < 0.0)
-                {
-                    clippedMassThisStep -= Ym_i[cellI] * mesh_.V()[cellI];
-                }
-            }
-            reduce(clippedMassThisStep, sumOp<scalar>());
-            cumulativeYmClip_ += clippedMassThisStep;
-
-            // Before the budget diagnostic below has initialized
-            // initialTotalYmMass_ (first call, value still -1) the abort
-            // check is skipped; the clip still applies and the mass is
-            // already accumulated, so later steps see the full total.
-            if
-            (
-                initialTotalYmMass_ > SMALL
-             && cumulativeYmClip_/initialTotalYmMass_ > 1e-4
-            )
-            {
-                FatalErrorInFunction
-                    << "Cumulative mass created by max(0) clipping exceeds "
-                    << "tolerance." << nl
-                    << "  species = " << Ym_i.name() << nl
-                    << "  cumulative clipped = " << cumulativeYmClip_
-                    << " kg" << nl
-                    << "  fraction of initial = "
-                    << cumulativeYmClip_/initialTotalYmMass_
-                    << exit(FatalError);
-            }
-            else if (clippedMassThisStep > SMALL)
-            {
-                WarningInFunction
-                    << "max(0) clip on " << Ym_i.name()
-                    << " created " << clippedMassThisStep << " kg"
-                    << " (cumulative = " << cumulativeYmClip_ << " kg)"
-                    << endl;
-            }
+            YmEqn.solve("Ys");
 
             Ym_i.max(0.0);                       // mass concentration >= 0
-
-            // --- Transient consistency check: ddt(Ym) vs div+source ---
-            // fvm::ddt(Ym) uses oldTime() stored at the end of the previous
-            // step, but solvePorosity() has already updated porosity (hence
-            // rhoLoc) this step.  If the operator split double-counted the
-            // porosity shift, the domain-integrated ddt would drift away
-            // from the integrated div+source terms.  relImbalance normalises
-            // by the total Ym mass so it is comparable across species and
-            // meshes; values below 1e-3 mean the split is consistent.
-            // Verified at round-off (~1e-14) on the solidAdvection
-            // advection test, so the check only runs at debug level.
-            if (debug)
-            {
-                static scalar maxImbalance = 0.0;
-                static label  reportCount = 0;
-
-                scalar ddtIntegral = 0.0;
-                const volScalarField& YmOld = Ym_i.oldTime();
-                forAll(mesh_.C(), cellI)
-                {
-                    ddtIntegral +=
-                        (Ym_i[cellI] - YmOld[cellI])
-                      / mesh_.time().deltaT().value()
-                      * mesh_.V()[cellI];
-                }
-                reduce(ddtIntegral, sumOp<scalar>());
-
-                scalar divSrcIntegral = 0.0;
-                forAll(mesh_.C(), cellI)
-                {
-                    divSrcIntegral +=
-                        (sRhoSi[cellI] - divYmFlux[cellI]) * mesh_.V()[cellI];
-                }
-                reduce(divSrcIntegral, sumOp<scalar>());
-
-                scalar totalYm = 0.0;
-                forAll(mesh_.C(), cellI)
-                {
-                    totalYm += Ym_i[cellI] * mesh_.V()[cellI];
-                }
-                reduce(totalYm, sumOp<scalar>());
-
-                scalar relImbalance =
-                    (mag(totalYm) > SMALL)
-                  ? mag(ddtIntegral - divSrcIntegral) / mag(totalYm + SMALL)
-                  : 0.0;
-
-                if (relImbalance > maxImbalance)
-                {
-                    maxImbalance = relImbalance;
-                }
-
-                if (++reportCount % 10 == 0 || relImbalance > 1e-3)
-                {
-                    Info<< "    temporal balance: ddtSum=" << ddtIntegral
-                        << " divSrcSum=" << divSrcIntegral
-                        << " relImbalance=" << relImbalance
-                        << " (max=" << maxImbalance << ")" << endl;
-                }
-            }
 
             Info<< "solid " << Ys_[i].name()
                 << " equation solved. Sources min/max   = " << gMin(sRhoSi)
@@ -922,94 +663,33 @@ void volPyrolysis::solveSpeciesMass()
                 << " max Ym = " << gMax(Ym_[i]) << endl;
         }
 
-        // --- 2. Derive Yi from transported Ym for chemistry/thermo/output ---
         deriveYiFromYm();
 
-        // --- 3. Global integral solid-mass budget diagnostic ---
-        //
-        // For chemistry-OFF runs: compare total Ym mass across ALL cells
-        // to the initial total at t=0.  Drift beyond 0.1% flags a
-        // conservation leak (boundary flux, numerical diffusion out of the
-        // domain, or operator-split inconsistency).  The sum is taken over
-        // all cells, not just whereIs_ == 1: mass that diffuses into the
-        // one-cell gas halo is still in the domain and must be counted.
-        //
-        // For chemistry-ON runs the integral is NOT expected to stay
-        // constant (solid becomes gas), so the warning is a heads-up for
-        // manual inspection, not an error.
         scalar totalYmMass = 0.0;
-        forAll(mesh_.C(), cellI)
+        for (label i = 0; i < Ym_.size(); ++i)
         {
-            for (label i = 0; i < Ym_.size(); ++i)
-            {
-                totalYmMass += Ym_[i][cellI] * mesh_.V()[cellI];
-            }
+            totalYmMass += gSum(Ym_[i].field() * mesh_.V());
         }
-        reduce(totalYmMass, sumOp<scalar>());
-
-        // Lazy init on first call
-        if (initialTotalYmMass_ < 0.0)
-        {
-            initialTotalYmMass_ = totalYmMass;
-        }
-
-        // Credit the mass that legitimately left through the outlet:
-        // (in-domain + advected out) must equal the t=0 total.
-        scalar budgetRatio = (initialTotalYmMass_ > SMALL)
-            ? (totalYmMass + cumulativeYmOutflow_) / initialTotalYmMass_
-            : 1.0;
 
         Info<< "solid mass budget: sum(Ym_i * V) = " << totalYmMass
-            << "  (outflow = " << cumulativeYmOutflow_
-            << ", initial = " << initialTotalYmMass_
-            << ", ratio = " << budgetRatio << ")" << endl;
+            << ", initial = " << initialTotalYmMass_ << endl;
 
-        if (mag(budgetRatio - 1.0) > 0.001)
-        {
-            WarningInFunction
-                << "Solid mass budget deviation exceeds 0.1%: "
-                << budgetRatio << endl;
-        }
 
-        // Complement: derived Yi must sum to one in solid cells
-        scalar maxYiSumError = 0.0;
-        forAll(whereIs_, cellI)
-        {
-            if (whereIs_[cellI] == 1)
-            {
-                scalar YiSum = 0.0;
-                for (label i = 0; i < Ys_.size(); ++i)
-                {
-                    YiSum += Ys_[i][cellI];
-                }
-                maxYiSumError = max(maxYiSumError, mag(YiSum - 1.0));
-            }
-        }
-        reduce(maxYiSumError, maxOp<scalar>());
-        if (maxYiSumError > 1e-6)
-        {
-            WarningInFunction
-                << "Yi sum deviates from 1.0 by " << maxYiSumError << endl;
-        }
-
-        // --- 4. Report derived Yi ---
         for (label i = 0; i < Ys_.size(); ++i)
         {
             Info<< "       derived " << Ys_[i].name()
-                << " min/max = " << gMin(Ys_[i]) << " / " << gMax(Ys_[i])
-                << "  (budget ratio = " << budgetRatio << ")" << endl;
+                << " min/max = " << gMin(Ys_[i]) << " / " << gMax(Ys_[i]) << endl;
         }
     }
 }
 
-
-void volPyrolysis::solveEnergy()
+void volPyrolysis::preSolveEnergy()
 {
 // eqZx2uHGn047
 
     if (debug)
     {
-        Info<< "volPyrolysis::solveEnergy()" << endl;
+        Info<< "volPyrolysis::preSolveEnergy()" << endl;
     }
 
     if (active_)
@@ -1023,29 +703,33 @@ void volPyrolysis::solveEnergy()
         else
         {
 
-            solidThermo_.correct(); // eqZx2uHGn046
-
+            volScalarField totalYm = 0*Ym_[0];
+            for (label i = 0; i < Ys_.size(); ++i)
+            {
+                totalYm += Ym_[i];
+            }
             volScalarField rhoCp
             (
                 max
                 (
-                    rho_ * solidThermo_.Cp() * (1 - porosity_),
+                    whereIs_*totalYm * solidThermo_.Cp(),
                     dimensionedScalar("minRhoCp",dimEnergy/dimTemperature/dimVolume,SMALL)
                 )
             );
 
+            T_ = solidH_()/rhoCp;
+            T_.correctBoundaryConditions();
+
             whereIs_.correctBoundaryConditions();
-            surfaceScalarField  whereIsPatch  = fvc::interpolate(whereIs_);
             whereIsNot_.correctBoundaryConditions();
-            volVectorField whereIsNotGrad = fvc::grad(whereIsNot_);        
+            surfaceScalarField  whereIsPatch  = fvc::interpolate(whereIs_);
 
             volScalarField heatTransfField = whereIs_*heatTransfer()();
-            volScalarField rhoCpG(gasThermo_.rho() * gasThermo_.Cp() * porosity_);
 
             // Simplistic immersed boundary for heat transport in solid phase.
             fvScalarMatrix TLap
             (
-                fvm::laplacian(composedK * pow(rhoCp,-1), solidH_())
+                fvm::laplacian(composedK, T_)
             );
  
             // Setting face fluxes on the border of porous media to 0.
@@ -1081,57 +765,105 @@ void volPyrolysis::solveEnergy()
             // media and negiligble inside porous media in relevant cases.
             TLap.source() = 0.;
 
-            surfaceScalarField solidFlux =  mesh_.Sf() & fvc::interpolate(Us_);
-
             fvScalarMatrix TEqn
             (
-                fvm::ddt(solidH_())
-              - TLap
+                fvm::ddt(rhoCp,T_)
+              - TLap                                                  
             ==
-              - fvc::div(solidFlux , solidH_(),"div(phiRhoCp)")
-            //    chemistrySh_ // eqZx2uHGn004, eqZx2uHGn017
-            //  - heatTransfField // eqZx2uHGn005
-            //  - heatUpGas_
-            //  + radiationSh_
+                chemistrySh_ // eqZx2uHGn004, eqZx2uHGn017
+              - heatTransfField // eqZx2uHGn005
+              - heatUpGas_
+              + radiationSh_
             );
 
             TEqn.relax();
             TEqn.solve();
 
-            T_ =  whereIs_*solidH_()/rhoCp;
+            volScalarField patchedSolidH = (rhoCp*T_);
+            solidH_().ref() = patchedSolidH;
+            solidH_().correctBoundaryConditions();
+
+            surfaceScalarField solidFlux =  mesh_.Sf() & fvc::interpolate(Us_);
+           
+            dimensionedScalar ovDt = pow(time_.deltaT(),-1);
+            fvScalarMatrix sHEqn
+            (
+                fvm::Sp(ovDt,solidH_()) - ovDt*solidH_()
+              + fvc::div( solidFlux, solidH_(),"div(phiSolid)")
+            );
+
+            sHEqn.relax();
+            sHEqn.solve();
+
+            solidH_().max(0);
+            solidH_().correctBoundaryConditions();
 
         }
+    }
+}
 
-        scalar minTemp = GREAT;
-        scalar maxTemp = -GREAT;
-        scalar areThere = 0;
+void volPyrolysis::postSolveEnergy()
+{
+// eqZx2uHGn047
 
-        forAll(T_,cellI)
-        {
-            if (whereIs_[cellI] == 1 )
-            {
-                areThere = 1;
-                if (T_[cellI] < minTemp)
-                {
-                    minTemp = T_[cellI];
-                }
-                if (T_[cellI] > maxTemp)
-                {
-                    maxTemp = T_[cellI];
-                }
-            }
-        }
-        reduce(maxTemp, maxOp<scalar>());
-        reduce(minTemp, minOp<scalar>());
-        reduce(areThere, maxOp<scalar>());
+    if (debug)
+    {
+        Info<< "volPyrolysis::postSolveEnergy()" << endl;
+    }
 
-        if (areThere == 1)
-        {
-            Info<< " pyrolysis min/max(T) = " << minTemp << ", " << maxTemp << endl;
-        }
+    if (active_)
+    {
+
+        if (equilibrium_)
+        {}
         else
         {
-            Info<< " no solid phase " << endl;
+            volScalarField totalYm = 0*Ym_[0];
+            for (label i = 0; i < Ys_.size(); ++i)
+            {
+                totalYm += Ym_[i];
+            }
+            solidThermo_.correct(); // eqZx2uHGn046
+            volScalarField rhoCp
+            (
+                max
+                (
+                    totalYm * solidThermo_.Cp(),
+                    dimensionedScalar("minRhoCp",dimEnergy/dimTemperature/dimVolume,SMALL)
+                )
+            );
+            T_ = whereIs_*solidH_()/rhoCp;
+            T_.correctBoundaryConditions();
+
+            scalar minTemp = GREAT;
+            scalar maxTemp = -GREAT;
+            scalar areThere = 0;
+            forAll(T_,cellI)
+            {
+                if (whereIs_[cellI] == 1 )
+                {
+                    areThere = 1;
+                    if (T_[cellI] < minTemp)
+                    {
+                        minTemp = T_[cellI];
+                    }
+                    if (T_[cellI] > maxTemp)
+                    {
+                        maxTemp = T_[cellI];
+                    }
+                }
+            }
+            reduce(maxTemp, maxOp<scalar>());
+            reduce(minTemp, minOp<scalar>());
+            reduce(areThere, maxOp<scalar>());
+            if (areThere == 1)
+            {
+                Info<< " pyrolysis min/max(T) = " << minTemp << ", " << maxTemp << endl;
+            }
+            else
+            {
+                Info<< " no solid phase " << endl;
+            }
         }
     }
 }
@@ -1402,7 +1134,7 @@ volPyrolysis::volPyrolysis
     totalGasMassFlux_(dimensionedScalar("zero", dimMass/dimTime, 0.0)),
     totalHeatRR_(dimensionedScalar("zero", dimEnergy/dimTime, 0.0)),
     timeChem_(1.0),
-    initialTotalYmMass_(-1.0),  // -1 = not yet computed; lazily initialized
+    initialTotalYmMass_(0.0),  // -1 = not yet computed; lazily initialized
     cumulativeYmOutflow_(0.0),
     cumulativeYmClip_(0.0)
 {
@@ -1476,6 +1208,8 @@ volPyrolysis::volPyrolysis
                 * rho_.boundaryField()[patchI]
                 * (1.0 - porosity_.boundaryField()[patchI]);
           }
+
+          initialTotalYmMass_ += gSum(Ym_[fieldI].field() * mesh_.V());
     }
 
     const volScalarField::Boundary& tbf = T_.boundaryField();
@@ -1710,9 +1444,11 @@ void volPyrolysis::evolveRegion()
     chemistrySh_ = solidChemistry_->Sh()(); // eqZx2uHGn004
     heatUpGas_ = heatUpGasCalc()();
 
-    solvePorosity();    // bed motion + porosity PDE
-    solveSpeciesMass(); // Ym transport + derive Yi
-    solveEnergy();      // solid temperature/enthalpy
+    preSolveEnergy(); 
+    solveSpeciesMass(); 
+    postSolveEnergy();
+
+    solvePorosity();    
 
     calculateMassTransfer();
     info();
