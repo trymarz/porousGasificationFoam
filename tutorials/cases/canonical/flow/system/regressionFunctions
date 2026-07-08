@@ -1,0 +1,59 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     |                                                 |
+|   \\  /    A nd           |                                                 |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+
+regressionBase
+{
+    type            volFieldValue;
+    libs            (fieldFunctionObjects);
+    regionType      all;
+    postOperation   none;
+    weightField     none;
+    writeFields     false;
+    writePrecision  10;
+    writeToFile     true;
+    log             false;
+    enabled         false;
+    executeControl  timeStep;
+    executeInterval 1;
+    writeControl    writeTime;
+    writeInterval   -1;
+}
+
+regressionPAverage
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (p);
+    operation       volAverage;
+}
+
+regressionPMin
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (p);
+    operation       min;
+}
+
+regressionPMax
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (p);
+    operation       max;
+}
+
+regressionUAverage
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (U);
+    operation       volAverage;
+}
+
+// ************************************************************************* //

@@ -1,0 +1,16 @@
+species
+(
+    N2 O2 CO CO2
+);
+
+reactions
+{
+    OxidationOfCarbonMonoxide
+    {
+        type     irreversibleArrheniusReaction;
+        reaction "2 CO + O2 = 2 CO2";
+        A        1e10;
+        beta     0;
+        Ta       15155.16;
+    }
+}
