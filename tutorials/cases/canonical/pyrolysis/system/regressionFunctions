@@ -24,11 +24,11 @@ regressionBase
     writeInterval   -1;
 }
 
-regressionTsAverage
+regressionAverage
 {
     ${regressionBase}
     enabled         true;
-    fields          (Ts);
+    fields          (Ts targas);
     operation       volAverage;
 }
 
@@ -62,14 +62,6 @@ regressionWoodIntegral
     enabled         true;
     fields          (Ywood);
     operation       volIntegrate;
-}
-
-regressionTargasAverage
-{
-    ${regressionBase}
-    enabled         true;
-    fields          (targas);
-    operation       volAverage;
 }
 
 // ************************************************************************* //
