@@ -20,3 +20,7 @@ tutorials/cases/canonical/pyrolysis           fast
 tutorials/cases/canonical/gasification        fast
 tutorials/cases/canonical/radiation           fast
 tutorials/cases/canonical/flow                fast
+tutorials/cases/canonical/stoichiometric      fast
+tutorials/cases/canonical/enthalpy            fast
+tutorials/cases/canonical/meanTemp            fast
+tutorials/cases/canonical/emptyST             fast
