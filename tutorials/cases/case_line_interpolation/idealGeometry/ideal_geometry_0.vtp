@@ -1,0 +1,134 @@
+<?xml version="1.0"?>
+<VTKFile type="PolyData" version="0.1" byte_order="LittleEndian">
+  <PolyData>
+    <Piece NumberOfPoints="9" NumberOfVerts="9" NumberOfLines="12">
+      <Points>
+        <DataArray type="Float32" NumberOfComponents="3" format="ascii">
+          0.0 0.0 0.0
+          -0.003 -0.003 -0.003
+          -0.003 -0.003 0.003
+          -0.003 0.003 -0.003
+          -0.003 0.003 0.003
+          0.003 -0.003 -0.003
+          0.003 -0.003 0.003
+          0.003 0.003 -0.003
+          0.003 0.003 0.003
+        </DataArray>
+      </Points>
+      <Verts>
+        <DataArray type="Int32" Name="connectivity" format="ascii">
+          0
+          1
+          2
+          3
+          4
+          5
+          6
+          7
+          8
+        </DataArray>
+        <DataArray type="Int32" Name="offsets" format="ascii">
+          1
+          2
+          3
+          4
+          5
+          6
+          7
+          8
+          9
+        </DataArray>
+      </Verts>
+      <Lines>
+        <DataArray type="Int32" Name="connectivity" format="ascii">
+          1 2
+          1 3
+          1 5
+          2 4
+          2 6
+          3 4
+          3 7
+          4 8
+          5 6
+          5 7
+          6 8
+          7 8
+        </DataArray>
+        <DataArray type="Int32" Name="offsets" format="ascii">
+          2
+          4
+          6
+          8
+          10
+          12
+          14
+          16
+          18
+          20
+          22
+          24
+        </DataArray>
+      </Lines>
+      <PointData Scalars="radius">
+        <DataArray type="Float32" Name="radius" format="ascii">
+          0.00075
+          0.00075
+          0.00075
+          0.00075
+          0.00075
+          0.00075
+          0.00075
+          0.00075
+          0.00075
+        </DataArray>
+        <DataArray type="Int32" Name="bodyID" format="ascii">
+          0
+          1
+          2
+          3
+          4
+          5
+          6
+          7
+          8
+        </DataArray>
+        <DataArray type="Int32" Name="role" format="ascii">
+          0
+          1
+          1
+          1
+          1
+          1
+          1
+          1
+          1
+        </DataArray>
+      </PointData>
+      <CellData Scalars="cellType">
+        <DataArray type="Int32" Name="cellType" format="ascii">
+          0
+          0
+          0
+          0
+          0
+          0
+          0
+          0
+          0
+          1
+          1
+          1
+          1
+          1
+          1
+          1
+          1
+          1
+          1
+          1
+          1
+        </DataArray>
+      </CellData>
+    </Piece>
+  </PolyData>
+</VTKFile>
