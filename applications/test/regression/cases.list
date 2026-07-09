@@ -23,4 +23,4 @@ tutorials/cases/canonical/flow                fast
 tutorials/cases/canonical/stoichiometric      fast
 tutorials/cases/canonical/enthalpy            fast
 tutorials/cases/canonical/meanTemp            fast
-tutorials/cases/canonical/emptyST             fast
+tutorials/cases/canonical/noSubintegration    fast
