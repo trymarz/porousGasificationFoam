@@ -114,7 +114,11 @@ int main(int argc, char *argv[])
         if (DEM)
         {
             vGrad = fvc::grad(U);
-            lambdaDotUpdater->update();
+            // updateParticleFields() pushes lambdaDot and Us computed in
+            // the previous timestep's pyrolysisZone.evolve() onto the
+            // particles: a known one-timestep lag, pre-existing for Us
+            // and accepted for lambdaDot as well.
+            lambdaDotUpdater->updateParticleFields();
             yadeCoupling->setParticleAction(runTime.deltaT().value());
             lambdaDotUpdater->writeParticlesData();
             yadeCoupling->setSourceZero();

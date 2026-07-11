@@ -7,47 +7,15 @@ FoamFile
     object      lambdaDict;
 }
 
-
-lambdaMode constant; // or Ts  or constant
-lambdaValue 0.5;
-
-
-// lambdaDot
-// {
-//     type coded;
-//     code
-//     #{
-//         return 0.1*sin(x);
-//     #};
-// }
-
-
-// lambdaDot
-// {
-//     type coded;
-//     code
-//     #{
-//         const scalar factor = 10;
-//         return factor*x;
-//     #};
-// }
-
-
-lambdaDot
-{
-    type coded;
-    code
-    #{
-        
-        return 0.001*x;
-    #};
-}
+// lambdaDot is no longer prescribed here: the solver (volPyrolysis) computes
+// it from the dlambdaOverDTs/massSplitBetweenLamAndPor coefficients in
+// constant/solidThermophysicalProperties.
 
 
 interpolateUs true; // true: interpolate UsDEM into a continuous Us field inside solid cells. false: use only raw UsDEM, so cells without sphere centers keep Us = 0.
 
-interpolationMode laplaceAnchored; //laplaceAnchored; 
-// laplaceAnchored: current soft anchored solve. 
+interpolationMode laplaceAnchored; //laplaceAnchored;
+// laplaceAnchored: current soft anchored solve.
 // laplaceSetValues: pgfVeloInt hard setValues Laplace solve.
 
 
@@ -64,13 +32,3 @@ nLaplaceSetValuesCorrectors 0; // 0: no extra corrector. 1 or more: extra pseudo
         backgroundUsAnchorCoeff 1e-12; // small regularization for empty solid cells so the interpolation equation remains well posed. Larger value: empty solid cells are weakly pulled toward zero. Smaller value: interpolation spreads more freely from DEM cells.
 
         nUsInterpolationCorrectors 2; // Number of interpolation/smoothing solves used to fill Us in solid cells without particles. Larger value: smoother and more diffused Us field. Smaller value: sharper, more local interpolation.
-
-
-
-
-
-
-
-
-
-

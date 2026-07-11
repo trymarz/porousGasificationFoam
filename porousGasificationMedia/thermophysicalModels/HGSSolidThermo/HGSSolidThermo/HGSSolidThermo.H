@@ -83,8 +83,26 @@ protected:
 
             //- Emissivity coeffcient []
             volScalarField emissivity_;
-            
-            
+
+        // DEM lambda/porosity split coefficients. Case-wide constants
+        // for v1, read from solidThermophysicalProperties; the seam for
+        // a future (Ts, Ym)-dependent replacement is
+        // volPyrolysis::dlambdaOverDTsValue()/massSplitBetweenLamAndPorValue(). Only consumed
+        // when DEM coupling is active.
+
+            //- Temperature-driven coefficient of the DEM particle
+            //  length-scale rate, lambdaDot += dlambdaOverDTs*dTs/dt [m/K].
+            //  Default 0.
+            scalar dlambdaOverDTs_;
+
+            //- Fraction (in [0,1]) of a chemistry-driven solid mass
+            //  change that manifests as particle shrinkage (lambda);
+            //  the remaining (1 - massSplitBetweenLamAndPor) becomes pore space.
+            //  Default 0 = all mass change becomes porosity, which
+            //  reproduces the pre-split behaviour exactly.
+            scalar massSplitBetweenLamAndPor_;
+
+
     // Protected Member Functions
 
         //- Construct as copy (not implemented)
@@ -209,6 +227,12 @@ public:
 
             //- non-const access for rho
             volScalarField& rho();
+
+            //- Temperature-driven DEM lambda rate coefficient [m/K]
+            scalar dlambdaOverDTs() const;
+
+            //- DEM mass-change split coefficient lambda vs porosity []
+            scalar massSplitBetweenLamAndPor() const;
 
 
         // Derived thermal properties

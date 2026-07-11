@@ -84,6 +84,26 @@ volScalarField lambdaDot // lambdaDot: rate of change of per-particle lambda (co
     dimensionedScalar("0", dimless, 0)
 );
 
+// lambda: integrated DEM particle characteristic length scale, advanced by
+// volPyrolysis::updateCurrentLambda() as lambda += lambdaDot*dt. Unlike the
+// rate lambdaDot (recomputed every step), this is genuine integrated state,
+// so it is read back on restart. The default 1.0 matches YADE's convention
+// for an unstretched spring (MPI_lambda.py) and keeps the 1/lambda^2 term
+// in volPyrolysis finite before a first restart write exists.
+volScalarField lambda
+(
+    IOobject
+    (
+        "lambda",
+        runTime.timeName(),
+        mesh,
+        IOobject::READ_IF_PRESENT,
+        IOobject::AUTO_WRITE
+    ),
+    mesh,
+    dimensionedScalar("one", dimless, 1.0)
+);
+
 
 volVectorField divT(
     IOobject(

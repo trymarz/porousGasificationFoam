@@ -206,6 +206,26 @@ protected:
         //  0/Us. The solid mass flux and porosity advection consume it.
         const volVectorField& Us_;
 
+    // DEM (YADE) coupling — lambda/porosity exact-differential split
+
+        //- True when DEM coupling is active for this case: the
+        //  yadeProperties dictionary has active=true AND the solver
+        //  registered the DEM fields lambdaDot/lambda (i.e. it was built
+        //  with WITH_YADE=1). Resolved once at construction. This is a
+        //  runtime check on purpose: this library is compiled without any
+        //  WITH_YADE flag, so it must never use #ifdef for DEM detection.
+        bool demActive_;
+
+        //- Rate of change of the DEM particle characteristic length
+        //  scale [m/s], registered by the solver (createDEMFields.H).
+        //  Computed here in solveSpeciesMass(), pushed onto the YADE
+        //  particles by lambdaDotModel. Null when !demActive_.
+        volScalarField* lambdaDotPtr_;
+
+        //- Integrated DEM particle length scale (shadow field, see
+        //  updateCurrentLambda()). Null when !demActive_.
+        volScalarField* lambdaPtr_;
+
     // Checks
 
         //- Cumulative lost mass of the condensed phase [kg]
@@ -266,6 +286,27 @@ protected:
 
             //- Evolve porosity field
             void solvePorosity();
+
+        // DEM lambda/porosity split
+
+            //- Temperature coefficient dlambdaOverDTs [m/K] in a given cell.
+            //  v1 forwards the case-wide constant from solidThermo; the
+            //  cell argument is the seam for a future (Ts, Ym)-dependent
+            //  formulation.
+            scalar dlambdaOverDTsValue(const label cellI) const;
+
+            //- Mass-change split coefficient massSplitBetweenLamAndPor []
+            //  in a given cell. v1 forwards the case-wide constant from
+            //  solidThermo.
+            scalar massSplitBetweenLamAndPorValue(const label cellI) const;
+
+            //- Advance the shadow lambda field: lambda += lambdaDot*dt.
+            //  OpenFOAM never receives the integrated lambda back from
+            //  YADE (the true value lives in YADE's per-spring Python-side
+            //  integration), so the same rate is integrated here. Replace
+            //  the body of this function with a real pull-back once
+            //  yade-pgf-trunk sends lambda to OpenFOAM.
+            void updateCurrentLambda();
 
 public:
 

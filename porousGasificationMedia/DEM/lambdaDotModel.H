@@ -6,13 +6,16 @@
 #include "autoPtr.H"
 #include "fvMesh.H"
 #include "FoamYade.H"
-#include "Function1.H"
 
 namespace Foam
 {
 
 class UsInterpolationModel;
 
+// Aggregates per-cell particle data from YADE (particle counts, sphere
+// velocities, the interpolated Us field) and pushes the cell lambdaDot
+// values onto the YADE particles. lambdaDot itself is computed by
+// volPyrolysis (dlambdaOverDTs/massSplitBetweenLamAndPor exact-differential split), not here.
 class lambdaDotModel
 {
 private:
@@ -23,9 +26,6 @@ private:
     volVectorField& Us_;    // interpolated sphere velocity
     volScalarField& porosityF_;   // porosity field  get from the main solver
     FoamYade& yade_;
-
-    word lambdaMode_;  // to switch between single value or function
-    scalar lambdaValue_;
 
     // DasteXar interpolation Us from UsDEM (June 12 2026)
     Switch interpolateUs_;
@@ -38,8 +38,6 @@ private:
     DynamicList<label> movedFromCells_;
     DynamicList<label> movedToCells_;
     //
-
-    autoPtr<Function1<scalar>> lambdaFunc_;  // to read lambdaFunction from constant/lambdaDict
 
 public:
     lambdaDotModel
@@ -55,7 +53,6 @@ public:
 
     ~lambdaDotModel();
 
-    void updateLambdaDot();
     void updateParticleFields();
 
     const DynamicList<label>& movedFromCells() const;
