@@ -75,6 +75,13 @@ solvers
         tolerance        1e-12;
         relTol           1e-7;
     }
+    solidH
+    {
+        solver           PCG;
+        preconditioner   DIC;
+        tolerance        1e-12;
+        relTol           1e-7;
+    }
     rhos
     {
         solver          PBiCG;
