@@ -47,8 +47,8 @@ if [ "${#CASE_LINES[@]}" -eq 0 ]; then
     exit 0
 fi
 
-[ "$SHORT_RUN" -eq 1 ] && export YADE_NSTEPS=200
-[ "$SHORT_RUN" -eq 1 ] && export YADE_TIMEOUT=300
+[ "$SHORT_RUN" -eq 1 ] && export YADE_NSTEPS="${YADE_NSTEPS:-200}"
+[ "$SHORT_RUN" -eq 1 ] && export YADE_TIMEOUT="${YADE_TIMEOUT:-300}"
 
 clog INFO "=================================================="
 clog INFO "  PGF Yade regression suite"
