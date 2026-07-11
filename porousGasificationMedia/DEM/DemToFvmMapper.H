@@ -1,18 +1,21 @@
-#ifndef DemToFvmMapper_H
-#define DemToFvmMapper_H
+#ifndef lambdaDotModel_H
+#define lambdaDotModel_H
 
 #include "DynamicList.H"
 #include "Map.H"
 #include "autoPtr.H"
 #include "fvMesh.H"
 #include "PgfToYadeMpiCoupler.H"
-#include "LambdaDotCalculationModel.H"
 
 namespace Foam
 {
 
 class UsInterpolationModel;
 
+// Aggregates per-cell particle data from YADE (particle counts, sphere
+// velocities, the interpolated Us field) and pushes the cell lambdaDot
+// values onto the YADE particles. lambdaDot itself is computed by
+// volPyrolysis (dlambdaOverDTs/massSplitBetweenLamAndPor exact-differential split), not here.
 class DemToFvmMapper
 {
 private:
@@ -22,7 +25,7 @@ private:
     volVectorField& UsDEM_;     // velocity of spheres
     volVectorField& Us_;    // interpolated sphere velocity
     volScalarField& porosityF_;   // porosity field  get from the main solver
-    PgfToYadeMpiCoupler& pgfToYadeCoupler_;
+    PgfToYadeMpiCoupler& yade_;
 
     // DasteXar interpolation Us from UsDEM (June 12 2026)
     Switch interpolateUs_;
@@ -36,11 +39,8 @@ private:
     DynamicList<label> movedToCells_;
     //
 
-    // Runtime-selected lambdaDot calculation model: constant, Ts, or dTsdt.
-    autoPtr<LambdaDotCalculationModel> lambdaDotCalculationModel_;
-
 public:
-    DemToFvmMapper
+    lambdaDotModel
     (
         const fvMesh& mesh,
         volScalarField& lambdaDot,
@@ -48,18 +48,17 @@ public:
         volVectorField& UsDEM,   // velocity of spheres
         volVectorField& Us, // interpolated sphere velocity
         volScalarField& porosityF, // porosity field  get from the main solver
-        PgfToYadeMpiCoupler& pgfToYadeCoupler
+        PgfToYadeMpiCoupler& yade
     );
 
-    ~DemToFvmMapper();
+    ~lambdaDotModel();
 
-    void updateLambdaDot();
     void aggregateDemDataIntoFvmFields();
 
     const DynamicList<label>& movedFromCells() const;
     const DynamicList<label>& movedToCells() const;
 
-    void writeParticlesDataToFile() const;  // to write ParticlesData.txt in each time step for each rank
+    void writeParticlesData() const;  // to write ParticlesData.txt in each time step for each rank
 };
 
 } // namespace Foam

@@ -84,11 +84,10 @@ protected:
             //- Emissivity coeffcient []
             volScalarField emissivity_;
 
-        // DEM lambda/porosity split coefficients, read from
-        // solidThermophysicalProperties. These are now also read directly
-        // from the same dictionary by exactDifferentialLambdaDot (the model
-        // that consumes them); the copies here are retained for external
-        // access and are not used by the pyrolysis solve. Only meaningful
+        // DEM lambda/porosity split coefficients. Case-wide constants
+        // for v1, read from solidThermophysicalProperties; the seam for
+        // a future (Ts, Ym)-dependent replacement is
+        // volPyrolysis::dlambdaOverDTsValue()/massSplitBetweenLamAndPorValue(). Only consumed
         // when DEM coupling is active.
 
             //- Temperature-driven coefficient of the DEM particle

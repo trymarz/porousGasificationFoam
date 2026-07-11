@@ -1,30 +1,32 @@
-#include "DemToFvmMapper.H"
+#include "lambdaDotModel.H"
 #include "UsInterpolationModel.H"
 #include "IOdictionary.H"
-#include "LambdaDotCalculationModel.H"
 
 namespace Foam
 {
 
-DemToFvmMapper::DemToFvmMapper
+DemToFvmMapper::lambdaDotModel
 (
     const fvMesh& mesh,
     volScalarField& lambdaDot,
     volScalarField& nParticles,
-    volVectorField& UsDEM,
-    volVectorField& Us,
+    volVectorField& UsDEM,  // velocity of spheres
+    volVectorField& Us, // interpolated velocity of spheres
     volScalarField& porosityF,
-    PgfToYadeMpiCoupler& pgfToYadeCoupler
+    PgfToYadeMpiCoupler& yade
 )
 :
     mesh_(mesh),
     lambdaDot_(lambdaDot),
     nParticles_(nParticles),
-    UsDEM_(UsDEM),
+    UsDEM_(UsDEM), // velocity of spheres
     Us_(Us),
     porosityF_(porosityF),
     pgfToYadeCoupler_(pgfToYadeCoupler),
-    lambdaDotCalculationModel_(nullptr),
+
+    //DasteXar for interpolation of UsDEM into Us
+    interpolateUs_(true),
+    solidPorosityCutoff_(1)
 {
     IOdictionary lambdaDict
     (
@@ -38,12 +40,7 @@ DemToFvmMapper::DemToFvmMapper
         )
     );
 
-    // Select the lambdaDot calculation model from constant/lambdaDict.
-    // Valid lambdaMode entries are: constant, Ts, dTsdt.
-    lambdaDotCalculationModel_ =
-        LambdaDotCalculationModel::New(lambdaDict, mesh_, lambdaDot_);
-
-    // Keep the existing Us interpolation behavior controlled by lambdaDict.
+    //DasteXar interpolation
     interpolateUs_ =
         lambdaDict.lookupOrDefault<Switch>("interpolateUs", true);
 
@@ -62,33 +59,15 @@ DemToFvmMapper::DemToFvmMapper
             porosityF_
         );
     }
+
+    // ta inja
 }
 
 
-<<<<<<< HEAD:porousGasificationMedia/DEM/DemToFvmMapper.C
-DemToFvmMapper::~DemToFvmMapper() = default;
+DemToFvmMapper::~lambdaDotModel() = default;
 
 
-void DemToFvmMapper::updateLambdaDot()
-=======
-void lambdaDotModel::updateLambdaDot()
->>>>>>> 73be57b (lambdaDot models updated):porousGasificationMedia/DEM/lambdaDotModel.C
-{
-    // Valid lambdaMode entries in constant/lambdaDict are:
-    // constant, Ts, dTsdt.
-    lambdaDotCalculationModel_->calculate();
-
-    lambdaDot_.correctBoundaryConditions();
-}
-
-
-<<<<<<< HEAD:porousGasificationMedia/DEM/DemToFvmMapper.C
 void DemToFvmMapper::aggregateDemDataIntoFvmFields()
-=======
-lambdaDotModel::~lambdaDotModel() = default;
-
-void lambdaDotModel::updateParticleFields()
->>>>>>> 73be57b (lambdaDot models updated):porousGasificationMedia/DEM/lambdaDotModel.C
 {
     // count particles per cell
     // and sum velocities per cell
@@ -201,7 +180,7 @@ void lambdaDotModel::updateParticleFields()
 //-------------------------
 
 
-void DemToFvmMapper::writeParticlesDataToFile() const
+void DemToFvmMapper::writeParticlesData() const
 {
     if (!mesh_.time().outputTime()) return;
 

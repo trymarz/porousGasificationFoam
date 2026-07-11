@@ -122,6 +122,8 @@ Foam::HGSSolidThermo::HGSSolidThermo
         dimless
     )
 {
+    dlambdaOverDTs_ = lookupOrDefault<scalar>("dlambdaOverDTs", 0.0);
+    massSplitBetweenLamAndPor_ = lookupOrDefault<scalar>("massSplitBetweenLamAndPor", 0.0);
 }
 
 
@@ -210,6 +212,8 @@ Foam::HGSSolidThermo::HGSSolidThermo
         dimless
     )
 {
+    dlambdaOverDTs_ = lookupOrDefault<scalar>("dlambdaOverDTs", 0.0);
+    massSplitBetweenLamAndPor_ = lookupOrDefault<scalar>("massSplitBetweenLamAndPor", 0.0);
 }
 
 Foam::HGSSolidThermo::HGSSolidThermo
@@ -297,6 +301,8 @@ Foam::HGSSolidThermo::HGSSolidThermo
         dimless
     )
 {
+    dlambdaOverDTs_ = lookupOrDefault<scalar>("dlambdaOverDTs", 0.0);
+    massSplitBetweenLamAndPor_ = lookupOrDefault<scalar>("massSplitBetweenLamAndPor", 0.0);
 }
 
 // * * * * * * * * * * * * * * * * Destructor  * * * * * * * * * * * * * * * //
@@ -333,6 +339,18 @@ const Foam::volScalarField& Foam::HGSSolidThermo::rho() const
 Foam::volScalarField& Foam::HGSSolidThermo::rho()
 {
     return rho_;
+}
+
+
+Foam::scalar Foam::HGSSolidThermo::dlambdaOverDTs() const
+{
+    return dlambdaOverDTs_;
+}
+
+
+Foam::scalar Foam::HGSSolidThermo::massSplitBetweenLamAndPor() const
+{
+    return massSplitBetweenLamAndPor_;
 }
 
 

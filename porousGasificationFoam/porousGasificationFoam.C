@@ -113,10 +113,11 @@ int main(int argc, char *argv[])
         #ifdef WITH_YADE
         if (demActive)
         {
-            // STEP 1 (PGF -> DEM): update the lambdaDot field, then exchange
-            // with YADE -- receive particle kinematics, locate the spheres on
-            // the fluid mesh, and send back per-particle lambdaDot
-            demToFvmMapper->updateLambdaDot();
+            vGrad = fvc::grad(U);
+
+            // STEP 1 (PGF -> DEM): exchange with YADE -- receive particle
+            // kinematics, locate the spheres on the fluid mesh, and send
+            // back per-particle lambdaDot (computed in volPyrolysis)
             pgfToYadeCoupler->exchangeParticleDataWithYade(runTime.deltaT().value());
 
             // STEP 3 (DEM -> PGF): aggregate located sphere data into the
