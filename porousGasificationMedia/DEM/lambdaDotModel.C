@@ -1,6 +1,7 @@
 #include "lambdaDotModel.H"
 #include "UsInterpolationModel.H"
 #include "IOdictionary.H"
+#include "LambdaDotCalculationModel.H"
 
 namespace Foam
 {
@@ -10,8 +11,8 @@ lambdaDotModel::lambdaDotModel
     const fvMesh& mesh,
     volScalarField& lambdaDot,
     volScalarField& nParticles,
-    volVectorField& UsDEM,  // velocity of spheres
-    volVectorField& Us, // interpolated velocity of spheres
+    volVectorField& UsDEM,
+    volVectorField& Us,
     volScalarField& porosityF,
     FoamYade& yade
 )
@@ -19,37 +20,13 @@ lambdaDotModel::lambdaDotModel
     mesh_(mesh),
     lambdaDot_(lambdaDot),
     nParticles_(nParticles),
-    UsDEM_(UsDEM), // velocity of spheres
+    UsDEM_(UsDEM),
     Us_(Us),
     porosityF_(porosityF),
     yade_(yade),
-    lambdaMode_("constant"),
-    lambdaValue_(0.0),
-
-    //DasteXar for interpolation of UsDEM into Us
     interpolateUs_(true),
     solidPorosityCutoff_(1),
-
-    // to read lambda function from constant/lambdaDict
-    lambdaFunc_
-    (
-        Function1<scalar>::New
-        (
-            "lambdaDot",
-            IOdictionary
-            (
-                IOobject
-                (
-                    "lambdaDict",
-                    mesh.time().constant(),
-                    mesh,
-                    IOobject::MUST_READ,
-                    IOobject::NO_WRITE
-                )
-            ),
-            &mesh
-        )
-    )
+    lambdaDotCalculationModel_(nullptr)
 {
     IOdictionary lambdaDict
     (
@@ -63,13 +40,12 @@ lambdaDotModel::lambdaDotModel
         )
     );
 
-    lambdaMode_ =
-        lambdaDict.lookupOrDefault<word>("lambdaMode", "constant");
+    // Select the lambdaDot calculation model from constant/lambdaDict.
+    // Valid lambdaMode entries are: constant, Ts, dTsdt.
+    lambdaDotCalculationModel_ =
+        LambdaDotCalculationModel::New(lambdaDict, mesh_, lambdaDot_);
 
-    lambdaValue_ =
-        lambdaDict.lookupOrDefault<scalar>("lambdaValue", 0.0);
-
-    //DasteXar interpolation
+    // Keep the existing Us interpolation behavior controlled by lambdaDict.
     interpolateUs_ =
         lambdaDict.lookupOrDefault<Switch>("interpolateUs", true);
 
@@ -88,45 +64,20 @@ lambdaDotModel::lambdaDotModel
             porosityF_
         );
     }
-
-    // ta inja
 }
-
-
-lambdaDotModel::~lambdaDotModel() = default;
 
 
 void lambdaDotModel::updateLambdaDot()
 {
-    const volScalarField* TsPtr = nullptr;
-
-    if (lambdaMode_ == "Ts")
-    {
-        TsPtr = &mesh_.lookupObject<volScalarField>("Ts");
-    }
-
-    forAll(lambdaDot_, cellI)
-    {
-        if (lambdaMode_ == "constant")
-        {
-            lambdaDot_[cellI] = lambdaValue_;
-        }
-        else if (lambdaMode_ == "Ts")
-        {
-            lambdaDot_[cellI] = lambdaFunc_->value((*TsPtr)[cellI]);
-        }
-        else
-        {
-            FatalErrorInFunction
-                << "Unknown lambdaMode '" << lambdaMode_
-                << "'. Valid options are: constant, Ts"
-                << exit(FatalError);
-        }
-    }
+    // Valid lambdaMode entries in constant/lambdaDict are:
+    // constant, Ts, dTsdt.
+    lambdaDotCalculationModel_->calculate();
 
     lambdaDot_.correctBoundaryConditions();
 }
 
+
+lambdaDotModel::~lambdaDotModel() = default;
 
 void lambdaDotModel::updateParticleFields()
 {
