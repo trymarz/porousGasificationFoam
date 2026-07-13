@@ -1,0 +1,73 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     |                                                 |
+|   \\  /    A nd           |                                                 |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+//
+// Regression-test function objects for the prescribed-Us transport cases.
+//
+// These deliberately assert only the EXTENSIVE, correctly-transported field:
+// the solid-species mass concentration Ycharm [kg/m3], advected by Us in
+// volPyrolysis::solveSpeciesMass() as div(phiUs, Ym). That operator is
+// conservative, so these reductions cleanly capture the transport under test:
+//
+//   volIntegrate(Ycharm)  total solid mass [kg] — a pure-transport run has no
+//                         chemistry source, so drift here reflects the scheme's
+//                         (non)conservation and boundary flux.
+//   min(Ycharm)           bounded-ness: an overshooting scheme drives this < 0.
+//   max(Ycharm)           blob peak — sensitive to where the mass goes.
+//
+// porosityF is intentionally NOT asserted: volPyrolysis advects it as an
+// intensive fraction (solvePorosity()), which is non-physical under a
+// compressive Us (it grows past 1) and is slated to change — see the plans
+// store, "solid-transport-recompute-intensive-from-extensive". Baselining it
+// here would bake in behaviour we expect to fix.
+//
+// applications/test/regression/tools/compareScalars.py diffs every emitted
+// .dat against the committed reference/ baseline.
+
+regressionBase
+{
+    type            volFieldValue;
+    libs            (fieldFunctionObjects);
+    regionType      all;
+    postOperation   none;
+    weightField     none;
+    writeFields     false;
+    writePrecision  10;
+    writeToFile     true;
+    log             false;
+    enabled         false;         // template; children override
+    executeControl  timeStep;
+    executeInterval 1;
+    writeControl    writeTime;
+    writeInterval   -1;
+}
+
+regressionYcharmIntegral
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (Ycharm);
+    operation       volIntegrate;
+}
+
+regressionYcharmMin
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (Ycharm);
+    operation       min;
+}
+
+regressionYcharmMax
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (Ycharm);
+    operation       max;
+}
+
+// ************************************************************************* //

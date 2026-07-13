@@ -1,0 +1,35 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  v2406
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      pyrolysisProperties;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// Pyrolysis active so volPyrolysis::solveSpeciesMass() runs and transports the
+// solid species by Us. With chemistry off the reaction source is zero, so the
+// species equation is pure advection.
+active          true;
+
+heterogeneousPyrolysisModel  volPyrolysis;
+
+pyrolysisCoeffs
+{
+    subintegrateHeatTransfer true;
+    bedCollapse      false;
+    criticalPorosity 0.9999;
+    replenish        false;
+}
+
+infoOutput      true;
+
+// ************************************************************************* //

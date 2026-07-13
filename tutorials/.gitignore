@@ -9,7 +9,9 @@ VTK/
 [0-9]*/
 !0*org/
 !0*orig/
-!cases/*/reference/postProcessing/*/[0-9]*/
+# Un-ignore committed regression baselines at any case-tree depth
+# (cases/<case>/reference/... AND cases/<group>/<case>/reference/...).
+!cases/**/reference/postProcessing/*/[0-9]*/
 
 # Runtime-compiled code (codedFixedValue etc.)
 dynamicCode/

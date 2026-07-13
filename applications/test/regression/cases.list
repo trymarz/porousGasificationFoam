@@ -25,3 +25,13 @@ tutorials/cases/canonical/enthalpy            fast
 tutorials/cases/canonical/meanTemp            fast
 tutorials/cases/canonical/noSubintegration    fast
 tutorials/cases/canonical/equilibrium          fast
+
+# Prescribed-Us solid-species transport (chemistry off): isolate div(phiUs, Ym)
+# against non-trivial Us fields. See tutorials/cases/prescribedUsCases/.
+tutorials/cases/prescribedUsCases/converging         fast
+tutorials/cases/prescribedUsCases/diverging          fast
+tutorials/cases/prescribedUsCases/shear              fast
+tutorials/cases/prescribedUsCases/vortexSolidBody    fast
+tutorials/cases/prescribedUsCases/vortexIrrotational fast
+tutorials/cases/prescribedUsCases/vortexRankine      fast
+tutorials/cases/prescribedUsCases/vortexOneOverR2    fast

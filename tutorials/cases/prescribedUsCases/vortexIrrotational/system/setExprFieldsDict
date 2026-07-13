@@ -1,0 +1,46 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  v2406
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "system";
+    object      setExprFieldsDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// Irrotational (potential) vortex about the domain centre: tangential speed
+// ~ k/r, so Us = k * (-(y-yc), (x-xc), 0) / r^2.  Curl is zero away from the
+// core; eps regularizes the r->0 singularity (max|Us| ~ k/sqrt(eps) = 0.1 m/s).
+// The blob sits at r ~ 0.005 (|Us| ~ 0.02 m/s), clear of the core.
+
+expressions
+(
+    Us
+    {
+        field       Us;
+        dimensions  [0 1 -1 0 0 0 0];
+        variables
+        (
+            "xc = 0.01"
+            "yc = 0.01"
+            "k = 1e-4"
+            "eps = 1e-6"
+            "dx = pos().x() - xc"
+            "dy = pos().y() - yc"
+            "rr = dx*dx + dy*dy + eps"
+        );
+        expression
+        #{
+            vector(-k*dy/rr, k*dx/rr, 0)
+        #};
+    }
+);
+
+// ************************************************************************* //
