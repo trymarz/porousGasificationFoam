@@ -3,4 +3,9 @@ interpolationModels/laplaceAnchored/laplaceAnchored.C
 interpolationModels/laplaceSetValues/laplaceSetValues.C
 DemToFvmMapper.C
 
+lambdaDotModels/LambdaDotCalculationModel/LambdaDotCalculationModel.C
+lambdaDotModels/constantLambdaDot/constantLambdaDot.C
+lambdaDotModels/TsLambdaDot/TsLambdaDot.C
+lambdaDotModels/dTsdtLambdaDot/dTsdtLambdaDot.C
+
 LIB = $(FOAM_USER_LIBBIN)/libDemToFvmMapper
