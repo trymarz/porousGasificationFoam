@@ -8,45 +8,33 @@ FoamFile
 }
 
 
-lambdaMode constant; // or Ts  or constant
+lambdaMode dTsdt; //  Ts , dTsdt or constant
+
+//Ts: (K)
+// lambdaDot = f(Ts)
+
+//dTsdt: (K/s)
+// lambdaDot = f((Ts_now - Ts_old)/deltaT)
+
+
 lambdaValue 0.5;
 
 
-// lambdaDot
-// {
-//     type coded;
-//     code
-//     #{
-//         return 0.1*sin(x);
-//     #};
-// }
-
-
-// lambdaDot
-// {
-//     type coded;
-//     code
-//     #{
-//         const scalar factor = 10;
-//         return factor*x;
-//     #};
-// }
-
-
+//in case of  Ts or dTsdt, x is the value comming from DEM library for Ts or dTsdt
 lambdaDot
 {
     type coded;
     code
     #{
         
-        return 0.001*x;
+        return 1*x;
     #};
 }
 
 
 interpolateUs true; // true: interpolate UsDEM into a continuous Us field inside solid cells. false: use only raw UsDEM, so cells without sphere centers keep Us = 0.
 
-interpolationMode laplaceAnchored; //laplaceAnchored; 
+interpolationMode laplaceSetValues; //laplaceAnchored; 
 // laplaceAnchored: current soft anchored solve. 
 // laplaceSetValues: pgfVeloInt hard setValues Laplace solve.
 
