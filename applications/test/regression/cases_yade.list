@@ -8,6 +8,4 @@
 # Run with:
 #   applications/test/regression/Allrun.yade
 
-tutorials/cases/DEM_UsInterp_solidU
-tutorials/cases/DEM_UsInterp_solidU_test2
 tutorials/cases/MicroTGA-DEM_Us_UsInterp

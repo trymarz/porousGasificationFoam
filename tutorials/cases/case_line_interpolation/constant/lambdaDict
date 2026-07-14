@@ -7,14 +7,14 @@ FoamFile
     object      lambdaDict;
 }
 
-// lambdaDot is no longer prescribed here: the solver (volPyrolysis) computes
-// it from the dlambdaOverDTs/massSplitBetweenLamAndPor coefficients in
-// constant/solidThermophysicalProperties.
+// lambdaDict configures ONLY the DEM->CFD solid-velocity interpolation
+// (consumed by lambdaDotModel). The lambdaDot model selection (lambdaMode) and
+// its coefficients now live in constant/solidThermophysicalProperties.
 
 
 interpolateUs true; // true: interpolate UsDEM into a continuous Us field inside solid cells. false: use only raw UsDEM, so cells without sphere centers keep Us = 0.
 
-interpolationMode laplaceAnchored; //laplaceAnchored;
+interpolationMode laplaceSetValues; //laplaceAnchored;
 // laplaceAnchored: current soft anchored solve.
 // laplaceSetValues: pgfVeloInt hard setValues Laplace solve.
 

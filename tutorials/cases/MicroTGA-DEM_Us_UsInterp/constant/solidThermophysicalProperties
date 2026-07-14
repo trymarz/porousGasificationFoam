@@ -91,13 +91,22 @@ woodCoeffs
 };
 
 
-// DEM lambda/porosity split coefficients (consumed only when DEM coupling
-// is active). massSplitBetweenLamAndPor in [0,1]: fraction of the
-// chemistry-driven solid mass change that shrinks the particle length scale
-// lambda; the remaining (1 - massSplitBetweenLamAndPor) becomes pore space.
-// dlambdaOverDTs [m/K]: temperature-driven lambda rate coefficient
-// (lambdaDot += dlambdaOverDTs*dTs/dt). Both 0.0 reproduces the pre-split
-// behaviour exactly.
+// DEM lambda/porosity split (consumed only when DEM coupling is active).
+//
+// lambdaMode selects how the particle length-scale rate lambdaDot is computed:
+//   none             : lambdaDot = 0
+//   constant         : lambdaDot = lambdaValue
+//   Ts               : lambdaDot = f(Ts), f the Function1 entry "lambdaDot"
+//   exactDifferential: lambdaDot = dlambdaOverDTs*dTs/dt, plus a
+//                      massSplitBetweenLamAndPor share of the chemistry mass
+//                      change (default when the key is absent)
+lambdaMode exactDifferential;
+
+// exactDifferential coefficients. massSplitBetweenLamAndPor in [0,1]: fraction
+// of the chemistry-driven solid mass change that shrinks the particle length
+// scale lambda; the remaining (1 - massSplitBetweenLamAndPor) becomes pore
+// space. dlambdaOverDTs [m/K]: temperature-driven lambda rate coefficient.
+// Both 0.0 reproduces the pre-split behaviour exactly.
 dlambdaOverDTs         0.0;
 massSplitBetweenLamAndPor     0.0;
 

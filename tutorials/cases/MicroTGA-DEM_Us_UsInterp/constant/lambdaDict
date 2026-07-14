@@ -7,9 +7,8 @@ FoamFile
     object      lambdaDict;
 }
 
-// lambdaDot is no longer prescribed here: the solver (volPyrolysis) computes
-// it from the dlambdaOverDTs/massSplitBetweenLamAndPor coefficients in
-// constant/solidThermophysicalProperties. This dictionary still configures
-// the DEM->CFD solid-velocity interpolation: interpolateUs,
-// solidPorosityCutoff, interpolationMode and its sub-model coefficients
-// (defaults are used when absent).
+// lambdaDict configures ONLY the DEM->CFD solid-velocity interpolation
+// consumed by lambdaDotModel: interpolateUs, solidPorosityCutoff,
+// interpolationMode and its sub-model coefficients (defaults are used when
+// absent, as here). The lambdaDot model selection (lambdaMode) and its
+// coefficients live in constant/solidThermophysicalProperties.
