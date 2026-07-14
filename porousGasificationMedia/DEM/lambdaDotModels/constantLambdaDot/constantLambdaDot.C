@@ -15,9 +15,9 @@ constantLambdaDot::constantLambdaDot
 {}
 
 
-void constantLambdaDot::calculate()
+void constantLambdaDot::calculateTemperatureDriven()
 {
-    // Uniform  lambdaDot from constant/lambdaDict.
+    // Uniform lambdaDot from lambdaValue in solidThermophysicalProperties.
     lambdaDot_ = lambdaValue_;
 }
 

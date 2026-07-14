@@ -23,7 +23,7 @@ public:
 
     virtual ~constantLambdaDot() = default;
 
-    virtual void calculate() override;
+    virtual void calculateTemperatureDriven() override;
 };
 
 } // namespace Foam

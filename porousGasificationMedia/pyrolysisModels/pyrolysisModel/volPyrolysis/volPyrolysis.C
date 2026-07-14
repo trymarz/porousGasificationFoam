@@ -130,7 +130,13 @@ void volPyrolysis::solvePorosity()
 {
     if (active_)
     {
-        porositySource_ = solidChemistry_->RRpor(T_)();
+        // With DEM active, porositySource_ was already assembled in
+        // solveSpeciesMass() — the (1 - massSplitBetweenLamAndPor) share of the chemistry
+        // mass change — and must not be overwritten with the full RRpor.
+        if (!demActive_)
+        {
+            porositySource_ = solidChemistry_->RRpor(T_)();
+        }
 
         volScalarField& por = porosity_;
 
@@ -629,10 +635,34 @@ void volPyrolysis::solveSpeciesMass()
 
         surfaceScalarField phiUs = mesh_.Sf() & fvc::interpolate(Us_);
 
+        // DEM lambda/porosity split: the temperature-driven part of lambdaDot
+        // is set here (once per step, overwriting lambdaDot); the
+        // chemistry-driven part is accumulated per specie inside the loop
+        // below. Both are delegated to the selected LambdaDotCalculationModel
+        // (lambdaMode in constant/solidThermophysicalProperties).
+        if (demActive_)
+        {
+#ifdef WITH_YADE
+            lamDotCalc_->calculateTemperatureDriven();
+#endif
+        }
+
         for (label i = 0; i < Ys_.size(); ++i)
         {
             volScalarField& Ym_i = Ym_[i];
             volScalarField sRhoSi = solidChemistry_->RRs(i);
+
+            // Chemistry-driven particle shrinkage: the model adds the specie
+            // mass-change contribution to lambdaDot (for exactDifferential,
+            // massSplit * V/(3*rho*lambda^2) * sRhoSi; a no-op for the other
+            // modes). The mass change itself stays conserved — the Ym
+            // transport below consumes the full, unmodified sRhoSi.
+            if (demActive_)
+            {
+#ifdef WITH_YADE
+                lamDotCalc_->calculateChemistryDriven(sRhoSi, rho_, *lambdaPtr_);
+#endif
+            }
 
             Ym_i.correctBoundaryConditions();
 
@@ -665,6 +695,37 @@ void volPyrolysis::solveSpeciesMass()
 
         deriveYiFromYm();
 
+        // DEM lambda/porosity split: the (1 - massSplit) share of the
+        // chemistry mass change becomes pore space, where massSplit is the
+        // model's chemistryMassSplit() — the same coefficient the model just
+        // used for the lambda contribution, so the split is conservative.
+        // massSplit=0 (the default, and every non-exactDifferential mode)
+        // reproduces the pre-split porosity source exactly. RRpor() is reused
+        // verbatim (sum_i -RRs_i/rho_i with per-specie densities).
+        // solvePorosity() skips its own RRpor assignment when demActive_.
+        if (demActive_)
+        {
+            lambdaDotPtr_->correctBoundaryConditions();
+
+            scalar massSplit = 0.0;
+#ifdef WITH_YADE
+            massSplit = lamDotCalc_->chemistryMassSplit();
+#endif
+            const volScalarField RRporF(solidChemistry_->RRpor(T_)());
+            forAll(porositySource_, cellI)
+            {
+                porositySource_[cellI] = (1.0 - massSplit)*RRporF[cellI];
+            }
+            porositySource_.correctBoundaryConditions();
+
+            updateCurrentLambda();
+
+            Info<< "DEM lambda split: lambdaDot min/max = "
+                << gMin(*lambdaDotPtr_) << ", " << gMax(*lambdaDotPtr_)
+                << "; lambda min/max = "
+                << gMin(*lambdaPtr_) << ", " << gMax(*lambdaPtr_) << endl;
+        }
+
         scalar totalYmMass = 0.0;
         for (label i = 0; i < Ym_.size(); ++i)
         {
@@ -681,6 +742,32 @@ void volPyrolysis::solveSpeciesMass()
                 << " min/max = " << gMin(Ys_[i]) << " / " << gMax(Ys_[i]) << endl;
         }
     }
+}
+
+void volPyrolysis::updateCurrentLambda()
+{
+    // Shadow integration of the DEM particle length scale. The true
+    // integrated lambda lives only in YADE's per-spring Python-side
+    // integration and is never sent back to OpenFOAM; until that data
+    // path exists (a yade-pgf-trunk change), integrate the same rate
+    // here. lambdaDot is dimensionless in the registry (see
+    // createDEMFields.H), so integrate cell-wise rather than with field
+    // algebra, which would trip the dimension check against deltaT.
+    if (!demActive_)
+    {
+        return;
+    }
+
+    volScalarField& lambda = *lambdaPtr_;
+    const volScalarField& lambdaDot = *lambdaDotPtr_;
+    const scalar dt = time_.deltaTValue();
+
+    forAll(lambda, cellI)
+    {
+        lambda[cellI] += lambdaDot[cellI]*dt;
+    }
+
+    lambda.correctBoundaryConditions();
 }
 
 void volPyrolysis::preSolveEnergy()
@@ -1123,12 +1210,15 @@ volPyrolysis::volPyrolysis
         dimensionedScalar("zero", dimless, 0.0)
     ),
     // Bind to the single registered "Us" field created by the solver
-    // (createFields.H), rather than owning a duplicate. DemToFvmMapper
+    // (createFields.H), rather than owning a duplicate. lambdaDotModel
     // writes that same object when DEM coupling is active.
     Us_
     (
         mesh_.lookupObject<volVectorField>("Us")
     ),
+    demActive_(false),
+    lambdaDotPtr_(nullptr),
+    lambdaPtr_(nullptr),
     lostSolidMass_(dimensionedScalar("zero", dimMass, 0.0)),
     addedGasMass_(dimensionedScalar("zero", dimMass, 0.0)),
     totalGasMassFlux_(dimensionedScalar("zero", dimMass/dimTime, 0.0)),
@@ -1309,6 +1399,78 @@ volPyrolysis::volPyrolysis
     }
     cellVolume_.correctBoundaryConditions();
 
+    // Resolve DEM-active state at runtime. Neither signal alone suffices:
+    // a WITH_YADE solver registers lambdaDot/lambda unconditionally even
+    // when DEM is off for the case, and a non-YADE solver may run a case
+    // that carries a yadeProperties dictionary with active=true.
+    {
+        IOdictionary yadeProperties
+        (
+            IOobject
+            (
+                "yadeProperties",
+                time_.constant(),
+                mesh_,
+                IOobject::READ_IF_PRESENT,
+                IOobject::NO_WRITE,
+                false // unregistered: the solver may own this object name
+            )
+        );
+
+        const Switch demRequested
+        (
+            yadeProperties.lookupOrDefault<Switch>("active", false)
+        );
+
+        const bool demFieldsRegistered =
+            mesh_.foundObject<volScalarField>("lambdaDot")
+         && mesh_.foundObject<volScalarField>("lambda");
+
+        demActive_ = demRequested && demFieldsRegistered;
+
+        if (demActive_)
+        {
+            lambdaDotPtr_ =
+                &mesh_.lookupObjectRef<volScalarField>("lambdaDot");
+            lambdaPtr_ =
+                &mesh_.lookupObjectRef<volScalarField>("lambda");
+
+#ifdef WITH_YADE
+            // Select the lambdaDot model from lambdaMode in
+            // constant/solidThermophysicalProperties (which also carries the
+            // model coefficients). Opened unregistered: solidThermo_ already
+            // owns the registered copy of this dictionary.
+            IOdictionary solidThermoDict
+            (
+                IOobject
+                (
+                    "solidThermophysicalProperties",
+                    time_.constant(),
+                    mesh_,
+                    IOobject::MUST_READ,
+                    IOobject::NO_WRITE,
+                    false
+                )
+            );
+
+            lamDotCalc_ = LambdaDotCalculationModel::New
+            (
+                solidThermoDict, mesh_, *lambdaDotPtr_
+            );
+#endif
+        }
+        else if (demRequested)
+        {
+            WarningInFunction
+                << "yadeProperties requests DEM coupling (active=true) but "
+                << "the solver did not register the lambdaDot/lambda fields "
+                << "(built without WITH_YADE?); "
+                << "lambda/porosity split disabled" << endl;
+        }
+
+        Info<< "volPyrolysis: DEM lambda/porosity split "
+            << (demActive_ ? "active" : "inactive") << endl;
+    }
 }
 
 // * * * * * * * * * * * * * * * * Destructor  * * * * * * * * * * * * * * * //
