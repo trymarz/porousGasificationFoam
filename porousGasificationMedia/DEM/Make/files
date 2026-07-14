@@ -1,6 +1,13 @@
 interpolationModels/UsInterpolationModel/UsInterpolationModel.C
 interpolationModels/laplaceAnchored/laplaceAnchored.C
 interpolationModels/laplaceSetValues/laplaceSetValues.C
+
+lambdaDotModels/LambdaDotCalculationModel/LambdaDotCalculationModel.C
+lambdaDotModels/noneLambdaDot/noneLambdaDot.C
+lambdaDotModels/constantLambdaDot/constantLambdaDot.C
+lambdaDotModels/TsLambdaDot/TsLambdaDot.C
+lambdaDotModels/exactDifferentialLambdaDot/exactDifferentialLambdaDot.C
+
 lambdaDotModel.C
 
 LIB = $(FOAM_USER_LIBBIN)/liblambdaDotModel

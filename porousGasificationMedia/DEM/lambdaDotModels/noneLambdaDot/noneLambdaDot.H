@@ -1,28 +1,26 @@
-#ifndef TsLambdaDot_H
-#define TsLambdaDot_H
+#ifndef noneLambdaDot_H
+#define noneLambdaDot_H
 
 #include "LambdaDotCalculationModel.H"
-#include "Function1.H"
 
 namespace Foam
 {
 
-class TsLambdaDot
+// Explicit zero-lambdaDot model: the particle length scale never changes.
+// Use lambdaMode none to switch the split off unambiguously.
+class noneLambdaDot
 :
     public LambdaDotCalculationModel
 {
-private:
-    autoPtr<Function1<scalar>> lambdaFunc_;
-
 public:
-    TsLambdaDot
+    noneLambdaDot
     (
         const dictionary& dict,
         const fvMesh& mesh,
         volScalarField& lambdaDot
     );
 
-    virtual ~TsLambdaDot() = default;
+    virtual ~noneLambdaDot() = default;
 
     virtual void calculateTemperatureDriven() override;
 };

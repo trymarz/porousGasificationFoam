@@ -38,6 +38,13 @@ SourceFiles
 #include "heterogeneousPyrolysisModel.H"
 #include "HGSSolidThermo.H"
 #include "porousThermoSolidChemistryModel.H"
+
+#ifdef WITH_YADE
+    // DEM lambdaDot strategy models live in the DEM library (liblambdaDotModel,
+    // which links YADE). They are only linked into the pyrolysis library in a
+    // WITH_YADE build; the non-YADE build never references them.
+    #include "LambdaDotCalculationModel.H"
+#endif
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 namespace Foam
@@ -210,10 +217,13 @@ protected:
 
         //- True when DEM coupling is active for this case: the
         //  yadeProperties dictionary has active=true AND the solver
-        //  registered the DEM fields lambdaDot/lambda (i.e. it was built
-        //  with WITH_YADE=1). Resolved once at construction. This is a
-        //  runtime check on purpose: this library is compiled without any
-        //  WITH_YADE flag, so it must never use #ifdef for DEM detection.
+        //  registered the DEM fields lambdaDot/lambda. Resolved once at
+        //  construction. DEM *support* is compiled in only with WITH_YADE
+        //  (the lamDotCalc_ model below and its library are gated on it);
+        //  within a WITH_YADE build this flag is the runtime switch, since a
+        //  YADE-built solver can still run a non-DEM case. Kept unconditional
+        //  (and always false without WITH_YADE) so the shared code paths need
+        //  no extra guarding.
         bool demActive_;
 
         //- Rate of change of the DEM particle characteristic length
@@ -225,6 +235,14 @@ protected:
         //- Integrated DEM particle length scale (shadow field, see
         //  updateCurrentLambda()). Null when !demActive_.
         volScalarField* lambdaPtr_;
+
+#ifdef WITH_YADE
+        //- lambdaDot calculation strategy, selected by lambdaMode in
+        //  constant/solidThermophysicalProperties. Owns the temperature- and
+        //  chemistry-driven contributions to lambdaDot. Only created when
+        //  demActive_. Present only in a WITH_YADE build.
+        autoPtr<LambdaDotCalculationModel> lamDotCalc_;
+#endif
 
     // Checks
 
@@ -288,17 +306,6 @@ protected:
             void solvePorosity();
 
         // DEM lambda/porosity split
-
-            //- Temperature coefficient dlambdaOverDTs [m/K] in a given cell.
-            //  v1 forwards the case-wide constant from solidThermo; the
-            //  cell argument is the seam for a future (Ts, Ym)-dependent
-            //  formulation.
-            scalar dlambdaOverDTsValue(const label cellI) const;
-
-            //- Mass-change split coefficient massSplitBetweenLamAndPor []
-            //  in a given cell. v1 forwards the case-wide constant from
-            //  solidThermo.
-            scalar massSplitBetweenLamAndPorValue(const label cellI) const;
 
             //- Advance the shadow lambda field: lambda += lambdaDot*dt.
             //  OpenFOAM never receives the integrated lambda back from

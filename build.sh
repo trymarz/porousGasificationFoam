@@ -179,7 +179,9 @@ execute_target() {
 
   if [ "$MODE" = "build" ]; then
     cmd="${BUILD_COMMANDS[$target]}"
-    if [ "$target" = "porousGasificationFoam" ] && [ "$WITH_YADE" -eq 1 ]; then
+    # pyrolysisModels and the solver both link the DEM lambdaDot models under
+    # WITH_YADE (see their Make/options ifeq blocks); pass the flag to both.
+    if { [ "$target" = "porousGasificationFoam" ] || [ "$target" = "pyrolysisModels" ]; } && [ "$WITH_YADE" -eq 1 ]; then
       cmd="WITH_YADE=1 ${cmd}"
       clog INFO "Building $target (WITH_YADE=1)..."
     else

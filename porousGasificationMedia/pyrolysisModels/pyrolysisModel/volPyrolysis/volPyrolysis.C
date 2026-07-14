@@ -635,20 +635,16 @@ void volPyrolysis::solveSpeciesMass()
 
         surfaceScalarField phiUs = mesh_.Sf() & fvc::interpolate(Us_);
 
-        // DEM lambda/porosity split: start from the temperature-driven
-        // part of lambdaDot = dlambdaOverDTs*dTs/dt; the chemistry-driven part
-        // is accumulated per specie inside the loop below.
+        // DEM lambda/porosity split: the temperature-driven part of lambdaDot
+        // is set here (once per step, overwriting lambdaDot); the
+        // chemistry-driven part is accumulated per specie inside the loop
+        // below. Both are delegated to the selected LambdaDotCalculationModel
+        // (lambdaMode in constant/solidThermophysicalProperties).
         if (demActive_)
         {
-            volScalarField& lambdaDot = *lambdaDotPtr_;
-            const volScalarField& Told = T_.oldTime();
-            const scalar dt = time_.deltaTValue();
-
-            forAll(lambdaDot, cellI)
-            {
-                lambdaDot[cellI] =
-                    dlambdaOverDTsValue(cellI)*(T_[cellI] - Told[cellI])/dt;
-            }
+#ifdef WITH_YADE
+            lamDotCalc_->calculateTemperatureDriven();
+#endif
         }
 
         for (label i = 0; i < Ys_.size(); ++i)
@@ -656,27 +652,16 @@ void volPyrolysis::solveSpeciesMass()
             volScalarField& Ym_i = Ym_[i];
             volScalarField sRhoSi = solidChemistry_->RRs(i);
 
-            // Chemistry-driven particle shrinkage: massSplitBetweenLamAndPor redirects
-            // the volumetric consequence of the specie mass change sRhoSi
-            // into the particle length scale, d(lambda)/dYm_i =
-            // V_cell/(3*rhos*lambda^2) per unit mass rate. The mass change
-            // itself stays conserved — the Ym transport below consumes the
-            // full, unmodified sRhoSi.
+            // Chemistry-driven particle shrinkage: the model adds the specie
+            // mass-change contribution to lambdaDot (for exactDifferential,
+            // massSplit * V/(3*rho*lambda^2) * sRhoSi; a no-op for the other
+            // modes). The mass change itself stays conserved — the Ym
+            // transport below consumes the full, unmodified sRhoSi.
             if (demActive_)
             {
-                volScalarField& lambdaDot = *lambdaDotPtr_;
-                const volScalarField& lambda = *lambdaPtr_;
-
-                forAll(sRhoSi, cellI)
-                {
-                    lambdaDot[cellI] +=
-                        massSplitBetweenLamAndPorValue(cellI)*mesh_.V()[cellI]
-                       /(
-                            3.0*max(rho_[cellI], SMALL)
-                           *sqr(max(lambda[cellI], SMALL))
-                        )
-                       *sRhoSi[cellI];
-                }
+#ifdef WITH_YADE
+                lamDotCalc_->calculateChemistryDriven(sRhoSi, rho_, *lambdaPtr_);
+#endif
             }
 
             Ym_i.correctBoundaryConditions();
@@ -710,23 +695,26 @@ void volPyrolysis::solveSpeciesMass()
 
         deriveYiFromYm();
 
-        // DEM lambda/porosity split: the (1 - massSplitBetweenLamAndPor)
-        // share of the chemistry mass change becomes pore space. With a
-        // per-cell massSplitBetweenLamAndPor the per-specie sum factors, so
-        // RRpor() is reused verbatim (sum_i -RRs_i/rho_i with per-specie
-        // densities) and massSplitBetweenLamAndPor=0 reproduces the
-        // pre-split porosity source exactly.
+        // DEM lambda/porosity split: the (1 - massSplit) share of the
+        // chemistry mass change becomes pore space, where massSplit is the
+        // model's chemistryMassSplit() — the same coefficient the model just
+        // used for the lambda contribution, so the split is conservative.
+        // massSplit=0 (the default, and every non-exactDifferential mode)
+        // reproduces the pre-split porosity source exactly. RRpor() is reused
+        // verbatim (sum_i -RRs_i/rho_i with per-specie densities).
         // solvePorosity() skips its own RRpor assignment when demActive_.
         if (demActive_)
         {
             lambdaDotPtr_->correctBoundaryConditions();
 
+            scalar massSplit = 0.0;
+#ifdef WITH_YADE
+            massSplit = lamDotCalc_->chemistryMassSplit();
+#endif
             const volScalarField RRporF(solidChemistry_->RRpor(T_)());
             forAll(porositySource_, cellI)
             {
-                porositySource_[cellI] =
-                    (1.0 - massSplitBetweenLamAndPorValue(cellI))
-                   *RRporF[cellI];
+                porositySource_[cellI] = (1.0 - massSplit)*RRporF[cellI];
             }
             porositySource_.correctBoundaryConditions();
 
@@ -754,20 +742,6 @@ void volPyrolysis::solveSpeciesMass()
                 << " min/max = " << gMin(Ys_[i]) << " / " << gMax(Ys_[i]) << endl;
         }
     }
-}
-
-scalar volPyrolysis::dlambdaOverDTsValue(const label cellI) const
-{
-    // v1: case-wide constant; cellI is the seam for a future
-    // (Ts, Ym)-dependent coefficient.
-    return solidThermo_.dlambdaOverDTs();
-}
-
-scalar volPyrolysis::massSplitBetweenLamAndPorValue(const label cellI) const
-{
-    // v1: case-wide constant; cellI is the seam for a future
-    // (Ts, Ym)-dependent coefficient.
-    return solidThermo_.massSplitBetweenLamAndPor();
 }
 
 void volPyrolysis::updateCurrentLambda()
@@ -1460,6 +1434,30 @@ volPyrolysis::volPyrolysis
                 &mesh_.lookupObjectRef<volScalarField>("lambdaDot");
             lambdaPtr_ =
                 &mesh_.lookupObjectRef<volScalarField>("lambda");
+
+#ifdef WITH_YADE
+            // Select the lambdaDot model from lambdaMode in
+            // constant/solidThermophysicalProperties (which also carries the
+            // model coefficients). Opened unregistered: solidThermo_ already
+            // owns the registered copy of this dictionary.
+            IOdictionary solidThermoDict
+            (
+                IOobject
+                (
+                    "solidThermophysicalProperties",
+                    time_.constant(),
+                    mesh_,
+                    IOobject::MUST_READ,
+                    IOobject::NO_WRITE,
+                    false
+                )
+            );
+
+            lamDotCalc_ = LambdaDotCalculationModel::New
+            (
+                solidThermoDict, mesh_, *lambdaDotPtr_
+            );
+#endif
         }
         else if (demRequested)
         {
