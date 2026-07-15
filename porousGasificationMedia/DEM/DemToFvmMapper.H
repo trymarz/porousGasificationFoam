@@ -1,5 +1,5 @@
-#ifndef lambdaDotModel_H
-#define lambdaDotModel_H
+#ifndef DemToFvmMapper_H
+#define DemToFvmMapper_H
 
 #include "DynamicList.H"
 #include "Map.H"
@@ -25,7 +25,7 @@ private:
     volVectorField& UsDEM_;     // velocity of spheres
     volVectorField& Us_;    // interpolated sphere velocity
     volScalarField& porosityF_;   // porosity field  get from the main solver
-    PgfToYadeMpiCoupler& yade_;
+    PgfToYadeMpiCoupler& pgfToYadeCoupler_;
 
     // DasteXar interpolation Us from UsDEM (June 12 2026)
     Switch interpolateUs_;
@@ -48,7 +48,7 @@ public:
         volVectorField& UsDEM,   // velocity of spheres
         volVectorField& Us, // interpolated sphere velocity
         volScalarField& porosityF, // porosity field  get from the main solver
-        PgfToYadeMpiCoupler& yade
+        PgfToYadeMpiCoupler& pgfToYadeCoupler
     );
 
     ~lambdaDotModel();
