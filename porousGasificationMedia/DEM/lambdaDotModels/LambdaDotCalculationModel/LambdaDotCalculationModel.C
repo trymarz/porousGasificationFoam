@@ -28,9 +28,9 @@ autoPtr<LambdaDotCalculationModel> LambdaDotCalculationModel::New
     volScalarField& lambdaDot
 )
 {
-    // Default to exactDifferential: it reproduces the pre-strategy volPyrolysis
-    // behaviour (dTs/dt + mass-split, both coefficients default 0), so a case
-    // that omits lambdaMode keeps its previous result.
+    // Default to exactDifferential: with both of its coefficients defaulting
+    // to 0, a case that omits lambdaMode gets lambdaDot = 0 (no length-scale
+    // evolution).
     const word modelName
     (
         dict.lookupOrDefault<word>("lambdaMode", "exactDifferential")

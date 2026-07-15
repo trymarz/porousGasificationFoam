@@ -106,7 +106,8 @@ lambdaMode exactDifferential;
 // of the chemistry-driven solid mass change that shrinks the particle length
 // scale lambda; the remaining (1 - massSplitBetweenLamAndPor) becomes pore
 // space. dlambdaOverDTs [m/K]: temperature-driven lambda rate coefficient.
-// Both 0.0 reproduces the pre-split behaviour exactly.
+// Both 0.0 means no length-scale evolution: lambdaDot = 0 and the whole
+// chemistry mass change becomes porosity.
 dlambdaOverDTs         0.0;
 massSplitBetweenLamAndPor     0.0;
 

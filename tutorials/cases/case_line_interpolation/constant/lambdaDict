@@ -9,7 +9,7 @@ FoamFile
 
 // lambdaDict configures ONLY the DEM->CFD solid-velocity interpolation
 // (consumed by lambdaDotModel). The lambdaDot model selection (lambdaMode) and
-// its coefficients now live in constant/solidThermophysicalProperties.
+// its coefficients live in constant/solidThermophysicalProperties.
 
 
 interpolateUs true; // true: interpolate UsDEM into a continuous Us field inside solid cells. false: use only raw UsDEM, so cells without sphere centers keep Us = 0.

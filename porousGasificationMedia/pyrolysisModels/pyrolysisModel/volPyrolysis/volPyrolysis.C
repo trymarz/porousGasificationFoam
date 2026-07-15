@@ -700,8 +700,8 @@ void volPyrolysis::solveSpeciesMass()
         // model's chemistryMassSplit() — the same coefficient the model just
         // used for the lambda contribution, so the split is conservative.
         // massSplit=0 (the default, and every non-exactDifferential mode)
-        // reproduces the pre-split porosity source exactly. RRpor() is reused
-        // verbatim (sum_i -RRs_i/rho_i with per-specie densities).
+        // sends the whole chemistry mass change to porosity. RRpor() is the
+        // full source (sum_i -RRs_i/rho_i with per-specie densities);
         // solvePorosity() skips its own RRpor assignment when demActive_.
         if (demActive_)
         {

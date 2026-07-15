@@ -13,8 +13,7 @@ exactDifferentialLambdaDot::exactDifferentialLambdaDot
     LambdaDotCalculationModel(dict, mesh, lambdaDot),
     // Coefficients are read from the selecting dictionary
     // (constant/solidThermophysicalProperties). Both default to 0.0 when
-    // absent, so a case that carries neither key reproduces the pre-split
-    // behaviour (lambdaDot = 0).
+    // absent, so a case that carries neither key yields lambdaDot = 0.
     dlambdaOverDTs_(dict.lookupOrDefault<scalar>("dlambdaOverDTs", 0.0)),
     massSplitBetweenLamAndPor_
     (

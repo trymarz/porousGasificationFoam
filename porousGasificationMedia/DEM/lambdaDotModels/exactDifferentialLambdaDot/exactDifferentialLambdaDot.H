@@ -18,9 +18,8 @@ namespace Foam
 // calculateTemperatureDriven(); the chemistry-driven part is accumulated per
 // solid specie by calculateChemistryDriven() inside volPyrolysis's species
 // loop. Both coefficients are read from constant/solidThermophysicalProperties
-// and default to 0.0, so an unconfigured case reproduces the pre-split
-// behaviour (lambdaDot = 0). This model supersedes the earlier dTsdtLambdaDot,
-// of which it is a strict superset.
+// and default to 0.0, so an unconfigured case yields lambdaDot = 0 (no
+// length-scale evolution).
 class exactDifferentialLambdaDot
 :
     public LambdaDotCalculationModel
