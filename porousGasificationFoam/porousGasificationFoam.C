@@ -114,12 +114,23 @@ int main(int argc, char *argv[])
         if (DEM)
         {
             vGrad = fvc::grad(U);
-            // updateParticleFields() pushes lambdaDot and Us computed in
-            // the previous timestep's pyrolysisZone.evolve() onto the
-            // particles: a known one-timestep lag, pre-existing for Us
-            // and accepted for lambdaDot as well.
-            lambdaDotUpdater->updateParticleFields();
+            // IMPORTANT — ordering invariant:
+            // setParticleAction() MUST run first. It receives particle
+            // positions/velocities from YADE via MPI and populates
+            // yade_.inCommProcs and foundParticles (FoamYade.C:153).
+            // updateParticleFields() reads those structures to aggregate
+            // UsDEM per cell (lambdaDotModel.C:80).
+            //
+            // setSourceZero() calls clearInCommProcs() which DESTROYS
+            // all particle data (FoamYade.C:659-674). Running
+            // updateParticleFields() before setParticleAction() means
+            // it sees an EMPTY inCommProcs (cleared by the previous
+            // timestep's setSourceZero) → UsDEM/nParticles/Us are all zero.
+            //
+            // lambdaDot is unaffected by ordering: sendHydroForceYadeMPI()
+            // reads it directly from the field inside setParticleAction().
             yadeCoupling->setParticleAction(runTime.deltaT().value());
+            lambdaDotUpdater->updateParticleFields();
             lambdaDotUpdater->writeParticlesData();
             yadeCoupling->setSourceZero();
         }
