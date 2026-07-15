@@ -15,7 +15,8 @@ class UsInterpolationModel;
 // Aggregates per-cell particle data from YADE (particle counts, sphere
 // velocities, the interpolated Us field) and pushes the cell lambdaDot
 // values onto the YADE particles. lambdaDot itself is computed by
-// volPyrolysis (dlambdaOverDTs/massSplitBetweenLamAndPor exact-differential split), not here.
+// volPyrolysis via the selected LambdaDotCalculationModel (lambdaMode in
+// constant/solidThermophysicalProperties), not here.
 class lambdaDotModel
 {
 private:
