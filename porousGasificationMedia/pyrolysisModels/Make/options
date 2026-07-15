@@ -19,9 +19,6 @@ LIB_LIBS = \
     -lfiniteVolume \
     -lmeshTools
 
-# DEM lambdaDot strategy models live in liblambdaDotModel (DEM library, YADE).
-# Only linked in a WITH_YADE build; the non-YADE library never references them.
-# build.sh passes WITH_YADE=1 to this library's wmake when --yade is given.
 ifeq ($(WITH_YADE),1)
     EXE_INC += \
         -DWITH_YADE=1 \
