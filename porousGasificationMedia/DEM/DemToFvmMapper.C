@@ -1,11 +1,11 @@
-#include "lambdaDotModel.H"
+#include "DemToFvmMapper.H"
 #include "UsInterpolationModel.H"
 #include "IOdictionary.H"
 
 namespace Foam
 {
 
-lambdaDotModel::lambdaDotModel
+DemToFvmMapper::DemToFvmMapper
 (
     const fvMesh& mesh,
     volScalarField& lambdaDot,
@@ -13,7 +13,7 @@ lambdaDotModel::lambdaDotModel
     volVectorField& UsDEM,  // velocity of spheres
     volVectorField& Us, // interpolated velocity of spheres
     volScalarField& porosityF,
-    FoamYade& yade
+    PgfToYadeMpiCoupler& pgfToYadeCoupler
 )
 :
     mesh_(mesh),
@@ -22,7 +22,7 @@ lambdaDotModel::lambdaDotModel
     UsDEM_(UsDEM), // velocity of spheres
     Us_(Us),
     porosityF_(porosityF),
-    yade_(yade),
+    pgfToYadeCoupler_(pgfToYadeCoupler),
     lambdaMode_("constant"),
     lambdaValue_(0.0),
 
@@ -93,10 +93,10 @@ lambdaDotModel::lambdaDotModel
 }
 
 
-lambdaDotModel::~lambdaDotModel() = default;
+DemToFvmMapper::~DemToFvmMapper() = default;
 
 
-void lambdaDotModel::updateLambdaDot()
+void DemToFvmMapper::updateLambdaDot()
 {
     const volScalarField* TsPtr = nullptr;
 
@@ -128,7 +128,7 @@ void lambdaDotModel::updateLambdaDot()
 }
 
 
-void lambdaDotModel::updateParticleFields()
+void DemToFvmMapper::aggregateDemDataIntoFvmFields()
 {
     // count particles per cell
     // and sum velocities per cell
@@ -138,7 +138,7 @@ void lambdaDotModel::updateParticleFields()
     movedFromCells_.clear();
     movedToCells_.clear();
 
-    for (const auto& procPtr : yade_.inCommProcs)
+    for (const auto& procPtr : pgfToYadeCoupler_.inCommProcs)
     {
         if (!procPtr) continue;
 
@@ -220,7 +220,7 @@ void lambdaDotModel::updateParticleFields()
     }
 
     // Assign lambdaDot to particles (only if occupied)
-    for (const auto& procPtr : yade_.inCommProcs)
+    for (const auto& procPtr : pgfToYadeCoupler_.inCommProcs)
     {
         if (!procPtr) continue;
 
@@ -241,7 +241,7 @@ void lambdaDotModel::updateParticleFields()
 //-------------------------
 
 
-void lambdaDotModel::writeParticlesData() const
+void DemToFvmMapper::writeParticlesDataToFile() const
 {
     if (!mesh_.time().outputTime()) return;
 
@@ -260,7 +260,7 @@ void lambdaDotModel::writeParticlesData() const
         << " time " << mesh_.time().timeName()
         << " (particleID cellID lambdaDot)\n";
 
-    for (const auto& procPtr : yade_.inCommProcs)
+    for (const auto& procPtr : pgfToYadeCoupler_.inCommProcs)
     {
         if (!procPtr) continue;
 
@@ -282,13 +282,13 @@ void lambdaDotModel::writeParticlesData() const
 }
 
 
-const DynamicList<label>& lambdaDotModel::movedFromCells() const
+const DynamicList<label>& DemToFvmMapper::movedFromCells() const
 {
     return movedFromCells_;
 }
 
 
-const DynamicList<label>& lambdaDotModel::movedToCells() const
+const DynamicList<label>& DemToFvmMapper::movedToCells() const
 {
     return movedToCells_;
 }

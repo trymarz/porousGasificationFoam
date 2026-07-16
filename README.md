@@ -502,7 +502,7 @@ Gas and solid coexist in every cell, distinguished by the porosity field `porosi
 The main loop is in `porousGasificationFoam/porousGasificationFoam.C`. Each piece of work is pulled in via an `#include`, so the file reads top-to-bottom as a sequence. The steps below cite the include or function that does the work:
 
 1. **Time-step control** — Courant (gas), diffusion (solid), and chemistry timescale are combined into one stable `deltaT`. See `setMultiRegionDeltaT.H` and `updateChemistryTimeStep.H`.
-2. **DEM coupling** (compiled only when `WITH_YADE` is defined) — particle positions and velocities are exchanged with YADE, then the interpolated solid-velocity field is computed (raw per-cell average, then Laplace-smoothed into adjacent solid cells). See `lambdaDotModel::update()` in `porousGasificationMedia/DEM/lambdaDotModel.C`.
+2. **DEM coupling** (compiled only when `WITH_YADE` is defined) — the lambdaDot field is updated and exchanged with YADE together with particle positions and velocities, then the interpolated solid-velocity field is computed (raw per-cell average, then Laplace-smoothed into adjacent solid cells). See `DemToFvmMapper::aggregateDemDataIntoFvmFields()` in `porousGasificationMedia/DEM/DemToFvmMapper.C`.
 3. **Radiation** — heterogeneous radiation model (`heterogeneousP1` or `heterogeneousMeanTemp`) updates the solid radiative source term. See `porousGasificationFoam/radiation.H` and `porousGasificationMedia/radiationModels/`.
 4. **Solid phase evolution** — the heart of the solver: per-cell chemistry ODE, porosity evolution (with optional bed-collapse), solid species mass-concentration (`Ym`) transport, and the solid energy equation, in that order. See `volPyrolysis::evolveRegion()` in `porousGasificationMedia/pyrolysisModels/pyrolysisModel/volPyrolysis/volPyrolysis.C`.
 5. **Gas continuity** — gas-phase density update with the solid-to-gas mass source. See `porousGasificationFoam/rhoEqn.H`.
@@ -516,7 +516,7 @@ The main loop is in `porousGasificationFoam/porousGasificationFoam.C`. Each piec
 | What equation does this step solve? Which terms, which units? | `Description` block in the file banner and the comment block above the relevant `evolve*` / `solve*` / `*Eqn` function in the corresponding `.C`/`.H`. |
 | Which input dictionary keys does X read? | Part I → [Input File Reference](#input-file-reference). |
 | What initial fields does a case need? | Part I → [Required Initial Fields](#required-initial-fields). |
-| Where does this field get constructed? | `porousGasificationFoam/createFields.H` for solver fields; `createDEMFields.H` for DEM-coupled fields. |
+| Where does this field get constructed? | `porousGasificationFoam/createFields.H` for solver fields; `createDemFields.H` for DEM-coupled fields. |
 | How does the solver layout map to OpenFOAM modules? | Part I → [Project Structure](#project-structure). |
 
 If you find a discrepancy between this tour and what the code does, the code wins — please open an issue or PR.

@@ -280,8 +280,43 @@ dry_run() {
 # MAIN & COMPLETION
 # ============================================================
 
+check_foamyade_dir() {
+  # The Yade-coupled build needs the Foam-Yade checkout: Make/options of the
+  # DEM library and the solver include
+  # $(FOAMYADE_DIR)/pkg/pgfToYadeCoupling/PgfToYadeMpiCoupler/lnInclude and
+  # link -lPgfToYadeMpiCoupler (built there by wmake).
+  [ "$WITH_YADE" -eq 1 ] || return 0
+  [ "$MODE" = "build" ] || return 0
+
+  # legacy fallback: YADE_TRUNK used to point at the Yade checkout
+  if [ -z "${FOAMYADE_DIR:-}" ] && [ -n "${YADE_TRUNK:-}" ]; then
+    FOAMYADE_DIR="$YADE_TRUNK"
+  fi
+
+  if [ -z "${FOAMYADE_DIR:-}" ]; then
+    clog ERROR "--yade requires FOAMYADE_DIR to point at the Foam-Yade checkout"
+    clog ERROR "  e.g. FOAMYADE_DIR=/path/to/Foam-Yade ./build.sh build --yade"
+    return 1
+  fi
+
+  if [ ! -d "$FOAMYADE_DIR/pkg/pgfToYadeCoupling/PgfToYadeMpiCoupler" ]; then
+    clog ERROR "FOAMYADE_DIR=$FOAMYADE_DIR does not contain pkg/pgfToYadeCoupling/PgfToYadeMpiCoupler"
+    clog ERROR "  (needs the Foam-Yade repo, feat/pgf-coupling branch or newer)"
+    return 1
+  fi
+
+  if [ ! -e "$FOAM_USER_LIBBIN/libPgfToYadeMpiCoupler.so" ]; then
+    clog WARNING "libPgfToYadeMpiCoupler.so not found in FOAM_USER_LIBBIN"
+    clog WARNING "  build it first: cd $FOAMYADE_DIR/pkg/pgfToYadeCoupling/PgfToYadeMpiCoupler && wmake"
+  fi
+
+  export FOAMYADE_DIR
+  clog INFO "FOAMYADE_DIR=$FOAMYADE_DIR"
+}
+
 main() {
   parse_arguments "$@"
+  check_foamyade_dir || exit 1
   setup_directories || {
     clog ERROR "Setup failed"
     exit 1

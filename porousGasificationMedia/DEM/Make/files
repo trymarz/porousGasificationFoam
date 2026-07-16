@@ -1,6 +1,6 @@
 interpolationModels/UsInterpolationModel/UsInterpolationModel.C
 interpolationModels/laplaceAnchored/laplaceAnchored.C
 interpolationModels/laplaceSetValues/laplaceSetValues.C
-lambdaDotModel.C
+DemToFvmMapper.C
 
-LIB = $(FOAM_USER_LIBBIN)/liblambdaDotModel
+LIB = $(FOAM_USER_LIBBIN)/libDemToFvmMapper

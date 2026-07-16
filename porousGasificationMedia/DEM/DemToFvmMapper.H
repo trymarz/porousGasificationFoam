@@ -1,11 +1,11 @@
-#ifndef lambdaDotModel_H
-#define lambdaDotModel_H
+#ifndef DemToFvmMapper_H
+#define DemToFvmMapper_H
 
 #include "DynamicList.H"
 #include "Map.H"
 #include "autoPtr.H"
 #include "fvMesh.H"
-#include "FoamYade.H"
+#include "PgfToYadeMpiCoupler.H"
 #include "Function1.H"
 
 namespace Foam
@@ -13,7 +13,7 @@ namespace Foam
 
 class UsInterpolationModel;
 
-class lambdaDotModel
+class DemToFvmMapper
 {
 private:
     const fvMesh& mesh_;
@@ -22,7 +22,7 @@ private:
     volVectorField& UsDEM_;     // velocity of spheres
     volVectorField& Us_;    // interpolated sphere velocity
     volScalarField& porosityF_;   // porosity field  get from the main solver
-    FoamYade& yade_;
+    PgfToYadeMpiCoupler& pgfToYadeCoupler_;
 
     word lambdaMode_;  // to switch between single value or function
     scalar lambdaValue_;
@@ -42,7 +42,7 @@ private:
     autoPtr<Function1<scalar>> lambdaFunc_;  // to read lambdaFunction from constant/lambdaDict
 
 public:
-    lambdaDotModel
+    DemToFvmMapper
     (
         const fvMesh& mesh,
         volScalarField& lambdaDot,
@@ -50,18 +50,18 @@ public:
         volVectorField& UsDEM,   // velocity of spheres
         volVectorField& Us, // interpolated sphere velocity
         volScalarField& porosityF, // porosity field  get from the main solver
-        FoamYade& yade
+        PgfToYadeMpiCoupler& pgfToYadeCoupler
     );
 
-    ~lambdaDotModel();
+    ~DemToFvmMapper();
 
     void updateLambdaDot();
-    void updateParticleFields();
+    void aggregateDemDataIntoFvmFields();
 
     const DynamicList<label>& movedFromCells() const;
     const DynamicList<label>& movedToCells() const;
 
-    void writeParticlesData() const;  // to write ParticlesData.txt in each time step for each rank
+    void writeParticlesDataToFile() const;  // to write ParticlesData.txt in each time step for each rank
 };
 
 } // namespace Foam

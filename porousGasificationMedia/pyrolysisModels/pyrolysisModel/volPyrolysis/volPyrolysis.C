@@ -1123,7 +1123,7 @@ volPyrolysis::volPyrolysis
         dimensionedScalar("zero", dimless, 0.0)
     ),
     // Bind to the single registered "Us" field created by the solver
-    // (createFields.H), rather than owning a duplicate. lambdaDotModel
+    // (createFields.H), rather than owning a duplicate. DemToFvmMapper
     // writes that same object when DEM coupling is active.
     Us_
     (

@@ -49,10 +49,9 @@ ifeq ($(WITH_YADE),1)
     EXE_INC += \
         -DWITH_YADE=1 \
         -I$(FOAM_HGS)/DEM/lnInclude \
-        -I$(YADE_TRUNK)/pkg/openfoam/coupling/FoamYade/lnInclude
+        -I$(FOAMYADE_DIR)/pkg/pgfToYadeCoupling/PgfToYadeMpiCoupler/lnInclude
 
     EXE_LIBS += \
-        -lMeshTree \
-        -lYadeFoam \
-        -llambdaDotModel
+        -lPgfToYadeMpiCoupler \
+        -lDemToFvmMapper
 endif

@@ -45,10 +45,10 @@ Description
 #include "heterogeneousRadiationModel.H"
 #include "HGSSolidThermo.H"
 
-#ifdef WITH_YADE 
-    #include "FoamYade.H"
-    #include "lambdaDotModel.H"
-#endif // WITH_YADE 
+#ifdef WITH_YADE
+    #include "PgfToYadeMpiCoupler.H"
+    #include "DemToFvmMapper.H"
+#endif // WITH_YADE
 
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
@@ -64,7 +64,7 @@ int main(int argc, char *argv[])
     #include "createFields.H"
 
     #ifdef WITH_YADE
-        #include "createDEMFields.H"
+        #include "createDemFields.H"
     #endif // WITH_YADE
 
     #include "createFieldRefs.H"
@@ -74,7 +74,7 @@ int main(int argc, char *argv[])
     #include "createHeterogeneousRadiationModel.H"
     #include "readChemistryTimeControls.H"
     #ifdef WITH_YADE
-        #include "createYadeCoupling.H"
+        #include "createDemCoupling.H"
     #endif // WITH_YADE
 
     turbulence->validate();
@@ -111,13 +111,20 @@ int main(int argc, char *argv[])
         Info<< "Time = " << runTime.timeName() << nl << endl;
 
         #ifdef WITH_YADE
-        if (DEM)
+        if (demActive)
         {
-            vGrad = fvc::grad(U);
-            lambdaDotUpdater->update();
-            yadeCoupling->setParticleAction(runTime.deltaT().value());
-            lambdaDotUpdater->writeParticlesData();
-            yadeCoupling->setSourceZero();
+            // STEP 1 (PGF -> DEM): update the lambdaDot field, then exchange
+            // with YADE -- receive particle kinematics, locate the spheres on
+            // the fluid mesh, and send back per-particle lambdaDot
+            demToFvmMapper->updateLambdaDot();
+            pgfToYadeCoupler->exchangeParticleDataWithYade(runTime.deltaT().value());
+
+            // STEP 3 (DEM -> PGF): aggregate located sphere data into the
+            // continuum fields (nParticles, UsDEM, Us)
+            demToFvmMapper->aggregateDemDataIntoFvmFields();
+            demToFvmMapper->writeParticlesDataToFile();
+
+            pgfToYadeCoupler->clearParticleExchangeBuffers();
         }
         #endif
 
