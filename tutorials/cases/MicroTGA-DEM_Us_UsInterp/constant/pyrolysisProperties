@@ -22,6 +22,9 @@ heterogeneousPyrolysisModel  volPyrolysis;
 pyrolysisCoeffs
 {
     subintegrateHeatTransfer true;
+    bedCollapse false;
+    criticalPorosity 0.9999;
+    replenish false;
 }
 
 infoOutput      true;
