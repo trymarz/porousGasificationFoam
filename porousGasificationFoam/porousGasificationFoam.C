@@ -123,7 +123,7 @@ int main(int argc, char *argv[])
             // STEP 3 (DEM -> PGF): aggregate located sphere data into the
             // continuum fields (nParticles, UsDEM, Us)
             demToFvmMapper->aggregateDemDataIntoFvmFields();
-            demToFvmMapper->writeParticlesDataToFile();
+            demToFvmMapper->writeParticlesData();
 
             pgfToYadeCoupler->clearParticleExchangeBuffers();
         }

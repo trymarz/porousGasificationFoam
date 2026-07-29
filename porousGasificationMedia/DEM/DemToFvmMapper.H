@@ -40,7 +40,7 @@ private:
     //
 
 public:
-    lambdaDotModel
+    DemToFvmMapper
     (
         const fvMesh& mesh,
         volScalarField& lambdaDot,
@@ -51,7 +51,7 @@ public:
         PgfToYadeMpiCoupler& pgfToYadeCoupler
     );
 
-    ~lambdaDotModel();
+    ~DemToFvmMapper();
 
     void aggregateDemDataIntoFvmFields();
 

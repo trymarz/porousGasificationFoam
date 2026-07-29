@@ -5,7 +5,7 @@
 namespace Foam
 {
 
-DemToFvmMapper::lambdaDotModel
+DemToFvmMapper::DemToFvmMapper
 (
     const fvMesh& mesh,
     volScalarField& lambdaDot,
@@ -13,7 +13,7 @@ DemToFvmMapper::lambdaDotModel
     volVectorField& UsDEM,  // velocity of spheres
     volVectorField& Us, // interpolated velocity of spheres
     volScalarField& porosityF,
-    PgfToYadeMpiCoupler& yade
+    PgfToYadeMpiCoupler& pgfToYadeCoupler
 )
 :
     mesh_(mesh),
@@ -64,7 +64,7 @@ DemToFvmMapper::lambdaDotModel
 }
 
 
-DemToFvmMapper::~lambdaDotModel() = default;
+DemToFvmMapper::~DemToFvmMapper() = default;
 
 
 void DemToFvmMapper::aggregateDemDataIntoFvmFields()
