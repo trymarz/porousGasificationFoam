@@ -77,10 +77,10 @@ solvers
     }
     Ts
     {
-        solver           PCG;
-        preconditioner   DIC;
-        tolerance        1e-12;
-        relTol           1e-7;
+        solver          PBiCGStab;
+        preconditioner  DIC;
+        tolerance       1e-10;
+        relTol          1e-6;
     }
     rhos
     {
