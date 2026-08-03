@@ -134,7 +134,7 @@ void volPyrolysis::solvePorosity()
 
         volScalarField& por = porosity_;
 
-        surfaceScalarField Us = mesh_.Sf() & fvc::interpolate(Us_,"Us");
+        surfaceScalarField phiUs = mesh_.Sf() & fvc::interpolate(Us_,"Us");
 
         // requires setting same stuff as for diffusion to release flux at the ends of porous media
         // it would be best to solve 1-porosity as it gives 0 flux naturally when empty?? 
@@ -143,7 +143,7 @@ void volPyrolysis::solvePorosity()
             fvm::ddt(por)
          ==
             porositySource_
-          - fvc::div(Us,por,"div(phiSolid)")
+          - fvc::div(phiUs,por,"div(phiSolid)")
         );
 
         porosityEqn.solve("porosity");
@@ -186,8 +186,43 @@ void volPyrolysis::solvePorosity()
             }
         }
 
+        // Do not erase a nearly empty cell while solid mass is still
+        // entering it through the advective transport equation.
+        volScalarField totalYm = 0*Ym_[0];
+        totalYm.correctBoundaryConditions();
+        for (label i = 0; i < Ym_.size(); ++i)
+        {
+            totalYm += Ym_[i];
+        }
+
+        volScalarField divPhiYm
+        (
+            fvc::div(phiUs, totalYm, "div(phiSolid)")
+        );
+
+        const scalar fluxTol = 1e-12;
+        const label nCandidate = flippedStack.size();
+        label nProtected = 0;
+        FIFOStack<label> filteredStack = {};
+        while (!flippedStack.empty())
+        {
+            const label cellI = flippedStack.pop();
+            if (divPhiYm[cellI] < -fluxTol)
+            {
+                ++nProtected;
+            }
+            else
+            {
+                filteredStack.push(cellI);
+            }
+        }
+
+        Info << "solid flip guard: candidates=" << nCandidate
+             << " vetoed(incoming-solid)=" << nProtected
+             << " flipped=" << filteredStack.size() << endl;
+
         List<Field<label>> procFlipList(Pstream::nProcs());
-        procFlipList[Pstream::myProcNo()] = labelList(flippedStack);
+        procFlipList[Pstream::myProcNo()] = labelList(filteredStack);
         Pstream::gatherList(procFlipList);
         Pstream::scatterList(procFlipList);
         bool evaluate = false;
@@ -548,11 +583,11 @@ void volPyrolysis::solvePorosity()
         {
             // this is to set porosity 0 and other fields on flipped fileds
             // it will be an alternative to the motion procedure at some point
-            List<label> flippedStackList = labelList(flippedStack);
-            forAll(flippedStackList,entI)
+            List<label> filteredStackList = labelList(filteredStack);
+            forAll(filteredStackList,entI)
             {
-                porosity_[flippedStackList[entI]] = 1.0;
-                T_[flippedStackList[entI]] = minTs;
+                porosity_[filteredStackList[entI]] = 1.0;
+                T_[filteredStackList[entI]] = minTs;
             }
         }
 

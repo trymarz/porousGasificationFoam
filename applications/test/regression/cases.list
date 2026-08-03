@@ -17,5 +17,7 @@
 # (they require Yade installed and the solver built with ./build.sh --yade).
 
 tutorials/cases/charOnlyMoveCases/serial       fast
+tutorials/cases/charOnlyMoveCases/solidInlet          fast
+tutorials/cases/charOnlyMoveCases/solidInlet_tinyDt   fast
 tutorials/cases/charOnlyMoveCases/serial_m2    convergence
 tutorials/cases/charOnlyMoveCases/serial_m4    convergence
