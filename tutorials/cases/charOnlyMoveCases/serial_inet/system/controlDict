@@ -1,0 +1,81 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  8
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "system";
+    object      controlDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+application porousGasificationFoam;
+
+startFrom       latestTime;
+
+startTime       0;
+
+stopAt          endTime;
+
+endTime         2.0;
+
+deltaT          1e-7;
+
+maxDeltaT       0.001;
+
+writeControl    adjustableRunTime;
+
+writeInterval   0.005;
+
+purgeWrite      0;
+
+writeFormat     ascii;
+
+writePrecision  8;
+
+writeCompression off;
+
+timeFormat      general;
+
+timePrecision   6;
+
+runTimeModifiable yes;
+
+adjustTimeStep yes;
+
+maxCo           1;
+
+maxDi           5000;
+
+functions
+{
+    #includeIfPresent "regressionFunctions"
+
+    probes
+    {
+        type            probes;
+        libs            (sampling);
+        enabled         true;
+        writePrecision  10;
+        writeControl    timeStep;
+        writeInterval   1;
+        fields          (porosityF Ycharm Ts whereIs);
+        probeLocations
+        (
+            (0.0005 0.005 0.0005)   // inlet-mid
+            (0.0005 0.001 0.0005)   // inlet-bot
+            (0.0005 0.009 0.0005)   // inlet-top
+            (0.0025 0.005 0.0005)   // cell-2-mid
+            (0.0055 0.005 0.0005)   // cell-5-mid
+            (0.0195 0.005 0.0005)   // outlet-mid
+        );
+    }
+}
+
+// ************************************************************************* //
