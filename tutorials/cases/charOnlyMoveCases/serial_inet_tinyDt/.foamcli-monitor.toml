@@ -1,0 +1,9 @@
+[heatmap]
+fields = ["porosityF", "Ts", "Ycharm"]
+
+[probes]
+labels = ["inlet-mid", "inlet-bot", "inlet-top", "cell-2-mid", "cell-5-mid", "outlet-mid"]
+
+[monitor]
+refresh_interval = 2.0
+panels = ["progress", "probes", "heatmap"]
