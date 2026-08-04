@@ -145,6 +145,9 @@ protected:
     //- Criterion for bed motion porosity model
     scalar critPorosity_;
 
+    //- Absolute tolerance for detecting incoming solid flux [kg/m3/s]
+    scalar poroProtectSolidInflowFluxTolerance_;
+
     //- Total replenished mass
     scalar totRepMass_;
 
