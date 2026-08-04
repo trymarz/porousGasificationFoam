@@ -156,7 +156,7 @@ void volPyrolysis::solvePorosity()
 
         scalar minTs = 0;
 
-        FIFOStack<label> flippedStack = {};
+        FIFOStack<label> candidateStack = {};
 
         volVectorField whereIsGrad = fvc::grad(whereIs_);        
 
@@ -166,7 +166,7 @@ void volPyrolysis::solvePorosity()
             {
                 if (porosity_[cellI] < 1.0)
                 {
-                    flippedStack.push(cellI);
+                    candidateStack.push(cellI);
                 }
             }
             if (porosity_[cellI] < 0.0001)
@@ -189,8 +189,8 @@ void volPyrolysis::solvePorosity()
         // Do not erase a nearly empty cell while solid mass is still
         // entering it through the advective transport equation.
         volScalarField totalYm = 0*Ym_[0];
-        totalYm.correctBoundaryConditions();
-        for (label i = 0; i < Ym_.size(); ++i)
+
+        forAll(Ym_, i)
         {
             totalYm += Ym_[i];
         }
@@ -200,29 +200,44 @@ void volPyrolysis::solvePorosity()
             fvc::div(phiUs, totalYm, "div(phiSolid)")
         );
 
-        const scalar fluxTol = 1e-12;
-        const label nCandidate = flippedStack.size();
+        label nCandidates = candidateStack.size();
         label nProtected = 0;
-        FIFOStack<label> filteredStack = {};
-        while (!flippedStack.empty())
+        FIFOStack<label> flipStack = {};
+
+        while (!candidateStack.empty())
         {
-            const label cellI = flippedStack.pop();
-            if (divPhiYm[cellI] < -fluxTol)
+            const label cellI = candidateStack.pop();
+
+            if
+            (
+                divPhiYm[cellI]
+              < -poroProtectSolidInflowFluxTolerance_
+            )
             {
                 ++nProtected;
             }
             else
             {
-                filteredStack.push(cellI);
+                flipStack.push(cellI);
             }
         }
 
-        Info << "solid flip guard: candidates=" << nCandidate
-             << " vetoed(incoming-solid)=" << nProtected
-             << " flipped=" << filteredStack.size() << endl;
+        label nFlips = flipStack.size();
+
+        reduce(nCandidates, sumOp<label>());
+        reduce(nProtected, sumOp<label>());
+        reduce(nFlips, sumOp<label>());
+
+        if (infoOutput_ && Pstream::master() && nCandidates > 0)
+        {
+            Info<< "solid flip guard: candidates=" << nCandidates
+                << " vetoed(incoming-solid)=" << nProtected
+                << " flipped=" << nFlips
+                << endl;
+        }
 
         List<Field<label>> procFlipList(Pstream::nProcs());
-        procFlipList[Pstream::myProcNo()] = labelList(filteredStack);
+        procFlipList[Pstream::myProcNo()] = labelList(flipStack);
         Pstream::gatherList(procFlipList);
         Pstream::scatterList(procFlipList);
         bool evaluate = false;
@@ -583,11 +598,11 @@ void volPyrolysis::solvePorosity()
         {
             // this is to set porosity 0 and other fields on flipped fileds
             // it will be an alternative to the motion procedure at some point
-            List<label> filteredStackList = labelList(filteredStack);
-            forAll(filteredStackList,entI)
+            List<label> flipStackList = labelList(flipStack);
+            forAll(flipStackList,entI)
             {
-                porosity_[filteredStackList[entI]] = 1.0;
-                T_[filteredStackList[entI]] = minTs;
+                porosity_[flipStackList[entI]] = 1.0;
+                T_[flipStackList[entI]] = minTs;
             }
         }
 
@@ -994,6 +1009,7 @@ volPyrolysis::volPyrolysis
     bedCollapseSwitch_(false),
     replenishSwitch_(false),
     critPorosity_(0.9999),
+    poroProtectSolidInflowFluxTolerance_(1e-12),
     totRepMass_(0.),
     nNonOrthCorr_(-1),
     maxDiff_(10),
@@ -1184,6 +1200,12 @@ volPyrolysis::volPyrolysis
     bedCollapseSwitch_ = coeffs().lookupOrDefault("bedCollapse",false);
     replenishSwitch_ = coeffs().lookupOrDefault("replenish",false);
     critPorosity_ = coeffs().lookupOrDefault("criticalPorosity",0.9999);
+    poroProtectSolidInflowFluxTolerance_ =
+        coeffs().lookupOrDefault
+        (
+            "poroProtectSolidInflowFluxTolerance",
+            1e-12
+        );
 
     Info << endl;
     Info << "subintegrateHeatTransfer " << subintegrateSwitch_ << endl;
@@ -1192,6 +1214,9 @@ volPyrolysis::volPyrolysis
     {
         Info << "criticalPorosity         " << critPorosity_  << endl;
     }
+    Info << "poroProtectSolidInflowFluxTolerance  "
+         << poroProtectSolidInflowFluxTolerance_
+         << " [kg/m3/s]" << endl;
     Info << "replenish                " << replenishSwitch_    << endl;
     Info << endl;
 
