@@ -1,0 +1,59 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  v2406
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "system";
+    object      setFieldsDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// A circular solid blob (porosityF < 1 => solid mass present) at the domain
+// centre, plus a converging prescribed solid velocity Us: +x in the left half,
+// -x in the right half.  The blob is advected purely by Us (chemistry off).
+
+defaultFieldValues
+(
+    volScalarFieldValue porosityF  0.999
+    volScalarFieldValue porosityF0 0.999
+    volVectorFieldValue Us         (0 0 0)
+);
+
+regions
+(
+    // Solid blob: radius 3 mm cylinder about z, placed off-centre at
+    // (0.01, 0.015) so every prescribed Us field (including the vortices,
+    // which are centred/singular at the domain centre) actually advects it.
+    cylinderToCell
+    {
+        point1  (0.01 0.015 -1);
+        point2  (0.01 0.015  1);
+        radius  0.003;
+        fieldValues
+        (
+            volScalarFieldValue porosityF  0.99
+            volScalarFieldValue porosityF0 0.99
+        );
+    }
+
+    // Converging Us: left half drives +x, right half drives -x.
+    boxToCell
+    {
+        box (0    0 -1) (0.01 0.02 1);
+        fieldValues ( volVectorFieldValue Us (0.01 0 0) );
+    }
+    boxToCell
+    {
+        box (0.01 0 -1) (0.02 0.02 1);
+        fieldValues ( volVectorFieldValue Us (-0.01 0 0) );
+    }
+);
+
+// ************************************************************************* //

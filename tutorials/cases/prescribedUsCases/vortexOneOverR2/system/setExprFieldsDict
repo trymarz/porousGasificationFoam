@@ -1,0 +1,50 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  v2406
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "system";
+    object      setExprFieldsDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// Steeper-than-irrotational vortex about the domain centre: tangential speed
+// ~ k2/r^2, so Us = k2 * (-(y-yc), (x-xc), 0) / r^3.  k2 = 2.5e-7.  eps
+// regularizes r->0 with a core radius sqrt(eps) ~ 5 mm, which caps the peak at
+// |Us| = k2/eps = 0.01 m/s (the 1/r^2 profile is otherwise so steep it would
+// reach ~0.25 m/s at the centre and destabilize the coupled energy solve). The
+// 1/r^2 decay in the outer region is what distinguishes it from irrotational.
+
+expressions
+(
+    Us
+    {
+        field       Us;
+        dimensions  [0 1 -1 0 0 0 0];
+        variables
+        (
+            "xc = 0.01"
+            "yc = 0.01"
+            "k2 = 2.5e-7"
+            "eps = 2.5e-5"
+            "dx = pos().x() - xc"
+            "dy = pos().y() - yc"
+            "rr = dx*dx + dy*dy + eps"
+            "r = sqrt(rr)"
+            "vt = k2/rr"
+        );
+        expression
+        #{
+            vector(-vt*dy/r, vt*dx/r, 0)
+        #};
+    }
+);
+
+// ************************************************************************* //

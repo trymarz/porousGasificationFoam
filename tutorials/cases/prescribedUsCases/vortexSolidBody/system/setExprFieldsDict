@@ -1,0 +1,43 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  v2406
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "system";
+    object      setExprFieldsDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// Solid-body rotation about the domain centre (rigid rotation, div(Us) = 0):
+//   Us = omega * (-(y - yc), (x - xc), 0),  omega = 1 rad/s.
+// max|Us| = omega * r_max = 1 * 0.0141 ~ 0.014 m/s (far corner).
+
+expressions
+(
+    Us
+    {
+        field       Us;
+        dimensions  [0 1 -1 0 0 0 0];
+        variables
+        (
+            "xc = 0.01"
+            "yc = 0.01"
+            "omega = 1.0"
+            "dx = pos().x() - xc"
+            "dy = pos().y() - yc"
+        );
+        expression
+        #{
+            vector(-omega*dy, omega*dx, 0)
+        #};
+    }
+);
+
+// ************************************************************************* //
