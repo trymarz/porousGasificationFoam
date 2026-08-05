@@ -12,10 +12,11 @@ set -u
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 
-# helpers.sh uses an unguarded $HELPERS_SOURCED include guard; disable -u
-# around the source so it works under our strict mode.
+# Shared runner logic (case loading, outcome classification, summary + honest
+# exit). The library sources helpers.sh, absorbing the set +u include-guard
+# dance, so this driver sources only the library.
 # shellcheck disable=SC1091
-set +u; . "$REPO_ROOT/utilities/bash_utils/helpers.sh"; set -u
+. "$SCRIPT_DIR/tools/regressionLib.sh"
 
 CASES_FILE="$SCRIPT_DIR/cases.list"
 COMPARE="$SCRIPT_DIR/tools/compareScalars.py"
@@ -59,15 +60,10 @@ while [ $# -gt 0 ]; do
     esac
 done
 
-if [ ! -f "$CASES_FILE" ]; then
-    clog ERROR "Cases file not found: $CASES_FILE"
-    exit 2
-fi
-
-# Load cases (strip comments and blank lines).
-mapfile -t CASE_LINES < <(grep -vE '^\s*(#|$)' "$CASES_FILE")
-
-if [ "${#CASE_LINES[@]}" -eq 0 ]; then
+# Load the registered suite. An empty suite keeps the current benign behaviour
+# for now (WARNING + exit 0); commit "eliminate false-green paths" turns this
+# into a hard ERROR.
+if ! reg_load_cases "$CASES_FILE" CASE_LINES; then
     clog WARNING "No cases listed in $CASES_FILE"
     exit 0
 fi
@@ -81,11 +77,10 @@ clog INFO "  rtol:    $RTOL   atol: $ATOL"
 [ -n "$ONLY_CASE" ]    && clog INFO "  filter:  $ONLY_CASE"
 clog INFO "=================================================="
 
-passed=()
-failed=()
+# Outcomes accumulate in the library (reg_record/reg_summary). The missing-
+# baseline SKIP state is still driver-local and transitional — it is removed
+# (missing baseline becomes ERROR) in the false-green-closure commit.
 skipped=()
-pass_times=()
-fail_times=()
 
 for line in "${CASE_LINES[@]}"; do
     caseRel=$(awk '{print $1}' <<< "$line")
@@ -112,8 +107,7 @@ for line in "${CASE_LINES[@]}"; do
 
     if [ ! -d "$caseDir" ]; then
         clog ERROR "  directory missing: $caseDir"
-        failed+=("$caseName (missing dir)")
-        fail_times+=("-")
+        reg_record "$caseName (missing dir)" 2 "-"
         continue
     fi
 
@@ -128,37 +122,26 @@ for line in "${CASE_LINES[@]}"; do
     [ "$SKIP_RUN" = true ] && runFlag="--no-run"
 
     t_start=$(date +%s)
-    if "$RUN_CASE" "$caseDir" $runFlag --rtol "$RTOL" --atol "$ATOL" --compare "$COMPARE"; then
-        t_elapsed=$(( $(date +%s) - t_start ))
-        clog SUCCESS "  PASS  (${t_elapsed}s)"
-        passed+=("$caseName")
-        pass_times+=("${t_elapsed}s")
+    "$RUN_CASE" "$caseDir" $runFlag --rtol "$RTOL" --atol "$ATOL" --compare "$COMPARE"
+    rc=$?
+    t_elapsed=$(( $(date +%s) - t_start ))
+    reg_record "$caseName" "$rc" "${t_elapsed}s"
+    if [ "$rc" -eq 0 ]; then
+        clog SUCCESS "  $(reg_classify "$rc")  (${t_elapsed}s)"
     else
-        t_elapsed=$(( $(date +%s) - t_start ))
-        clog ERROR "  FAIL  (${t_elapsed}s)"
-        failed+=("$caseName")
-        fail_times+=("${t_elapsed}s")
+        clog ERROR "  $(reg_classify "$rc")  (${t_elapsed}s)"
     fi
 done
 
-# Summary table.
-total=$(( ${#passed[@]} + ${#failed[@]} + ${#skipped[@]} ))
-echo
-clog INFO "=================================================="
-clog INFO "  regression summary   ($total cases)"
-clog INFO "=================================================="
+reg_summary "regression summary"
+summary_rc=$?
 
-i=0
-for c in "${passed[@]}";  do clog SUCCESS "  PASS   ${pass_times[$i]}   $c"; (( i++ )) || true; done
-i=0
-for c in "${failed[@]}";  do clog ERROR   "  FAIL   ${fail_times[$i]}   $c"; (( i++ )) || true; done
-for c in "${skipped[@]}"; do clog SKIP    "  SKIP   -        $c";            done
-
-echo
-clog INFO "  passed: ${#passed[@]}   failed: ${#failed[@]}   skipped: ${#skipped[@]}"
-clog INFO "=================================================="
-
-if [ "${#failed[@]}" -gt 0 ]; then
-    exit 1
+# Transitional SKIP reporting (removed with the missing-baseline pre-check in
+# the false-green-closure commit). Skips do not affect the suite exit code,
+# matching the pre-refactor behaviour.
+if [ "${#skipped[@]}" -gt 0 ]; then
+    for c in "${skipped[@]}"; do clog SKIP "  SKIP   -   $c"; done
+    clog INFO "  skipped: ${#skipped[@]}"
 fi
-exit 0
+
+exit $summary_rc
