@@ -5,10 +5,12 @@
 # Usage:
 #   runCase.sh <caseDir> [--no-run] [--rtol R] [--atol A] [--compare PATH]
 #
-# Exit codes:
-#   0  - PASS (within tolerance)
-#   1  - FAIL (numerical divergence)
-#   2  - infrastructure error (missing files, run failure, etc.)
+# Exit codes (shared outcome taxonomy — see tools/regressionLib.sh):
+#   0      - PASS  (ran, compared, within tolerance)
+#   1      - FAIL  (ran, compared, numerical divergence)
+#   2      - ERROR (infrastructure: missing files, dirty slate, run failure)
+#   128+N  - CRASH (the case Allrun/solver died on signal N; propagated as-is so
+#                   the runner reports e.g. CRASH (SIGABRT) for a 134 abort)
 
 set -u
 
@@ -70,15 +72,34 @@ if [ "$SKIP_RUN" = false ]; then
         exit 2
     fi
 
-    # Clean prior run artefacts (preserve reference/).
+    # Clean prior run artefacts (preserve reference/). A swallowed clean can
+    # leave a dirty slate that silently corrupts the comparison, so the clean
+    # is checked and the slate is asserted afterwards.
     if [ -x "$caseDir/Allclean" ]; then
-        (cd "$caseDir" && ./Allclean) >/dev/null 2>&1 || true
+        if ! (cd "$caseDir" && ./Allclean) >/dev/null 2>&1; then
+            echo "[runCase] Allclean failed in $caseDir" >&2
+            exit 2
+        fi
+    fi
+    if ls "$caseDir"/log.* >/dev/null 2>&1 || [ -d "$caseDir/postProcessing" ]; then
+        echo "[runCase] dirty slate: log.*/postProcessing survived the clean in $caseDir" >&2
+        exit 2
     fi
 
     echo "[runCase] Running $caseDir/Allrun"
-    if ! (cd "$caseDir" && ./Allrun); then
-        echo "[runCase] Allrun failed in $caseDir" >&2
-        exit 2
+    (cd "$caseDir" && ./Allrun)
+    rc=$?
+    # Propagate the case's own exit status so the runner can classify it: a
+    # signal death (128+N) surfaces as CRASH, any other non-zero as the case's
+    # reported failure. Infrastructure problems (a broken/absent clean, a dirty
+    # slate, missing files) are the runner's own concern and exit 2 above.
+    if [ "$rc" -ne 0 ]; then
+        if [ "$rc" -gt 128 ]; then
+            echo "[runCase] Allrun in $caseDir died on signal $(( rc - 128 )) (exit $rc)" >&2
+        else
+            echo "[runCase] Allrun in $caseDir exited non-zero ($rc)" >&2
+        fi
+        exit "$rc"
     fi
 fi
 
