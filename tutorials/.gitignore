@@ -9,7 +9,12 @@ VTK/
 [0-9]*/
 !0*org/
 !0*orig/
-!cases/*/reference/postProcessing/*/[0-9]*/
+!**/reference/postProcessing/*/[0-9]*/
+
+# Baselines assert the regression* volFieldValue function objects only. The
+# probes FO is TUI-monitor support; its output is not part of the assertion
+# surface, so keep captured probe data out of reference/.
+**/reference/postProcessing/probes/
 
 # Runtime-compiled code (codedFixedValue etc.)
 dynamicCode/
