@@ -103,10 +103,10 @@ reg_record() {
     REG_TIMES+=("$3")
 }
 
-# reg_summary [<title>] — print the outcome table + counts and return 0 iff
-# every recorded case PASSed. With nothing recorded it returns 0 (vacuously);
-# the driver guards the empty-suite case up front via reg_load_cases so this
-# vacuous path is never the sole gate.
+# reg_summary [<title>] — print the outcome table + counts and return 0 iff at
+# least one case was recorded and every recorded case PASSed. Nothing recorded
+# (e.g. a filter that matched no case) is never green — a gate that compared
+# nothing must not report success.
 reg_summary() {
     local title="${1:-regression summary}"
     local n="${#REG_NAMES[@]}"
@@ -155,5 +155,5 @@ reg_summary() {
     clog INFO "$counts"
     clog INFO "=================================================="
 
-    [ "$nPass" -eq "$n" ]
+    [ "$n" -gt 0 ] && [ "$nPass" -eq "$n" ]
 }
