@@ -506,7 +506,9 @@ A hung DEM run is bounded by `YADE_TIMEOUT` and terminated by signalling **only 
 
 Some cases run to completion and write correct output, then the solver aborts during teardown (a heap-corruption abort after `End`, e.g. `malloc_consolidate(): invalid chunk size`). Because the process did not exit cleanly, the hardened runner reports this as `CRASH (SIGABRT)`, **not** `PASS` — even though the case's scalars match the baseline within tolerance. This is deliberate: the runner reports what the process did, and a solver that corrupts its heap on the way out is not a healthy pass.
 
-This is a solver/library teardown lifetime defect, tracked separately from the regression tooling. It currently affects at least one `fast`-tier case, so the fast tier is not green end-to-end; the tracked pre-push hook (which would run the fast tier on every push) is therefore deferred until the teardown defect is fixed — a gate that is red for reasons outside a given change would only train people to bypass it. Do **not** paper over the abort with `|| true`; that would trade an honest CRASH for a false green.
+This is a solver/library teardown lifetime defect, tracked separately from the regression tooling. It is **intermittent**: the same binary running the same `fast`-tier case has aborted on every attempt in one environment and completed cleanly on every attempt in another, and the same fault has also been seen to surface as a teardown *hang* rather than an abort. So a green fast tier is evidence about a particular run, not about the code, and a red one is not necessarily a regression introduced by the change under test.
+
+A tracked pre-push hook running the fast tier is therefore deferred until the teardown defect is fixed — a gate that goes red for reasons outside a given change would only train people to bypass it. Do **not** paper over the abort with `|| true`; that would trade an honest CRASH for a false green.
 
 ### What the comparison does
 
