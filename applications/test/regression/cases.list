@@ -16,8 +16,20 @@
 # DEM/Yade cases use a separate runner: applications/test/regression/Allrun.yade
 # (they require Yade installed and the solver built with ./build.sh --yade).
 
+# charOnlyMove prescribed-Us fixtures
 tutorials/cases/charOnlyMoveCases/serial       fast
 tutorials/cases/charOnlyMoveCases/solidInlet          fast
 tutorials/cases/charOnlyMoveCases/solidInlet_tinyDt   fast
 tutorials/cases/charOnlyMoveCases/serial_m2    convergence
 tutorials/cases/charOnlyMoveCases/serial_m4    convergence
+
+# Canonical fast-tier suite — one small fixture per physics path.
+tutorials/cases/canonical/pyrolysis            fast
+tutorials/cases/canonical/gasification         fast
+tutorials/cases/canonical/radiation            fast
+tutorials/cases/canonical/flow                 fast
+tutorials/cases/canonical/stoichiometric       fast
+tutorials/cases/canonical/enthalpy             fast
+tutorials/cases/canonical/meanTemp             fast
+tutorials/cases/canonical/noSubintegration     fast
+tutorials/cases/canonical/equilibrium          fast
