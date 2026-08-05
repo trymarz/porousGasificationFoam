@@ -1,0 +1,92 @@
+species
+(
+    N2 O2 CO CO2
+);
+
+N2
+{
+    specie
+    {
+        nMoles          1;
+        molWeight       28.0134;
+    }
+    thermodynamics
+    {
+        Tlow            200;
+        Thigh           5000;
+        Tcommon         1000;
+        highCpCoeffs    ( 2.92664 0.00148798 -5.68476e-07 1.0097e-10 -6.75335e-15 -922.798 5.98053 );
+        lowCpCoeffs     ( 3.29868 0.00140824 -3.96322e-06 5.64152e-09 -2.44486e-12 -1020.9 3.95037 );
+    }
+    transport
+    {
+        As              1.67212e-06;
+        Ts              170.672;
+    }
+}
+
+O2
+{
+    specie
+    {
+        nMoles          1;
+        molWeight       31.9988;
+    }
+    thermodynamics
+    {
+        Tlow            200;
+        Thigh           6000;
+        Tcommon         1000;
+        highCpCoeffs    ( 3.28254 0.00148309 -7.57967e-07 2.09471e-10 -2.16718e-14 -1088.46 5.45312 );
+        lowCpCoeffs     ( 3.78246 -0.00299673 9.8473e-06 -9.6813e-09 3.24373e-12 -1063.94 3.65768 );
+    }
+    transport
+    {
+        As              1.67212e-06;
+        Ts              170.672;
+    }
+}
+
+CO
+{
+    specie
+    {
+        nMoles          1;
+        molWeight       28.0101;
+    }
+    thermodynamics
+    {
+        Tlow            200;
+        Thigh           6000;
+        Tcommon         1000;
+        highCpCoeffs    ( 3.02508 0.00144269 -5.63083e-07 1.01858e-10 -6.91096e-15 -14268.1 6.10822 );
+        lowCpCoeffs     ( 3.26245 0.00151194 -3.88176e-06 5.58194e-09 -2.47495e-12 -14310.5 4.8489 );
+    }
+    transport
+    {
+        As              1.67212e-06;
+        Ts              170.672;
+    }
+}
+
+CO2
+{
+    specie
+    {
+        nMoles          1;
+        molWeight       44.0095;
+    }
+    thermodynamics
+    {
+        Tlow            200;
+        Thigh           6000;
+        Tcommon         1000;
+        highCpCoeffs    ( 4.45362 0.00314017 -1.27841e-06 2.394e-10 -1.66903e-14 -48961.4 -0.955396 );
+        lowCpCoeffs     ( 2.27572 0.00992207 -1.04091e-05 6.86668e-09 -2.11728e-12 -48373.1 10.1885 );
+    }
+    transport
+    {
+        As              1.67212e-06;
+        Ts              170.672;
+    }
+}

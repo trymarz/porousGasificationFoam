@@ -1,0 +1,39 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  v2406
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "system";
+    object      setExprFieldsDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// Simple shear: Us = (gamma*(y - yc), 0, 0), gamma = 1 /s, yc = 0.01 m.
+// max|Us| = gamma * (L/2) = 1 * 0.01 = 0.01 m/s at the top/bottom walls.
+
+expressions
+(
+    Us
+    {
+        field       Us;
+        dimensions  [0 1 -1 0 0 0 0];
+        variables
+        (
+            "yc = 0.01"
+            "gamma = 1.0"
+        );
+        expression
+        #{
+            vector(gamma*(pos().y() - yc), 0, 0)
+        #};
+    }
+);
+
+// ************************************************************************* //

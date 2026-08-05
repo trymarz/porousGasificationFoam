@@ -13,7 +13,10 @@ set -u
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 
-set +u; . "$REPO_ROOT/utilities/bash_utils/helpers.sh"; set -u
+# Shared runner logic (case loading, outcome classification, summary + honest
+# exit); the library sources helpers.sh internally.
+# shellcheck disable=SC1091
+. "$SCRIPT_DIR/tools/regressionLib.sh"
 
 CASES_FILE="$SCRIPT_DIR/cases_yade.list"
 ONLY_CASE=""
@@ -40,26 +43,21 @@ while [ $# -gt 0 ]; do
     esac
 done
 
-mapfile -t CASE_LINES < <(grep -vE '^\s*(#|$)' "$CASES_FILE")
-
-if [ "${#CASE_LINES[@]}" -eq 0 ]; then
+if ! reg_load_cases "$CASES_FILE" CASE_LINES; then
     clog WARNING "No cases listed in $CASES_FILE"
     exit 0
 fi
 
-[ "$SHORT_RUN" -eq 1 ] && export YADE_NSTEPS=200
-[ "$SHORT_RUN" -eq 1 ] && export YADE_TIMEOUT=300
+# --short caps the step count and wall-clock, but a value the caller pre-set in
+# the environment wins (so a longer smoke run can be requested explicitly).
+[ "$SHORT_RUN" -eq 1 ] && export YADE_NSTEPS="${YADE_NSTEPS:-200}"
+[ "$SHORT_RUN" -eq 1 ] && export YADE_TIMEOUT="${YADE_TIMEOUT:-300}"
 
 clog INFO "=================================================="
 clog INFO "  PGF Yade regression suite"
 [ -n "$ONLY_CASE" ] && clog INFO "  filter: $ONLY_CASE"
 [ "$SHORT_RUN" -eq 1 ] && clog INFO "  mode: --short (YADE_NSTEPS=200)"
 clog INFO "=================================================="
-
-passed=()
-failed=()
-pass_times=()
-fail_times=()
 
 for caseRel in "${CASE_LINES[@]}"; do
     caseName="$(basename "$caseRel")"
@@ -75,39 +73,21 @@ for caseRel in "${CASE_LINES[@]}"; do
 
     if [ ! -d "$caseDir" ]; then
         clog ERROR "  directory missing: $caseDir"
-        failed+=("$caseName (missing dir)")
-        fail_times+=("-")
+        reg_record "$caseName (missing dir)" 2 "-"
         continue
     fi
 
     t_start=$(date +%s)
-    if "$SCRIPT_DIR/tools/runDEMCase.sh" "$caseDir"; then
-        t_elapsed=$(( $(date +%s) - t_start ))
-        clog SUCCESS "  PASS  (${t_elapsed}s)"
-        passed+=("$caseName")
-        pass_times+=("${t_elapsed}s")
+    "$SCRIPT_DIR/tools/runDEMCase.sh" "$caseDir"
+    rc=$?
+    t_elapsed=$(( $(date +%s) - t_start ))
+    reg_record "$caseName" "$rc" "${t_elapsed}s"
+    if [ "$rc" -eq 0 ]; then
+        clog SUCCESS "  $(reg_classify "$rc")  (${t_elapsed}s)"
     else
-        t_elapsed=$(( $(date +%s) - t_start ))
-        clog ERROR "  FAIL  (${t_elapsed}s)"
-        failed+=("$caseName")
-        fail_times+=("${t_elapsed}s")
+        clog ERROR "  $(reg_classify "$rc")  (${t_elapsed}s)"
     fi
 done
 
-total=$(( ${#passed[@]} + ${#failed[@]} ))
-echo
-clog INFO "=================================================="
-clog INFO "  Yade regression summary  ($total cases)"
-clog INFO "=================================================="
-
-i=0
-for c in "${passed[@]}"; do clog SUCCESS "  PASS  ${pass_times[$i]}  $c"; (( i++ )) || true; done
-i=0
-for c in "${failed[@]}"; do clog ERROR   "  FAIL  ${fail_times[$i]}  $c"; (( i++ )) || true; done
-
-echo
-clog INFO "  passed: ${#passed[@]}   failed: ${#failed[@]}"
-clog INFO "=================================================="
-
-[ "${#failed[@]}" -gt 0 ] && exit 1
-exit 0
+reg_summary "Yade regression summary"
+exit $?

@@ -418,18 +418,47 @@ Gas-phase reactions are typically orders of magnitude faster than heterogeneous 
 
 Numerical regression tests live under `applications/test/regression/`. The framework runs selected tutorial cases, extracts a small set of summary scalars produced by OpenFOAM `volFieldValue` function objects, and diffs the results against a committed reference baseline within a numerical tolerance.
 
-The point is to give refactors a safety net: any change that perturbs the selected scalars beyond tolerance fails the regression and surfaces a clear diff.
+The point is to give refactors a safety net: any change that perturbs the selected scalars beyond tolerance fails the regression and surfaces a clear diff. The gate is deliberately **honest** — it never reports success unless it actually ran a case and compared it (see the outcome contract below).
 
-The framework lives under `applications/test/regression/` (top-level `Allrun`/`Allclean`, `cases.list`, `tools/runCase.sh`, `tools/compareScalars.py`). Per-case bits live in `tutorials/cases/<caseName>/system/regressionFunctions` (`volFieldValue` blocks included from `controlDict`) and `tutorials/cases/<caseName>/reference/postProcessing/` (committed baseline).
+The framework has two runners that share one outcome vocabulary:
+
+- **Serial suite** — `Allrun` / `Allclean`, `cases.list`, `tools/runCase.sh`, `tools/compareScalars.py`.
+- **DEM (Yade) suite** — `Allrun.yade`, `cases_yade.list`, `tools/runDEMCase.sh` (requires a Yade-enabled build; see below).
+- **Shared logic** — `tools/regressionLib.sh` holds the pieces both runners must agree on: how a case list is loaded, how a case's exit status becomes an outcome, and how the summary decides whether the suite is green.
+
+Per-case bits live in `tutorials/cases/<caseName>/system/regressionFunctions` (`volFieldValue` blocks included from `controlDict`) and `tutorials/cases/<caseName>/reference/postProcessing/` (committed baseline).
+
+### Outcome contract
+
+Every case ends in exactly one outcome, keyed off the case's exit status (standard shell conventions), and both the printed summary and the suite exit code reflect it:
+
+| Exit code | Outcome | Green? | Meaning |
+|---|---|---|---|
+| `0` | `PASS` | yes | ran, compared, within tolerance |
+| `1` | `FAIL` | no | ran, compared, **diverged** beyond tolerance |
+| `2` | `ERROR` | no | infrastructure: missing case dir, missing baseline, dirty slate, no `postProcessing/`, comparator missing |
+| `124` | `TIMEOUT` | no | the run exceeded its timeout and its process group was terminated |
+| `128+N` | `CRASH (SIG…)` | no | the run died on signal N (e.g. `134` → `CRASH (SIGABRT)`, `139` → `CRASH (SIGSEGV)`) |
+
+**The only green suite is one where at least one case ran and every case PASSed.** There is no benign "skip": a case with no reference baseline is an `ERROR`, not a silently-passing skip; an empty or unreadable `cases.list` is an `ERROR`; a run that compared nothing (e.g. a filter that matched no case) is non-zero. A suite that compared nothing can never report success.
+
+### Tiers
+
+`cases.list` tags each case:
+
+- **`fast`** — small fixtures, run by default (`./Allrun`) and intended as the pre-push gate.
+- **`convergence`** — a mesh-refinement study; run manually with `--tag convergence` or `--tag all`.
+
+The DEM cases are inventoried separately in `cases_yade.list` and run only by `Allrun.yade`.
 
 ### Hooking a case into regression
 
 Two steps per case:
 
 1. Drop a `system/regressionFunctions` file describing the metrics to extract (see `tutorials/cases/charOnlyMoveCases/serial/system/regressionFunctions` for the pilot example). Add `#includeIfPresent "regressionFunctions"` at the bottom of `system/controlDict` inside a `functions { ... }` block.
-2. Add the case path to `applications/test/regression/cases.list`.
+2. Add the case path (and optional tag) to `applications/test/regression/cases.list`.
 
-Then capture a baseline (see below).
+Then capture a baseline (see below). Because a missing baseline is now an `ERROR`, a newly-registered case fails the suite until its baseline is committed — register and baseline together.
 
 ### Capturing the baseline
 
@@ -445,18 +474,41 @@ git add reference
 git commit -m "Capture charOnlyMoveCases/serial regression baseline"
 ```
 
-After commit, every subsequent run of `applications/test/regression/Allrun` compares fresh output against `reference/postProcessing/` and reports PASS/FAIL.
+After commit, every subsequent run of `applications/test/regression/Allrun` compares fresh output against `reference/postProcessing/` and reports the outcome.
 
 ### Running regressions
 
 ```bash
 cd applications/test/regression
-./Allrun                                # run every case in cases.list
-./Allrun --case charOnlyMoveCases/serial      # run a single case
-./Allrun --rtol 1e-3                    # override default relative tolerance
+./Allrun                                  # fast tier (default)
+./Allrun --tag all                        # every case regardless of tag
+./Allrun --case charOnlyMoveCases/serial  # a single case
+./Allrun --no-run                         # compare existing output only
+./Allrun --rtol 1e-3                      # override default relative tolerance
 ```
 
-Exit code 0 means all cases within tolerance — non-zero means at least one case failed. The script prints a per-case PASS/FAIL summary and, on failure, the rows that diverged.
+Exit code `0` means every case that ran PASSed; any non-zero means at least one case was not green (FAIL/ERROR/TIMEOUT/CRASH). The summary lists each case with its outcome and, on a FAIL, the rows that diverged; a CRASH shows the signal name so a teardown abort is not mistaken for a numerical divergence.
+
+The solver must be on `PATH` (source the OpenFOAM environment and build the solver first). A run tier that cannot find the solver produces `ERROR`/`CRASH` outcomes, not a false green.
+
+### DEM (Yade) smoke suite
+
+```bash
+applications/test/regression/Allrun.yade --short   # fast smoke: YADE_NSTEPS=200
+applications/test/regression/Allrun.yade           # full run (hours)
+```
+
+Requires a Yade-enabled solver build (`./build.sh --yade` / `build-pgf --yade`), Yade, and `mpirun`. `--short` caps each case to a few hundred coupling steps so it runs in seconds and checks the coupling handshake and output rather than a converged result; a `YADE_NSTEPS`/`YADE_TIMEOUT` preset in the environment overrides the `--short` defaults. Each case is validated for `RUN FINISH`, an active DEM coupling handshake, sphere/spring VTK output, and a positive PGF time step in `dtInfo.txt`.
+
+A hung DEM run is bounded by `YADE_TIMEOUT` and terminated by signalling **only its own process group** (`setsid` + `timeout --kill-after`) — the whole tree of `mpirun` → `yade` → the `MPI_Comm_spawn`'d solver. The runner never issues a host-wide `pkill`, which would kill unrelated solver runs elsewhere on the machine. `cases_yade.list` is the DEM inventory (kept separate from the serial `cases.list`).
+
+### Known caveat: teardown abort surfaces as CRASH
+
+Some cases run to completion and write correct output, then the solver aborts during teardown (a heap-corruption abort after `End`, e.g. `malloc_consolidate(): invalid chunk size`). Because the process did not exit cleanly, the hardened runner reports this as `CRASH (SIGABRT)`, **not** `PASS` — even though the case's scalars match the baseline within tolerance. This is deliberate: the runner reports what the process did, and a solver that corrupts its heap on the way out is not a healthy pass.
+
+This is a solver/library teardown lifetime defect, tracked separately from the regression tooling. It is **intermittent**: the same binary running the same `fast`-tier case has aborted on every attempt in one environment and completed cleanly on every attempt in another, and the same fault has also been seen to surface as a teardown *hang* rather than an abort. So a green fast tier is evidence about a particular run, not about the code, and a red one is not necessarily a regression introduced by the change under test.
+
+A tracked pre-push hook running the fast tier is therefore deferred until the teardown defect is fixed — a gate that goes red for reasons outside a given change would only train people to bypass it. Do **not** paper over the abort with `|| true`; that would trade an honest CRASH for a false green.
 
 ### What the comparison does
 

@@ -1,0 +1,49 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  v2406
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "system";
+    object      setExprFieldsDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// Rankine vortex about the domain centre: solid-body core (vt = omega*r) for
+// r < R, irrotational outer (vt = kk/r) for r > R, with kk = omega*R^2 so the
+// tangential speed is continuous at r = R.  omega = 1, R = 0.005, kk = 2.5e-5.
+// max|Us| = omega*R = 0.005 m/s at the core edge.
+
+expressions
+(
+    Us
+    {
+        field       Us;
+        dimensions  [0 1 -1 0 0 0 0];
+        variables
+        (
+            "xc = 0.01"
+            "yc = 0.01"
+            "omega = 1.0"
+            "R = 0.005"
+            "kk = 2.5e-5"
+            "eps = 1e-6"
+            "dx = pos().x() - xc"
+            "dy = pos().y() - yc"
+            "r = sqrt(dx*dx + dy*dy + eps)"
+            "vt = (r < R) ? omega*r : kk/r"
+        );
+        expression
+        #{
+            vector(-vt*dy/r, vt*dx/r, 0)
+        #};
+    }
+);
+
+// ************************************************************************* //
