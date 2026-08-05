@@ -48,8 +48,10 @@ if ! reg_load_cases "$CASES_FILE" CASE_LINES; then
     exit 0
 fi
 
-[ "$SHORT_RUN" -eq 1 ] && export YADE_NSTEPS=200
-[ "$SHORT_RUN" -eq 1 ] && export YADE_TIMEOUT=300
+# --short caps the step count and wall-clock, but a value the caller pre-set in
+# the environment wins (so a longer smoke run can be requested explicitly).
+[ "$SHORT_RUN" -eq 1 ] && export YADE_NSTEPS="${YADE_NSTEPS:-200}"
+[ "$SHORT_RUN" -eq 1 ] && export YADE_TIMEOUT="${YADE_TIMEOUT:-300}"
 
 clog INFO "=================================================="
 clog INFO "  PGF Yade regression suite"
