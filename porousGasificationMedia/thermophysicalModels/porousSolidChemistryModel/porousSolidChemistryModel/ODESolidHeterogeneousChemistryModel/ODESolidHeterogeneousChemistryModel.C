@@ -1674,8 +1674,10 @@ Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasTherm
         }
         else if (newhi != 0)
         {
-            // One-shot diagnostic: confirms the guard fired and reports the
-            // offending cell state. Remove once the fix is validated.
+            // Reports the cell state the first time the guard skips an update,
+            // once per process, so that a run can show whether the state occurs
+            // at all. Solid mass fractions are listed by name over the solids
+            // actually present -- the composition is case-dependent.
             static bool reported = false;
             if (!reported)
             {
@@ -1687,10 +1689,14 @@ Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasTherm
                     << " solidRho=" << solidRho
                     << " newCp=" << newCp
                     << " newhi=" << newhi
-                    << " Ti=" << Ti
-                    << " Ywood=" << Ys_[0][celli]
-                    << " Ychar=" << Ys_[1][celli]
-                    << endl;
+                    << " Ti=" << Ti;
+
+                forAll(Ys_, i)
+                {
+                    Pout<< ' ' << Ys_[i].name() << '=' << Ys_[i][celli];
+                }
+
+                Pout<< endl;
             }
         }
 
