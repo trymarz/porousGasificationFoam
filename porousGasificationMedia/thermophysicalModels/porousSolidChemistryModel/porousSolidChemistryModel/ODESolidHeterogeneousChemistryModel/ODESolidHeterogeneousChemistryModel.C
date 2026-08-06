@@ -785,8 +785,21 @@ void Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, Gas
         newhi += omegaPreq[nEqns()];
     }
 
-    scalar dTdt = (newhi == 0 ? 0 : newhi/newCp);
-    scalar dtMag = min(500.0, mag(dTdt));
+    // Reaction heating rate of the solid, guarded against a vanishing heat
+    // capacity. newCp is built from the solid concentrations c[i], so it tends
+    // to zero as the solid is consumed; in the branch above that takes newhi
+    // from omegaPreq[nEqns()], newhi does not vanish with it, leaving
+    // newhi/newCp to overflow. The limiter below cannot absorb that: an
+    // infinite dTdt makes the scaling inf/inf, i.e. NaN. Guard the division
+    // instead -- with no solid heat capacity there is no heating rate.
+    scalar dTdt = 0;
+    if (newhi != 0 && newCp > VSMALL)
+    {
+        dTdt = newhi/newCp;
+    }
+
+    // Bound the reaction heating to |dT/dt| <= 500 K/s, preserving its sign.
+    const scalar dtMag = min(500.0, mag(dTdt));
     dcdt[nSpecie_] = dTdt*dtMag/(mag(dTdt) + 1.0e-10);
 
     // dp/dt = ...
