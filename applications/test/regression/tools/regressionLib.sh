@@ -1,11 +1,17 @@
 #!/bin/bash
 # regressionLib.sh — shared logic for the PGF regression runners.
 #
-# Source-only library, sibling to runCase.sh / runDEMCase.sh. It sources
-# helpers.sh (for clog) so each driver (Allrun, Allrun.yade) sources only this
-# file. It holds the pieces that must NOT drift between the serial and DEM
-# runners: how a suite is loaded, how a child exit code becomes an outcome, and
-# how the summary decides whether the whole suite is green.
+# Source-only library, sourced by both suite drivers (Allrun, Allrun.yade) and
+# both per-case runners (runCase.sh, runDEMCase.sh). It sources helpers.sh (for
+# clog) so a caller sources only this file. It holds the pieces that must NOT
+# drift between the serial and DEM runners: how a suite is loaded, how a child
+# exit code becomes an outcome, how the summary decides whether the whole suite
+# is green, and how run state is serialised for an external observer.
+#
+# What it deliberately does NOT hold: the serial and DEM runners' own argument
+# parsing, cleanup contracts and output assertions. Those differ, and collapsing
+# them into one mode-switching script would hide exactly the details a
+# regression runner has to get right.
 #
 # Outcome taxonomy (child exit code -> label -> green?), standard shell
 # conventions:
@@ -25,7 +31,8 @@
 # Source-only: refuse direct execution.
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
     echo "regressionLib.sh is a source-only library — do not execute it directly." >&2
-    echo "It is sourced by applications/test/regression/{Allrun,Allrun.yade}." >&2
+    echo "It is sourced by applications/test/regression/{Allrun,Allrun.yade} and" >&2
+    echo "by tools/{runCase.sh,runDEMCase.sh}." >&2
     exit 1
 fi
 
@@ -61,14 +68,137 @@ reg_load_cases() {
 }
 
 # reg_signal_name <n> — conventional name for a signal number (one table).
+# Kept in step with regressionState.py's signal_name() so the printed summary
+# and the JSON result never disagree about what killed a case.
 reg_signal_name() {
     case "$1" in
+        1)  echo "SIGHUP"  ;;
+        2)  echo "SIGINT"  ;;
+        3)  echo "SIGQUIT" ;;
+        4)  echo "SIGILL"  ;;
         6)  echo "SIGABRT" ;;
+        8)  echo "SIGFPE"  ;;
         9)  echo "SIGKILL" ;;
         11) echo "SIGSEGV" ;;
+        13) echo "SIGPIPE" ;;
+        14) echo "SIGALRM" ;;
         15) echo "SIGTERM" ;;
         *)  echo "SIG$1"   ;;
     esac
+}
+
+# -- Structured run-state protocol (optional) ---------------------------------
+#
+# The runners' exit codes remain the contract for shell callers; the JSON below
+# is an additional representation for an external observer (CI, a TUI). It is
+# entirely opt-in: with no state directory configured, every helper here is a
+# no-op and the drivers behave exactly as they did before.
+#
+# Serialisation lives in tools/regressionState.py (standard library only, no
+# project imports). These wrappers exist so a caller never has to build helper
+# argv by hand, and so a *reporting* failure can never be mistaken for a case
+# outcome — see reg_state below.
+
+REG_STATE_PY="$_REGLIB_DIR/regressionState.py"
+
+# Streams that reg_event appends to. A caller sets this to the event files it
+# wants (case stream, suite stream, or both); empty disables event emission.
+REG_EVENT_STREAMS=()
+
+# reg_state <subcommand> [args...] — call the state helper.
+#   Always returns 0. A state write that fails is a reporting problem, so it
+#   warns and carries on: turning it into a non-zero status here would corrupt
+#   the outcome of the case being reported on.
+reg_state() {
+    [ -f "$REG_STATE_PY" ] || return 0
+    if ! python3 "$REG_STATE_PY" "$@"; then
+        echo "[regression] warning: run-state write failed ($1)" >&2
+    fi
+    return 0
+}
+
+# reg_event <type> [extra helper args...] — append one event to every stream in
+#   REG_EVENT_STREAMS. A no-op when no stream is configured.
+reg_event() {
+    [ "${#REG_EVENT_STREAMS[@]}" -gt 0 ] || return 0
+    local _type="$1"; shift
+    local _args=() _stream
+    for _stream in "${REG_EVENT_STREAMS[@]}"; do
+        _args+=(--stream "$_stream")
+    done
+    reg_state event --type "$_type" "${_args[@]}" "$@"
+}
+
+# -- Bounded case scheduling --------------------------------------------------
+#
+# Shared because getting it wrong is how a suite silently runs a case twice or
+# loses a child's status — but deliberately *only* the mechanics. Which cases
+# exist, which are runnable, and what running one means stay with each driver.
+#
+# The pool is <jobs> worker subshells pulling from one list of case indices. A
+# worker claims a case with `mkdir <case-state>/.claim`, which either creates the
+# directory or fails, so exactly one worker can win each case on any POSIX
+# filesystem — no lock file, no lock daemon, no second scheduler to keep in step.
+# Each worker records its case's elapsed time and then its exit status; the
+# status file is written last, so its presence means the case really finished.
+# The caller reads those files back in its own order after every worker has been
+# waited for, which is what makes the summary deterministic even though cases
+# finish in whatever order they finish.
+#
+# Workers stay in the caller's process group, so an interactive Ctrl-C reaches
+# every case and its children exactly as it does for a sequential run. Nothing
+# here signals by process name, and nothing here terminates anything: a case's
+# own runner owns any timeout it needs, and scopes it to its own process group.
+
+# reg_run_pool <jobs> <cases-root> <ids-var> <indices-var> <run-fn>
+#   <ids-var>     name of an array of case ids, indexed as the driver indexes them
+#   <indices-var> name of an array of indices into <ids-var> to run
+#   <run-fn>      driver function taking one index and returning the case status
+reg_run_pool() {
+    local _jobs="$1" _root="$2"
+    local -n _ids="$3"
+    local -n _todo="$4"
+    local _runfn="$5"
+    local _slot _pids=() _pid
+
+    for _slot in $(seq 1 "$_jobs"); do
+        (
+            for w_idx in "${_todo[@]}"; do
+                w_cs="$_root/${_ids[$w_idx]}"
+                mkdir "$w_cs/.claim" 2>/dev/null || continue
+                w_t0=$(date +%s)
+                "$_runfn" "$w_idx"
+                w_rc=$?
+                w_secs=$(( $(date +%s) - w_t0 ))
+                printf '%s\n' "$w_secs" > "$w_cs/secs"
+                printf '%s\n' "$w_rc"   > "$w_cs/rc"
+                # One short line per completion: a single write, so concurrent
+                # workers cannot tear each other's progress output.
+                printf '  %-7s %5s   %s\n' \
+                    "$(reg_classify "$w_rc")" "${w_secs}s" "${_ids[$w_idx]}"
+            done
+        ) &
+        _pids+=("$!")
+    done
+
+    # Wait for every launched worker before the caller reads any status back, so
+    # no case can still be writing its result when the summary is assembled.
+    for _pid in "${_pids[@]}"; do
+        wait "$_pid" || true
+    done
+}
+
+# reg_pool_status <case-state-dir> — echo the exit status a worker recorded.
+#   Echoes 2 when there is none: a worker that died without recording a status
+#   is an infrastructure ERROR, and an absent status is never read as a pass.
+reg_pool_status() {
+    if [ -f "$1/rc" ]; then cat "$1/rc"; else echo 2; fi
+}
+
+# reg_pool_seconds <case-state-dir> — echo the elapsed seconds a worker recorded,
+#   or "?" when the worker never got that far.
+reg_pool_seconds() {
+    if [ -f "$1/secs" ]; then cat "$1/secs"; else echo "?"; fi
 }
 
 # reg_classify <rc> — echo the outcome label for a child exit code, per the
