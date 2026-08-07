@@ -785,8 +785,21 @@ void Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, Gas
         newhi += omegaPreq[nEqns()];
     }
 
-    scalar dTdt = (newhi == 0 ? 0 : newhi/newCp);
-    scalar dtMag = min(500.0, mag(dTdt));
+    // Reaction heating rate of the solid, guarded against a vanishing heat
+    // capacity. newCp is built from the solid concentrations c[i], so it tends
+    // to zero as the solid is consumed; in the branch above that takes newhi
+    // from omegaPreq[nEqns()], newhi does not vanish with it, leaving
+    // newhi/newCp to overflow. The limiter below cannot absorb that: an
+    // infinite dTdt makes the scaling inf/inf, i.e. NaN. Guard the division
+    // instead -- with no solid heat capacity there is no heating rate.
+    scalar dTdt = 0;
+    if (newhi != 0 && newCp > VSMALL)
+    {
+        dTdt = newhi/newCp;
+    }
+
+    // Bound the reaction heating to |dT/dt| <= 500 K/s, preserving its sign.
+    const scalar dtMag = min(500.0, mag(dTdt));
     dcdt[nSpecie_] = dTdt*dtMag/(mag(dTdt) + 1.0e-10);
 
     // dp/dt = ...
@@ -1657,7 +1670,48 @@ Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasTherm
             newhi += omegaPreq[nEqns()];
         }
 
-        scalar dTi =  ( newhi == 0 ? 0 : (newhi/(newCp*solidRho))*dt_ );
+        // Solid-phase temperature update. Divides reaction heat by solid heat
+        // capacity. Cells admitted by the permissive reacting-cell criterion
+        // (porosity < 1, see volPyrolysis::preEvolveRegion) can carry a
+        // vanishing solid fraction: solidRho -> 0 drives newCp -> 0 too,
+        // while reaction heat stays finite (computed from mass fractions,
+        // not absolute mass) -> newhi/(newCp*solidRho) overflows to inf/NaN
+        // -> FOAM_SIGFPE. With no solid mass there is no solid temperature
+        // to advance.
+        const scalar solidHeatCapacity = newCp*solidRho;
+
+        scalar dTi = 0;
+        if (newhi != 0 && solidHeatCapacity > VSMALL)
+        {
+            dTi = (newhi/solidHeatCapacity)*dt_;
+        }
+        else if (newhi != 0)
+        {
+            // Reports the cell state the first time the guard skips an update,
+            // once per process, so that a run can show whether the state occurs
+            // at all. Solid mass fractions are listed by name over the solids
+            // actually present -- the composition is case-dependent.
+            static bool reported = false;
+            if (!reported)
+            {
+                reported = true;
+                Pout<< "ODESolidHeterogeneousChemistryModel::calculateSourceTerms:"
+                    << " skipped solid T update (negligible solid heat capacity)"
+                    << " cell=" << celli
+                    << " porosity=" << porosityF_[celli]
+                    << " solidRho=" << solidRho
+                    << " newCp=" << newCp
+                    << " newhi=" << newhi
+                    << " Ti=" << Ti;
+
+                forAll(Ys_, i)
+                {
+                    Pout<< ' ' << Ys_[i].name() << '=' << Ys_[i][celli];
+                }
+
+                Pout<< endl;
+            }
+        }
 
         Ti += dTi;
 
