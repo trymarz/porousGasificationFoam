@@ -51,6 +51,8 @@ SourceFiles
 #include "heatTransferModel.H"
 #include "specieTransferModel.H"
 
+#include "DynamicList.H"
+
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 namespace Foam
@@ -135,6 +137,21 @@ public:
         (
             autoPtr,
             heterogeneousPyrolysisModel,
+            noRadiation,
+            (
+                const word& modelType,
+                const fvMesh& mesh,
+                HGSSolidThermo& solidThermo,
+                psiReactionThermo& gasThermo,
+                volScalarField& whereIs
+             ),
+             (modelType, mesh, solidThermo, gasThermo, whereIs)
+        );
+        
+        declareRunTimeSelectionTable
+        (
+            autoPtr,
+            heterogeneousPyrolysisModel,
             radiation,
             (
                 const word& modelType,
@@ -155,7 +172,17 @@ public:
             const word& modelType,
             const fvMesh& mesh
         );
-       
+
+        //- Cunstruct from type name and mesh and gas species list
+        heterogeneousPyrolysisModel
+        (
+            const word& modelType,
+            const fvMesh& mesh,
+            HGSSolidThermo& solidThermo,
+            psiReactionThermo& gasThermo,
+            volScalarField& whereIs
+        );
+        
         //- Construct from type name, mesh, gas species list and radiation
         heterogeneousPyrolysisModel
         (
@@ -225,6 +252,15 @@ public:
 
             //- Evolve the film
             virtual void evolve();
+
+
+        //Transfer solid state according to DEM particle cell changes
+            virtual void transferSolidStateFromDEM
+            (
+                const DynamicList<label>& fromCells,
+                const DynamicList<label>& toCells,
+                const volScalarField& nParticles
+            );
 
 
         // Helper function

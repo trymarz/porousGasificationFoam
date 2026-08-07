@@ -114,8 +114,20 @@ int main(int argc, char *argv[])
         if (DEM)
         {
             vGrad = fvc::grad(U);
-            lambdaDotUpdater->update();
+            lambdaDotUpdater->updateLambdaDot();
             yadeCoupling->setParticleAction(runTime.deltaT().value());
+            lambdaDotUpdater->updateParticleFields();
+
+
+            //only for DEM movements !
+            // pyrolysisZone.transferSolidStateFromDEM
+            // (
+            //     lambdaDotUpdater->movedFromCells(),
+            //     lambdaDotUpdater->movedToCells(),
+            //     nParticles
+            // );
+
+
             lambdaDotUpdater->writeParticlesData();
             yadeCoupling->setSourceZero();
         }
@@ -123,6 +135,15 @@ int main(int argc, char *argv[])
 
         #include "radiation.H"
         pyrolysisZone.evolve();
+
+        //DasteXar calculate volume 
+        #ifdef WITH_YADE
+            if (DEM)
+            {
+                lambdaDotUpdater->writeVolumeOfSolidArea();
+            }
+            #endif
+        //----
 
         #include "rhoEqn.H"
 

@@ -1,6 +1,11 @@
 #include "lambdaDotModel.H"
 #include "UsInterpolationModel.H"
 #include "IOdictionary.H"
+#include "LambdaDotCalculationModel.H"
+#include "PstreamReduceOps.H"
+#include "OSspecific.H"
+
+#include <fstream>
 
 namespace Foam
 {
@@ -10,8 +15,8 @@ lambdaDotModel::lambdaDotModel
     const fvMesh& mesh,
     volScalarField& lambdaDot,
     volScalarField& nParticles,
-    volVectorField& UsDEM,  // velocity of spheres
-    volVectorField& Us, // interpolated velocity of spheres
+    volVectorField& UsDEM,
+    volVectorField& Us,
     volScalarField& porosityF,
     FoamYade& yade
 )
@@ -19,37 +24,13 @@ lambdaDotModel::lambdaDotModel
     mesh_(mesh),
     lambdaDot_(lambdaDot),
     nParticles_(nParticles),
-    UsDEM_(UsDEM), // velocity of spheres
+    UsDEM_(UsDEM),
     Us_(Us),
     porosityF_(porosityF),
     yade_(yade),
-    lambdaMode_("constant"),
-    lambdaValue_(0.0),
-
-    //DasteXar for interpolation of UsDEM into Us
     interpolateUs_(true),
     solidPorosityCutoff_(1),
-
-    // to read lambda function from constant/lambdaDict
-    lambdaFunc_
-    (
-        Function1<scalar>::New
-        (
-            "lambdaDot",
-            IOdictionary
-            (
-                IOobject
-                (
-                    "lambdaDict",
-                    mesh.time().constant(),
-                    mesh,
-                    IOobject::MUST_READ,
-                    IOobject::NO_WRITE
-                )
-            ),
-            &mesh
-        )
-    )
+    lambdaDotCalculationModel_(nullptr)
 {
     IOdictionary lambdaDict
     (
@@ -63,13 +44,36 @@ lambdaDotModel::lambdaDotModel
         )
     );
 
-    lambdaMode_ =
-        lambdaDict.lookupOrDefault<word>("lambdaMode", "constant");
+    IOdictionary pyrolysisProperties
+    (
+        IOobject
+        (
+            "pyrolysisProperties",
+            mesh.time().constant(),
+            mesh,
+            IOobject::MUST_READ,
+            IOobject::NO_WRITE
+        )
+    );
 
-    lambdaValue_ =
-        lambdaDict.lookupOrDefault<scalar>("lambdaValue", 0.0);
+    criticalPorosity_ =
+        readScalar
+        (
+            pyrolysisProperties
+                .subDict("pyrolysisCoeffs")
+                .lookup("criticalPorosity")
+        );
 
-    //DasteXar interpolation
+    
+
+
+
+    // Select the lambdaDot calculation model from constant/lambdaDict.
+    // Valid lambdaMode entries are: constant, Ts, dTsdt.
+    lambdaDotCalculationModel_ =
+        LambdaDotCalculationModel::New(lambdaDict, mesh_, lambdaDot_);
+
+    // Keep the existing Us interpolation behavior controlled by lambdaDict.
     interpolateUs_ =
         lambdaDict.lookupOrDefault<Switch>("interpolateUs", true);
 
@@ -88,45 +92,36 @@ lambdaDotModel::lambdaDotModel
             porosityF_
         );
     }
-
-    // ta inja
 }
-
-
-lambdaDotModel::~lambdaDotModel() = default;
 
 
 void lambdaDotModel::updateLambdaDot()
 {
-    const volScalarField* TsPtr = nullptr;
+    // Valid lambdaMode entries in constant/lambdaDict are:
+    // constant, Ts, dTsdt.
+    lambdaDotCalculationModel_->calculate();
 
-    if (lambdaMode_ == "Ts")
-    {
-        TsPtr = &mesh_.lookupObject<volScalarField>("Ts");
-    }
 
-    forAll(lambdaDot_, cellI)
-    {
-        if (lambdaMode_ == "constant")
+        /*
+        * lambdaDot drives deformation of the DEM solid skeleton and must
+        * not remain active in cells outside the mechanically active solid
+        * region.*/
+        
+        forAll(lambdaDot_, cellI)
         {
-            lambdaDot_[cellI] = lambdaValue_;
+            if (porosityF_[cellI] >= criticalPorosity_)
+            {
+                lambdaDot_[cellI] = 0.0;
+            }
         }
-        else if (lambdaMode_ == "Ts")
-        {
-            lambdaDot_[cellI] = lambdaFunc_->value((*TsPtr)[cellI]);
-        }
-        else
-        {
-            FatalErrorInFunction
-                << "Unknown lambdaMode '" << lambdaMode_
-                << "'. Valid options are: constant, Ts"
-                << exit(FatalError);
-        }
-    }
+
+
 
     lambdaDot_.correctBoundaryConditions();
 }
 
+
+lambdaDotModel::~lambdaDotModel() = default;
 
 void lambdaDotModel::updateParticleFields()
 {
@@ -280,6 +275,224 @@ void lambdaDotModel::writeParticlesData() const
 
     ofs << "\n";
 }
+
+// to calculate volume of cells with porosityF above critical value
+
+// Calculate:
+// 1. Volume of cells belonging to the solid region
+// 2. Volume-weighted average porosity of the same cells
+//
+// Both results are written only at OpenFOAM write times.
+
+void lambdaDotModel::writeVolumeOfSolidArea() const
+{
+    if (!mesh_.time().outputTime()) return;
+
+    scalar localVolume = 0.0;
+    scalar localPorosityVolume = 0.0;
+
+    const scalarField& cellVolumes = mesh_.V();
+
+    // Use exactly the same cells for both calculations.
+    forAll(porosityF_, cellI)
+    {
+        if (porosityF_[cellI] < criticalPorosity_)
+        {
+            localVolume += cellVolumes[cellI];
+
+            localPorosityVolume +=
+                porosityF_[cellI] * cellVolumes[cellI];
+        }
+    }
+
+    // Combine contributions from all MPI processors.
+    scalar totalVolume = localVolume;
+    scalar totalPorosityVolume = localPorosityVolume;
+
+    reduce(totalVolume, sumOp<scalar>());
+    reduce(totalPorosityVolume, sumOp<scalar>());
+
+    // Only the master processor writes the global results.
+    if (!Pstream::master())
+    {
+        return;
+    }
+
+    scalar averagePorosity = 0.0;
+
+    if (totalVolume > VSMALL)
+    {
+        averagePorosity =
+            totalPorosityVolume / totalVolume;
+    }
+
+    const fileName casePath
+    (
+        mesh_.time().rootPath()
+      / mesh_.time().globalCaseName()
+    );
+
+    const fileName postProcessingDir
+    (
+        casePath / "postProcessing"
+    );
+
+    const fileName outputDir
+    (
+        postProcessingDir / "solidAreaVolume"
+    );
+
+    mkDir(postProcessingDir);
+    mkDir(outputDir);
+
+
+    // ---------------------------------------------------------
+    // Write solidAreaVolume.dat
+    // ---------------------------------------------------------
+
+    const fileName volumeOutputFile
+    (
+        outputDir / "solidAreaVolume.dat"
+    );
+
+    const bool writeVolumeHeader = !isFile(volumeOutputFile);
+
+    std::ofstream volumeOfs
+    (
+        volumeOutputFile.c_str(),
+        std::ios::out | std::ios::app
+    );
+
+    if (writeVolumeHeader)
+    {
+        volumeOfs << "# Time\tVolumeOfSolidArea\n";
+        volumeOfs << "# criticalPorosity = "
+                  << criticalPorosity_ << "\n";
+    }
+
+    volumeOfs.setf(std::ios::scientific);
+    volumeOfs.precision(12);
+
+    // timeName() gives exactly the same time name used
+    // for the OpenFOAM write-time directory.
+    volumeOfs << mesh_.time().timeName()
+              << "\t"
+              << totalVolume
+              << "\n";
+
+
+    // ---------------------------------------------------------
+    // Write avgPorosity.dat
+    // ---------------------------------------------------------
+
+    const fileName porosityOutputFile
+    (
+        outputDir / "avgPorosity.dat"
+    );
+
+    const bool writePorosityHeader = !isFile(porosityOutputFile);
+
+    std::ofstream porosityOfs
+    (
+        porosityOutputFile.c_str(),
+        std::ios::out | std::ios::app
+    );
+
+    if (writePorosityHeader)
+    {
+        porosityOfs << "# Time\tAveragePorosity\n";
+        porosityOfs << "# Selected cells: porosityF < criticalPorosity\n";
+        porosityOfs << "# criticalPorosity = "
+                    << criticalPorosity_ << "\n";
+        porosityOfs << "# Average is volume-weighted\n";
+    }
+
+    porosityOfs.setf(std::ios::scientific);
+    porosityOfs.precision(12);
+
+    porosityOfs << mesh_.time().timeName()
+                << "\t"
+                << averagePorosity
+                << "\n";
+}
+
+/*
+void lambdaDotModel::writeVolumeOfSolidArea() const
+{
+    if (!mesh_.time().outputTime()) return;
+    scalar localVolume = 0.0;
+
+    const scalarField& cellVolumes = mesh_.V();
+
+    // Sum the geometrical volume of cells where
+    // porosityF is greater than criticalPorosity.
+    forAll(porosityF_, cellI)
+    {
+        if (porosityF_[cellI] < criticalPorosity_)
+        {
+            localVolume += cellVolumes[cellI];
+        }
+    }
+
+    // Sum contributions from all MPI processors.
+    scalar totalVolume = localVolume;
+    reduce(totalVolume, sumOp<scalar>());
+
+    // Only the master processor writes the final global value.
+    if (!Pstream::master())
+    {
+        return;
+    }
+
+    const fileName casePath
+    (
+        mesh_.time().rootPath()
+      / mesh_.time().globalCaseName()
+    );
+
+    const fileName postProcessingDir
+    (
+        casePath / "postProcessing"
+    );
+
+    const fileName outputDir
+    (
+        postProcessingDir / "solidAreaVolume"
+    );
+
+    mkDir(postProcessingDir);
+    mkDir(outputDir);
+
+    const fileName outputFile
+    (
+        outputDir / "solidAreaVolume.dat"
+    );
+
+    const bool writeHeader = !isFile(outputFile);
+
+    std::ofstream ofs
+    (
+        outputFile.c_str(),
+        std::ios::out | std::ios::app
+    );
+
+    if (writeHeader)
+    {
+        ofs << "# Time\tVolumeOfSolidArea\n";
+        ofs << "# criticalPorosity = "
+            << criticalPorosity_ << "\n";
+    }
+
+    ofs.setf(std::ios::scientific);
+    ofs.precision(12);
+
+    ofs << mesh_.time().value()
+        << "\t"
+        << totalVolume
+        << "\n";
+}*/
+
+//______________---
 
 
 const DynamicList<label>& lambdaDotModel::movedFromCells() const

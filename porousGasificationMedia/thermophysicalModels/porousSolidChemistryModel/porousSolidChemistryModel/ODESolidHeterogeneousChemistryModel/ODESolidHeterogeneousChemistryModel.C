@@ -305,11 +305,36 @@ setCellReacting(const label cellI, const bool active)
 {
     if (reactingCells_[cellI] != active && active)
     {
-        for (label i=0; i<nSolids_; i++)
+        const scalar alphaG =
+            min
+            (
+                max(porosityF_[cellI], scalar(0.0)),
+                scalar(1.0)
+            );
+
+        const scalar alphaS = 1.0 - alphaG;
+
+        const scalar solidBulkConcentration =
+            this->solidThermo().rho()[cellI]*alphaS;
+
+        const scalar gasBulkConcentration =
+            rhoG_[cellI]*alphaG;
+
+        // ODE concentrations are species mass per total cell volume [kg/m3], not intrinsic-phase concentrations.
+        for (label i = 0; i < nSolids_; ++i)
         {
-            specieConcentration_[i] = this->solidThermo().rho()[cellI]*Ys_[i][cellI];
+            specieConcentration_[i] =
+                solidBulkConcentration*Ys_[i][cellI];
+        }
+
+        for (label i = 0; i < nGases_; ++i)
+        {
+            specieConcentration_[nSolids_ + i] =
+                gasBulkConcentration
+               *gasPhaseGases_[gasDictionary_[i]][cellI];
         }
     }
+
     reactingCells_[cellI] = active;
 }
 
@@ -667,22 +692,57 @@ scalar Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, G
 
     label cellI = cellCounter_;
 
-    for (label i=0; i<nSpecie_; i++)
+    for (label i = 0; i < nSpecie_; ++i) //DasteXar
     {
-        c1[i] = max(0.0, c[i]);
+        c1[i] = max(c[i], scalar(0.0));
+    }
+
+    // Reconstruct the current solid mass fractions from the evolving
+    // ODE concentrations. Ys_ is frozen at the beginning of the CFD step.
+    scalar totalSolidConcentration = 0.0;
+
+    for (label i = 0; i < nSolids_; ++i)
+    {
+        totalSolidConcentration += c1[i];
+    }
+
+    scalarField YsCurrent(nSolids_, 0.0);
+
+    if (totalSolidConcentration > VSMALL)
+    {
+        for (label i = 0; i < nSolids_; ++i)
+        {
+            YsCurrent[i] =
+                min
+                (
+                    c1[i]/totalSolidConcentration,
+                    scalar(1.0)
+                );
+        }
     }
 
     scalar kf = R.kf(T, 0.0, c1);
 
     const label Nl = R.slhs().size();
+
+    if (Nl > 0 && totalSolidConcentration <= VSMALL)
+    {
+        // A reaction requiring a solid reactant cannot continue when
+        // no solid mass remains in the current ODE state.
+        return 0.0;
+    }
+
+
     if (Nl > 0)
     {
         if ( R.glhs().size() > 0 )
         {
-            for (label s=0; s < Nl; s++)
+            for (label s = 0; s < Nl; ++s) //DasteXar
             {
-            label si = R.slhs()[s];
-                kf *= pow(Ys_[si][cellI],R.nReact()[s]);
+                const label si = R.slhs()[s];
+
+                // Use the current mass fraction during ODE subcycling.
+                kf *= pow(YsCurrent[si], R.nReact()[s]);
             }
             forAll(R.glhs(),i)
             {
@@ -691,10 +751,12 @@ scalar Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, G
         }
         else
         {
-            for (label s=0; s<Nl; s++)
+            for (label s = 0; s < Nl; ++s) //DasteXar
             {
-                label si = R.slhs()[s];
-                kf *= pow(Ys_[si][cellI],R.nReact()[s]);
+                const label si = R.slhs()[s];
+
+                // Use the current mass fraction during ODE subcycling.
+                kf *= pow(YsCurrent[si], R.nReact()[s]);
             }
         }
         kf *= this->solidThermo().rho()[cellI];
@@ -766,28 +828,59 @@ void Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, Gas
     scalar newhi = 0.0;
 
     if (solidReactionEnergyFromEnthalpy_)
+{
+    for (label i = 0; i < nSolids_; ++i)
     {
-        for (label i=0; i<nSolids_; i++)
-        {
-                scalar dYidt = dcdt[i];
-                scalar Yi = c[i];
-                newCp += Yi*solidThermo_[i].Cp(T);
-                newhi -= dYidt*solidThermo_[i].hf();
-        }
+        const scalar dCidt = dcdt[i];
+
+        /*
+         * During an implicit ODE iteration, trial concentrations can
+         * temporarily become negative. Negative concentrations must
+         * not produce a negative volumetric heat capacity.
+         */
+        const scalar Ci = max(c[i], scalar(0.0));
+
+        newCp += Ci*solidThermo_[i].Cp(T);
+        newhi -= dCidt*solidThermo_[i].hf();
+    }
     }
     else
     {
-        for (label i=0; i<nSolids_; i++)
+        for (label i = 0; i < nSolids_; ++i)
         {
-                scalar Yi = c[i];
-                newCp += Yi*solidThermo_[i].Cp(T);
+            const scalar Ci = max(c[i], scalar(0.0));
+
+            newCp += Ci*solidThermo_[i].Cp(T);
         }
+
         newhi += omegaPreq[nEqns()];
     }
 
-    scalar dTdt = (newhi == 0 ? 0 : newhi/newCp);
-    scalar dtMag = min(500.0, mag(dTdt));
-    dcdt[nSpecie_] = dTdt*dtMag/(mag(dTdt) + 1.0e-10);
+    /*
+    * newCp is the volumetric solid heat capacity [J/(m3 K)].
+    * Do not divide by it when it is zero or almost zero.
+    */
+    scalar dTdt = 0.0;
+
+    if (newCp > VSMALL)
+    {
+        dTdt = newhi/newCp;
+    }
+
+    /*
+    * Limit only the internal chemistry-temperature derivative.
+    * The actual solid temperature is solved in volPyrolysis.
+    */
+    const scalar limitedDTdt =
+        min(mag(dTdt), scalar(500.0));
+
+    dcdt[nSpecie_] =
+        sign(dTdt)*limitedDTdt;
+
+
+
+
+
 
     // dp/dt = ...
     dcdt[nSpecie_ + 1] = 0.0;
@@ -817,10 +910,17 @@ void Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, Gas
     scalar products = 0.;
     scalarField stCoeffs(nSpecie_, 0.0);
 
-    for (label i=0; i<nSolids_; i++)
+   
+    
+    for (label i = 0; i < nSpecie_; ++i)
     {
-        c2[i] = max(c[i], 0.0);
+        c2[i] = max(c[i], scalar(0.0));
     }
+
+    
+
+
+
 
     for (label i=0; i<nEqns(); i++)
     {
@@ -1039,7 +1139,7 @@ void Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, Gas
                 scalar el = R.nReact()[rSi];
                 if (rSi < Ns)
                 {
-                    kfTot *= pow(Ys_[si][cellI],el);
+                    kfTot *= pow(Ys_[si][cellI], el);
                 }
                 else
                 {
@@ -1082,7 +1182,7 @@ void Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, Gas
                 {
                      if (rSi < Ns)
                      {
-                         kf *= pow(Ys_[si][cellI],el);
+                         kf *= pow(Ys_[si][cellI], el);
                      }
                      else
                      {
@@ -1510,7 +1610,7 @@ Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasTherm
             IOobject::NO_WRITE
         ),
         this->mesh(),
-        dimensionedScalar("zero", dimless, GREAT)
+        dimensionedScalar("zero", dimTime, GREAT)
     );
 
     resetReactionRates(rho);
@@ -1523,19 +1623,22 @@ Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasTherm
     else
     {
         scalar deltaTMin = GREAT;
-        newDeltaTMin = GREAT;
+        //newDeltaTMin = GREAT;
 
         forAll(rho, celli)
         {
             solveOneCell(t0, deltaT, deltaTMin, celli, rho, newDeltaTMin);
         }
 
-        // Doesn't allow the time-step to rise.
+        /*
+        * Return the actual minimum chemistry integration timestep.
+        * newDeltaTMin contains only additional concentration-bound diagnostics
+        * and must not replace the ODE solver timestep tauC_.
+        */
         deltaTMin = min(deltaTMin, deltaT);
-        reduce(deltaTMin,minOp<scalar>());
-        scalar output = gMin(newDeltaTMin);
+        reduce(deltaTMin, minOp<scalar>());
 
-        return output;
+        return deltaTMin;
     }
 }
 
@@ -1560,37 +1663,60 @@ Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasTherm
         scalar gasRho = rhoG_[celli] * porosityF_[celli];
         scalar Ti = this->solidThermo().T()[celli];
 
+        
+        //DasteXar
         scalarField initialSpecieConcentration(nSpecie_, 0.0);
 
-        scalarField rR(nReaction_, 0.0);
-
-        scalarField omegaPreq(omega(initialSpecieConcentration, Ti, 0.0, rR) * (1. - porosityF_[celli]));
-
-        if (showRRR_ && gSum(rR) > 0)
-        {
-            Info<< "relative reaction rates: " << rR / gSum(rR) << endl;
-        }
-
+        // First construct the real beginning-of-step concentrations.
+        // omega() now reconstructs current mass fractions from this state.
         for (label i = 0; i < nSolids_; ++i)
         {
-            specieConcentration_[i] = solidRho * Ys_[i][celli];
+            specieConcentration_[i] =
+                solidRho*Ys_[i][celli];
         }
 
         for (label i = 0; i < nGases_; ++i)
         {
-            specieConcentration_[nSolids_ + i] = gasRho * gasPhaseGases_[gasDictionary_[i]][celli];
+            specieConcentration_[nSolids_ + i] =
+                gasRho
+            *gasPhaseGases_[gasDictionary_[i]][celli];
         }
 
         initialSpecieConcentration = specieConcentration_;
+
+        scalarField rR(nReaction_, 0.0);
+
+        scalarField omegaPreq
+        (
+            omega
+            (
+                initialSpecieConcentration,
+                Ti,
+                0.0,
+                rR
+            )
+        *(1.0 - porosityF_[celli])
+        );
+
+        if (showRRR_ && gSum(rR) > 0)
+        {
+            Info<< "relative reaction rates: "
+                << rR/gSum(rR) << endl;
+        }
+
+
+
+
+
 
         calculateSourceTerms(t0, deltaT, deltaTMin, celli, solidRho, Ti, initialSpecieConcentration, omegaPreq);
 
         updateReactionRates(deltaT, deltaTMin, celli, solidRho, gasRho, initialSpecieConcentration, newDeltaTMin);
 
-        if (not solidReactionEnergyFromEnthalpy_)
-        {
-            shReactionHeat_[celli] = omegaPreq[nEqns()];
-        }
+        // if (not solidReactionEnergyFromEnthalpy_)
+        // {
+        //     shReactionHeat_[celli] = omegaPreq[nEqns()];
+        // }
     }
 }
 
@@ -1607,7 +1733,17 @@ Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasTherm
     const scalarField& initialSpecieConcentration,
     const scalarField& omegaPreq
 )
+
+
+    
 {
+    /*
+     * solidRho remains in the function interface for compatibility,
+     * but newCp below is already a volumetric heat capacity.
+     */
+    (void)solidRho;
+    (void)omegaPreq;
+    (void)initialSpecieConcentration;
 
     scalar t = t0;
 
@@ -1616,59 +1752,181 @@ Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasTherm
 
     scalar timeLeft = deltaT;
 
-    // Calculate the source terms.
+    /*
+     * Integrated reaction energy per total cell volume [J/m3].
+     * Used only when heatReact() supplies the chemistry energy.
+     */
+    scalar accumulatedReactionEnergy = 0.0;
+
     while (timeLeft > SMALL)
     {
-        tauC_ = this->solve(specieConcentration_, Ti, 0.0, t, dt_);
-        t += dt_;
-        // Update the temperature.
-        scalar cTot = 0.0;
+        const scalar dtUsed =
+            min(dt_, timeLeft);
 
-        // Total mass density.
-        for (label i=0; i<nSolids_; i++)
+        /*
+         * Save the state at the beginning of this chemistry substep.
+         * The substep rate must be based on new minus previous, not
+         * new minus the beginning of the complete CFD time step.
+         */
+        const scalarField previousSpecieConcentration
+        (
+            specieConcentration_
+        );
+
+        scalar stepReactionHeat = 0.0;
+
+        if (!solidReactionEnergyFromEnthalpy_)
         {
-            cTot += specieConcentration_[i];
+            scalarField stepRelativeRates(nReaction_, 0.0);
+
+            const scalarField stepOmega
+            (
+                omega
+                (
+                    specieConcentration_,
+                    Ti,
+                    0.0,
+                    stepRelativeRates
+                )
+              * (1.0 - porosityF_[celli])
+            );
+
+            /*
+             * Instantaneous chemistry heat source [W/m3_cell] at
+             * the beginning of the current chemistry substep.
+             */
+            stepReactionHeat =
+                stepOmega[nEqns()];
         }
+
+        tauC_ = this->solve
+        (
+            specieConcentration_,
+            Ti,
+            0.0,
+            t,
+            dtUsed
+        );
+
+        t += dtUsed;
 
         scalar newCp = 0.0;
         scalar newhi = 0.0;
-        scalar invRho = 0.0;
-        scalarList dcdt = (specieConcentration_ - initialSpecieConcentration)/dt_;
+
+        const scalarField dcdt
+        (
+            (
+                specieConcentration_
+              - previousSpecieConcentration
+            )/max(dtUsed, SMALL)
+        );
 
         if (solidReactionEnergyFromEnthalpy_)
         {
-            for (label i=0; i < nSolids_; i++)
+            for (label i = 0; i < nSolids_; ++i)
             {
-                scalar dYi = dcdt[i];
-                scalar Yi = specieConcentration_[i];
-                newhi -= dYi * solidThermo_[i].hf();
-                newCp += Yi * solidThermo_[i].Cp(Ti);
-                invRho += Yi / solidThermo_[i].rho(Ti);
+                const scalar Ci =
+                    max
+                    (
+                        specieConcentration_[i],
+                        scalar(0.0)
+                    );
+
+                newhi -=  dcdt[i]*solidThermo_[i].hf();
+
+                newCp +=  Ci*solidThermo_[i].Cp(Ti);
             }
         }
         else
         {
-            for (label i=0; i<nSolids_; i++)
+            for (label i = 0; i < nSolids_; ++i)
             {
-                scalar Yi = specieConcentration_[i];
-                newCp += Yi * solidThermo_[i].Cp(Ti);
-                invRho += Yi / solidThermo_[i].rho(Ti);
+                const scalar Ci =
+                    max
+                    (
+                        specieConcentration_[i],
+                        scalar(0.0)
+                    );
+
+                newCp +=  Ci*solidThermo_[i].Cp(Ti);
             }
-            newhi += omegaPreq[nEqns()];
+
+            newhi = stepReactionHeat;
+
+            accumulatedReactionEnergy +=  stepReactionHeat*dtUsed;
         }
 
-        scalar dTi =  ( newhi == 0 ? 0 : (newhi/(newCp*solidRho))*dt_ );
+        /*
+         * newhi  [W/m3]
+         * newCp  [J/(m3 K)]
+         *
+         * Therefore:
+         *
+         *     deltaT = newhi/newCp * dt
+         *
+         * No additional division by solidRho is required.
+        
+        if (newCp > VSMALL)
+        {
+            Ti +=
+                (newhi/newCp)*dtUsed;
+        } */
 
-        Ti += dTi;
 
-        timeLeft -= dt_;
+        /*
+            * Keep the post-substep temperature correction consistent with the
+            * ±500 K/s limiter used inside derivatives().
+            */
+            scalar dTi = 0.0;
+
+            if (newCp > VSMALL)
+            {
+                dTi =
+                    (newhi/newCp)*dtUsed;
+
+                dTi =
+                    max
+                    (
+                        min
+                        (
+                            dTi,
+                            500.0*dtUsed
+                        ),
+                        -500.0*dtUsed
+                    );
+            }
+
+            Ti += dTi;
+
+
+
+
+        timeLeft -= dtUsed;
+
         this->deltaTChem_[celli] = tauC_;
+
         dt_ = min(timeLeft, tauC_);
         dt_ = max(dt_, SMALL);
     }
 
+    if (!solidReactionEnergyFromEnthalpy_)
+    {
+        /*
+         * Return the time-averaged chemistry heat source over the
+         * complete CFD time step, rather than the initial rate.
+         */
+        shReactionHeat_[celli] =
+            accumulatedReactionEnergy
+           /max(deltaT, SMALL);
+    }
+
     deltaTMin = min(tauC_, deltaTMin);
 }
+
+
+
+
+
 
 template<class SolidThermo, class SolidThermoType, class GasThermoType>
 void
@@ -1745,30 +2003,7 @@ Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasTherm
         if ((changeOfConcentration[nSolids_ + i] * gasRho != 0) && (mag(RRg_[i][celli]) > ROOTVSMALL))
         {
             scalar dtm = deltaTMin;
-            if (1. <= specieConcentration_[nSolids_ + i] / gasRho)
-            {
-                newDeltaTMin[celli] = min(newDeltaTMin[celli], (1.01-gasPhaseGases_[gasDictionary_[i]][celli])/RRg_[i][celli]*gasRho);
-                deltaTMin = min(deltaTMin,newDeltaTMin[celli]);
-                if (1.02 < specieConcentration_[nSolids_ + i]/gasRho)
-                {
-                    Info << indent << indent << " too much   " << specieConcentration_[nSolids_ + i]/gasRho << " of " << gasPhaseGases_[gasDictionary_[i]].name() << " in cell " << celli << " limits time step to [s] " << deltaTMin << " " << newDeltaTMin[celli] << nl;
-                }
-            }
-            if (0. >= specieConcentration_[nSolids_ + i] / gasRho)
-            {
-                newDeltaTMin[celli] = min(newDeltaTMin[celli], (-.01-gasPhaseGases_[gasDictionary_[i]][celli])/RRg_[i][celli]*gasRho);
-                deltaTMin = min(deltaTMin,newDeltaTMin[celli]);
-                if (-0.02 > specieConcentration_[nSolids_ + i]/gasRho)
-                {
-                    Info << indent << indent << " too little " << specieConcentration_[nSolids_ + i]/gasRho << " of " << gasPhaseGases_[gasDictionary_[i]].name() << " in cell " << celli << " limits time step to [s] " << deltaTMin << nl;
-                }
-            }
-            if (deltaTMin < 0)
-            {
-                Info<< dt_  << " " << dtm << " " << deltaTMin << " " << tauC_ << " "
-                    << (1.-gasPhaseGases_[gasDictionary_[i]][celli]) << " " << specieConcentration_[nSolids_ + i]/gasRho
-                    << " " << gasPhaseGases_[gasDictionary_[i]][celli]  << " an error occured: negative deltaT from solid chemistry" << endl;
-            }
+            
         }
     }
 }

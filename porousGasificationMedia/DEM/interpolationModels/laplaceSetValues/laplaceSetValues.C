@@ -102,7 +102,8 @@ void laplaceSetValues::interpolate()
         {
             if ((whereIsPatch[faceI] > 0) && (whereIsPatch[faceI] < 1))
             {
-                UsLap.upper()[faceI] = 0;
+                UsLap.upper()[faceI] = 0.0;
+                UsLap.lower()[faceI] = 0.0;
             }
         }
 
@@ -142,25 +143,150 @@ void laplaceSetValues::interpolate()
         Field<vector> UsList = {};
 
 
-        // Select cells containing particles and keep their DEM velocity fixed.
+        // Fix cells containing particles to their DEM velocity.
+        // Fix cells outside the interpolation region to zero.
         forAll(UsDEM_, cellI)
         {
+            // Cells containing particles keep the DEM velocity
             if (nParticles_[cellI] > 0.5)
             {
                 cellList.append(cellI);
                 UsList.append(UsDEM_[cellI]);
             }
+            // Cells outside the interpolation region are fixed to zero
+            else if (whereIs[cellI] < 0.5)
+            {
+                cellList.append(cellI);
+                UsList.append(vector::zero);
+            }
+            // Isolated cells with zero matrix diagonal are also fixed to zero
+            else if (mag(UsLap.diag()[cellI]) < SMALL)
+            {
+                cellList.append(cellI);
+                UsList.append(vector::zero);
+            }
         }
 
 
-
-        const labelUList& cellUList = cellList;
+     /*    const labelUList& cellUList = cellList;
         const Field<vector>& UsUList = UsList;
 
         // Force known particle cells to keep their original DEM velocity during interpolation.
         UsEqn.setValues(cellUList, UsUList);
 
-        UsEqn.relax();
+        UsEqn.relax(); */
+
+        const labelUList& cellUList = cellList;
+        const Field<vector>& UsUList = UsList;
+
+        /*
+         * Apply hard velocity constraints before solving:
+         *
+         * 1. Cells containing DEM particles retain their cell-averaged
+         *    DEM velocity.
+         *
+         * 2. Cells outside the active solid region remain at zero velocity.
+         *
+         * 3. Disconnected cells remain fixed at zero to prevent a singular
+         *    interpolation matrix.
+         *
+         * This operation only constrains the velocity interpolation equation.
+         * It does not modify solid mass, porosity, chemistry, or energy.
+         */
+        UsEqn.setValues(cellUList, UsUList);
+
+
+
+
+
+/*
+ *   protection for disconnected cells.
+ * A zero diagonal makes symGaussSeidel divide by zero.
+ */
+forAll(UsEqn.diag(), cellI)
+{
+    scalar& diag = UsEqn.diag()[cellI];
+
+    if (!std::isfinite(diag) || mag(diag) < SMALL)
+    {
+        diag = 1.0;
+        UsEqn.source()[cellI] = vector::zero;
+        Us_[cellI] = vector::zero;
+    }
+}
+
+
+
+       //DasteXar: diagnostic INFO of the final matrix immediately before solve
+        label nTinyDiag = 0;
+        label nBadDiag = 0;
+        label nBadUs = 0;
+        label nBadSource = 0;
+
+        scalar minAbsDiag = GREAT;
+
+        forAll(UsEqn.diag(), cellI)
+        {
+            const scalar d = UsEqn.diag()[cellI];
+
+            if (!std::isfinite(d))
+            {
+                ++nBadDiag;
+            }
+            else
+            {
+                minAbsDiag = min(minAbsDiag, mag(d));
+
+                if (mag(d) < SMALL)
+                {
+                    ++nTinyDiag;
+                }
+            }
+
+            const vector& u = Us_[cellI];
+
+            if
+            (
+                !std::isfinite(u.x())
+            || !std::isfinite(u.y())
+            || !std::isfinite(u.z())
+            )
+            {
+                ++nBadUs;
+            }
+
+            const vector& source = UsEqn.source()[cellI];
+
+            if
+            (
+                !std::isfinite(source.x())
+            || !std::isfinite(source.y())
+            || !std::isfinite(source.z())
+            )
+            {
+                ++nBadSource;
+            }
+        }
+
+        reduce(nTinyDiag, sumOp<label>());
+        reduce(nBadDiag, sumOp<label>());
+        reduce(nBadUs, sumOp<label>());
+        reduce(nBadSource, sumOp<label>());
+        reduce(minAbsDiag, minOp<scalar>());
+
+        Info<< "laplaceSetValues final matrix check:"
+            << " minAbsDiag = " << minAbsDiag
+            << ", tinyDiag = " << nTinyDiag
+            << ", badDiag = " << nBadDiag
+            << ", badUs = " << nBadUs
+            << ", badSource = " << nBadSource
+            << nl << endl;
+        //------------------------------
+        
+
+
+
+
         Foam::SolverPerformance<Foam::vector> sp = UsEqn.solve();
 
         // Print the initial residual to monitor convergence.
@@ -199,7 +325,8 @@ void laplaceSetValues::interpolate()
         {
             if ((whereIsPatch[faceI] > 0) && (whereIsPatch[faceI] < 1))
             {
-                UsLap.upper()[faceI] = 0;
+                UsLap.upper()[faceI] = 0.0;
+                UsLap.lower()[faceI] = 0.0;
             }
         }
 

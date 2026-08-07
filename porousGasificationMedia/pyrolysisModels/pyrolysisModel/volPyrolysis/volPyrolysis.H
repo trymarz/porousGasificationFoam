@@ -67,12 +67,6 @@ private:
         //- Read model controls
         void readReactingOneDimControls();
 
-        //- Derive mass fractions Ys_ from mass concentrations Ym_
-        //  Ys_i = Ym_i / sum_j(Ym_j) in every solid cell (whereIs_ == 1).
-        //  If a cell holds no solid mass, the first specie is assigned
-        //  unity and the rest zero to avoid a division-by-zero NaN.
-        void deriveYiFromYm();
-
 
 protected:
 
@@ -115,17 +109,17 @@ protected:
         //- List of solid components
         PtrList<volScalarField>& Ys_;
 
-       //- List of solid component mass concentrations [kg/m3]
-        //  Ym_i = Yi * rho_s * (1 - porosity) = mass of solid specie i per
-        //  unit total cell volume. This is the primary transported variable;
-        //  the mass fractions Ys_ are derived from it (see deriveYiFromYm()).
+       //- List of solid component masses
         PtrList<volScalarField> Ym_;
+
+        //- List of solid component masses [kg]
+        PtrList<volScalarField> Msolid_;
+
+        //- solid total mass [kg]
+        volScalarField Msolidtotal_;
 
         // Non-const access to temperature
         volScalarField& T_;
-
-        // Non-const access to energy of solid phase
-        autoPtr<volScalarField> solidH_;
 
     //- Name of the radiative flux in the primary region
     word primaryRadFluxName_;
@@ -137,19 +131,39 @@ protected:
     Switch subintegrateSwitch_;
 
     //- Switch for bed motion model
-    Switch bedCollapseSwitch_;
+    Switch bedMotionSwitch_;
+
+    //- Switch for Eulerian solid advection by Us
+    Switch advectSolidFields_;
 
     //- Switch for bed replenishment
     Switch replenishSwitch_;
 
-    //- Criterion for bed motion porosity model
+   /*  //- Criterion for bed motion porosity model
     scalar critPorosity_;
 
-    //- Absolute tolerance for detecting incoming solid flux [kg/m3/s]
-    scalar poroProtectSolidInflowFluxTolerance_;
-
     //- Total replenished mass
-    scalar totRepMass_;
+    scalar totRepMass_; */
+
+    
+
+    //- Criterion for bed motion porosity model
+        scalar critPorosity_;
+
+        /*
+        * A cell that crosses criticalPorosity must not be removed while
+        * conserved solid mass Ym is still entering through advection.
+        *
+        * Units kg/(m3 s)
+        */
+        scalar poroProtectSolidInflowFluxTolerance_;
+
+        //- Total replenished mass
+        scalar totRepMass_;
+
+
+
+
 
     // Solution parameters
 
@@ -226,24 +240,6 @@ protected:
         //- scalar chemistryTime
         scalar timeChem_;
 
-        //- Total Ym mass integral at t=0, for conservation diagnostic [kg]
-        //  Lazily initialized on the first solveSpeciesMass() call
-        //  (-1 = not yet computed); on restart it resets to the restart
-        //  state, so conservation is checked from restart onward.
-        scalar initialTotalYmMass_;
-
-        //- Cumulative solid mass advected out through boundaries [kg]
-        //  Credited in the conservation diagnostic so the budget stays
-        //  checkable in domains with an open outlet.
-        scalar cumulativeYmOutflow_;
-
-        //- Cumulative mass created by the max(0) clip on Ym [kg]
-        //  The clip fabricates mass when a numerical undershoot drives
-        //  Ym negative; the run aborts once the total exceeds a small
-        //  fraction of the initial solid inventory (see
-        //  solveSpeciesMass()).
-        scalar cumulativeYmClip_;
-
 
     // Protected member functions
 
@@ -258,17 +254,14 @@ protected:
 
         // Equations
 
+            //- Solve energy
+            void solveEnergy();
+
             //- Solve solid species mass conservation
             void solveSpeciesMass();
 
-            //- Solve energy
-            void preSolveEnergy();
-
-            //- Solve energy
-            void postSolveEnergy();
-
-            //- Evolve porosity field
-            void solvePorosity();
+            //Enforce sum(Ym) = rhoSolid*(1-porosityF) after thermo correction
+            void correctSolidMassConsistency();
 
 public:
 
@@ -277,6 +270,16 @@ public:
 
 
     // Constructors
+
+        //- Construct from type name, mesh and main region gas list
+        volPyrolysis
+        (
+            const word& modelType,
+            const fvMesh& mesh,
+            HGSSolidThermo& solidThermo,
+            psiReactionThermo& gasThermo,
+            volScalarField& whereIs
+        );
 
         //- Construct from type name, mesh, main region gas list and radiation
         volPyrolysis
@@ -349,6 +352,17 @@ public:
 
             //- Evolve the pyrolysis equations
             virtual void evolveRegion();
+
+            //- Evolve porosity field
+            virtual void evolvePorosity();
+
+
+            virtual void transferSolidStateFromDEM
+            (
+                const DynamicList<label>& fromCells,
+                const DynamicList<label>& toCells,
+                const volScalarField& nParticles
+            );
 
         //Comunication with main region
 

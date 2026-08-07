@@ -1,0 +1,49 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  8
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      pyrolysisProperties;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+active          true; 
+
+heterogeneousPyrolysisModel  volPyrolysis; // Volumetric solid pyrolysis model used for porosity, solid species, solid temperature, and gas source coupling.
+
+pyrolysisCoeffs
+{
+    subintegrateHeatTransfer true; // Uses smaller internal steps for gas-solid heat transfer; improves stability when heat exchange is stiff.
+    bedCollapse false; // Enables the old continuum bed-collapse route model. Keep false when DEM cell-to-cell solid transfer is used.
+    advectSolidFields true; // Enables Eulerian advection of porosity, Ys, rho, and T by Us. When false, solid follows spheres position only. when true, solid follows velocity (Us)
+    criticalPorosity 0.7; // Porosity threshold used by bedCollapse to decide when a solid cell has become empty enough to collapse.
+    poroProtectSolidInflowFluxTolerance   1e-12;
+    replenish false; // If true, bedCollapse can refill emptied cells with feedstock; false leaves emptied donor cells as gas.
+}
+
+infoOutput      true; // Prints integrated pyrolysis diagnostics such as gas produced, solid lost, and heat release.
+
+// Motion option guide:
+// - YADE with DEM cell-to-cell solid transfer:
+//     bedCollapse false; advectSolidFields false; replenish false;
+//     DEM particle moves directly copy solid state between cells.
+
+
+// - Prescribed or constant Us without YADE:
+//     bedCollapse false; advectSolidFields true; replenish false;
+//     Porosity, solid species, density, and temperature move by Eulerian Us advection.
+
+
+
+// - active true runs pyrolysis/solid evolution; active false is useful for DEM-only motion tests.
+// - infoOutput true prints diagnostics; false keeps the log quieter.
+
+// ************************************************************************* //

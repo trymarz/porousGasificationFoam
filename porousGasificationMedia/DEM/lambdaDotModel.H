@@ -6,7 +6,7 @@
 #include "autoPtr.H"
 #include "fvMesh.H"
 #include "FoamYade.H"
-#include "Function1.H"
+#include "LambdaDotCalculationModel.H"
 
 namespace Foam
 {
@@ -22,10 +22,8 @@ private:
     volVectorField& UsDEM_;     // velocity of spheres
     volVectorField& Us_;    // interpolated sphere velocity
     volScalarField& porosityF_;   // porosity field  get from the main solver
+    scalar criticalPorosity_; // to read criticalPorosity from constant/pyrolysisProperties
     FoamYade& yade_;
-
-    word lambdaMode_;  // to switch between single value or function
-    scalar lambdaValue_;
 
     // DasteXar interpolation Us from UsDEM (June 12 2026)
     Switch interpolateUs_;
@@ -39,7 +37,8 @@ private:
     DynamicList<label> movedToCells_;
     //
 
-    autoPtr<Function1<scalar>> lambdaFunc_;  // to read lambdaFunction from constant/lambdaDict
+    // Runtime-selected lambdaDot calculation model: constant, Ts, or dTsdt.
+    autoPtr<LambdaDotCalculationModel> lambdaDotCalculationModel_;
 
 public:
     lambdaDotModel
@@ -62,6 +61,8 @@ public:
     const DynamicList<label>& movedToCells() const;
 
     void writeParticlesData() const;  // to write ParticlesData.txt in each time step for each rank
+    void writeVolumeOfSolidArea() const; // to write write solid-region volume 
+
 };
 
 } // namespace Foam
