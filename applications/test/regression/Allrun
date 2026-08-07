@@ -3,6 +3,13 @@
 # Iterates the case paths listed in cases.list, runs each case, then diffs
 # postProcessing/ output against the committed reference/ baseline.
 #
+# This script is the authority on the serial regression suite: which cases
+# belong to it, how they are filtered, in what order and how many at a time they
+# run, and whether the suite as a whole is green. It needs nothing but bash,
+# python3 and the OpenFOAM environment — no external tool participates in the
+# decision. An observer (CI, a TUI, `foamcli test`) may read the optional
+# structured run state written under --state-dir, but only ever as a reader.
+#
 # Verified against:
 #   gitlab.com/openfoam/core/openfoam : tutorials use Allrun + RunFunctions.
 #   gitlab.com/openfoam/core/openfoam/.../FOvolFieldValue : functionObject syntax.
@@ -13,20 +20,26 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 
 # Shared runner logic (case loading, outcome classification, summary + honest
-# exit). The library sources helpers.sh, absorbing the set +u include-guard
-# dance, so this driver sources only the library.
+# exit, run-state serialisation). The library sources helpers.sh, absorbing the
+# set +u include-guard dance, so this driver sources only the library.
 # shellcheck disable=SC1091
 . "$SCRIPT_DIR/tools/regressionLib.sh"
 
 CASES_FILE="$SCRIPT_DIR/cases.list"
 COMPARE="$SCRIPT_DIR/tools/compareScalars.py"
 RUN_CASE="$SCRIPT_DIR/tools/runCase.sh"
+SUITE_ID="regression"
+DRIVER="Allrun"
 
 RTOL="1e-4"
 ATOL="1e-12"
 ONLY_CASE=""
 SKIP_RUN=false
 TAG="fast"
+JOBS=1
+LIST_ONLY=false
+AS_JSON=false
+STATE_DIR=""
 
 usage() {
     cat <<EOF
@@ -40,6 +53,13 @@ Options:
   --atol <val>    Absolute tolerance for compareScalars.py (default 1e-12).
   --no-run        Skip running cases; only compare existing postProcessing/
                   output to reference/.
+  --jobs <n>      Number of regression CASES to run concurrently (default 1).
+                  This is suite concurrency only: it never changes how a case
+                  decomposes or how many MPI ranks its own Allrun uses.
+  --list          List the selected cases and exit without touching them.
+  --json          With --list, emit the machine-readable case manifest.
+  --state-dir <d> Write structured run state (suite.json, events.ndjson,
+                  result.json, cases/<id>/…) into <d> for an external observer.
   -h, --help      Show this help.
 
 Tags defined in cases.list:
@@ -55,10 +75,21 @@ while [ $# -gt 0 ]; do
         --rtol) RTOL="$2";      shift 2 ;;
         --atol) ATOL="$2";      shift 2 ;;
         --no-run) SKIP_RUN=true; shift ;;
+        --jobs|-j) JOBS="$2";   shift 2 ;;
+        --list) LIST_ONLY=true; shift ;;
+        --json) AS_JSON=true;   shift ;;
+        --state-dir) STATE_DIR="$2"; shift 2 ;;
         -h|--help) usage; exit 0 ;;
         *) clog ERROR "Unknown option: $1"; usage; exit 2 ;;
     esac
 done
+
+# A malformed job count is an infrastructure error, not something to guess at:
+# silently coercing it could turn a typo into an unbounded fork storm.
+if ! [[ "$JOBS" =~ ^[0-9]+$ ]] || [ "$JOBS" -lt 1 ]; then
+    clog ERROR "--jobs must be a positive integer (got: $JOBS)"
+    exit 2
+fi
 
 # Load the registered suite. An empty or unreadable suite is an ERROR, never
 # green — a gate that compares nothing must not report success.
@@ -67,68 +98,348 @@ if ! reg_load_cases "$CASES_FILE" CASE_LINES; then
     exit 2
 fi
 
+# -- selection ----------------------------------------------------------------
+#
+# One implementation of the filter rules, used by both --list and the run paths,
+# so a listing can never disagree with what a run of the same arguments does.
+
+SEL_IDS=()
+SEL_TAGS=()
+
+select_cases() {
+    local line caseRel caseTag
+    for line in "${CASE_LINES[@]}"; do
+        caseRel=$(awk '{print $1}' <<< "$line")
+        caseTag=$(awk '{print $2}' <<< "$line")
+        [ -z "$caseTag" ] && caseTag="fast"
+
+        # Tag filter (skip unless --tag all or tag matches).
+        if [ "$TAG" != "all" ] && [ "$caseTag" != "$TAG" ]; then
+            continue
+        fi
+
+        # --case filter: accepts the basename or the cases.list path.
+        if [ -n "$ONLY_CASE" ] && \
+           [ "$(basename "$caseRel")" != "$ONLY_CASE" ] && \
+           [ "$caseRel" != "$ONLY_CASE" ]; then
+            continue
+        fi
+
+        SEL_IDS+=("$caseRel")
+        SEL_TAGS+=("$caseTag")
+    done
+}
+
+select_cases
+
+# A selection that matched nothing is an ERROR: a gate that compares nothing
+# must not report success, and must not be mistaken for an empty suite either.
+if [ "${#SEL_IDS[@]}" -eq 0 ]; then
+    clog ERROR "no case in $CASES_FILE matches tag '$TAG'${ONLY_CASE:+ and case '$ONLY_CASE'} (nothing to compare)"
+    exit 2
+fi
+
+# reg_case_args <array-name> — append the per-case --case-id/--case-tag pairs
+#   that regressionState.py zips back into a manifest.
+listing_args() {
+    local -n _out="$1"
+    local i
+    for i in "${!SEL_IDS[@]}"; do
+        _out+=(--case-id "${SEL_IDS[$i]}" --case-tag "${SEL_TAGS[$i]}")
+    done
+}
+
+# -- listing mode -------------------------------------------------------------
+
+if [ "$LIST_ONLY" = true ]; then
+    if [ "$AS_JSON" = true ]; then
+        args=(listing --suite "$SUITE_ID" --driver "$DRIVER"
+              --project-root "$REPO_ROOT" --runner "$(basename "$RUN_CASE")"
+              --field "tag=$TAG" --int "jobs=$JOBS" --bool "no_run=$SKIP_RUN"
+              --field "rtol=$RTOL" --field "atol=$ATOL")
+        [ -n "$ONLY_CASE" ] && args+=(--field "case_filter=$ONLY_CASE")
+        listing_args args
+        exec python3 "$REG_STATE_PY" "${args[@]}"
+    fi
+    clog INFO "suite $SUITE_ID — ${#SEL_IDS[@]} case(s) selected (tag: $TAG)"
+    for i in "${!SEL_IDS[@]}"; do
+        printf '  %-8s %s\n' "${SEL_TAGS[$i]}" "${SEL_IDS[$i]}"
+    done
+    exit 0
+fi
+
+if [ "$AS_JSON" = true ]; then
+    clog ERROR "--json is only meaningful with --list; run state goes to --state-dir"
+    exit 2
+fi
+
+# -- run-state / output-capture setup ----------------------------------------
+#
+# SCHED_DIR is where per-case bookkeeping lives. With --state-dir it is the
+# caller's directory and survives the run; with --jobs > 1 and no --state-dir a
+# throwaway one is created purely so concurrent cases do not interleave their
+# output, and is removed on exit. With neither (the default single-job run) there
+# is no bookkeeping at all and the case output streams straight to the terminal,
+# exactly as it always has.
+
+SCHED_DIR=""
+CASES_ROOT=""
+SUITE_EVENTS=""
+STATE_ACTIVE=false
+TEMP_SCHED_DIR=""
+
+if [ -n "$STATE_DIR" ]; then
+    if ! mkdir -p "$STATE_DIR"; then
+        clog ERROR "cannot create state directory: $STATE_DIR"
+        exit 2
+    fi
+    SCHED_DIR="$(cd "$STATE_DIR" && pwd)"
+    STATE_ACTIVE=true
+    SUITE_EVENTS="$SCHED_DIR/events.ndjson"
+elif [ "$JOBS" -gt 1 ]; then
+    if ! TEMP_SCHED_DIR="$(mktemp -d "${TMPDIR:-/tmp}/pgf-regression-XXXXXX")"; then
+        clog ERROR "cannot create a temporary scheduling directory"
+        exit 2
+    fi
+    SCHED_DIR="$TEMP_SCHED_DIR"
+    trap 'rm -rf "$TEMP_SCHED_DIR"' EXIT
+fi
+[ -n "$SCHED_DIR" ] && CASES_ROOT="$SCHED_DIR/cases"
+
+T_SUITE_START=$(date +%s)
+
+if [ "$STATE_ACTIVE" = true ]; then
+    REG_EVENT_STREAMS=("$SUITE_EVENTS")
+    reg_state header --stream "$SUITE_EVENTS" \
+        --field "suite=$SUITE_ID" --field "driver=$DRIVER" \
+        --field "project_root=$REPO_ROOT"
+    suite_args=(listing --record snapshot --out "$SCHED_DIR/suite.json"
+                --suite "$SUITE_ID" --driver "$DRIVER"
+                --project-root "$REPO_ROOT" --runner "$(basename "$RUN_CASE")"
+                --field "tag=$TAG" --int "jobs=$JOBS" --bool "no_run=$SKIP_RUN"
+                --field "rtol=$RTOL" --field "atol=$ATOL"
+                --field "state_dir=$SCHED_DIR" --field "status=running"
+                --num "started_epoch=$T_SUITE_START")
+    [ -n "$ONLY_CASE" ] && suite_args+=(--field "case_filter=$ONLY_CASE")
+    listing_args suite_args
+    reg_state "${suite_args[@]}"
+    reg_event suite_started \
+        --field "suite_id=$SUITE_ID" --field "driver=$DRIVER" \
+        --int "n_cases=${#SEL_IDS[@]}" --int "jobs=$JOBS" \
+        --field "tag=$TAG" --bool "no_run=$SKIP_RUN"
+fi
+
 # Print run header.
 clog INFO "=================================================="
 clog INFO "  PGF regression suite"
 clog INFO "  tag:     $TAG"
 clog INFO "  rtol:    $RTOL   atol: $ATOL"
-[ "$SKIP_RUN" = true ] && clog INFO "  mode:    compare only (--no-run)"
-[ -n "$ONLY_CASE" ]    && clog INFO "  filter:  $ONLY_CASE"
+[ "$SKIP_RUN" = true ]  && clog INFO "  mode:    compare only (--no-run)"
+[ -n "$ONLY_CASE" ]     && clog INFO "  filter:  $ONLY_CASE"
+[ "$JOBS" -gt 1 ]       && clog INFO "  jobs:    $JOBS cases at a time"
+[ "$STATE_ACTIVE" = true ] && clog INFO "  state:   $SCHED_DIR"
 clog INFO "=================================================="
 
-# Outcomes accumulate in the library (reg_record/reg_summary).
-for line in "${CASE_LINES[@]}"; do
-    caseRel=$(awk '{print $1}' <<< "$line")
-    caseTag=$(awk '{print $2}' <<< "$line")
-    [ -z "$caseTag" ] && caseTag="fast"
+for i in "${!SEL_IDS[@]}"; do
+    reg_event case_queued --field "case_id=${SEL_IDS[$i]}" --field "tag=${SEL_TAGS[$i]}"
+done
 
-    # Tag filter (skip unless --tag all or tag matches).
-    if [ "$TAG" != "all" ] && [ "$caseTag" != "$TAG" ]; then
-        continue
+# -- per-case execution -------------------------------------------------------
+
+# precheck <case-id> — validate what the driver can validate before handing the
+#   case to the runner. Echoes a summary-name suffix and returns 2 on failure.
+#   Its diagnostics name the offending path, so they stand on their own whether
+#   or not a per-case header was printed first. (The runner re-checks both
+#   conditions; keeping them here preserves the suite's own diagnostics and
+#   avoids launching a run that cannot work.)
+precheck() {
+    local id="$1" dir="$REPO_ROOT/$1"
+    if [ ! -d "$dir" ]; then
+        clog ERROR "  directory missing: $dir"
+        echo " (missing dir)"
+        return 2
     fi
-
-    # --case filter.
-    if [ -n "$ONLY_CASE" ] && \
-       [ "$(basename "$caseRel")" != "$ONLY_CASE" ] && \
-       [ "$caseRel" != "$ONLY_CASE" ]; then
-        continue
-    fi
-
-    caseDir="$REPO_ROOT/$caseRel"
-    caseName="$(basename "$caseRel")"
-
-    clog INFO "--------------------------------------------------"
-    clog INFO "  case: $caseName  [tag: $caseTag]"
-
-    if [ ! -d "$caseDir" ]; then
-        clog ERROR "  directory missing: $caseDir"
-        reg_record "$caseName (missing dir)" 2 "-"
-        continue
-    fi
-
     # A missing baseline is an ERROR, not a silent skip: a case with no
     # reference/ cannot be compared, so it must not pass unnoticed. (Capture a
     # baseline locally; see README § Regression Testing.)
-    if [ ! -d "$caseDir/reference/postProcessing" ]; then
-        clog ERROR "  no reference baseline: $caseDir/reference/postProcessing"
-        reg_record "$caseName (no baseline)" 2 "-"
-        continue
+    if [ ! -d "$dir/reference/postProcessing" ]; then
+        clog ERROR "  no reference baseline: $dir/reference/postProcessing"
+        echo " (no baseline)"
+        return 2
+    fi
+    echo ""
+    return 0
+}
+
+# run_one <index> — run one case's runner and return its exit status verbatim.
+#   With a scheduling directory the runner's streams are captured per case (so
+#   concurrent cases cannot interleave, and an observer gets the logs); without
+#   one they go straight to the terminal.
+run_one() {
+    local idx="$1"
+    local id="${SEL_IDS[$idx]}"
+    local args=("$REPO_ROOT/$id")
+    [ "$SKIP_RUN" = true ] && args+=(--no-run)
+    args+=(--rtol "$RTOL" --atol "$ATOL" --compare "$COMPARE"
+           --case-id "$id" --suite-id "$SUITE_ID")
+
+    if [ -z "$CASES_ROOT" ]; then
+        "$RUN_CASE" "${args[@]}"
+        return $?
     fi
 
-    runFlag=""
-    [ "$SKIP_RUN" = true ] && runFlag="--no-run"
+    local cs="$CASES_ROOT/$id"
+    mkdir -p "$cs"
+    # Drop any result from an earlier run in this directory: a stale result.json
+    # must never be able to stand in for a case that died before writing one.
+    rm -f "$cs/result.json"
+    args+=(--state-dir "$cs")
+    [ "$STATE_ACTIVE" = true ] && args+=(--suite-events "$SUITE_EVENTS")
+    "$RUN_CASE" "${args[@]}" >"$cs/stdout.log" 2>"$cs/stderr.log"
+    return $?
+}
 
-    t_start=$(date +%s)
-    "$RUN_CASE" "$caseDir" $runFlag --rtol "$RTOL" --atol "$ATOL" --compare "$COMPARE"
-    rc=$?
-    t_elapsed=$(( $(date +%s) - t_start ))
-    reg_record "$caseName" "$rc" "${t_elapsed}s"
+# replay_case_output <case-id> — echo a captured case's streams through.
+replay_case_output() {
+    local cs="$CASES_ROOT/$1"
+    [ -s "$cs/stdout.log" ] && cat "$cs/stdout.log"
+    [ -s "$cs/stderr.log" ] && cat "$cs/stderr.log" >&2
+    return 0
+}
+
+# RES_RCS[index] — the exit status the driver actually waited on for each case,
+#   kept alongside the library's own summary accumulator because the final suite
+#   result JSON has to report the observed status even for a case whose runner
+#   never wrote one.
+RES_RCS=()
+
+# record_case <index> <rc> <time-string> [name-suffix] — accumulate one outcome.
+record_case() {
+    RES_RCS[$1]="$2"
+    reg_record "$(basename "${SEL_IDS[$1]}")${4:-}" "$2" "$3"
+}
+
+# record_outcome <index> <rc> <seconds> — accumulate and print the verdict line.
+record_outcome() {
+    local idx="$1" rc="$2" secs="$3"
+    record_case "$idx" "$rc" "${secs}s"
     if [ "$rc" -eq 0 ]; then
-        clog SUCCESS "  $(reg_classify "$rc")  (${t_elapsed}s)"
+        clog SUCCESS "  $(reg_classify "$rc")  (${secs}s)"
     else
-        clog ERROR "  $(reg_classify "$rc")  (${t_elapsed}s)"
+        clog ERROR "  $(reg_classify "$rc")  (${secs}s)"
     fi
-done
+}
+
+# record_precheck_failure <index> <name-suffix> — a case the driver refused to
+#   launch. Recorded as ERROR with no elapsed time, since none was spent.
+record_precheck_failure() {
+    record_case "$1" 2 "-" "$2"
+    reg_event case_finished \
+        --field "case_id=${SEL_IDS[$1]}" --int exit_code=2 \
+        --field "status=ERROR" --field "phase=queued" \
+        --field "message=driver pre-check failed:${2}"
+}
+
+# -- sequential scheduling (the default) --------------------------------------
+
+run_sequential() {
+    local idx id suffix rc t_start t_elapsed
+    for idx in "${!SEL_IDS[@]}"; do
+        id="${SEL_IDS[$idx]}"
+
+        clog INFO "--------------------------------------------------"
+        clog INFO "  case: $(basename "$id")  [tag: ${SEL_TAGS[$idx]}]"
+
+        if ! suffix="$(precheck "$id")"; then
+            record_precheck_failure "$idx" "$suffix"
+            continue
+        fi
+
+        t_start=$(date +%s)
+        run_one "$idx"
+        rc=$?
+        t_elapsed=$(( $(date +%s) - t_start ))
+        [ -n "$CASES_ROOT" ] && replay_case_output "$id"
+        record_outcome "$idx" "$rc" "$t_elapsed"
+    done
+}
+
+# -- bounded concurrent scheduling (--jobs N) ---------------------------------
+#
+# The pool mechanics (atomic claim, status capture, waiting for every worker) are
+# reg_run_pool in tools/regressionLib.sh, shared with the DEM driver. What stays
+# here is this suite's own business: which cases are runnable, and how a
+# collected status becomes a summary row.
+
+run_concurrent() {
+    local runnable=() idx suffix rc secs cs
+
+    # Pre-checks run in the parent so their diagnostics stay in one place and a
+    # case that cannot run is never handed to a worker.
+    for idx in "${!SEL_IDS[@]}"; do
+        if ! suffix="$(precheck "${SEL_IDS[$idx]}")"; then
+            record_precheck_failure "$idx" "$suffix"
+            continue
+        fi
+        mkdir -p "$CASES_ROOT/${SEL_IDS[$idx]}"
+        runnable+=("$idx")
+    done
+
+    [ "${#runnable[@]}" -eq 0 ] && return 0
+
+    clog INFO "  running ${#runnable[@]} case(s), $JOBS at a time"
+    clog INFO "--------------------------------------------------"
+
+    reg_run_pool "$JOBS" "$CASES_ROOT" SEL_IDS runnable run_one
+
+    # Collect in cases.list order: the summary is deterministic even though the
+    # cases finished in whatever order they finished.
+    for idx in "${runnable[@]}"; do
+        cs="$CASES_ROOT/${SEL_IDS[$idx]}"
+        rc="$(reg_pool_status "$cs")"
+        secs="$(reg_pool_seconds "$cs")"
+        [ -f "$cs/rc" ] || clog ERROR \
+            "  ${SEL_IDS[$idx]}: runner exited without recording a status"
+        record_case "$idx" "$rc" "${secs}s"
+    done
+
+    # A failing case's captured output is replayed here, after the wait and in
+    # cases.list order — interleaving it live across workers would make it
+    # unreadable and non-deterministic.
+    for idx in "${runnable[@]}"; do
+        [ "${RES_RCS[$idx]}" -eq 0 ] && continue
+        clog ERROR "--------------------------------------------------"
+        clog ERROR "  ${SEL_IDS[$idx]} — captured output"
+        replay_case_output "${SEL_IDS[$idx]}"
+    done
+}
+
+if [ "$JOBS" -eq 1 ]; then
+    run_sequential
+else
+    run_concurrent
+fi
 
 reg_summary "regression summary"
-exit $?
+suite_rc=$?
+
+if [ "$STATE_ACTIVE" = true ]; then
+    T_SUITE_END=$(date +%s)
+    result_args=(suite-result --path "$SCHED_DIR/result.json"
+                 --exit-code "$suite_rc" --suite "$SUITE_ID" --driver "$DRIVER"
+                 --cases-root "$CASES_ROOT"
+                 --num "started_epoch=$T_SUITE_START"
+                 --started-epoch "$T_SUITE_START" --ended-epoch "$T_SUITE_END"
+                 --int "jobs=$JOBS" --field "tag=$TAG" --bool "no_run=$SKIP_RUN"
+                 --field "rtol=$RTOL" --field "atol=$ATOL")
+    for i in "${!SEL_IDS[@]}"; do
+        result_args+=(--case-id "${SEL_IDS[$i]}"
+                      --case-exit-code "${RES_RCS[$i]:-2}")
+    done
+    reg_state "${result_args[@]}"
+    reg_event suite_finished --int "exit_code=$suite_rc" \
+        --field "status=$( [ "$suite_rc" -eq 0 ] && echo PASS || echo FAIL )" \
+        --int "n_cases=${#SEL_IDS[@]}"
+fi
+
+exit "$suite_rc"

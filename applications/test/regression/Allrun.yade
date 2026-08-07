@@ -3,10 +3,18 @@
 # Runs each case in cases_yade.list; test-mode controls and validation are in
 # tools/runDEMCase.sh (not in the tutorial Allrun scripts).
 #
+# Like the serial driver, this script is the authority on its own suite: the DEM
+# inventory, the step/wall-clock caps, the coupling and output assertions, and
+# whether the suite is green. It shares only the outcome taxonomy, the run-state
+# protocol and the scheduling mechanics with the serial driver — never its
+# cleanup contract or its assertions, which are different on purpose.
+#
 # Requirements: solver built with ./build.sh --yade, Yade + mpirun installed.
 #
 # Usage:
-#   applications/test/regression/Allrun.yade [--case <name>]
+#   applications/test/regression/Allrun.yade [--case <name>] [--short]
+#                                           [--jobs N] [--list] [--json]
+#                                           [--state-dir DIR]
 
 set -u
 
@@ -14,22 +22,40 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 
 # Shared runner logic (case loading, outcome classification, summary + honest
-# exit); the library sources helpers.sh internally.
+# exit, run-state serialisation, scheduling mechanics); the library sources
+# helpers.sh internally.
 # shellcheck disable=SC1091
 . "$SCRIPT_DIR/tools/regressionLib.sh"
 
 CASES_FILE="$SCRIPT_DIR/cases_yade.list"
+RUN_CASE="$SCRIPT_DIR/tools/runDEMCase.sh"
+SUITE_ID="yade"
+DRIVER="Allrun.yade"
+
 ONLY_CASE=""
 SHORT_RUN=0
+JOBS=1
+LIST_ONLY=false
+AS_JSON=false
+STATE_DIR=""
 
 usage() {
     cat <<EOF
-Usage: $0 [--case <name>] [--short]
+Usage: $0 [options]
 
   --case <name>   Run only the named case (basename or repo-relative path).
   --short         Fast smoke test: set YADE_NSTEPS=200 so each case runs in
                   seconds instead of hours. Checks coupling handshake and VTK
                   output without running a full simulation.
+  --jobs <n>      Number of DEM CASES to run concurrently (default 1). This is
+                  suite concurrency only: it never changes a case's own MPI
+                  layout. Concurrent DEM execution is NOT verified — each case
+                  spawns its own mpirun/Yade tree, so raise this only
+                  deliberately, on a machine with the cores to spare.
+  --list          List the selected cases and exit without touching them.
+  --json          With --list, emit the machine-readable case manifest.
+  --state-dir <d> Write structured run state (suite.json, events.ndjson,
+                  result.json, cases/<id>/…) into <d> for an external observer.
   -h, --help      Show this help.
 EOF
 }
@@ -38,14 +64,84 @@ while [ $# -gt 0 ]; do
     case "$1" in
         --case)  ONLY_CASE="$2"; shift 2 ;;
         --short) SHORT_RUN=1; shift ;;
+        --jobs|-j) JOBS="$2"; shift 2 ;;
+        --list) LIST_ONLY=true; shift ;;
+        --json) AS_JSON=true; shift ;;
+        --state-dir) STATE_DIR="$2"; shift 2 ;;
         -h|--help) usage; exit 0 ;;
         *) clog ERROR "Unknown option: $1"; usage; exit 2 ;;
     esac
 done
 
+if ! [[ "$JOBS" =~ ^[0-9]+$ ]] || [ "$JOBS" -lt 1 ]; then
+    clog ERROR "--jobs must be a positive integer (got: $JOBS)"
+    exit 2
+fi
+
+# An empty or unreadable DEM inventory is an ERROR, never green: a suite that
+# ran nothing must not report success (README § Regression Testing, outcome
+# contract). Skip the DEM suite by not invoking this driver, not by emptying it.
 if ! reg_load_cases "$CASES_FILE" CASE_LINES; then
-    clog WARNING "No cases listed in $CASES_FILE"
+    clog ERROR "empty or unreadable DEM suite: $CASES_FILE (nothing to run)"
+    exit 2
+fi
+
+# -- selection ----------------------------------------------------------------
+#
+# cases_yade.list is a bare inventory: one repo-relative case path per line, no
+# tag column. One implementation of the --case filter, used by both --list and
+# the run paths, so a listing cannot disagree with a run of the same arguments.
+
+SEL_IDS=()
+
+select_cases() {
+    local caseRel
+    for caseRel in "${CASE_LINES[@]}"; do
+        if [ -n "$ONLY_CASE" ] && \
+           [ "$(basename "$caseRel")" != "$ONLY_CASE" ] && \
+           [ "$caseRel" != "$ONLY_CASE" ]; then
+            continue
+        fi
+        SEL_IDS+=("$caseRel")
+    done
+}
+
+select_cases
+
+if [ "${#SEL_IDS[@]}" -eq 0 ]; then
+    clog ERROR "no case in $CASES_FILE matches case '$ONLY_CASE' (nothing to run)"
+    exit 2
+fi
+
+listing_args() {
+    local -n _out="$1"
+    local id
+    for id in "${SEL_IDS[@]}"; do
+        _out+=(--case-id "$id")
+    done
+}
+
+# -- listing mode -------------------------------------------------------------
+
+if [ "$LIST_ONLY" = true ]; then
+    if [ "$AS_JSON" = true ]; then
+        args=(listing --suite "$SUITE_ID" --driver "$DRIVER"
+              --project-root "$REPO_ROOT" --runner "$(basename "$RUN_CASE")"
+              --int "jobs=$JOBS" --bool "short=$SHORT_RUN")
+        [ -n "$ONLY_CASE" ] && args+=(--field "case_filter=$ONLY_CASE")
+        listing_args args
+        exec python3 "$REG_STATE_PY" "${args[@]}"
+    fi
+    clog INFO "suite $SUITE_ID — ${#SEL_IDS[@]} case(s) selected"
+    for id in "${SEL_IDS[@]}"; do
+        printf '  %s\n' "$id"
+    done
     exit 0
+fi
+
+if [ "$AS_JSON" = true ]; then
+    clog ERROR "--json is only meaningful with --list; run state goes to --state-dir"
+    exit 2
 fi
 
 # --short caps the step count and wall-clock, but a value the caller pre-set in
@@ -53,41 +149,222 @@ fi
 [ "$SHORT_RUN" -eq 1 ] && export YADE_NSTEPS="${YADE_NSTEPS:-200}"
 [ "$SHORT_RUN" -eq 1 ] && export YADE_TIMEOUT="${YADE_TIMEOUT:-300}"
 
+# -- run-state / output-capture setup ----------------------------------------
+
+SCHED_DIR=""
+CASES_ROOT=""
+SUITE_EVENTS=""
+STATE_ACTIVE=false
+TEMP_SCHED_DIR=""
+
+if [ -n "$STATE_DIR" ]; then
+    if ! mkdir -p "$STATE_DIR"; then
+        clog ERROR "cannot create state directory: $STATE_DIR"
+        exit 2
+    fi
+    SCHED_DIR="$(cd "$STATE_DIR" && pwd)"
+    STATE_ACTIVE=true
+    SUITE_EVENTS="$SCHED_DIR/events.ndjson"
+elif [ "$JOBS" -gt 1 ]; then
+    if ! TEMP_SCHED_DIR="$(mktemp -d "${TMPDIR:-/tmp}/pgf-yade-regression-XXXXXX")"; then
+        clog ERROR "cannot create a temporary scheduling directory"
+        exit 2
+    fi
+    SCHED_DIR="$TEMP_SCHED_DIR"
+    trap 'rm -rf "$TEMP_SCHED_DIR"' EXIT
+fi
+[ -n "$SCHED_DIR" ] && CASES_ROOT="$SCHED_DIR/cases"
+
+T_SUITE_START=$(date +%s)
+
+if [ "$STATE_ACTIVE" = true ]; then
+    REG_EVENT_STREAMS=("$SUITE_EVENTS")
+    reg_state header --stream "$SUITE_EVENTS" \
+        --field "suite=$SUITE_ID" --field "driver=$DRIVER" \
+        --field "project_root=$REPO_ROOT"
+    suite_args=(listing --record snapshot --out "$SCHED_DIR/suite.json"
+                --suite "$SUITE_ID" --driver "$DRIVER"
+                --project-root "$REPO_ROOT" --runner "$(basename "$RUN_CASE")"
+                --int "jobs=$JOBS" --bool "short=$SHORT_RUN"
+                --field "state_dir=$SCHED_DIR" --field "status=running"
+                --num "started_epoch=$T_SUITE_START")
+    [ -n "$ONLY_CASE" ] && suite_args+=(--field "case_filter=$ONLY_CASE")
+    listing_args suite_args
+    reg_state "${suite_args[@]}"
+    reg_event suite_started \
+        --field "suite_id=$SUITE_ID" --field "driver=$DRIVER" \
+        --int "n_cases=${#SEL_IDS[@]}" --int "jobs=$JOBS" \
+        --bool "short=$SHORT_RUN"
+fi
+
 clog INFO "=================================================="
 clog INFO "  PGF Yade regression suite"
-[ -n "$ONLY_CASE" ] && clog INFO "  filter: $ONLY_CASE"
-[ "$SHORT_RUN" -eq 1 ] && clog INFO "  mode: --short (YADE_NSTEPS=200)"
+[ -n "$ONLY_CASE" ]        && clog INFO "  filter: $ONLY_CASE"
+[ "$SHORT_RUN" -eq 1 ]     && clog INFO "  mode: --short (YADE_NSTEPS=$YADE_NSTEPS)"
+[ "$STATE_ACTIVE" = true ] && clog INFO "  state:   $SCHED_DIR"
+if [ "$JOBS" -gt 1 ]; then
+    clog INFO "  jobs:   $JOBS cases at a time"
+    clog WARNING "  concurrent DEM execution is unverified — each case spawns its"
+    clog WARNING "  own mpirun/Yade tree, so oversubscription is on you"
+fi
 clog INFO "=================================================="
 
-for caseRel in "${CASE_LINES[@]}"; do
-    caseName="$(basename "$caseRel")"
-
-    if [ -n "$ONLY_CASE" ] && [ "$caseName" != "$ONLY_CASE" ] && [ "$caseRel" != "$ONLY_CASE" ]; then
-        continue
-    fi
-
-    caseDir="$REPO_ROOT/$caseRel"
-
-    clog INFO "--------------------------------------------------"
-    clog INFO "  case: $caseName"
-
-    if [ ! -d "$caseDir" ]; then
-        clog ERROR "  directory missing: $caseDir"
-        reg_record "$caseName (missing dir)" 2 "-"
-        continue
-    fi
-
-    t_start=$(date +%s)
-    "$SCRIPT_DIR/tools/runDEMCase.sh" "$caseDir"
-    rc=$?
-    t_elapsed=$(( $(date +%s) - t_start ))
-    reg_record "$caseName" "$rc" "${t_elapsed}s"
-    if [ "$rc" -eq 0 ]; then
-        clog SUCCESS "  $(reg_classify "$rc")  (${t_elapsed}s)"
-    else
-        clog ERROR "  $(reg_classify "$rc")  (${t_elapsed}s)"
-    fi
+for id in "${SEL_IDS[@]}"; do
+    reg_event case_queued --field "case_id=$id"
 done
 
+# -- per-case execution -------------------------------------------------------
+
+# precheck <case-id> — what the driver can check before launching a DEM case.
+#   Echoes a summary-name suffix and returns 2 on failure. The coupling, VTK and
+#   dtInfo assertions belong to runDEMCase.sh and stay there.
+precheck() {
+    local dir="$REPO_ROOT/$1"
+    if [ ! -d "$dir" ]; then
+        clog ERROR "  directory missing: $dir"
+        echo " (missing dir)"
+        return 2
+    fi
+    echo ""
+    return 0
+}
+
+# run_one <index> — run one DEM case's runner and return its status verbatim.
+run_one() {
+    local idx="$1"
+    local id="${SEL_IDS[$idx]}"
+    local args=("$REPO_ROOT/$id" --case-id "$id" --suite-id "$SUITE_ID")
+
+    if [ -z "$CASES_ROOT" ]; then
+        "$RUN_CASE" "${args[@]}"
+        return $?
+    fi
+
+    local cs="$CASES_ROOT/$id"
+    mkdir -p "$cs"
+    # A stale result must never be able to stand in for a case that died before
+    # writing one.
+    rm -f "$cs/result.json"
+    args+=(--state-dir "$cs")
+    [ "$STATE_ACTIVE" = true ] && args+=(--suite-events "$SUITE_EVENTS")
+    "$RUN_CASE" "${args[@]}" >"$cs/stdout.log" 2>"$cs/stderr.log"
+    return $?
+}
+
+replay_case_output() {
+    local cs="$CASES_ROOT/$1"
+    [ -s "$cs/stdout.log" ] && cat "$cs/stdout.log"
+    [ -s "$cs/stderr.log" ] && cat "$cs/stderr.log" >&2
+    return 0
+}
+
+RES_RCS=()
+
+record_case() {
+    RES_RCS[$1]="$2"
+    reg_record "$(basename "${SEL_IDS[$1]}")${4:-}" "$2" "$3"
+}
+
+record_outcome() {
+    local idx="$1" rc="$2" secs="$3"
+    record_case "$idx" "$rc" "${secs}s"
+    if [ "$rc" -eq 0 ]; then
+        clog SUCCESS "  $(reg_classify "$rc")  (${secs}s)"
+    else
+        clog ERROR "  $(reg_classify "$rc")  (${secs}s)"
+    fi
+}
+
+record_precheck_failure() {
+    record_case "$1" 2 "-" "$2"
+    reg_event case_finished \
+        --field "case_id=${SEL_IDS[$1]}" --int exit_code=2 \
+        --field "status=ERROR" --field "phase=queued" \
+        --field "message=driver pre-check failed:${2}"
+}
+
+run_sequential() {
+    local idx id suffix rc t_start t_elapsed
+    for idx in "${!SEL_IDS[@]}"; do
+        id="${SEL_IDS[$idx]}"
+
+        clog INFO "--------------------------------------------------"
+        clog INFO "  case: $(basename "$id")"
+
+        if ! suffix="$(precheck "$id")"; then
+            record_precheck_failure "$idx" "$suffix"
+            continue
+        fi
+
+        t_start=$(date +%s)
+        run_one "$idx"
+        rc=$?
+        t_elapsed=$(( $(date +%s) - t_start ))
+        [ -n "$CASES_ROOT" ] && replay_case_output "$id"
+        record_outcome "$idx" "$rc" "$t_elapsed"
+    done
+}
+
+run_concurrent() {
+    local runnable=() idx suffix rc secs cs
+
+    for idx in "${!SEL_IDS[@]}"; do
+        if ! suffix="$(precheck "${SEL_IDS[$idx]}")"; then
+            record_precheck_failure "$idx" "$suffix"
+            continue
+        fi
+        mkdir -p "$CASES_ROOT/${SEL_IDS[$idx]}"
+        runnable+=("$idx")
+    done
+
+    [ "${#runnable[@]}" -eq 0 ] && return 0
+
+    clog INFO "  running ${#runnable[@]} case(s), $JOBS at a time"
+    clog INFO "--------------------------------------------------"
+
+    reg_run_pool "$JOBS" "$CASES_ROOT" SEL_IDS runnable run_one
+
+    for idx in "${runnable[@]}"; do
+        cs="$CASES_ROOT/${SEL_IDS[$idx]}"
+        rc="$(reg_pool_status "$cs")"
+        secs="$(reg_pool_seconds "$cs")"
+        [ -f "$cs/rc" ] || clog ERROR \
+            "  ${SEL_IDS[$idx]}: runner exited without recording a status"
+        record_case "$idx" "$rc" "${secs}s"
+    done
+
+    for idx in "${runnable[@]}"; do
+        [ "${RES_RCS[$idx]}" -eq 0 ] && continue
+        clog ERROR "--------------------------------------------------"
+        clog ERROR "  ${SEL_IDS[$idx]} — captured output"
+        replay_case_output "${SEL_IDS[$idx]}"
+    done
+}
+
+if [ "$JOBS" -eq 1 ]; then
+    run_sequential
+else
+    run_concurrent
+fi
+
 reg_summary "Yade regression summary"
-exit $?
+suite_rc=$?
+
+if [ "$STATE_ACTIVE" = true ]; then
+    T_SUITE_END=$(date +%s)
+    result_args=(suite-result --path "$SCHED_DIR/result.json"
+                 --exit-code "$suite_rc" --suite "$SUITE_ID" --driver "$DRIVER"
+                 --cases-root "$CASES_ROOT"
+                 --started-epoch "$T_SUITE_START" --ended-epoch "$T_SUITE_END"
+                 --int "jobs=$JOBS" --bool "short=$SHORT_RUN")
+    for i in "${!SEL_IDS[@]}"; do
+        result_args+=(--case-id "${SEL_IDS[$i]}"
+                      --case-exit-code "${RES_RCS[$i]:-2}")
+    done
+    reg_state "${result_args[@]}"
+    reg_event suite_finished --int "exit_code=$suite_rc" \
+        --field "status=$( [ "$suite_rc" -eq 0 ] && echo PASS || echo FAIL )" \
+        --int "n_cases=${#SEL_IDS[@]}"
+fi
+
+exit "$suite_rc"
