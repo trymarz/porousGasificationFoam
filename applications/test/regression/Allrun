@@ -38,6 +38,7 @@ SKIP_RUN=false
 TAG="fast"
 JOBS=1
 LIST_ONLY=false
+LIST_FULL=false
 AS_JSON=false
 STATE_DIR=""
 
@@ -56,7 +57,8 @@ Options:
   --jobs <n>      Number of regression CASES to run concurrently (default 1).
                   This is suite concurrency only: it never changes how a case
                   decomposes or how many MPI ranks its own Allrun uses.
-  --list          List the selected cases and exit without touching them.
+  --list          List selected cases and exit without touching them.
+  --list-full     List selected cases with human-readable descriptions.
   --json          With --list, emit the machine-readable case manifest.
   --state-dir <d> Write structured run state (suite.json, events.ndjson,
                   result.json, cases/<id>/…) into <d> for an external observer.
@@ -77,6 +79,7 @@ while [ $# -gt 0 ]; do
         --no-run) SKIP_RUN=true; shift ;;
         --jobs|-j) JOBS="$2";   shift 2 ;;
         --list) LIST_ONLY=true; shift ;;
+        --list-full) LIST_ONLY=true; LIST_FULL=true; shift ;;
         --json) AS_JSON=true;   shift ;;
         --state-dir) STATE_DIR="$2"; shift 2 ;;
         -h|--help) usage; exit 0 ;;
@@ -102,6 +105,30 @@ fi
 #
 # One implementation of the filter rules, used by both --list and the run paths,
 # so a listing can never disagree with what a run of the same arguments does.
+
+# Optional human-readable descriptions live in comment blocks immediately before
+# each case entry. They are used only by plain-text --list-full output; comments never
+# participate in selection or machine-readable run state.
+declare -A CASE_PURPOSES=()
+declare -A CASE_EXPECTED_VIEWS=()
+
+load_case_descriptions() {
+    local line caseRel purpose="" expectedView=""
+
+    while IFS= read -r line || [ -n "$line" ]; do
+        if [[ "$line" =~ ^[[:space:]]*#[[:space:]]*Purpose:[[:space:]]*(.*)$ ]]; then
+            purpose="${BASH_REMATCH[1]}"
+        elif [[ "$line" =~ ^[[:space:]]*#[[:space:]]*Expected[[:space:]]+view:[[:space:]]*(.*)$ ]]; then
+            expectedView="${BASH_REMATCH[1]}"
+        elif [[ "$line" =~ ^[[:space:]]*([^#[:space:]]+)([[:space:]]+[^#[:space:]]+)?[[:space:]]*$ ]]; then
+            caseRel="${BASH_REMATCH[1]}"
+            CASE_PURPOSES["$caseRel"]="$purpose"
+            CASE_EXPECTED_VIEWS["$caseRel"]="$expectedView"
+            purpose=""
+            expectedView=""
+        fi
+    done < "$CASES_FILE"
+}
 
 SEL_IDS=()
 SEL_TAGS=()
@@ -130,6 +157,7 @@ select_cases() {
     done
 }
 
+load_case_descriptions
 select_cases
 
 # A selection that matched nothing is an ERROR: a gate that compares nothing
@@ -153,6 +181,10 @@ listing_args() {
 
 if [ "$LIST_ONLY" = true ]; then
     if [ "$AS_JSON" = true ]; then
+        if [ "$LIST_FULL" = true ]; then
+            clog ERROR "--list-full cannot be combined with --json"
+            exit 2
+        fi
         args=(listing --suite "$SUITE_ID" --driver "$DRIVER"
               --project-root "$REPO_ROOT" --runner "$(basename "$RUN_CASE")"
               --field "tag=$TAG" --int "jobs=$JOBS" --bool "no_run=$SKIP_RUN"
@@ -163,7 +195,16 @@ if [ "$LIST_ONLY" = true ]; then
     fi
     clog INFO "suite $SUITE_ID — ${#SEL_IDS[@]} case(s) selected (tag: $TAG)"
     for i in "${!SEL_IDS[@]}"; do
-        printf '  %-8s %s\n' "${SEL_TAGS[$i]}" "${SEL_IDS[$i]}"
+        caseId="${SEL_IDS[$i]}"
+        printf '  %-8s %s\n' "${SEL_TAGS[$i]}" "$caseId"
+        if [ "$LIST_FULL" = true ]; then
+            if [ -n "${CASE_PURPOSES[$caseId]:-}" ]; then
+                printf '             Purpose: %s\n' "${CASE_PURPOSES[$caseId]}"
+            fi
+            if [ -n "${CASE_EXPECTED_VIEWS[$caseId]:-}" ]; then
+                printf '             Expected view: %s\n' "${CASE_EXPECTED_VIEWS[$caseId]}"
+            fi
+        fi
     done
     exit 0
 fi
