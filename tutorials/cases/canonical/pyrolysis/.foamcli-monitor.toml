@@ -1,12 +1,5 @@
 [heatmap]
-fields = ["porosityF", "Ts", "T", "p", "Ychar", "Yash"]
-
-[probes]
-labels = ["inlet-mid", "outlet-mid", "inlet-bot", "outlet-bot", "inlet-top", "outlet-top"]
-
-[monitor]
-refresh_interval = 2.0
-panels = ["progress", "probes", "heatmap"]
+fields = ["T", "Ts", "porosityF"]
 
 [slice]
 axis = "y"
