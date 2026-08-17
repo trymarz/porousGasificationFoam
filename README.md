@@ -494,10 +494,10 @@ cd applications/test/regression
 ```
 
 `cases.list` may place `Purpose:` and `Expected view:` comment lines immediately
-before a case. Plain-text `--list-full` output displays these qualitative
-descriptions for human inspection; they do not affect case selection, comparison,
-or the machine-readable run state. Plain-text `--list` remains the concise case
-listing, and `--list-full` cannot be combined with `--json`.
+before a case. Plain-text `--list` and `--list-full` use a numbered, aligned
+layout; the latter adds these qualitative descriptions for human inspection.
+Descriptions do not affect case selection, comparison, or the machine-readable
+run state. `--list-full` cannot be combined with `--json`.
 
 Exit code `0` means every case that ran PASSed; any non-zero means at least one case was not green (FAIL/ERROR/TIMEOUT/CRASH). The summary lists each case with its outcome and, on a FAIL, the rows that diverged; a CRASH shows the signal name so a teardown abort is not mistaken for a numerical divergence.
 
