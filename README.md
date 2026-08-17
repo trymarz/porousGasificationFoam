@@ -246,6 +246,22 @@ All 14 cases under `tutorials/cases/`:
 | `MicroTGA-DEM/` | DEM-coupled micro TGA | Requires YADE |
 | `simple_line_case/` | DEM-coupled 1-D packed line, pyrolysing | Requires YADE |
 
+### Render gallery
+
+`foamcli` keeps PNG snapshots beside the case that produced them, under
+`tutorials/cases/<case>/render/`. To build one browsable view without copying
+the images, run:
+
+```bash
+python3 tutorials/render_gallery.py
+```
+
+This creates the generated `tutorials/render/` directory. It mirrors each
+case-local render directory with a relative symlink and writes
+`tutorials/render/index.html`, a searchable thumbnail gallery. The generated
+directory and PNG snapshots are ignored by Git; rerun the generator after
+creating or deleting snapshots.
+
 ## Input File Reference
 
 ### `constant/chemistryProperties`
