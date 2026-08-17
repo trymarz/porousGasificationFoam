@@ -15,32 +15,76 @@
 #
 # DEM/Yade cases use a separate runner: applications/test/regression/Allrun.yade
 # (they require Yade installed and the solver built with ./build.sh --yade).
+# The descriptions below are qualitative terminal expectations shown by
+# ./Allrun --list-full. They are guidance for inspecting a run, not pass/fail criteria.
 
 # charOnlyMove prescribed-Us fixtures
+# Purpose: transport an initialized char/ash blob with prescribed solid Us.
+# Expected view: the blob moves in +x while mass and temperature stay bounded.
 tutorials/cases/charOnlyMoveCases/serial       fast
+# Purpose: inject solid char through the inlet and transport it downstream.
+# Expected view: a char front enters from the left and advances toward the outlet.
 tutorials/cases/charOnlyMoveCases/solidInlet          fast
+# Purpose: repeat the solid-inlet transient with a deliberately tiny time step.
+# Expected view: the same inlet front advances smoothly over a short physical time.
 tutorials/cases/charOnlyMoveCases/solidInlet_tinyDt   fast
+# Purpose: repeat prescribed-Us char transport on a refined mesh (2x study).
+# Expected view: the translating blob has the same qualitative motion at finer resolution.
 tutorials/cases/charOnlyMoveCases/serial_m2    convergence
+# Purpose: repeat prescribed-Us char transport on the finest mesh (4x study).
+# Expected view: the translating blob remains stable and approaches the refined result.
 tutorials/cases/charOnlyMoveCases/serial_m4    convergence
 
 # Canonical fast-tier suite — one small fixture per physics path.
+# Purpose: exercise heterogeneous wood pyrolysis and tar production.
+# Expected view: wood decreases, tar increases, and solid temperature evolves smoothly.
 tutorials/cases/canonical/pyrolysis            fast
+# Purpose: exercise char gasification with oxygen and carbon-monoxide production.
+# Expected view: char decreases while the configured gas products develop.
 tutorials/cases/canonical/gasification         fast
+# Purpose: exercise heterogeneous radiation coupling in the thermochemical solver.
+# Expected view: the radiation field and temperature respond smoothly to coupling.
 tutorials/cases/canonical/radiation            fast
+# Purpose: exercise porous-gas pressure and velocity transport.
+# Expected view: gas moves through the domain with a consistent pressure drop.
 tutorials/cases/canonical/flow                 fast
+# Purpose: exercise stoichiometric solid/gas reaction bookkeeping.
+# Expected view: species conversion and temperature evolve without mass-balance jumps.
 tutorials/cases/canonical/stoichiometric       fast
+# Purpose: exercise reaction-energy handling through the enthalpy formulation.
+# Expected view: the conversion path remains smooth with a consistent thermal trace.
 tutorials/cases/canonical/enthalpy             fast
+# Purpose: exercise the heterogeneous mean-temperature radiation model.
+# Expected view: mean radiation and solid temperature evolve together.
 tutorials/cases/canonical/meanTemp             fast
+# Purpose: compare pyrolysis heat transfer with subintegration disabled.
+# Expected view: conversion remains stable with a distinct but smooth thermal trace.
 tutorials/cases/canonical/noSubintegration     fast
+# Purpose: exercise the configured chemistry timestep/equilibrium-style path.
+# Expected view: the reaction advances toward conversion without numerical spikes.
 tutorials/cases/canonical/equilibrium          fast
 
 # Prescribed-Us solid-transport suite — Ycharm advection under analytic Us
 # fields (asserts extensive Ycharm only; porosityF advects intensive and is
 # not asserted).
+# Purpose: test conservative solid advection in a converging velocity field.
+# Expected view: the blob compresses toward the center while total mass is stable.
 tutorials/cases/prescribedUsCases/converging         fast
+# Purpose: test conservative solid advection in a diverging velocity field.
+# Expected view: the blob spreads away from the center while total mass is stable.
 tutorials/cases/prescribedUsCases/diverging          fast
+# Purpose: test conservative solid advection under simple shear.
+# Expected view: the initially round blob stretches into a slanted shape.
 tutorials/cases/prescribedUsCases/shear              fast
+# Purpose: test advection in a regularized irrotational vortex field.
+# Expected view: the blob follows a curved orbit and deforms smoothly.
 tutorials/cases/prescribedUsCases/vortexIrrotational fast
+# Purpose: test advection in a stronger regularized 1/r^2 vortex field.
+# Expected view: rotation and deformation increase near the vortex center.
 tutorials/cases/prescribedUsCases/vortexOneOverR2    fast
+# Purpose: test advection across the core and outer regions of a Rankine vortex.
+# Expected view: the blob rotates with different behavior inside and outside the core.
 tutorials/cases/prescribedUsCases/vortexRankine      fast
+# Purpose: test rigid solid-body rotation under an analytic velocity field.
+# Expected view: the blob rotates with minimal deformation and bounded mass metrics.
 tutorials/cases/prescribedUsCases/vortexSolidBody    fast
