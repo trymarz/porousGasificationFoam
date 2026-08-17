@@ -193,19 +193,22 @@ if [ "$LIST_ONLY" = true ]; then
         listing_args args
         exec python3 "$REG_STATE_PY" "${args[@]}"
     fi
-    clog INFO "suite $SUITE_ID — ${#SEL_IDS[@]} case(s) selected (tag: $TAG)"
+    printf '\n'
+    clog INFO "Regression suite: $SUITE_ID"
+    printf '       %d case(s) selected | tag: %s\n\n' "${#SEL_IDS[@]}" "$TAG"
     for i in "${!SEL_IDS[@]}"; do
         caseId="${SEL_IDS[$i]}"
-        printf '  %-8s %s\n' "${SEL_TAGS[$i]}" "$caseId"
+        printf '  %2d  %-12s %s\n' "$((i + 1))" "${SEL_TAGS[$i]}" "$caseId"
         if [ "$LIST_FULL" = true ]; then
             if [ -n "${CASE_PURPOSES[$caseId]:-}" ]; then
-                printf '             Purpose: %s\n' "${CASE_PURPOSES[$caseId]}"
+                printf '       Purpose: %s\n' "${CASE_PURPOSES[$caseId]}"
             fi
             if [ -n "${CASE_EXPECTED_VIEWS[$caseId]:-}" ]; then
-                printf '             Expected view: %s\n' "${CASE_EXPECTED_VIEWS[$caseId]}"
+                printf '       Expected view: %s\n' "${CASE_EXPECTED_VIEWS[$caseId]}"
             fi
         fi
     done
+    printf '\n'
     exit 0
 fi
 
