@@ -45,9 +45,13 @@ tutorials/cases/canonical/gasification         fast
 # Purpose: exercise heterogeneous radiation coupling in the thermochemical solver.
 # Expected view: the radiation field and temperature respond smoothly to coupling.
 tutorials/cases/canonical/radiation            fast
-# Purpose: exercise porous-gas pressure and velocity transport.
-# Expected view: gas moves through the domain with a consistent pressure drop.
-tutorials/cases/canonical/flow                 fast
+# Purpose: verify linear Darcy resistance in a true one-dimensional porous plug.
+# Expected view: inlet/outlet mass flux closes and pressure drop scales with Df.
+tutorials/cases/canonical/darcy                 fast
+# Purpose: verify the additional quadratic Forchheimer resistance term.
+# Expected view: pressure drop is larger than Darcy-only flow and follows the
+# velocity-dependent quadratic trend documented by the porous resistance model.
+tutorials/cases/canonical/forchheimer           fast
 # Purpose: exercise stoichiometric solid/gas reaction bookkeeping.
 # Expected view: species conversion and temperature evolve without mass-balance jumps.
 tutorials/cases/canonical/stoichiometric       fast
