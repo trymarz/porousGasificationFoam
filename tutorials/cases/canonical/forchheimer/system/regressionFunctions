@@ -1,0 +1,92 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     |                                                 |
+|   \\  /    A nd           |                                                 |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+
+regressionBase
+{
+    type            volFieldValue;
+    libs            (fieldFunctionObjects);
+    regionType      all;
+    postOperation   none;
+    weightField     none;
+    writeFields     false;
+    writePrecision  10;
+    writeToFile     true;
+    log             false;
+    enabled         false;
+    executeControl  timeStep;
+    executeInterval 1;
+    writeControl    writeTime;
+    writeInterval   -1;
+}
+
+regressionUAverage
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (U);
+    operation       volAverage;
+    postOperation   mag;
+}
+
+regressionPInlet
+{
+    type            surfaceFieldValue;
+    libs            (fieldFunctionObjects);
+    regionType      patch;
+    name            inlet;
+    fields          (p);
+    operation       areaAverage;
+    writeFields     false;
+    writePrecision  10;
+    writeToFile     true;
+    log             false;
+    enabled         true;
+    executeControl  timeStep;
+    executeInterval 1;
+    writeControl    writeTime;
+    writeInterval   -1;
+}
+
+regressionPOutlet
+{
+    ${regressionPInlet}
+    name            outlet;
+}
+
+regressionMassInlet
+{
+    ${regressionPInlet}
+    fields          (phi);
+    // phi is already a face-integrated mass flux, so do not multiply by area.
+    operation       sum;
+}
+
+regressionMassOutlet
+{
+    ${regressionMassInlet}
+    name            outlet;
+}
+
+regressionUMinMax
+{
+    type            fieldMinMax;
+    libs            (fieldFunctionObjects);
+    mode            magnitude;
+    fields          (U);
+    location        false;
+    writePrecision  10;
+    writeToFile     true;
+    log             false;
+    enabled         true;
+    executeControl  timeStep;
+    executeInterval 1;
+    writeControl    writeTime;
+    writeInterval   -1;
+}
+
+// ************************************************************************* //

@@ -434,6 +434,18 @@ Gas-phase reactions are typically orders of magnitude faster than heterogeneous 
 
 Numerical regression tests live under `applications/test/regression/`. The framework runs selected tutorial cases, extracts a small set of summary scalars produced by OpenFOAM `volFieldValue` function objects, and diffs the results against a committed reference baseline within a numerical tolerance.
 
+The canonical porous-flow fixtures are `tutorials/cases/canonical/darcy` and
+`tutorials/cases/canonical/forchheimer`. Both are true one-dimensional porous
+plugs with `empty` transverse patches. `darcy` disables the Forchheimer term;
+`forchheimer` enables it. Their regression observables include inlet/outlet
+pressure, inlet/outlet mass flux, average velocity, and minimum/maximum velocity
+magnitude. To run the disposable `Df` and inlet-velocity study against the
+isothermal ideal-gas pressure-drop estimate, run:
+
+```bash
+python3 applications/test/regression/tools/porousResistanceStudy.py
+```
+
 The point is to give refactors a safety net: any change that perturbs the selected scalars beyond tolerance fails the regression and surfaces a clear diff. The gate is deliberately **honest** — it never reports success unless it actually ran a case and compared it (see the outcome contract below).
 
 The framework has two runners that share one outcome vocabulary:
