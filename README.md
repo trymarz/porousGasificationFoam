@@ -171,9 +171,11 @@ the images, run:
 python3 tutorials/render_gallery.py
 ```
 
-This creates the generated `tutorials/render/` directory. It mirrors each
-case-local render directory with a relative symlink and writes
-`tutorials/render/index.html`, a searchable thumbnail gallery. The generated
+This creates the generated `tutorials/render/` directory. It groups cases on
+the landing page, creates `tutorials/render/cases/<group>/<case>/index.html`
+for each case, and links each case page to its local PNGs without copying
+them. The landing page supports search, group filtering, and expand/collapse;
+case pages support search and a keyboard-navigable image viewer. The generated
 directory and PNG snapshots are ignored by Git; rerun the generator after
 creating or deleting snapshots.
 
