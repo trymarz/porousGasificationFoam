@@ -102,7 +102,7 @@ void laplaceSetValues::interpolate()
         {
             if ((whereIsPatch[faceI] > 0) && (whereIsPatch[faceI] < 1))
             {
-                UsLap.upper()[faceI] = 0;
+                UsLap.upper()[faceI] = 0.0;
             }
         }
 
@@ -142,25 +142,68 @@ void laplaceSetValues::interpolate()
         Field<vector> UsList = {};
 
 
-        // Select cells containing particles and keep their DEM velocity fixed.
+        // Fix cells containing particles to their DEM velocity.
+        // Fix cells outside the interpolation region to zero.
         forAll(UsDEM_, cellI)
         {
+            // Cells containing particles keep the DEM velocity
             if (nParticles_[cellI] > 0.5)
             {
                 cellList.append(cellI);
                 UsList.append(UsDEM_[cellI]);
             }
+            // Cells outside the interpolation region are fixed to zero
+            else if (whereIs[cellI] < 0.5)
+            {
+                cellList.append(cellI);
+                UsList.append(vector::zero);
+            }
+            // Isolated cells with zero matrix diagonal are also fixed to zero
+            else if (mag(UsLap.diag()[cellI]) < SMALL)
+            {
+                cellList.append(cellI);
+                UsList.append(vector::zero);
+            }
         }
-
 
 
         const labelUList& cellUList = cellList;
         const Field<vector>& UsUList = UsList;
 
-        // Force known particle cells to keep their original DEM velocity during interpolation.
+        /*
+         * Apply hard velocity constraints before solving:
+         *
+         * 1. Cells containing DEM particles retain their cell-averaged
+         *    DEM velocity.
+         *
+         * 2. Cells outside the active solid region remain at zero velocity.
+         *
+         * 3. Disconnected cells remain fixed at zero to prevent a singular
+         *    interpolation matrix.
+         *
+         * This operation only constrains the velocity interpolation equation.
+         * It does not modify solid mass, porosity, chemistry, or energy.
+         */
         UsEqn.setValues(cellUList, UsUList);
 
         UsEqn.relax();
+
+        // A cell that is disconnected from every neighbour - all its face
+        // coefficients having been zeroed at the interface - leaves a zero
+        // diagonal, on which symGaussSeidel divides by zero. Pin such a cell
+        // to zero velocity instead.
+        forAll(UsEqn.diag(), cellI)
+        {
+            scalar& diag = UsEqn.diag()[cellI];
+
+            if (!std::isfinite(diag) || mag(diag) < SMALL)
+            {
+                diag = 1.0;
+                UsEqn.source()[cellI] = vector::zero;
+                Us_[cellI] = vector::zero;
+            }
+        }
+
         Foam::SolverPerformance<Foam::vector> sp = UsEqn.solve();
 
         // Print the initial residual to monitor convergence.
@@ -199,7 +242,7 @@ void laplaceSetValues::interpolate()
         {
             if ((whereIsPatch[faceI] > 0) && (whereIsPatch[faceI] < 1))
             {
-                UsLap.upper()[faceI] = 0;
+                UsLap.upper()[faceI] = 0.0;
             }
         }
 
