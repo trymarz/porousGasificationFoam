@@ -159,7 +159,7 @@ All 14 cases under `tutorials/cases/`:
 | `charOnlyMoveCases/serial_m2/` | Serial, 2× mesh refinement | Convergence study |
 | `charOnlyMoveCases/serial_m4/` | Serial, 4× mesh refinement | Convergence study |
 | `MicroTGA-DEM/` | DEM-coupled micro TGA | Requires YADE |
-| `DEM_UsInterp_*/` | DEM solid velocity interpolation tests | Requires YADE |
+| `simple_line_case/` | DEM-coupled 1-D packed line, pyrolysing | Requires YADE |
 
 ## Input File Reference
 
@@ -500,7 +500,7 @@ The per-case runners are supported entry points in their own right, for when you
 
 ```bash
 tools/runCase.sh    tutorials/cases/canonical/pyrolysis [--no-run] [--rtol R] [--atol A]
-tools/runDEMCase.sh tutorials/cases/DEM_UsInterp_solidU [--timeout S] [--nsteps N]
+tools/runDEMCase.sh tutorials/cases/simple_line_case [--timeout S] [--nsteps N]
 ```
 
 Both return the same taxonomy as the suite, and both accept the optional state flags described below.
