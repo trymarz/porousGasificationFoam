@@ -73,6 +73,11 @@ private:
         //  unity and the rest zero to avoid a division-by-zero NaN.
         void deriveYiFromYm();
 
+        //- Solid volumetric face flux [m3/s] carried by Us
+        //  Zero unless advectSolidFields_ is set. The same flux transports
+        //  porosity, Ym and the solid enthalpy, so they cannot drift apart.
+        tmp<surfaceScalarField> solidVolFlux() const;
+
 
 protected:
 
@@ -141,6 +146,11 @@ protected:
 
     //- Switch for bed replenishment
     Switch replenishSwitch_;
+
+    //- Switch for Eulerian advection of the solid fields by Us
+    //  When false the solid volumetric flux is held at zero, so porosity,
+    //  Ym and the solid enthalpy are only updated by chemistry.
+    Switch advectSolidFields_;
 
     //- Criterion for bed motion porosity model
     scalar critPorosity_;
