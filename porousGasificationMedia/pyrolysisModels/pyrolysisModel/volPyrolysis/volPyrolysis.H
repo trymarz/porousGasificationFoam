@@ -198,11 +198,13 @@ protected:
     //  excursion larger than this is a genuine overshoot.
     scalar solidStateTolerance_;
 
-    //- Upper bound on a physically credible solid temperature [K]
-    //  Ts is formed as the ratio of two independently advected and
-    //  independently limited fields (solidH_ and totalYm), so it can
-    //  reach values with no physical meaning at all when the solid
-    //  inventory of a cell collapses faster than its enthalpy.
+    //- Bound on a physically credible solid temperature [K]
+    //  Ts is a ratio, solidH_/(totalYm*Cp), and says nothing credible
+    //  about a cell whose solid inventory is vanishing: the linear
+    //  solver's error over a collapsing heat capacity is a temperature of
+    //  any size at all. This is the upper end of the guard window, and
+    //  solidStateTolerance_ times it is the allowance below zero at the
+    //  lower end.
     scalar maxSolidTemperature_;
 
     //- Criterion for bed motion porosity model

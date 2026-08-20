@@ -1016,6 +1016,31 @@ void volPyrolysis::preSolveEnergy()
             {
                 totalYm += Ym_[i];
             }
+
+            // The smallest solid mass concentration distinguishable from zero.
+            // rho_ is the skeletal density, so a cell holding less than
+            // solidStateTolerance_ of a fully packed cell's mass holds nothing.
+            // Floored by SMALL as well, because rho_ is itself zero in a cell
+            // that has never held solid: deriveYiFromYm() leaves its mass
+            // fractions at zero and the mixture rule then gives no density.
+            const volScalarField YmFloor
+            (
+                max
+                (
+                    solidStateTolerance_*rho_,
+                    dimensionedScalar("YmFloorMin", dimDensity, SMALL)
+                )
+            );
+
+            // Positive only where the cell holds solid. This is what the two Ts
+            // guards below are judged on: a solid temperature has no meaning
+            // where there is no solid to carry it, and the empty-cell test has
+            // to be a mass scale rather than the strict "any mass at all" it
+            // was, or a cell left holding 1e-18 kg/m3 of numerical dust gets
+            // reported as a defect. charOnlyMoveCases/serial aborted on
+            // Ts = -1.1e-8 K in a cell whose rhoCp was at its floor.
+            const volScalarField solidPresent(totalYm - YmFloor);
+
             // The heat capacity of the solid the cell actually holds.
             // Masking it with whereIs_ collapsed it to the floor in any cell
             // whose mask and mass disagreed, while solidH_ carried no such
@@ -1035,15 +1060,20 @@ void volPyrolysis::preSolveEnergy()
 
             if (failOnInvalidSolidState_)
             {
-                // solidH_ and totalYm are advected by separate explicit
-                // equations with separate limiters, so nothing keeps their
-                // ratio physical once a cell loses its solid inventory.
+                // The undershoot allowance is a temperature tolerance, not a
+                // mass one: at the emptying tail of a moving bed the capacity
+                // decays towards zero while the linear solver's error does not,
+                // so Ts comes back a few 1e-6 K negative. Judging that against
+                // the temperature scale the guard already declares admits the
+                // arithmetic and still catches every excursion that means
+                // something - the 1e23 K on the other side of the window, and
+                // any negative temperature large enough to be physical.
                 const label badCell = firstInvalidCell
                 (
                     T_,
-                    SMALL,
+                   -solidStateTolerance_*maxSolidTemperature_,
                     maxSolidTemperature_,
-                    &totalYm.primitiveField()
+                    &solidPresent.primitiveField()
                 );
 
                 if (badCell != -1)
@@ -1133,9 +1163,9 @@ void volPyrolysis::preSolveEnergy()
                 const label badCell = firstInvalidCell
                 (
                     T_,
-                    SMALL,
+                   -solidStateTolerance_*maxSolidTemperature_,
                     maxSolidTemperature_,
-                    &totalYm.primitiveField()
+                    &solidPresent.primitiveField()
                 );
 
                 if (badCell != -1)
@@ -1206,28 +1236,12 @@ void volPyrolysis::preSolveEnergy()
             // sharpen the thermal front, but it would also produce face values
             // outside the donor-receiver range, which is the defect above. The
             // price is a thermal front more diffuse than the mass front.
-            // The floor is the smallest mass concentration distinguishable
-            // from zero: rho_ is the skeletal density, so a cell holding less
-            // than solidStateTolerance_ of a fully packed cell's mass holds
-            // nothing, and pos() switches its enthalpy flux off entirely. No
-            // mass, no enthalpy carried - which also makes this robust to a
-            // case that prescribes solidH inconsistently with Ym on a patch
+            // Below the floor pos() switches the enthalpy flux off entirely:
+            // no mass, no enthalpy carried. That also keeps the ratio finite
+            // where a case prescribes solidH inconsistently with Ym on a patch
             // (charOnlyMoveCases/solidInlet does, and the raw ratio there is
             // 1e20 J/kg). The enthalpy withheld is bounded by the mass that
             // was below the floor, so it is below tolerance by construction.
-            // Floored by SMALL as well: rho_ is zero in a cell that has never
-            // held solid (deriveYiFromYm() leaves its mass fractions at zero,
-            // and the mixture rule then gives no density), and an unfloored
-            // 0/0 here is a SIGFPE, not a large number.
-            const volScalarField YmFloor
-            (
-                max
-                (
-                    solidStateTolerance_*rho_,
-                    dimensionedScalar("YmFloorMin", dimDensity, SMALL)
-                )
-            );
-
             volScalarField hs
             (
                 solidH_()*pos(totalYm - YmFloor)/max(totalYm, YmFloor)
