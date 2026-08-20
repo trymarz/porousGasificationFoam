@@ -126,33 +126,6 @@ void volPyrolysis::deriveYiFromYm()
     }
 }
 
-tmp<surfaceScalarField> volPyrolysis::solidVolFlux() const
-{
-    tmp<surfaceScalarField> tSolidVolFlux
-    (
-        new surfaceScalarField
-        (
-            IOobject
-            (
-                "solidVolFlux",
-                time_.timeName(),
-                mesh_,
-                IOobject::NO_READ,
-                IOobject::NO_WRITE
-            ),
-            mesh_,
-            dimensionedScalar("zero", dimVolume/dimTime, 0.0)
-        )
-    );
-
-    if (advectSolidFields_)
-    {
-        tSolidVolFlux.ref() = mesh_.Sf() & fvc::interpolate(Us_, "Us");
-    }
-
-    return tSolidVolFlux;
-}
-
 void volPyrolysis::solvePorosity()
 {
     if (active_)
@@ -161,23 +134,15 @@ void volPyrolysis::solvePorosity()
 
         volScalarField& por = porosity_;
 
-        surfaceScalarField phiUs(solidVolFlux());
+        surfaceScalarField phiUs = mesh_.Sf() & fvc::interpolate(Us_,"Us");
 
-        // Transport the solid volume fraction (1 - por) rather than the
-        // porosity itself, which is what the moving skeleton actually carries:
-        //
-        //     d(1-por)/dt + div(Us*(1-por)) = -porositySource_
-        //
-        // Expanding div(Us*(1-por)) = div(Us) - div(Us*por) and negating gives
-        // the form below. Solving for por directly (dropping the div(Us) term)
-        // advects the void instead, which is only equivalent for a
-        // divergence-free Us.
+        // requires setting same stuff as for diffusion to release flux at the ends of porous media
+        // it would be best to solve 1-porosity as it gives 0 flux naturally when empty?? 
         fvScalarMatrix porosityEqn
         (
             fvm::ddt(por)
          ==
             porositySource_
-          + fvc::div(phiUs)
           - fvc::div(phiUs,por,"div(phiSolid)")
         );
 
@@ -712,7 +677,7 @@ void volPyrolysis::solveSpeciesMass()
     if (active_)
     {
 
-        surfaceScalarField phiUs(solidVolFlux());
+        surfaceScalarField phiUs = mesh_.Sf() & fvc::interpolate(Us_);
 
         for (label i = 0; i < Ys_.size(); ++i)
         {
@@ -868,7 +833,7 @@ void volPyrolysis::preSolveEnergy()
             solidH_().ref() = patchedSolidH;
             solidH_().correctBoundaryConditions();
 
-            surfaceScalarField solidFlux(solidVolFlux());
+            surfaceScalarField solidFlux =  mesh_.Sf() & fvc::interpolate(Us_);
            
             dimensionedScalar ovDt = pow(time_.deltaT(),-1);
             fvScalarMatrix sHEqn
@@ -1043,7 +1008,6 @@ volPyrolysis::volPyrolysis
     subintegrateSwitch_(false),
     bedCollapseSwitch_(false),
     replenishSwitch_(false),
-    advectSolidFields_(true),
     critPorosity_(0.9999),
     poroProtectSolidInflowFluxTolerance_(1e-12),
     totRepMass_(0.),
@@ -1235,7 +1199,6 @@ volPyrolysis::volPyrolysis
     subintegrateSwitch_ = coeffs().lookupOrDefault("subintegrateHeatTransfer",false);
     bedCollapseSwitch_ = coeffs().lookupOrDefault("bedCollapse",false);
     replenishSwitch_ = coeffs().lookupOrDefault("replenish",false);
-    advectSolidFields_ = coeffs().lookupOrDefault("advectSolidFields",true);
     critPorosity_ = coeffs().lookupOrDefault("criticalPorosity",0.9999);
     poroProtectSolidInflowFluxTolerance_ =
         coeffs().lookupOrDefault
@@ -1255,7 +1218,6 @@ volPyrolysis::volPyrolysis
          << poroProtectSolidInflowFluxTolerance_
          << " [kg/m3/s]" << endl;
     Info << "replenish                " << replenishSwitch_    << endl;
-    Info << "advectSolidFields        " << advectSolidFields_  << endl;
     Info << endl;
 
     forAll(Ys_, fieldI)

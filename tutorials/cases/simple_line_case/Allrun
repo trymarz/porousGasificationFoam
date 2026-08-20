@@ -10,4 +10,4 @@ runApplication decomposePar
 mkdir -p spheres springs
 # Solver runs inside Yade via the MPI coupling script — not a standard runParallel,
 # so it is launched directly here (output captured to log.yade).
-mpirun --allow-run-as-root --mca oob_tcp_if_include lo -n 2 yade yade.py 2>&1 | tee log.yade
+mpirun --allow-run-as-root -n 2 yade yade.py 2>&1 | tee log.yade
