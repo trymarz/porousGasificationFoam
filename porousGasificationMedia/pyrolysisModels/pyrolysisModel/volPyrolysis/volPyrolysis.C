@@ -154,6 +154,57 @@ tmp<surfaceScalarField> volPyrolysis::solidVolFlux() const
     return tSolidVolFlux;
 }
 
+label volPyrolysis::firstInvalidCell
+(
+    const volScalarField& fld,
+    const scalar lower,
+    const scalar upper,
+    const scalarField* mask
+) const
+{
+    forAll(fld, cellI)
+    {
+        if (mask && (*mask)[cellI] <= 0.0)
+        {
+            continue;
+        }
+
+        const scalar value = fld[cellI];
+
+        if (!std::isfinite(value) || value < lower || value > upper)
+        {
+            return cellI;
+        }
+    }
+
+    return -1;
+}
+
+void volPyrolysis::reportInvalidSolidState
+(
+    const word& stage,
+    const volScalarField& fld,
+    const label cellI,
+    const string& context
+) const
+{
+    FatalErrorInFunction
+        << "Impossible solid state produced by " << stage << nl << nl
+        << "    time         = " << time_.timeName() << nl
+        << "    deltaT       = " << time_.deltaTValue() << nl
+        << "    field        = " << fld.name() << nl
+        << "    value        = " << fld[cellI] << nl
+        << "    processor    = " << Pstream::myProcNo() << nl
+        << "    cell         = " << cellI << nl
+        << "    cell centre  = " << mesh_.C()[cellI] << nl
+        << "    cell volume  = " << mesh_.V()[cellI] << nl
+        << context.c_str() << nl
+        << "The solid transport equations are explicit and unbounded. Either"
+        << " the solid velocity Us is invalid, or the explicit update has"
+        << " overshot at this time step." << nl
+        << exit(FatalError);
+}
+
 void volPyrolysis::solvePorosity()
 {
     if (active_)
@@ -183,6 +234,37 @@ void volPyrolysis::solvePorosity()
         );
 
         porosityEqn.solve("porosity");
+
+        if (failOnInvalidSolidState_)
+        {
+            // Checked before the "< 0.0001 -> 0" clip below, which would
+            // otherwise absorb an undershoot without trace.
+            const label badCell = firstInvalidCell
+            (
+                por,
+                -solidStateTolerance_,
+                1.0 + solidStateTolerance_
+            );
+
+            if (badCell != -1)
+            {
+                OStringStream context;
+                context
+                    << "    Us           = " << Us_[badCell] << nl
+                    << "    div(phiUs)   = "
+                    << fvc::div(phiUs)()[badCell] << nl
+                    << "    porositySrc  = " << porositySource_[badCell] << nl
+                    << "    whereIs      = " << whereIs_[badCell];
+
+                reportInvalidSolidState
+                (
+                    "the porosity equation in solvePorosity()",
+                    por,
+                    badCell,
+                    context.str()
+                );
+            }
+        }
 
         Info<< "porosity equation solved. Sources min/max   = " << gMin(porositySource_)
             << ", " << gMax(porositySource_);
@@ -743,6 +825,44 @@ void volPyrolysis::solveSpeciesMass()
             YmEqn.relax();
             YmEqn.solve("Ys");
 
+            if (failOnInvalidSolidState_)
+            {
+                // Ym is extensive, so the admissible undershoot scales with
+                // the amount of solid actually present in the field.
+                const scalar YmScale = max(gMax(Ym_i), SMALL);
+
+                const label badCell = firstInvalidCell
+                (
+                    Ym_i,
+                    -solidStateTolerance_*YmScale,
+                    GREAT
+                );
+
+                if (badCell != -1)
+                {
+                    OStringStream context;
+                    context
+                        << "    specie       = " << Ys_[i].name() << nl
+                        << "    Us           = " << Us_[badCell] << nl
+                        << "    div(phiUs Ym)= " << divYmFlux[badCell] << nl
+                        << "    RRs          = " << sRhoSi[badCell] << nl
+                        << "    porosity     = " << porosity_[badCell];
+
+                    reportInvalidSolidState
+                    (
+                        "the solid specie mass equation in solveSpeciesMass()",
+                        Ym_i,
+                        badCell,
+                        context.str()
+                    );
+                }
+            }
+
+            // Mass fabricated by the clip, charged to the budget below so a
+            // conserved-looking total cannot hide a clipped undershoot.
+            cumulativeYmClip_ +=
+                gSum(max(-Ym_i.field(), 0.0)*mesh_.V());
+
             Ym_i.max(0.0);                       // mass concentration >= 0
 
             Info<< "solid " << Ys_[i].name()
@@ -761,7 +881,8 @@ void volPyrolysis::solveSpeciesMass()
         }
 
         Info<< "solid mass budget: sum(Ym_i * V) = " << totalYmMass
-            << ", initial = " << initialTotalYmMass_ << endl;
+            << ", initial = " << initialTotalYmMass_
+            << ", fabricated by clip = " << cumulativeYmClip_ << endl;
 
 
         for (label i = 0; i < Ys_.size(); ++i)
@@ -807,6 +928,41 @@ void volPyrolysis::preSolveEnergy()
             );
 
             T_ = solidH_()/rhoCp;
+
+            if (failOnInvalidSolidState_)
+            {
+                // solidH_ and totalYm are advected by separate explicit
+                // equations with separate limiters, so nothing keeps their
+                // ratio physical once a cell loses its solid inventory.
+                const label badCell = firstInvalidCell
+                (
+                    T_,
+                    SMALL,
+                    maxSolidTemperature_,
+                    &totalYm.primitiveField()
+                );
+
+                if (badCell != -1)
+                {
+                    OStringStream context;
+                    context
+                        << "    solidH       = "
+                        << solidH_()[badCell] << nl
+                        << "    sum(Ym)      = " << totalYm[badCell] << nl
+                        << "    rhoCp        = " << rhoCp[badCell] << nl
+                        << "    porosity     = " << porosity_[badCell] << nl
+                        << "    whereIs      = " << whereIs_[badCell];
+
+                    reportInvalidSolidState
+                    (
+                        "Ts = solidH/rhoCp at the head of preSolveEnergy()",
+                        T_,
+                        badCell,
+                        context.str()
+                    );
+                }
+            }
+
             T_.correctBoundaryConditions();
 
             whereIs_.correctBoundaryConditions();
@@ -868,6 +1024,40 @@ void volPyrolysis::preSolveEnergy()
             TEqn.relax();
             TEqn.solve();
 
+            if (failOnInvalidSolidState_)
+            {
+                const label badCell = firstInvalidCell
+                (
+                    T_,
+                    SMALL,
+                    maxSolidTemperature_,
+                    &totalYm.primitiveField()
+                );
+
+                if (badCell != -1)
+                {
+                    OStringStream context;
+                    context
+                        << "    rhoCp        = " << rhoCp[badCell] << nl
+                        << "    chemistrySh  = "
+                        << chemistrySh_[badCell] << nl
+                        << "    heatTransfer = "
+                        << heatTransfField[badCell] << nl
+                        << "    heatUpGas    = " << heatUpGas_[badCell] << nl
+                        << "    radiationSh  = "
+                        << radiationSh_[badCell] << nl
+                        << "    porosity     = " << porosity_[badCell];
+
+                    reportInvalidSolidState
+                    (
+                        "the solid energy equation in preSolveEnergy()",
+                        T_,
+                        badCell,
+                        context.str()
+                    );
+                }
+            }
+
             volScalarField patchedSolidH = (rhoCp*T_);
             solidH_().ref() = patchedSolidH;
             solidH_().correctBoundaryConditions();
@@ -883,6 +1073,38 @@ void volPyrolysis::preSolveEnergy()
 
             sHEqn.relax();
             sHEqn.solve();
+
+            if (failOnInvalidSolidState_)
+            {
+                const volScalarField& sH = solidH_();
+                const scalar sHScale = max(gMax(sH), SMALL);
+
+                const label badCell = firstInvalidCell
+                (
+                    sH,
+                    -solidStateTolerance_*sHScale,
+                    GREAT
+                );
+
+                if (badCell != -1)
+                {
+                    OStringStream context;
+                    context
+                        << "    Us           = " << Us_[badCell] << nl
+                        << "    Ts           = " << T_[badCell] << nl
+                        << "    rhoCp        = " << rhoCp[badCell] << nl
+                        << "    sum(Ym)      = " << totalYm[badCell] << nl
+                        << "    porosity     = " << porosity_[badCell];
+
+                    reportInvalidSolidState
+                    (
+                        "the solid enthalpy advection in preSolveEnergy()",
+                        sH,
+                        badCell,
+                        context.str()
+                    );
+                }
+            }
 
             solidH_().max(0);
             solidH_().correctBoundaryConditions();
@@ -923,7 +1145,35 @@ void volPyrolysis::postSolveEnergy()
             );
             volScalarField weight = critPorosity_ - porosity_;
             T_ = whereIs_*(solidH_()/rhoCp*pos(weight) + gasThermo_.T()*neg(weight));
-            
+
+            if (failOnInvalidSolidState_)
+            {
+                // whereIs_ zeroes T_ in gas-only cells, so the lower bound
+                // has to admit zero here.
+                const label badCell =
+                    firstInvalidCell(T_, 0.0, maxSolidTemperature_);
+
+                if (badCell != -1)
+                {
+                    OStringStream context;
+                    context
+                        << "    solidH       = "
+                        << solidH_()[badCell] << nl
+                        << "    sum(Ym)      = " << totalYm[badCell] << nl
+                        << "    rhoCp        = " << rhoCp[badCell] << nl
+                        << "    porosity     = " << porosity_[badCell] << nl
+                        << "    whereIs      = " << whereIs_[badCell];
+
+                    reportInvalidSolidState
+                    (
+                        "Ts = whereIs*solidH/rhoCp in postSolveEnergy()",
+                        T_,
+                        badCell,
+                        context.str()
+                    );
+                }
+            }
+
             T_.correctBoundaryConditions();
 
             scalar minTemp = GREAT;
@@ -1050,6 +1300,9 @@ volPyrolysis::volPyrolysis
     bedCollapseSwitch_(false),
     replenishSwitch_(false),
     advectSolidFields_(true),
+    failOnInvalidSolidState_(true),
+    solidStateTolerance_(1e-8),
+    maxSolidTemperature_(1e5),
     critPorosity_(0.9999),
     poroProtectSolidInflowFluxTolerance_(1e-12),
     totRepMass_(0.),
@@ -1242,6 +1495,12 @@ volPyrolysis::volPyrolysis
     bedCollapseSwitch_ = coeffs().lookupOrDefault("bedCollapse",false);
     replenishSwitch_ = coeffs().lookupOrDefault("replenish",false);
     advectSolidFields_ = coeffs().lookupOrDefault("advectSolidFields",true);
+    failOnInvalidSolidState_ =
+        coeffs().lookupOrDefault("failOnInvalidSolidState",true);
+    solidStateTolerance_ =
+        coeffs().lookupOrDefault<scalar>("solidStateTolerance",1e-8);
+    maxSolidTemperature_ =
+        coeffs().lookupOrDefault<scalar>("maxSolidTemperature",1e5);
     critPorosity_ = coeffs().lookupOrDefault("criticalPorosity",0.9999);
     poroProtectSolidInflowFluxTolerance_ =
         coeffs().lookupOrDefault
@@ -1262,6 +1521,9 @@ volPyrolysis::volPyrolysis
          << " [kg/m3/s]" << endl;
     Info << "replenish                " << replenishSwitch_    << endl;
     Info << "advectSolidFields        " << advectSolidFields_  << endl;
+    Info << "failOnInvalidSolidState  " << failOnInvalidSolidState_ << endl;
+    Info << "solidStateTolerance      " << solidStateTolerance_ << endl;
+    Info << "maxSolidTemperature      " << maxSolidTemperature_ << endl;
     Info << endl;
 
     forAll(Ys_, fieldI)

@@ -78,6 +78,34 @@ private:
         //  porosity, Ym and the solid enthalpy, so they cannot drift apart.
         tmp<surfaceScalarField> solidVolFlux() const;
 
+        //- Index of the first cell whose value is not finite or lies
+        //  outside [lower, upper]; -1 when the field is valid everywhere.
+        //  Cells where the optional mask is not positive are skipped: the
+        //  solid temperature has no meaning in a cell that holds no solid,
+        //  so an empty cell must not be reported as a defect.
+        //  Local to this processor: an invalid state on any one rank
+        //  aborts the whole job, so no collective is needed.
+        label firstInvalidCell
+        (
+            const volScalarField& fld,
+            const scalar lower,
+            const scalar upper,
+            const scalarField* mask = nullptr
+        ) const;
+
+        //- Abort on an impossible solid state, reporting where it is and
+        //  whatever neighbouring quantities the calling stage knows are
+        //  relevant. The solid transport equations are explicit and
+        //  unbounded, so a value outside its physical range is a defect
+        //  to be diagnosed, not a number to be clipped and carried on.
+        void reportInvalidSolidState
+        (
+            const word& stage,
+            const volScalarField& fld,
+            const label cellI,
+            const string& context
+        ) const;
+
 
 protected:
 
@@ -151,6 +179,25 @@ protected:
     //  When false the solid volumetric flux is held at zero, so porosity,
     //  Ym and the solid enthalpy are only updated by chemistry.
     Switch advectSolidFields_;
+
+    //- Switch for the fail-fast guards on the solid state
+    //  When set, an impossible porosity, Ym, solid enthalpy or solid
+    //  temperature aborts the run at the equation that produced it,
+    //  rather than propagating into a downstream floating-point
+    //  exception whose location says nothing about the cause.
+    Switch failOnInvalidSolidState_;
+
+    //- Relative slack admitted by the fail-fast guards [-]
+    //  Sized to absorb round-off on the explicit updates only; an
+    //  excursion larger than this is a genuine overshoot.
+    scalar solidStateTolerance_;
+
+    //- Upper bound on a physically credible solid temperature [K]
+    //  Ts is formed as the ratio of two independently advected and
+    //  independently limited fields (solidH_ and totalYm), so it can
+    //  reach values with no physical meaning at all when the solid
+    //  inventory of a cell collapses faster than its enthalpy.
+    scalar maxSolidTemperature_;
 
     //- Criterion for bed motion porosity model
     scalar critPorosity_;
@@ -236,10 +283,10 @@ protected:
         //- scalar chemistryTime
         scalar timeChem_;
 
-        //- Total Ym mass integral at t=0, for conservation diagnostic [kg]
-        //  Lazily initialized on the first solveSpeciesMass() call
-        //  (-1 = not yet computed); on restart it resets to the restart
-        //  state, so conservation is checked from restart onward.
+        //- Total Ym mass integral at construction, for the conservation
+        //  diagnostic [kg]. Accumulated over the species in the
+        //  constructor, so on restart it holds the restart inventory and
+        //  conservation is checked from the restart onward.
         scalar initialTotalYmMass_;
 
         //- Cumulative solid mass advected out through boundaries [kg]
@@ -248,10 +295,10 @@ protected:
         scalar cumulativeYmOutflow_;
 
         //- Cumulative mass created by the max(0) clip on Ym [kg]
-        //  The clip fabricates mass when a numerical undershoot drives
-        //  Ym negative; the run aborts once the total exceeds a small
-        //  fraction of the initial solid inventory (see
-        //  solveSpeciesMass()).
+        //  The clip fabricates mass whenever a numerical undershoot
+        //  drives Ym negative. Accumulated in solveSpeciesMass() and
+        //  reported with the mass budget so the budget cannot look
+        //  closed while the clip is quietly paying for it.
         scalar cumulativeYmClip_;
 
 
