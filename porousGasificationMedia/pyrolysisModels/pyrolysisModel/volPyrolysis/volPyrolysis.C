@@ -94,35 +94,40 @@ bool volPyrolysis::read(const dictionary& dict)
 void volPyrolysis::deriveYiFromYm()
 {
     // Reconstruct the mass fractions Ys_ (consumed by chemistry and thermo)
-    // from the transported mass concentrations Ym_ [kg/m3]. Only touch solid
-    // cells; gas-only cells keep whatever Ys_ they already hold.
+    // from the transported mass concentrations Ym_ [kg/m3]. The condition is
+    // the solid inventory of the cell, not whereIs_: that mask is refreshed
+    // in recoverPorosity(), one stage later in the time step, so it still
+    // reads empty in a cell that solid mass has just advected into. Ys_ left
+    // stale there leaves rho_ stale too, and rho_ is only a valid mixture
+    // density where sum_i Ys_i = 1 - which is what recoverPorosity() divides
+    // the solid mass by.
     forAll(whereIs_, cellI)
     {
-        if (whereIs_[cellI] == 1)
+        scalar Ysum = 0.0;
+        forAll(Ys_, i)
         {
-            scalar Ysum = 0.0;
+            Ysum += Ym_[i][cellI];
+        }
+
+        if (Ysum > SMALL)
+        {
             forAll(Ys_, i)
             {
-                Ysum += Ym_[i][cellI];
+                Ys_[i][cellI] = Ym_[i][cellI] / Ysum;
             }
-
-            if (Ysum > SMALL)
+        }
+        else if (whereIs_[cellI] == 1)
+        {
+            // A cell that held solid at the last porosity update and has
+            // none left: assign a default composition so rho_ and Cp stay
+            // defined. A cell that has never held solid keeps the
+            // composition it was initialised with, which serves the same
+            // purpose.
+            forAll(Ys_, i)
             {
-                forAll(Ys_, i)
-                {
-                    Ys_[i][cellI] = Ym_[i][cellI] / Ysum;
-                }
+                Ys_[i][cellI] = 0.0;
             }
-            else
-            {
-                // All solid consumed — assign a default composition to
-                // prevent a division-by-zero NaN downstream.
-                forAll(Ys_, i)
-                {
-                    Ys_[i][cellI] = 0.0;
-                }
-                Ys_[0][cellI] = 1.0;
-            }
+            Ys_[0][cellI] = 1.0;
         }
     }
 }
@@ -205,40 +210,70 @@ void volPyrolysis::reportInvalidSolidState
         << exit(FatalError);
 }
 
-void volPyrolysis::solvePorosity()
+void volPyrolysis::recoverPorosity()
 {
     if (active_)
     {
+        // Chemistry contribution to d(1-por)/dt. Reported below, and not
+        // applied: RRpor = -sum_i RRs_i/rho_i is exactly the time derivative
+        // of sum_i Ym_i/rho_i, and chemistry has already moved that sum
+        // through RRs_i in solveSpeciesMass(). Adding it to the porosity as
+        // well would count it twice.
         porositySource_ = solidChemistry_->RRpor(T_)();
 
         volScalarField& por = porosity_;
 
         surfaceScalarField phiUs(solidVolFlux());
 
-        // Transport the solid volume fraction (1 - por) rather than the
-        // porosity itself, which is what the moving skeleton actually carries:
+        volScalarField totalYm = 0*Ym_[0];
+
+        forAll(Ym_, i)
+        {
+            totalYm += Ym_[i];
+        }
+
+        // The porosity is not transported. It is the void the solid mass of
+        // the cell leaves behind,
         //
-        //     d(1-por)/dt + div(Us*(1-por)) = -porositySource_
+        //     1 - por = sum_i Ym_i/rho_i = totalYm/rho_
         //
-        // Expanding div(Us*(1-por)) = div(Us) - div(Us*por) and negating gives
-        // the form below. Solving for por directly (dropping the div(Us) term)
-        // advects the void instead, which is only equivalent for a
-        // divergence-free Us.
-        fvScalarMatrix porosityEqn
+        // an identity rather than an approximation: multiComponentSolidMixture
+        // mixes as 1/rho_ = sum_i Ys_i/rho_i wherever sum_i Ys_i = 1, and
+        // deriveYiFromYm() has just established that in every cell holding
+        // solid. Giving por a transport equation of its own makes two fields
+        // out of one quantity, and the limiter in div(phiSolid) is nonlinear:
+        // it resolves the por profile and the Ym profile differently, so the
+        // two contradict each other at any sharp front - a cell can report
+        // por = 1 while holding hundreds of kg/m3 of solid.
+        //
+        // rho_ is current at this point because postSolveEnergy() has called
+        // solidThermo_.correct() and this is the last stage of evolveRegion().
+        // Called any earlier, this would divide by a one-stage-stale density.
+        //
+        // Only the internal field is assigned. The patch values are left to
+        // correctBoundaryConditions() below, so a fixedValue porosity patch
+        // keeps the value its case prescribes.
+        const dimensionedScalar rhoSolidFloor
         (
-            fvm::ddt(por)
-         ==
-            porositySource_
-          + fvc::div(phiUs)
-          - fvc::div(phiUs,por,"div(phiSolid)")
+            "rhoSolidFloor",
+            dimDensity,
+            SMALL
         );
 
-        porosityEqn.solve("porosity");
+        const volScalarField voidFraction
+        (
+            1.0 - totalYm/max(rho_, rhoSolidFloor)
+        );
+
+        por.primitiveFieldRef() = voidFraction.primitiveField();
 
         if (failOnInvalidSolidState_)
         {
             // Checked before the "< 0.0001 -> 0" clip below, which would
-            // otherwise absorb an undershoot without trace.
+            // otherwise absorb an undershoot without trace. por > 1 now takes
+            // negative solid mass, which solveSpeciesMass() clips away; por
+            // below zero is a cell packed past solid by the transport, which
+            // no discretisation of the conservative form bounds on its own.
             const label badCell = firstInvalidCell
             (
                 por,
@@ -253,12 +288,13 @@ void volPyrolysis::solvePorosity()
                     << "    Us           = " << Us_[badCell] << nl
                     << "    div(phiUs)   = "
                     << fvc::div(phiUs)()[badCell] << nl
-                    << "    porositySrc  = " << porositySource_[badCell] << nl
+                    << "    sum(Ym)      = " << totalYm[badCell] << nl
+                    << "    rho          = " << rho_[badCell] << nl
                     << "    whereIs      = " << whereIs_[badCell];
 
                 reportInvalidSolidState
                 (
-                    "the porosity equation in solvePorosity()",
+                    "the porosity recovery in recoverPorosity()",
                     por,
                     badCell,
                     context.str()
@@ -266,7 +302,8 @@ void volPyrolysis::solvePorosity()
             }
         }
 
-        Info<< "porosity equation solved. Sources min/max   = " << gMin(porositySource_)
+        Info<< "porosity recovered from solid mass. Chemistry source (not"
+            << " applied) min/max   = " << gMin(porositySource_)
             << ", " << gMax(porositySource_);
 
         Info<< "; values min Y = " << gMin(por)
@@ -309,13 +346,6 @@ void volPyrolysis::solvePorosity()
 
         // Do not erase a nearly empty cell while solid mass is still
         // entering it through the advective transport equation.
-        volScalarField totalYm = 0*Ym_[0];
-
-        forAll(Ym_, i)
-        {
-            totalYm += Ym_[i];
-        }
-
         volScalarField divPhiYm
         (
             fvc::div(phiUs, totalYm, "div(phiSolid)")
@@ -746,6 +776,63 @@ void volPyrolysis::solvePorosity()
             }
         }
 
+        // The invariant the recovery establishes, re-checked per cell after
+        // everything above that writes porosity_ directly: the bed-motion
+        // model, the "< 1e-4 -> 0" clip, and the flip of a crit-porosity cell
+        // to 1. Each of those can leave a porosity the cell's own solid mass
+        // contradicts, and a field-wide min/max cannot see it - the defect is
+        // a disagreement between two fields, not an out-of-range value in
+        // either. That is precisely how a cell reporting porosity = 1 while
+        // holding 252 kg/m3 of solid stayed invisible for months, so the
+        // worst cell is reported every step.
+        {
+            scalar maxResidual = 0.0;
+            label worstCell = -1;
+
+            forAll(porosity_, cellI)
+            {
+                scalar cellYm = 0.0;
+                forAll(Ym_, i)
+                {
+                    cellYm += Ym_[i][cellI];
+                }
+
+                const scalar residual = mag
+                (
+                    1.0 - porosity_[cellI] - cellYm/max(rho_[cellI], SMALL)
+                );
+
+                if (residual > maxResidual)
+                {
+                    maxResidual = residual;
+                    worstCell = cellI;
+                }
+            }
+
+            const scalar globalResidual =
+                returnReduce(maxResidual, maxOp<scalar>());
+
+            Info<< "solid state consistency: max|1 - porosity"
+                << " - sum(Ym_i/rho_i)| = " << globalResidual << endl;
+
+            if
+            (
+                globalResidual > solidStateTolerance_
+             && worstCell != -1
+             && maxResidual == globalResidual
+            )
+            {
+                WarningInFunction
+                    << "porosity and solid mass disagree by " << maxResidual
+                    << " in cell " << worstCell << " at "
+                    << mesh_.C()[worstCell] << ": porosity = "
+                    << porosity_[worstCell] << ", whereIs = "
+                    << whereIs_[worstCell]
+                    << ". A porosity written after the recovery cannot be"
+                    << " reconciled with the mass the cell holds." << endl;
+            }
+        }
+
         surfF_= surfF_*0;
         porosity_.correctBoundaryConditions();
         whereIs_.correctBoundaryConditions();
@@ -918,11 +1005,17 @@ void volPyrolysis::preSolveEnergy()
             {
                 totalYm += Ym_[i];
             }
+            // The heat capacity of the solid the cell actually holds.
+            // Masking it with whereIs_ collapsed it to the floor in any cell
+            // whose mask and mass disagreed, while solidH_ carried no such
+            // factor - which is what turned that disagreement into a
+            // temperature of 1e23 K. postSolveEnergy() builds the same
+            // quantity unmasked.
             volScalarField rhoCp
             (
                 max
                 (
-                    whereIs_*totalYm * solidThermo_.Cp(),
+                    totalYm * solidThermo_.Cp(),
                     dimensionedScalar("minRhoCp",dimEnergy/dimTemperature/dimVolume,SMALL)
                 )
             );
@@ -1480,7 +1573,7 @@ volPyrolysis::volPyrolysis
     totalGasMassFlux_(dimensionedScalar("zero", dimMass/dimTime, 0.0)),
     totalHeatRR_(dimensionedScalar("zero", dimEnergy/dimTime, 0.0)),
     timeChem_(1.0),
-    initialTotalYmMass_(0.0),  // -1 = not yet computed; lazily initialized
+    initialTotalYmMass_(0.0),
     cumulativeYmOutflow_(0.0),
     cumulativeYmClip_(0.0)
 {
@@ -1648,6 +1741,15 @@ volPyrolysis::volPyrolysis
 
     whereIs_ = neg(porosity_ - 1);
     whereIsNot_ = pos0(porosity_ - 1);
+
+    // porosity_ is assigned in recoverPorosity(), not solved, and
+    // GeometricField::storeOldTimes() rolls a field forward only once an
+    // old-time field exists - it silently does nothing the first time, while
+    // still marking the field as current. Create the old-time field here,
+    // from the initial state, or the first assignment leaves porosityF_0
+    // equal to the value just written and the gas-side
+    // fvm::ddt(porosityF, rho) loses a whole step of d(porosity)/dt.
+    porosity_.oldTime();
 
     forAll(rho_,cellI)
     {
@@ -1845,8 +1947,11 @@ void volPyrolysis::evolveRegion()
 
     preSolveEnergy(); 
     solveSpeciesMass(); 
-    solvePorosity();    
     postSolveEnergy();
+
+    // Last: recoverPorosity() divides the solid mass by rho_, which
+    // postSolveEnergy()'s solidThermo_.correct() has just refreshed.
+    recoverPorosity();
 
     calculateMassTransfer();
     info();

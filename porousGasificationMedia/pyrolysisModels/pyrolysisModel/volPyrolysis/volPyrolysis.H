@@ -68,14 +68,19 @@ private:
         void readReactingOneDimControls();
 
         //- Derive mass fractions Ys_ from mass concentrations Ym_
-        //  Ys_i = Ym_i / sum_j(Ym_j) in every solid cell (whereIs_ == 1).
-        //  If a cell holds no solid mass, the first specie is assigned
-        //  unity and the rest zero to avoid a division-by-zero NaN.
+        //  Ys_i = Ym_i / sum_j(Ym_j) in every cell that holds solid mass.
+        //  Keyed off the mass rather than off whereIs_, which is one stage
+        //  stale: rho_ is only a valid mixture density where the mass
+        //  fractions sum to one, and recoverPorosity() divides by it.
+        //  A cell that has just lost its last solid keeps a defined
+        //  composition (first specie unity, rest zero).
         void deriveYiFromYm();
 
         //- Solid volumetric face flux [m3/s] carried by Us
         //  Zero unless advectSolidFields_ is set. The same flux transports
-        //  porosity, Ym and the solid enthalpy, so they cannot drift apart.
+        //  every solid field there is - the specie masses Ym_ and the solid
+        //  enthalpy solidH_ - so they cannot drift apart. The porosity is
+        //  not among them: it is recovered from Ym_ (recoverPorosity()).
         tmp<surfaceScalarField> solidVolFlux() const;
 
         //- Index of the first cell whose value is not finite or lies
@@ -176,8 +181,9 @@ protected:
     Switch replenishSwitch_;
 
     //- Switch for Eulerian advection of the solid fields by Us
-    //  When false the solid volumetric flux is held at zero, so porosity,
-    //  Ym and the solid enthalpy are only updated by chemistry.
+    //  When false the solid volumetric flux is held at zero, so the solid
+    //  specie masses and the solid enthalpy are only updated by chemistry
+    //  - and so, through the mass, is the recovered porosity.
     Switch advectSolidFields_;
 
     //- Switch for the fail-fast guards on the solid state
@@ -233,7 +239,11 @@ protected:
         //- Heat release [J/s/m3]
         volScalarField chemistrySh_;
 
-        //- Porosity growth [1/s]
+        //- Porosity growth from chemistry [1/s], diagnostic only
+        //  -sum_i RRs_i/rho_i, i.e. exactly the time derivative of the
+        //  solid volume fraction the chemistry removes. It is reported but
+        //  never applied: the porosity is recovered from Ym_, which the
+        //  same rates have already changed in solveSpeciesMass().
         volScalarField porositySource_;
 
         //- Masks for equations
@@ -324,8 +334,12 @@ protected:
             //- Solve energy
             void postSolveEnergy();
 
-            //- Evolve porosity field
-            void solvePorosity();
+            //- Recover the porosity from the transported solid mass
+            //  1 - porosity = sum_i Ym_i/rho_i, exactly. Also refreshes the
+            //  whereIs_ masks and runs the bed-motion model. Must be the
+            //  last stage of evolveRegion(): it divides by rho_, which
+            //  postSolveEnergy() refreshes.
+            void recoverPorosity();
 
 public:
 
