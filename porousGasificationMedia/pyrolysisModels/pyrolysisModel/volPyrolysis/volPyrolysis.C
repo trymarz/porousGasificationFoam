@@ -38,6 +38,7 @@ License
 #include "DynamicList.H"
 #include "processorPolyPatch.H"
 #include "processorCyclicPolyPatch.H"
+#include "upwind.H"
 
 #include "BCs/fixedSolidH/fixedSolidHFvPatchScalarField.H"
 #include "BCs/fixedYm/fixedYmFvPatchScalarField.H"
@@ -1000,6 +1001,16 @@ void volPyrolysis::preSolveEnergy()
         else
         {
 
+            // Refresh the solid mass boundary values before anything is
+            // derived from them: fixedYm evaluates Yi*rho*(1-porosityF), and
+            // both rho and porosityF were last updated at the end of the
+            // previous step. solveSpeciesMass() corrects them too, so this
+            // only moves the correction earlier.
+            forAll(Ym_, i)
+            {
+                Ym_[i].correctBoundaryConditions();
+            }
+
             volScalarField totalYm = 0*Ym_[0];
             for (label i = 0; i < Ys_.size(); ++i)
             {
@@ -1156,12 +1167,80 @@ void volPyrolysis::preSolveEnergy()
             solidH_().correctBoundaryConditions();
 
             surfaceScalarField solidFlux(solidVolFlux());
-           
+
+            // Move the solid enthalpy with the solid MASS rather than with the
+            // solid volume. Both used to ride solidFlux under the same
+            // div(phiSolid) limiter, which is not the same thing as riding it
+            // in lockstep: the limiter is nonlinear, so it resolves the solidH
+            // profile and the Ym profile with different face values, and the
+            // arriving mass does not carry the enthalpy that belongs to it.
+            // Measured in charOnlyMoveCases/serial: a cell takes its solid one
+            // step before its enthalpy, so Ts = solidH/rhoCp reads 0 K there
+            // and then climbs 0 -> 28.7 -> 130.8 -> 181.5 K.
+            //
+            // phiYm is assembled from exactly the per-specie face fluxes that
+            // solveSpeciesMass() integrates a few lines later - same flux, same
+            // start-of-step Ym, same div(phiSolid) scheme - so the mass that
+            // leaves a face here is the mass that leaves it there.
+            surfaceScalarField phiYm
+            (
+                fvc::flux(solidFlux, Ym_[0], "div(phiSolid)")
+            );
+            for (label i = 1; i < Ym_.size(); ++i)
+            {
+                phiYm += fvc::flux(solidFlux, Ym_[i], "div(phiSolid)");
+            }
+
+            // The specific enthalpy of the solid a cell holds [J/kg], upwinded
+            // with respect to that mass flux, so mass arrives carrying its
+            // donor's specific enthalpy. A receiving cell then holds
+            //
+            //     (solidH + m_in*hs_donor) / (totalYm + m_in)
+            //
+            // which is a convex combination of its own temperature and its
+            // donors', while a donating cell sheds enthalpy and mass in the
+            // same ratio and keeps its temperature exactly. Ts is bounded by
+            // the temperatures already present, whatever the mass limiter does.
+            //
+            // Deliberately upwind and not div(phiSolid): a limiter on hs would
+            // sharpen the thermal front, but it would also produce face values
+            // outside the donor-receiver range, which is the defect above. The
+            // price is a thermal front more diffuse than the mass front.
+            // The floor is the smallest mass concentration distinguishable
+            // from zero: rho_ is the skeletal density, so a cell holding less
+            // than solidStateTolerance_ of a fully packed cell's mass holds
+            // nothing, and pos() switches its enthalpy flux off entirely. No
+            // mass, no enthalpy carried - which also makes this robust to a
+            // case that prescribes solidH inconsistently with Ym on a patch
+            // (charOnlyMoveCases/solidInlet does, and the raw ratio there is
+            // 1e20 J/kg). The enthalpy withheld is bounded by the mass that
+            // was below the floor, so it is below tolerance by construction.
+            // Floored by SMALL as well: rho_ is zero in a cell that has never
+            // held solid (deriveYiFromYm() leaves its mass fractions at zero,
+            // and the mixture rule then gives no density), and an unfloored
+            // 0/0 here is a SIGFPE, not a large number.
+            const volScalarField YmFloor
+            (
+                max
+                (
+                    solidStateTolerance_*rho_,
+                    dimensionedScalar("YmFloorMin", dimDensity, SMALL)
+                )
+            );
+
+            volScalarField hs
+            (
+                solidH_()*pos(totalYm - YmFloor)/max(totalYm, YmFloor)
+            );
+
             dimensionedScalar ovDt = pow(time_.deltaT(),-1);
             fvScalarMatrix sHEqn
             (
                 fvm::Sp(ovDt,solidH_()) - ovDt*solidH_()
-              + fvc::div( solidFlux, solidH_(),"div(phiSolid)")
+              + fvc::surfaceIntegrate
+                (
+                    phiYm*upwind<scalar>(mesh_, phiYm).interpolate(hs)
+                )
             );
 
             sHEqn.relax();
