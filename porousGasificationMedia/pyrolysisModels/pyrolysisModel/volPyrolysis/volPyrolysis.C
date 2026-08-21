@@ -1339,13 +1339,29 @@ void volPyrolysis::postSolveEnergy()
                     dimensionedScalar("minRhoCp",dimEnergy/dimTemperature/dimVolume,SMALL)
                 )
             );
-            volScalarField weight = critPorosity_ - porosity_;
-            T_ = whereIs_*(solidH_()/rhoCp*pos(weight) + gasThermo_.T()*neg(weight));
+            // The same ratio preSolveEnergy() recovers T_ from at the head of
+            // the next step, and deliberately the same expression: this value
+            // is what fvm::ddt(rhoCp, T_) reads as T_.oldTime() there, so the
+            // two have to agree or the explicit step starts from a temperature
+            // the cell does not hold.
+            //
+            // No whereIs_ factor. The mask is one stage stale - it is refreshed
+            // in recoverPorosity(), after solveSpeciesMass() has already moved
+            // mass - so a cell taking solid for the first time is still masked
+            // empty here and had its temperature zeroed while its solid
+            // enthalpy was kept. The next step then recovered Ts = 600 K from
+            // that enthalpy, sized the heat-transfer source on it, and applied
+            // it to an old-time temperature of 0 K: Ts = -128 K in the first
+            // cell downstream of the bed in charOnlyMoveCases/serial. The
+            // factor is not needed for its stated purpose either, since a cell
+            // holding no solid holds no solid enthalpy and the ratio is zero
+            // there anyway.
+            T_ = solidH_()/rhoCp;
 
             if (failOnInvalidSolidState_)
             {
-                // whereIs_ zeroes T_ in gas-only cells, so the lower bound
-                // has to admit zero here.
+                // A cell holding no solid holds no solid enthalpy, so the
+                // lower bound has to admit zero here.
                 const label badCell =
                     firstInvalidCell(T_, 0.0, maxSolidTemperature_);
 
