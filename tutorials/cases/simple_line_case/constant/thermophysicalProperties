@@ -11,24 +11,25 @@ FoamFile
     format      ascii;
     class       dictionary;
     location    "constant";
-    object      pyrolysisProperties;
+    object      thermophysicalProperties;
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-active          true;
-
-heterogeneousPyrolysisModel  volPyrolysis;
-
-pyrolysisCoeffs
+thermoType
 {
-    subintegrateHeatTransfer true;
-
-    // Required by the DEM coupling: lambdaDot is switched off in cells whose
-    // porosity has reached this value, as they hold too little solid to carry
-    // the sphere skeleton.
-    criticalPorosity 0.9999;
+    type            hePsiThermo;
+    mixture         multiComponentMixture;
+    transport       sutherland;
+    thermo          janaf;
+    energy          sensibleEnthalpy;
+    equationOfState perfectGas;
+    specie          specie;
 }
 
-infoOutput      true;
+inertSpecie N2;
+
+solveEnergy true;
+
+#include "thermo.compressibleGas";
 
 // ************************************************************************* //

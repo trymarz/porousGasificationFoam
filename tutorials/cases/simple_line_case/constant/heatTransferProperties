@@ -10,25 +10,18 @@ FoamFile
     version     2.0;
     format      ascii;
     class       dictionary;
-    location    "constant";
-    object      pyrolysisProperties;
+    location    "constant";    
+    object      heatTransferProperties;
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-active          true;
+heatTransferModel constCONV;
 
-heterogeneousPyrolysisModel  volPyrolysis;
-
-pyrolysisCoeffs
+Parameters
 {
-    subintegrateHeatTransfer true;
-
-    // Required by the DEM coupling: lambdaDot is switched off in cells whose
-    // porosity has reached this value, as they hold too little solid to carry
-    // the sphere skeleton.
-    criticalPorosity 0.9999;
+    h           2.0;    // era 5
+    SAV         1e5;    // order of magnitudie from Wu2020
 }
 
-infoOutput      true;
-
 // ************************************************************************* //
+

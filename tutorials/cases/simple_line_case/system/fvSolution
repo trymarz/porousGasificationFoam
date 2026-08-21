@@ -37,7 +37,7 @@ solvers
     }
 
 
-    "(U|h|Yi|Ys|porosity|Ym)"
+    "(U|h|Yi|Ys|Ym|porosity)"
     {
         solver          PBiCG;
         preconditioner  DILU;
@@ -45,18 +45,22 @@ solvers
         relTol          0.01;
     }
 
-    "(U|h|Yi|Ys|porosity)Final"
+    "(U|h|Yi|Ys|Ym|porosity)Final"
     {
         $U;
         relTol      0;
     }   
 
-    solidH
+
+    // The solid energy matrix is symmetric, so it takes a symmetric solver
+    // and preconditioner - PBiCGStab/DILU aborts on it.
+    Ts
     {
-        solver           PCG;
-        preconditioner   DIC;
-        tolerance        1e-6;
-        relTol           0;
+        solver          PCG;
+        preconditioner  DIC;
+        tolerance       1e-10;
+        relTol          1e-6;
+        maxIter         1000;
     }
 
     rhos
@@ -80,20 +84,30 @@ solvers
         relTol          0;
     }
 
-    Ts
-    {
-        solver          PCG;
-        preconditioner  DIC;
-        tolerance       1e-6;
-        relTol          0;
-    }
 
-    Us
+"(Us|UsDEMInterpolation)"
+{
+    solver          smoothSolver;
+    smoother        symGaussSeidel;
+    tolerance       1e-6;
+    relTol          0.01;
+}
+
+// "(UsDEMInterpolation)"
+// {
+//     solver          smoothSolver;
+//     smoother        symGaussSeidel;
+//     tolerance       1e-10;
+//     relTol          0;
+//     maxIter     1000;
+
+// }
+ solidH
     {
-        solver          smoothSolver;
-        smoother        symGaussSeidel;
-        tolerance       1e-6;
-        relTol          0.01;
+        solver           PCG;
+        preconditioner   DIC;
+        tolerance        1e-12;
+        relTol           1e-7;
     }
 
 }
@@ -104,12 +118,19 @@ PIMPLE
     momentumPredictor yes;
     nOuterCorrectors  1;
     nCorrectors     2;
-    nNonOrthogonalCorrectors 1;
+    nNonOrthogonalCorrectors 0; // 
 }
 
 
 relaxationFactors
 {
+
+    //  equations
+    // {
+    //     Ts 0.2;
+    //      solidH   0.2;
+    //     h  0.7;
+    // }
 }
 
 // *************************************************************************//

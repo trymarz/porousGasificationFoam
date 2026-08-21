@@ -114,8 +114,9 @@ int main(int argc, char *argv[])
         if (DEM)
         {
             vGrad = fvc::grad(U);
-            lambdaDotUpdater->update();
+            lambdaDotUpdater->updateLambdaDot();
             yadeCoupling->setParticleAction(runTime.deltaT().value());
+            lambdaDotUpdater->updateParticleFields();
             lambdaDotUpdater->writeParticlesData();
             yadeCoupling->setSourceZero();
         }
@@ -123,6 +124,15 @@ int main(int argc, char *argv[])
 
         #include "radiation.H"
         pyrolysisZone.evolve();
+
+        // Report the solid-region volume after the pyrolysis update, so the
+        // porosity it integrates is the one the DEM skeleton will see next.
+        #ifdef WITH_YADE
+        if (DEM)
+        {
+            lambdaDotUpdater->writeVolumeOfSolidArea();
+        }
+        #endif
 
         #include "rhoEqn.H"
 

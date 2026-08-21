@@ -10,25 +10,51 @@ FoamFile
     version     2.0;
     format      ascii;
     class       dictionary;
-    location    "constant";
-    object      pyrolysisProperties;
+    location    "system";
+    object      fvSchemes;
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-active          true;
-
-heterogeneousPyrolysisModel  volPyrolysis;
-
-pyrolysisCoeffs
+ddtSchemes
 {
-    subintegrateHeatTransfer true;
+   
+   // default         CrankNicolson 0.3;
 
-    // Required by the DEM coupling: lambdaDot is switched off in cells whose
-    // porosity has reached this value, as they hold too little solid to carry
-    // the sphere skeleton.
-    criticalPorosity 0.9999;
+   default         Euler;
+
+
 }
 
-infoOutput      true;
+gradSchemes
+{
+    default         Gauss linear; 
+}
+
+divSchemes
+{
+    default         none;
+
+    div(phi,U)      Gauss linearUpwindV default;
+    div(phi,Yi)     Gauss upwind;
+    div(phi,h)      Gauss upwind;
+    div(phi,K)      Gauss upwind;
+    div(((rho*nuEff)*dev2(T(grad(U))))) Gauss linear;
+    div(phiSolid) Gauss SuperBee;
+}
+
+laplacianSchemes
+{
+    default         Gauss linear limited 1;
+}
+
+interpolationSchemes
+{
+    default         linear;
+}
+
+snGradSchemes
+{
+    default         limited 1;
+}
 
 // ************************************************************************* //

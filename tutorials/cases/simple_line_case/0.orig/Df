@@ -9,26 +9,34 @@ FoamFile
 {
     version     2.0;
     format      ascii;
-    class       dictionary;
-    location    "constant";
-    object      pyrolysisProperties;
+    class       volTensorField;
+    location    "0";
+    object      Df;
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-active          true;
+dimensions      [0 -2 0 0 0 0 0];
 
-heterogeneousPyrolysisModel  volPyrolysis;
+internalField   uniform (6e+10 0 0 0 6e+10 0 0 0 6e+10);
 
-pyrolysisCoeffs
+boundaryField
 {
-    subintegrateHeatTransfer true;
-
-    // Required by the DEM coupling: lambdaDot is switched off in cells whose
-    // porosity has reached this value, as they hold too little solid to carry
-    // the sphere skeleton.
-    criticalPorosity 0.9999;
+    wall
+    {
+        type            calculated;
+        value           uniform (0 0 0 0 0 0 0 0 0);
+    }
+    inlet
+    {
+        type            calculated;
+        value           uniform (0 0 0 0 0 0 0 0 0);
+    }
+    outlet
+    {
+        type            calculated;
+        value           uniform (0 0 0 0 0 0 0 0 0);
+    }
 }
 
-infoOutput      true;
 
 // ************************************************************************* //
