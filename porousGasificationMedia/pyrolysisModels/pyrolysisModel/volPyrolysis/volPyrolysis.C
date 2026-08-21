@@ -95,14 +95,22 @@ bool volPyrolysis::read(const dictionary& dict)
 void volPyrolysis::deriveYiFromYm()
 {
     // Reconstruct the mass fractions Ys_ (consumed by chemistry and thermo)
-    // from the transported mass concentrations Ym_ [kg/m3]. The condition is
-    // the solid inventory of the cell, not whereIs_: that mask is refreshed
-    // in recoverPorosity(), one stage later in the time step, so it still
-    // reads empty in a cell that solid mass has just advected into. Ys_ left
-    // stale there leaves rho_ stale too, and rho_ is only a valid mixture
-    // density where sum_i Ys_i = 1 - which is what recoverPorosity() divides
-    // the solid mass by.
-    forAll(whereIs_, cellI)
+    // from the transported mass concentrations Ym_ [kg/m3]. Every cell is
+    // visited and the only condition is the solid inventory of the cell, never
+    // whereIs_. Two reasons:
+    //
+    //  - whereIs_ is refreshed in recoverPorosity(), one stage later in the
+    //    time step, so it still reads empty in a cell that solid mass has just
+    //    advected into. Ys_ left stale there leaves rho_ stale too, and rho_ is
+    //    only a valid mixture density where sum_i Ys_i = 1 - which is what
+    //    recoverPorosity() divides the solid mass by.
+    //
+    //  - a cell holding no solid still needs a composition, because rho_ is
+    //    not inert there. HGSSolidMixtureThermo evaluates a patch density from
+    //    the adjacent cell, and fixedYm injects Yi*rho*(1 - porosityF), so a
+    //    cell left at sum_i Ys_i = 0 reports rho_ = 0 and an inlet beside it
+    //    injects nothing at all.
+    forAll(Ym_[0], cellI)
     {
         scalar Ysum = 0.0;
         forAll(Ys_, i)
@@ -117,13 +125,15 @@ void volPyrolysis::deriveYiFromYm()
                 Ys_[i][cellI] = Ym_[i][cellI] / Ysum;
             }
         }
-        else if (whereIs_[cellI] == 1)
+        else
         {
-            // A cell that held solid at the last porosity update and has
-            // none left: assign a default composition so rho_ and Cp stay
-            // defined. A cell that has never held solid keeps the
-            // composition it was initialised with, which serves the same
-            // purpose.
+            // No solid inventory: a cell that has just shed the last of its
+            // solid, or one that has never held any. Assign the first specie
+            // as a default composition so rho_ and Cp stay defined. The cell
+            // carries no mass, so nothing it holds depends on the choice - but
+            // the density it reports is the density a fixedYm patch beside it
+            // injects with, so the first specie in the mixture is also the
+            // solid an inlet fills a fresh domain with.
             forAll(Ys_, i)
             {
                 Ys_[i][cellI] = 0.0;
