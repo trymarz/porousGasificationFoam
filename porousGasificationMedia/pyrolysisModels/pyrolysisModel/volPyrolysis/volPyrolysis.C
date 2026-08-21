@@ -1303,8 +1303,8 @@ volPyrolysis::volPyrolysis
     solidH_() = rho_ * solidThermo_.Cp() * (1 - porosity_) * T_;
     solidH_().correctBoundaryConditions();
 
-    whereIs_ = pos(porosity_);
-    whereIsNot_ = -pos(porosity_) + 1;
+    whereIs_ = neg(porosity_ - 1);
+    whereIsNot_ = pos0(porosity_ - 1);
 
     forAll(rho_,cellI)
     {
