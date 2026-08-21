@@ -180,6 +180,31 @@ protected:
     //- Switch for bed replenishment
     Switch replenishSwitch_;
 
+    //- Switch for emptying a flipped cell rather than leaving its solid
+    //  A cell above critPorosity_ with Us pointing into the solid is a flip
+    //  candidate: the trailing edge of a bed being dragged away, holding the
+    //  last of its solid. With the porosity derived from the mass there are
+    //  only two consistent answers for such a cell, and this selects between
+    //  them.
+    //
+    //  When unset the candidate is left alone. It keeps the solid it holds
+    //  and drains through the ordinary transport, so porosity and mass agree
+    //  and nothing is destroyed.
+    //
+    //  When set the cell is emptied for real - its solid specie masses and
+    //  its solid enthalpy are removed - and the porosity recovery then
+    //  derives por = 1 from a cell that is genuinely empty. The mass removed
+    //  is destroyed rather than moved: finding a receiving cell is what the
+    //  bedCollapse route does, and there is none on this path. It is charged
+    //  to cumulativeFlipMass_ and reported with the mass budget.
+    //
+    //  Writing por = 1 while leaving the mass in place - the third option,
+    //  and what this did before - is not available. It leaves the cell
+    //  claiming to be void while it holds solid, which is the contradiction
+    //  the porosity recovery exists to remove, and the solid flux limiter
+    //  reads that link to decide how much room a receiving cell has.
+    Switch emptyFlippedCells_;
+
     //- Switch for Eulerian advection of the solid fields by Us
     //  When false the solid volumetric flux is held at zero, so the solid
     //  specie masses and the solid enthalpy are only updated by chemistry
@@ -312,6 +337,12 @@ protected:
         //  reported with the mass budget so the budget cannot look
         //  closed while the clip is quietly paying for it.
         scalar cumulativeYmClip_;
+
+        //- Cumulative solid mass destroyed by emptying flipped cells [kg]
+        //  Nonzero only under emptyFlippedCells_. Reported with the mass
+        //  budget so a conserved-looking total cannot hide the solid this
+        //  removes.
+        scalar cumulativeFlipMass_;
 
 
     // Protected member functions

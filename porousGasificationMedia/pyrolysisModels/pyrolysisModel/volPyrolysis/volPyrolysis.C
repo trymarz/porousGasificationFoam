@@ -320,8 +320,6 @@ void volPyrolysis::recoverPorosity()
         Info<< "; values min Y = " << gMin(por)
             <<" max Y = " << gMax(por) << endl;
 
-        scalar minTs = 0;
-
         FIFOStack<label> candidateStack = {};
 
         volVectorField whereIsGrad = fvc::grad(whereIs_);        
@@ -756,15 +754,56 @@ void volPyrolysis::recoverPorosity()
                 deriveYiFromYm();
             }
         }
-        else
+        else if (emptyFlippedCells_)
         {
-            // this is to set porosity 0 and other fields on flipped fileds
-            // it will be an alternative to the motion procedure at some point
+            // Emptying a cell means removing the solid it holds, not
+            // rewriting the porosity that solid implies. Every field the
+            // cell carries is set to the state of a cell that holds nothing:
+            // no specie mass, no solid enthalpy, and therefore no solid
+            // temperature. por = 1 is then what the identity
+            // 1 - por = sum_i Ym_i/rho_i gives for the emptied cell, not an
+            // assertion laid over a mass that is still there.
+            //
+            // The mass is destroyed, not moved. Finding a receiving cell is
+            // what the bedCollapse route above does; on this path there is
+            // no destination, so the removal is charged to
+            // cumulativeFlipMass_ and reported with the mass budget rather
+            // than left to close the budget silently.
+            //
+            // T_ is zeroed here only because solidH_ is: postSolveEnergy()
+            // has already run, so this assignment is what the next step
+            // reads as T_.oldTime(), and it has to be the same ratio
+            // solidH_/rhoCp that postSolveEnergy() would recover. Zero
+            // enthalpy over zero mass is zero; zeroing T_ while leaving the
+            // enthalpy is the defect a0d18ac removed one function earlier.
+            const scalarField& V = mesh_.V();
+            scalar flippedMass = 0.0;
+
             List<label> flipStackList = labelList(flipStack);
             forAll(flipStackList,entI)
             {
-                porosity_[flipStackList[entI]] = 1.0;
-                T_[flipStackList[entI]] = minTs;
+                const label cellI = flipStackList[entI];
+
+                forAll(Ym_, i)
+                {
+                    flippedMass += Ym_[i][cellI]*V[cellI];
+                    Ym_[i][cellI] = 0.0;
+                }
+
+                solidH_()[cellI] = 0.0;
+                T_[cellI] = 0.0;
+                porosity_[cellI] = 1.0;
+            }
+
+            reduce(flippedMass, sumOp<scalar>());
+            cumulativeFlipMass_ += flippedMass;
+
+            if (nFlips > 0)
+            {
+                // Ym_ has changed, so the mass fractions the mixture density
+                // is built from have to follow it - the same refresh the
+                // bedCollapse branch does after relocating mass.
+                deriveYiFromYm();
             }
         }
 
@@ -980,7 +1019,8 @@ void volPyrolysis::solveSpeciesMass()
 
         Info<< "solid mass budget: sum(Ym_i * V) = " << totalYmMass
             << ", initial = " << initialTotalYmMass_
-            << ", fabricated by clip = " << cumulativeYmClip_ << endl;
+            << ", fabricated by clip = " << cumulativeYmClip_
+            << ", destroyed by flip = " << cumulativeFlipMass_ << endl;
 
 
         for (label i = 0; i < Ys_.size(); ++i)
@@ -1511,6 +1551,7 @@ volPyrolysis::volPyrolysis
     subintegrateSwitch_(false),
     bedCollapseSwitch_(false),
     replenishSwitch_(false),
+    emptyFlippedCells_(false),
     advectSolidFields_(true),
     failOnInvalidSolidState_(true),
     solidStateTolerance_(1e-8),
@@ -1694,7 +1735,8 @@ volPyrolysis::volPyrolysis
     timeChem_(1.0),
     initialTotalYmMass_(0.0),
     cumulativeYmOutflow_(0.0),
-    cumulativeYmClip_(0.0)
+    cumulativeYmClip_(0.0),
+    cumulativeFlipMass_(0.0)
 {
 
     mesh.setFluxRequired(T_.name());
@@ -1706,6 +1748,8 @@ volPyrolysis::volPyrolysis
     subintegrateSwitch_ = coeffs().lookupOrDefault("subintegrateHeatTransfer",false);
     bedCollapseSwitch_ = coeffs().lookupOrDefault("bedCollapse",false);
     replenishSwitch_ = coeffs().lookupOrDefault("replenish",false);
+    emptyFlippedCells_ =
+        coeffs().lookupOrDefault("emptyFlippedCells",false);
     advectSolidFields_ = coeffs().lookupOrDefault("advectSolidFields",true);
     failOnInvalidSolidState_ =
         coeffs().lookupOrDefault("failOnInvalidSolidState",true);
@@ -1732,6 +1776,7 @@ volPyrolysis::volPyrolysis
          << poroProtectSolidInflowFluxTolerance_
          << " [kg/m3/s]" << endl;
     Info << "replenish                " << replenishSwitch_    << endl;
+    Info << "emptyFlippedCells        " << emptyFlippedCells_  << endl;
     Info << "advectSolidFields        " << advectSolidFields_  << endl;
     Info << "failOnInvalidSolidState  " << failOnInvalidSolidState_ << endl;
     Info << "solidStateTolerance      " << solidStateTolerance_ << endl;
