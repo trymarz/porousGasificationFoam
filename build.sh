@@ -7,13 +7,14 @@
 # CONFIGURATION
 # ============================================================
 
-declare -a LIBRARY_TARGETS=(DEM fieldPorosityModel radiationModels thermophysicalModels pyrolysisModels)
+declare -a LIBRARY_TARGETS=(pgfToYadeCoupler DEM fieldPorosityModel radiationModels thermophysicalModels pyrolysisModels)
 declare -a APP_TARGETS=(porousGasificationFoam utilities)
 declare -a ALL_TARGETS=("${LIBRARY_TARGETS[@]}" "${APP_TARGETS[@]}")
 declare -a ALL_TARGETS_FLAGS=("${ALL_TARGETS[@]/#/--}")
 declare -a ALL_TARGETS_NO_FLAGS=("${ALL_TARGETS[@]/#/--no-}")
 
 declare -A BUILD_TARGETS=( # default values
+  [pgfToYadeCoupler]=0 # disabled; only meaningful with YADE_COUPLING_LIB=pgfYade
   [DEM]=0 # disabled
   [fieldPorosityModel]=1
   [radiationModels]=1
@@ -47,20 +48,21 @@ validate_coupling_lib() {
   esac
 }
 
-# The selected backend lives in the Foam-Yade source tree pointed at by
+# The foamYade backend lives in the Foam-Yade source tree pointed at by
 # $YADE_TRUNK; fail here rather than in a wmake include-path error. The
 # backend's own header is the probe, not its directory: wmake leaves gitignored
 # Make/ and lnInclude/ behind, so the directory can survive a branch switch
 # that removed the sources.
+#
+# pgfYade needs no probe: its OF-side coupler lives in this repository
+# (porousGasificationMedia/DEM/coupling/pgfToYade) and $YADE_TRUNK is not on
+# any of its include paths. The Foam-Yade checkout is still needed at run
+# time, for the YADE-side engine.
 check_coupling_backend_available() {
   [ "$WITH_YADE" -eq 1 ] || return 0
+  [ "$YADE_COUPLING_LIB" = "foamYade" ] || return 0
 
-  local backend_header
-  if [ "$YADE_COUPLING_LIB" = "pgfYade" ]; then
-    backend_header="pkg/pgfToYadeCoupling/PgfToYadeMpiCoupler/PgfToYadeMpiCoupler.H"
-  else
-    backend_header="pkg/openfoam/coupling/FoamYade/FoamYade.H"
-  fi
+  local backend_header="pkg/openfoam/coupling/FoamYade/FoamYade.H"
 
   if [ -z "${YADE_TRUNK:-}" ]; then
     clog ERROR "YADE_TRUNK is not set; it must point at the Foam-Yade source checkout"
@@ -76,6 +78,7 @@ check_coupling_backend_available() {
 }
 
 declare -A TARGET_DIRS=(
+  [pgfToYadeCoupler]="$FOAM_HGS/DEM/coupling/pgfToYade"
   [DEM]="$FOAM_HGS/DEM"
   [fieldPorosityModel]="$FOAM_HGS/fieldPorosityModel"
   [radiationModels]="$FOAM_HGS/radiationModels"
@@ -86,6 +89,7 @@ declare -A TARGET_DIRS=(
 )
 
 declare -A BUILD_COMMANDS=(
+  [pgfToYadeCoupler]="wmake -j libso"
   [DEM]="wmake -j libso"
   [fieldPorosityModel]="wmake -j libso"
   [radiationModels]="wmake -j libso"
@@ -96,6 +100,7 @@ declare -A BUILD_COMMANDS=(
 )
 
 declare -A CLEAN_COMMANDS=(
+  [pgfToYadeCoupler]="wclean libso"
   [DEM]="wclean libso"
   [fieldPorosityModel]="wclean libso"
   [radiationModels]="wclean libso"
@@ -139,17 +144,18 @@ parse_arguments() {
       set_targets APP_TARGETS 1
       ;;
     # Selective flags
-    --DEM | --fieldPorosityModel | --radiationModels | --thermophysicalModels | --pyrolysisModels | --porousGasificationFoam | --utilities)
+    --pgfToYadeCoupler | --DEM | --fieldPorosityModel | --radiationModels | --thermophysicalModels | --pyrolysisModels | --porousGasificationFoam | --utilities)
       local t="${1#--}"
       BUILD_TARGETS[$t]=1
       ;;
-    --no-DEM | --no-fieldPorosityModel | --no-radiationModels | --no-thermophysicalModels | --no-pyrolysisModels | --no-porousGasificationFoam | --no-utilities)
+    --no-pgfToYadeCoupler | --no-DEM | --no-fieldPorosityModel | --no-radiationModels | --no-thermophysicalModels | --no-pyrolysisModels | --no-porousGasificationFoam | --no-utilities)
       local t="${1#--no-}"
       BUILD_TARGETS[$t]=0
       ;;
     --yade)
       WITH_YADE=1
       BUILD_TARGETS[DEM]=1
+      BUILD_TARGETS[pgfToYadeCoupler]=1
       ;;
     --dry-run)
       dry_run
@@ -167,6 +173,9 @@ parse_arguments() {
       echo "  YADE_COUPLING_LIB  OF-side coupling backend, foamYade (default)"
       echo "                     or pgfYade; only used with --yade. Currently:"
       echo "                     $YADE_COUPLING_LIB"
+      echo "                     foamYade needs \$YADE_TRUNK at build time;"
+      echo "                     pgfYade builds its coupler from this repo"
+      echo "                     (target pgfToYadeCoupler) and does not."
       exit 0
       ;;
     *)
@@ -176,6 +185,18 @@ parse_arguments() {
     esac
     shift
   done
+}
+
+# pgfToYadeCoupler builds libPgfToYadeMpiCoupler, the OF-side half of the
+# minimal coupling; it is only linked by the pgfYade backend, so it is skipped
+# for foamYade even when a blanket flag (--all, --libs-only) selected it.
+target_selected() {
+  local target=$1
+  [ "${BUILD_TARGETS[$target]:-0}" -eq 1 ] || return 1
+  if [ "$target" = "pgfToYadeCoupler" ] && [ "$YADE_COUPLING_LIB" != "pgfYade" ]; then
+    return 1
+  fi
+  return 0
 }
 
 # ============================================================
@@ -197,7 +218,9 @@ setup_directories() {
     clog INFO "  Copying utilities..."
     cp -r utilities "$WM_PROJECT_USER_DIR/applications/"
   }
-  [ "${BUILD_TARGETS[DEM]:-0}" -eq 1 ] && {
+  # The pgfToYade coupler sources sit inside DEM/, so the DEM copy is what
+  # puts them in place for either target.
+  { [ "${BUILD_TARGETS[DEM]:-0}" -eq 1 ] || target_selected pgfToYadeCoupler; } && {
     clog INFO "  Copying DEM..."
     cp -r porousGasificationMedia/DEM "$FOAM_HGS/"
   }
@@ -261,7 +284,7 @@ build_all_targets() {
   local failed=()
 
   for target in "${LIBRARY_TARGETS[@]}" "${APP_TARGETS[@]}"; do
-    if [ "${BUILD_TARGETS[$target]:-0}" -eq 1 ]; then
+    if target_selected "$target"; then
       if ! execute_target "$target"; then
         failed+=("$target")
       fi
@@ -305,7 +328,7 @@ dry_run() {
   echo "────────────────────────────────────────────────────────────"
   local will_execute=0
   for target in "${LIBRARY_TARGETS[@]}" "${APP_TARGETS[@]}"; do
-    if [ "${BUILD_TARGETS[$target]:-0}" -eq 1 ]; then
+    if target_selected "$target"; then
       will_execute=1
       local dir="${TARGET_DIRS[$target]}"
       local cmd

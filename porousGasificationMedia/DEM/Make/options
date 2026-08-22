@@ -3,10 +3,13 @@ sinclude $(RULES)/mplib$(WM_MPLIB)
 
 /* Which OF-side YADE coupling backend to compile against: foamYade (legacy,
    the default when YADE_COUPLING_LIB is unset, e.g. a raw wmake) or pgfYade
-   (the minimal PgfToYadeMpiCoupler backend). See demCouplingLib.H. */
+   (the minimal PgfToYadeMpiCoupler backend). See demCouplingLib.H.
+
+   foamYade lives in the Foam-Yade fork and needs $YADE_TRUNK; pgfYade lives
+   in coupling/pgfToYade under this library and needs nothing from it. */
 ifeq ($(YADE_COUPLING_LIB),pgfYade)
     YADE_COUPLING_INC  = -DYADE_COUPLING_PGF=1 \
-        -I$(YADE_TRUNK)/pkg/pgfToYadeCoupling/PgfToYadeMpiCoupler/lnInclude
+        -I$(FOAM_HGS)/DEM/coupling/pgfToYade/lnInclude
     YADE_COUPLING_LIBS = -lPgfToYadeMpiCoupler
 else
     YADE_COUPLING_INC  = -I$(YADE_TRUNK)/pkg/openfoam/coupling/FoamYade/lnInclude \

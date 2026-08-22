@@ -93,7 +93,8 @@ porousGasificationFoam/
 
 | Target | Type | Dependency |
 |---|---|---|
-| DEM (if `WITH_YADE=1`)| library | —  |
+| pgfToYadeCoupler (if `WITH_YADE=1` and `YADE_COUPLING_LIB=pgfYade`) | library | — |
+| DEM (if `WITH_YADE=1`)| library | pgfToYadeCoupler (pgfYade backend only) |
 | fieldPorosityModel | library | — |
 | radiationModels | library | solid thermo |
 | thermophysicalModels | library suite | — |
@@ -131,21 +132,23 @@ Requires YADE installed with the OpenFOAM coupling module.
 
 #### Choosing the coupling backend: `YADE_COUPLING_LIB`
 
-Two OF-side coupling backends live in the Foam-Yade repository, and `YADE_COUPLING_LIB` selects which one the DEM library and the solver are compiled against:
+`YADE_COUPLING_LIB` selects which OF-side coupling backend the DEM library and the solver are compiled against:
 
-| Value | Backend | What it exchanges |
-|---|---|---|
-| `foamYade` (**default**) | `FoamYade` (`pkg/openfoam/coupling/FoamYade`) | Full two-way coupling: drag, lift and torque feedback on the particles, `meshTree` k-d-tree cell search, Gaussian volume-fraction interpolation |
-| `pgfYade` | `PgfToYadeMpiCoupler` (`pkg/pgfToYadeCoupling/PgfToYadeMpiCoupler`) | Particle kinematics (YADE → PGF) and one `lambdaDot` per particle (PGF → YADE) only. No forces, no torques, plain `mesh.findCell()` location |
+| Value | Backend | Source lives in | What it exchanges |
+|---|---|---|---|
+| `foamYade` (**default**) | `FoamYade` | Foam-Yade, `pkg/openfoam/coupling/FoamYade` | Full two-way coupling: drag, lift and torque feedback on the particles, `meshTree` k-d-tree cell search, Gaussian volume-fraction interpolation |
+| `pgfYade` | `PgfToYadeMpiCoupler` | this repository, `porousGasificationMedia/DEM/coupling/pgfToYade` | Particle kinematics (YADE → PGF) and one `lambdaDot` per particle (PGF → YADE) only. No forces, no torques, plain `mesh.findCell()` location |
 
 ```bash
-YADE_COUPLING_LIB=foamYade ./build.sh build --yade   # same as omitting it
-YADE_COUPLING_LIB=pgfYade  ./build.sh build --yade   # needs a Foam-Yade checkout that has pkg/pgfToYadeCoupling/
+YADE_COUPLING_LIB=foamYade ./build.sh build --yade   # same as omitting it; needs $YADE_TRUNK
+YADE_COUPLING_LIB=pgfYade  ./build.sh build --yade   # self-contained; $YADE_TRUNK not needed
 ```
 
-Switching the value is a **rebuild** of the `DEM` library and the solver. Clean them first (`./build.sh clean --reset-all --DEM --porousGasificationFoam`) if the previously selected backend's sources are no longer on disk — for example after checking Foam-Yade back to a revision without `pkg/pgfToYadeCoupling/`. wmake caches the include set in `.dep` files, and a dependency on a header that has since disappeared fails the build with `No rule to make target .../PgfToYadeMpiCoupler.H`.
+**A `pgfYade` build needs nothing from `$YADE_TRUNK`.** Its OF-side half is a library of this repository, built from `porousGasificationMedia/DEM/coupling/pgfToYade` as the `pgfToYadeCoupler` target (`libPgfToYadeMpiCoupler`) that `--yade` enables automatically; no Foam-Yade path appears on any include or link line. The Foam-Yade checkout is still required **at run time**, because the YADE-side engine (`YadeToPgfMpiCoupler`, `pkg/pgfToYadeCoupling/YadeToPgfMpiCoupler`) is part of the Yade binary. A `foamYade` build, by contrast, still compiles against `$YADE_TRUNK` and `build.sh` fails early if it is unset or does not contain `pkg/openfoam/coupling/FoamYade/FoamYade.H`.
 
-Leaving `YADE_COUPLING_LIB` unset — including a raw `wmake` that bypasses `build.sh` — selects `foamYade`, so nothing about an existing build changes unless the variable is set explicitly. `build.sh` validates the value and checks that `$YADE_TRUNK` actually contains the selected backend's directory before invoking `wmake`. The backend is selected by `porousGasificationMedia/DEM/demCouplingLib.H`, which typedefs the concrete coupler to `Foam::DemYadeCoupler`; the `pgfYade` build also compiles out the ten fluid-side fields only the legacy backend consumes (`alpha`, `divT`, `vGrad`, `gradP`, `uSourceDrag`, `uSource`, `uCoeffDrag`, `uInterpField`, `uParticle`, `ddtU_f`) plus the `nu`/`partDensity`/`fluidDensity` entries of `constant/yadeProperties`.
+Switching the value is a **rebuild** of the `DEM` library and the solver. Clean them first (`./build.sh clean --reset-all --DEM --porousGasificationFoam`) if the previously selected backend's sources are no longer on disk — for example after checking Foam-Yade back to a revision without `pkg/openfoam/coupling/FoamYade/`. wmake caches the include set in `.dep` files, and a dependency on a header that has since disappeared fails the build with `No rule to make target .../FoamYade.H`.
+
+Leaving `YADE_COUPLING_LIB` unset — including a raw `wmake` that bypasses `build.sh` — selects `foamYade`, so nothing about an existing build changes unless the variable is set explicitly. `build.sh` validates the value before invoking `wmake`. The backend is selected by `porousGasificationMedia/DEM/demCouplingLib.H`, which typedefs the concrete coupler to `Foam::DemYadeCoupler`; the `pgfYade` build also compiles out the ten fluid-side fields only the legacy backend consumes (`alpha`, `divT`, `vGrad`, `gradP`, `uSourceDrag`, `uSource`, `uCoeffDrag`, `uInterpField`, `uParticle`, `ddtU_f`) plus the `nu`/`partDensity`/`fluidDensity` entries of `constant/yadeProperties`.
 
 **This is a compile-time switch on the OpenFOAM side: one solver binary carries exactly one backend, and there is no run-time or dictionary choice.** On the YADE side there *is* a run-time choice, because the case's Python script instantiates the engine class itself and Yade cannot inspect what the spawned solver was compiled with. The DEM tutorial scripts therefore read the same `YADE_COUPLING_LIB` environment variable (default `foamYade`) and construct either `FoamCoupling()`/`SetOpenFoamSolver()` or `YadeToPgfMpiCoupler()`/`SetPgfSolver()`.
 
@@ -157,9 +160,9 @@ YADE_COUPLING_LIB=pgfYade mpirun -n 2 yade yade.py   # must match the binary's b
 
 #### Comparing the two backends
 
-`tutorials/cases/simple_line_case` is the reference case for comparing them. A single `build-yade` produces the OF-side libraries for both backends (`libMeshTree.so`/`libYadeFoam.so` *and* `libPgfToYadeMpiCoupler.so`), so only the PGF solver needs rebuilding between the two runs:
+`tutorials/cases/simple_line_case` is the reference case for comparing them. `build-yade` produces the legacy OF-side libraries (`libMeshTree.so`, `libYadeFoam.so`) and the Yade binary carrying both YADE-side engines; `libPgfToYadeMpiCoupler.so` comes from PGF's own `pgfToYadeCoupler` target. Only the PGF side needs rebuilding between the two runs:
 
-1. `build-yade` once, with Foam-Yade checked out to a revision that provides `pkg/pgfToYadeCoupling/`.
+1. `build-yade` once, with Foam-Yade checked out to a revision that provides `pkg/pgfToYadeCoupling/YadeToPgfMpiCoupler`.
 2. `YADE_COUPLING_LIB=foamYade ./build.sh build --yade`, then run `simple_line_case` with `YADE_COUPLING_LIB=foamYade mpirun -n 2 yade yade.py`; keep `ParticlesData.txt`, the sphere/spring VTK output and `postProcessing/`.
 3. `YADE_COUPLING_LIB=pgfYade ./build.sh build --yade` (a rebuild), then the same case with `YADE_COUPLING_LIB=pgfYade mpirun -n 2 yade yade.py`.
 4. Compare particle trajectories, the `lambdaDot` time series and `ParticlesData.txt`.
