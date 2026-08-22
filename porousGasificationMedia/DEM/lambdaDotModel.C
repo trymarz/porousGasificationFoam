@@ -15,7 +15,7 @@ lambdaDotModel::lambdaDotModel
     volScalarField& lambdaDEM,
     volScalarField& lambda,
     volScalarField& porosityF,
-    FoamYade& yade
+    DemYadeCoupler& yade
 )
 :
     mesh_(mesh),

@@ -14,13 +14,14 @@ PGF_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 # CONFIGURATION
 # ============================================================
 
-declare -a LIBRARY_TARGETS=(DEM fieldPorosityModel radiationModels thermophysicalModels pyrolysisModels)
+declare -a LIBRARY_TARGETS=(pgfToYadeCoupler DEM fieldPorosityModel radiationModels thermophysicalModels pyrolysisModels)
 declare -a APP_TARGETS=(porousGasificationFoam utilities)
 declare -a ALL_TARGETS=("${LIBRARY_TARGETS[@]}" "${APP_TARGETS[@]}")
 declare -a ALL_TARGETS_FLAGS=("${ALL_TARGETS[@]/#/--}")
 declare -a ALL_TARGETS_NO_FLAGS=("${ALL_TARGETS[@]/#/--no-}")
 
 declare -A BUILD_TARGETS=( # default values
+  [pgfToYadeCoupler]=0 # disabled; only meaningful with YADE_COUPLING_LIB=pgfYade
   [DEM]=0 # disabled
   [fieldPorosityModel]=1
   [radiationModels]=1
@@ -50,9 +51,33 @@ yade_sensitive_target() {
 # --purge: on clean, also delete installed binaries. Off by default.
 PURGE=0
 
-# Built in order: LIBRARY_TARGETS then APP_TARGETS. DEM first, so a --yade
-# build has liblambdaDotModel before the solver links.
+# Which OF-side YADE coupling backend the DEM library and the solver are
+# compiled against (only relevant with --yade):
+#   foamYade  legacy FoamYade coupling: drag/lift/torque feedback, meshTree
+#             cell search, Gaussian interpolation (default)
+#   pgfYade   minimal PgfToYadeMpiCoupler: particle kinematics in, lambdaDot
+#             out, no force feedback
+# Compile-time only: one solver binary carries exactly one backend. The YADE
+# side of a case must instantiate the matching engine class (the DEM tutorial
+# scripts read the same YADE_COUPLING_LIB variable).
+YADE_COUPLING_LIB="${YADE_COUPLING_LIB:-foamYade}"
+
+validate_coupling_lib() {
+  case "$YADE_COUPLING_LIB" in
+  foamYade | pgfYade) return 0 ;;
+  *)
+    clog ERROR "Invalid YADE_COUPLING_LIB '$YADE_COUPLING_LIB' (expected 'foamYade' or 'pgfYade')"
+    return 1
+    ;;
+  esac
+}
+
+# Built in order: LIBRARY_TARGETS then APP_TARGETS. pgfToYadeCoupler before
+# DEM (DEM's Make/options links it under YADE_COUPLING_LIB=pgfYade), DEM
+# before the rest, so a --yade build has liblambdaDotModel before the solver
+# links.
 declare -A TARGET_DIRS=(
+  [pgfToYadeCoupler]="$PGF_ROOT/porousGasificationMedia/DEM/coupling/pgfToYade"
   [DEM]="$PGF_ROOT/porousGasificationMedia/DEM"
   [fieldPorosityModel]="$PGF_ROOT/porousGasificationMedia/fieldPorosityModel"
   [radiationModels]="$PGF_ROOT/porousGasificationMedia/radiationModels"
@@ -63,6 +88,7 @@ declare -A TARGET_DIRS=(
 )
 
 declare -A BUILD_COMMANDS=(
+  [pgfToYadeCoupler]="wmake -j libso"
   [DEM]="wmake -j libso"
   [fieldPorosityModel]="wmake -j libso"
   [radiationModels]="wmake -j libso"
@@ -73,6 +99,7 @@ declare -A BUILD_COMMANDS=(
 )
 
 declare -A CLEAN_COMMANDS=(
+  [pgfToYadeCoupler]="wclean libso"
   [DEM]="wclean libso"
   [fieldPorosityModel]="wclean libso"
   [radiationModels]="wclean libso"
@@ -116,17 +143,18 @@ parse_arguments() {
       set_targets APP_TARGETS 1
       ;;
     # Selective flags
-    --DEM | --fieldPorosityModel | --radiationModels | --thermophysicalModels | --pyrolysisModels | --porousGasificationFoam | --utilities)
+    --pgfToYadeCoupler | --DEM | --fieldPorosityModel | --radiationModels | --thermophysicalModels | --pyrolysisModels | --porousGasificationFoam | --utilities)
       local t="${1#--}"
       BUILD_TARGETS[$t]=1
       ;;
-    --no-DEM | --no-fieldPorosityModel | --no-radiationModels | --no-thermophysicalModels | --no-pyrolysisModels | --no-porousGasificationFoam | --no-utilities)
+    --no-pgfToYadeCoupler | --no-DEM | --no-fieldPorosityModel | --no-radiationModels | --no-thermophysicalModels | --no-pyrolysisModels | --no-porousGasificationFoam | --no-utilities)
       local t="${1#--no-}"
       BUILD_TARGETS[$t]=0
       ;;
     --yade)
       WITH_YADE=1
       BUILD_TARGETS[DEM]=1
+      BUILD_TARGETS[pgfToYadeCoupler]=1
       ;;
     --purge)
       PURGE=1
@@ -147,6 +175,14 @@ parse_arguments() {
       echo ""
       echo "Builds happen in this checkout ($PGF_ROOT); output goes to"
       echo "\$FOAM_USER_LIBBIN and \$FOAM_USER_APPBIN."
+      echo ""
+      echo "Environment:"
+      echo "  YADE_COUPLING_LIB  OF-side coupling backend, foamYade (default)"
+      echo "                     or pgfYade; only used with --yade. Currently:"
+      echo "                     $YADE_COUPLING_LIB"
+      echo "                     foamYade needs \$YADE_TRUNK at build time;"
+      echo "                     pgfYade builds its coupler from this repo"
+      echo "                     (target pgfToYadeCoupler) and does not."
       exit 0
       ;;
     *)
@@ -156,6 +192,18 @@ parse_arguments() {
     esac
     shift
   done
+}
+
+# pgfToYadeCoupler builds libPgfToYadeMpiCoupler, the OF-side half of the
+# minimal coupling; it is only linked by the pgfYade backend, so it is skipped
+# for foamYade even when a blanket flag (--all, --libs-only) selected it.
+target_selected() {
+  local target=$1
+  [ "${BUILD_TARGETS[$target]:-0}" -eq 1 ] || return 1
+  if [ "$target" = "pgfToYadeCoupler" ] && [ "$YADE_COUPLING_LIB" != "pgfYade" ]; then
+    return 1
+  fi
+  return 0
 }
 
 # ============================================================
@@ -186,7 +234,17 @@ check_foam_environment() {
 }
 
 # --yade / --DEM only; the normal build never requires Foam-Yade.
+#
+# Only the foamYade backend needs this: its OF-side coupler lives in the
+# Foam-Yade source tree pointed at by $YADE_TRUNK. pgfYade needs no probe —
+# its OF-side coupler lives in this repository
+# (porousGasificationMedia/DEM/coupling/pgfToYade, built as the
+# pgfToYadeCoupler target) and $YADE_TRUNK is not on any of its include
+# paths. The Foam-Yade checkout is still needed at run time either way, for
+# the YADE-side engine.
 check_yade_environment() {
+  [ "$YADE_COUPLING_LIB" = "foamYade" ] || return 0
+
   if [ -z "$YADE_TRUNK" ]; then
     clog ERROR "YADE_TRUNK is not set, but a DEM/Yade build was requested."
     clog ERROR "Point it at the Foam-Yade source checkout, e.g."
@@ -324,8 +382,11 @@ execute_target() {
   if [ "$MODE" = "build" ]; then
     cmd="${BUILD_COMMANDS[$target]}"
     if yade_sensitive_target "$target" && [ "$WITH_YADE" -eq 1 ]; then
-      cmd="WITH_YADE=1 ${cmd}"
-      clog INFO "Building $target (WITH_YADE=1)..."
+      cmd="WITH_YADE=1 YADE_COUPLING_LIB=$YADE_COUPLING_LIB ${cmd}"
+      clog INFO "Building $target (WITH_YADE=1, YADE_COUPLING_LIB=$YADE_COUPLING_LIB)..."
+    elif [ "$target" = "DEM" ]; then
+      cmd="YADE_COUPLING_LIB=$YADE_COUPLING_LIB ${cmd}"
+      clog INFO "Building $target (YADE_COUPLING_LIB=$YADE_COUPLING_LIB)..."
     else
       clog INFO "Building $target..."
     fi
@@ -346,7 +407,7 @@ build_all_targets() {
   local failed=()
 
   for target in "${LIBRARY_TARGETS[@]}" "${APP_TARGETS[@]}"; do
-    if [ "${BUILD_TARGETS[$target]:-0}" -eq 1 ]; then
+    if target_selected "$target"; then
       if execute_target "$target"; then
         clog SUCCESS "$target done"
       else
@@ -381,6 +442,7 @@ dry_run() {
   echo "OPTIONS:"
   echo "────────────────────────────────────────────────────────────"
   printf "  WITH_YADE=%s\n" "$WITH_YADE"
+  printf "  YADE_COUPLING_LIB=%s\n" "$YADE_COUPLING_LIB"
   [ "$MODE" = "clean" ] && printf "  PURGE=%s\n" "$PURGE"
   echo ""
 
@@ -400,14 +462,16 @@ dry_run() {
   echo "────────────────────────────────────────────────────────────"
   local will_execute=0
   for target in "${LIBRARY_TARGETS[@]}" "${APP_TARGETS[@]}"; do
-    if [ "${BUILD_TARGETS[$target]:-0}" -eq 1 ]; then
+    if target_selected "$target"; then
       will_execute=1
       local dir="${TARGET_DIRS[$target]}"
       local cmd
       if [ "$MODE" = "build" ]; then
         cmd="${BUILD_COMMANDS[$target]}"
         if yade_sensitive_target "$target" && [ "$WITH_YADE" -eq 1 ]; then
-          cmd="WITH_YADE=1 ${cmd}"
+          cmd="WITH_YADE=1 YADE_COUPLING_LIB=$YADE_COUPLING_LIB ${cmd}"
+        elif [ "$target" = "DEM" ]; then
+          cmd="YADE_COUPLING_LIB=$YADE_COUPLING_LIB ${cmd}"
         fi
       else
         cmd="${CLEAN_COMMANDS[$target]}"
@@ -443,6 +507,7 @@ main() {
   }
 
   check_foam_environment || exit 1
+  validate_coupling_lib || exit 1
 
   if [ "$MODE" = "build" ] &&
     { [ "$WITH_YADE" -eq 1 ] || [ "${BUILD_TARGETS[DEM]:-0}" -eq 1 ]; }; then

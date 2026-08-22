@@ -5,7 +5,8 @@
 #include "Map.H"
 #include "autoPtr.H"
 #include "fvMesh.H"
-#include "FoamYade.H"
+#include "demCouplingLib.H"
+#include "LambdaDotCalculationModel.H"
 
 namespace Foam
 {
@@ -25,7 +26,7 @@ private:
     volScalarField& porosityF_;   // from the main solver
     scalar criticalPorosity_;     // from constant/pyrolysisProperties
 
-    FoamYade& yade_;
+    DemYadeCoupler& yade_;
 
     // Us from UsDEM: raw per-cell average, smoothed over the solid region.
     Switch interpolateUs_;
@@ -53,7 +54,7 @@ public:
         volScalarField& lambdaDEM, // raw per-cell average of particle lambda
         volScalarField& lambda, // interpolated particle length scale
         volScalarField& porosityF, // from the main solver
-        FoamYade& yade
+        DemYadeCoupler& yade
     );
 
     ~lambdaDotModel();
