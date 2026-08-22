@@ -26,6 +26,55 @@ declare -A BUILD_TARGETS=( # default values
 # Set to 1 via --yade to compile the solver with Yade/DEM coupling support
 WITH_YADE=0
 
+# Which OF-side YADE coupling backend the DEM library and the solver are
+# compiled against (only relevant with --yade):
+#   foamYade  legacy FoamYade coupling: drag/lift/torque feedback, meshTree
+#             cell search, Gaussian interpolation (default)
+#   pgfYade   minimal PgfToYadeMpiCoupler: particle kinematics in, lambdaDot
+#             out, no force feedback
+# Compile-time only: one solver binary carries exactly one backend. The YADE
+# side of a case must instantiate the matching engine class (the DEM tutorial
+# scripts read the same YADE_COUPLING_LIB variable).
+YADE_COUPLING_LIB="${YADE_COUPLING_LIB:-foamYade}"
+
+validate_coupling_lib() {
+  case "$YADE_COUPLING_LIB" in
+  foamYade | pgfYade) return 0 ;;
+  *)
+    clog ERROR "Invalid YADE_COUPLING_LIB '$YADE_COUPLING_LIB' (expected 'foamYade' or 'pgfYade')"
+    return 1
+    ;;
+  esac
+}
+
+# The selected backend lives in the Foam-Yade source tree pointed at by
+# $YADE_TRUNK; fail here rather than in a wmake include-path error. The
+# backend's own header is the probe, not its directory: wmake leaves gitignored
+# Make/ and lnInclude/ behind, so the directory can survive a branch switch
+# that removed the sources.
+check_coupling_backend_available() {
+  [ "$WITH_YADE" -eq 1 ] || return 0
+
+  local backend_header
+  if [ "$YADE_COUPLING_LIB" = "pgfYade" ]; then
+    backend_header="pkg/pgfToYadeCoupling/PgfToYadeMpiCoupler/PgfToYadeMpiCoupler.H"
+  else
+    backend_header="pkg/openfoam/coupling/FoamYade/FoamYade.H"
+  fi
+
+  if [ -z "${YADE_TRUNK:-}" ]; then
+    clog ERROR "YADE_TRUNK is not set; it must point at the Foam-Yade source checkout"
+    return 1
+  fi
+  if [ ! -f "$YADE_TRUNK/$backend_header" ]; then
+    clog ERROR "YADE_COUPLING_LIB=$YADE_COUPLING_LIB needs \$YADE_TRUNK/$backend_header, which is missing"
+    clog ERROR "  YADE_TRUNK=$YADE_TRUNK"
+    clog ERROR "  Check out a Foam-Yade revision that provides it and run build-yade first"
+    return 1
+  fi
+  return 0
+}
+
 declare -A TARGET_DIRS=(
   [DEM]="$FOAM_HGS/DEM"
   [fieldPorosityModel]="$FOAM_HGS/fieldPorosityModel"
@@ -113,6 +162,11 @@ parse_arguments() {
       echo ""
       echo "  --yade   Build the DEM library and solver with WITH_YADE=1"
       echo "           (required for Yade-coupled DEM simulations)"
+      echo ""
+      echo "Environment:"
+      echo "  YADE_COUPLING_LIB  OF-side coupling backend, foamYade (default)"
+      echo "                     or pgfYade; only used with --yade. Currently:"
+      echo "                     $YADE_COUPLING_LIB"
       exit 0
       ;;
     *)
@@ -180,8 +234,11 @@ execute_target() {
   if [ "$MODE" = "build" ]; then
     cmd="${BUILD_COMMANDS[$target]}"
     if [ "$target" = "porousGasificationFoam" ] && [ "$WITH_YADE" -eq 1 ]; then
-      cmd="WITH_YADE=1 ${cmd}"
-      clog INFO "Building $target (WITH_YADE=1)..."
+      cmd="WITH_YADE=1 YADE_COUPLING_LIB=$YADE_COUPLING_LIB ${cmd}"
+      clog INFO "Building $target (WITH_YADE=1, YADE_COUPLING_LIB=$YADE_COUPLING_LIB)..."
+    elif [ "$target" = "DEM" ]; then
+      cmd="YADE_COUPLING_LIB=$YADE_COUPLING_LIB ${cmd}"
+      clog INFO "Building $target (YADE_COUPLING_LIB=$YADE_COUPLING_LIB)..."
     else
       clog INFO "Building $target..."
     fi
@@ -229,6 +286,7 @@ dry_run() {
   echo "OPTIONS:"
   echo "────────────────────────────────────────────────────────────"
   printf "  WITH_YADE=%s\n" "$WITH_YADE"
+  printf "  YADE_COUPLING_LIB=%s\n" "$YADE_COUPLING_LIB"
   echo ""
 
   echo "BUILD TARGETS STATUS:"
@@ -254,7 +312,9 @@ dry_run() {
       if [ "$MODE" = "build" ]; then
         cmd="${BUILD_COMMANDS[$target]}"
         if [ "$target" = "porousGasificationFoam" ] && [ "$WITH_YADE" -eq 1 ]; then
-          cmd="WITH_YADE=1 ${cmd}"
+          cmd="WITH_YADE=1 YADE_COUPLING_LIB=$YADE_COUPLING_LIB ${cmd}"
+        elif [ "$target" = "DEM" ]; then
+          cmd="YADE_COUPLING_LIB=$YADE_COUPLING_LIB ${cmd}"
         fi
       else
         cmd="${CLEAN_COMMANDS[$target]}"
@@ -282,6 +342,8 @@ dry_run() {
 
 main() {
   parse_arguments "$@"
+  validate_coupling_lib || exit 1
+  check_coupling_backend_available || exit 1
   setup_directories || {
     clog ERROR "Setup failed"
     exit 1

@@ -5,7 +5,7 @@
 #include "Map.H"
 #include "autoPtr.H"
 #include "fvMesh.H"
-#include "FoamYade.H"
+#include "demCouplingLib.H"
 #include "LambdaDotCalculationModel.H"
 
 namespace Foam
@@ -23,7 +23,7 @@ private:
     volVectorField& Us_;    // interpolated sphere velocity
     volScalarField& porosityF_;   // porosity field  get from the main solver
     scalar criticalPorosity_; // to read criticalPorosity from constant/pyrolysisProperties
-    FoamYade& yade_;
+    DemYadeCoupler& yade_;
 
     // DasteXar interpolation Us from UsDEM (June 12 2026)
     Switch interpolateUs_;
@@ -49,7 +49,7 @@ public:
         volVectorField& UsDEM,   // velocity of spheres
         volVectorField& Us, // interpolated sphere velocity
         volScalarField& porosityF, // porosity field  get from the main solver
-        FoamYade& yade
+        DemYadeCoupler& yade
     );
 
     ~lambdaDotModel();

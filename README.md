@@ -129,6 +129,43 @@ Run `build.sh --help` for all options.
 
 Requires YADE installed with the OpenFOAM coupling module.
 
+#### Choosing the coupling backend: `YADE_COUPLING_LIB`
+
+Two OF-side coupling backends live in the Foam-Yade repository, and `YADE_COUPLING_LIB` selects which one the DEM library and the solver are compiled against:
+
+| Value | Backend | What it exchanges |
+|---|---|---|
+| `foamYade` (**default**) | `FoamYade` (`pkg/openfoam/coupling/FoamYade`) | Full two-way coupling: drag, lift and torque feedback on the particles, `meshTree` k-d-tree cell search, Gaussian volume-fraction interpolation |
+| `pgfYade` | `PgfToYadeMpiCoupler` (`pkg/pgfToYadeCoupling/PgfToYadeMpiCoupler`) | Particle kinematics (YADE → PGF) and one `lambdaDot` per particle (PGF → YADE) only. No forces, no torques, plain `mesh.findCell()` location |
+
+```bash
+YADE_COUPLING_LIB=foamYade ./build.sh build --yade   # same as omitting it
+YADE_COUPLING_LIB=pgfYade  ./build.sh build --yade   # needs a Foam-Yade checkout that has pkg/pgfToYadeCoupling/
+```
+
+Switching the value is a **rebuild** of the `DEM` library and the solver. Clean them first (`./build.sh clean --reset-all --DEM --porousGasificationFoam`) if the previously selected backend's sources are no longer on disk — for example after checking Foam-Yade back to a revision without `pkg/pgfToYadeCoupling/`. wmake caches the include set in `.dep` files, and a dependency on a header that has since disappeared fails the build with `No rule to make target .../PgfToYadeMpiCoupler.H`.
+
+Leaving `YADE_COUPLING_LIB` unset — including a raw `wmake` that bypasses `build.sh` — selects `foamYade`, so nothing about an existing build changes unless the variable is set explicitly. `build.sh` validates the value and checks that `$YADE_TRUNK` actually contains the selected backend's directory before invoking `wmake`. The backend is selected by `porousGasificationMedia/DEM/demCouplingLib.H`, which typedefs the concrete coupler to `Foam::DemYadeCoupler`; the `pgfYade` build also compiles out the ten fluid-side fields only the legacy backend consumes (`alpha`, `divT`, `vGrad`, `gradP`, `uSourceDrag`, `uSource`, `uCoeffDrag`, `uInterpField`, `uParticle`, `ddtU_f`) plus the `nu`/`partDensity`/`fluidDensity` entries of `constant/yadeProperties`.
+
+**This is a compile-time switch on the OpenFOAM side: one solver binary carries exactly one backend, and there is no run-time or dictionary choice.** On the YADE side there *is* a run-time choice, because the case's Python script instantiates the engine class itself and Yade cannot inspect what the spawned solver was compiled with. The DEM tutorial scripts therefore read the same `YADE_COUPLING_LIB` environment variable (default `foamYade`) and construct either `FoamCoupling()`/`SetOpenFoamSolver()` or `YadeToPgfMpiCoupler()`/`SetPgfSolver()`.
+
+> **The variable must be set consistently for the build and for the run.** A mismatch — a `pgfYade` solver driven by a `FoamCoupling()` script, or the reverse — is neither detected nor reported: the run hangs or fails deep inside the MPI handshake.
+
+```bash
+YADE_COUPLING_LIB=pgfYade mpirun -n 2 yade yade.py   # must match the binary's backend
+```
+
+#### Comparing the two backends
+
+`tutorials/cases/simple_line_case` is the reference case for comparing them. A single `build-yade` produces the OF-side libraries for both backends (`libMeshTree.so`/`libYadeFoam.so` *and* `libPgfToYadeMpiCoupler.so`), so only the PGF solver needs rebuilding between the two runs:
+
+1. `build-yade` once, with Foam-Yade checked out to a revision that provides `pkg/pgfToYadeCoupling/`.
+2. `YADE_COUPLING_LIB=foamYade ./build.sh build --yade`, then run `simple_line_case` with `YADE_COUPLING_LIB=foamYade mpirun -n 2 yade yade.py`; keep `ParticlesData.txt`, the sphere/spring VTK output and `postProcessing/`.
+3. `YADE_COUPLING_LIB=pgfYade ./build.sh build --yade` (a rebuild), then the same case with `YADE_COUPLING_LIB=pgfYade mpirun -n 2 yade yade.py`.
+4. Compare particle trajectories, the `lambdaDot` time series and `ParticlesData.txt`.
+
+Expect the two to **diverge**, not to match bit-for-bit: the legacy backend applies real drag/lift/torque feedback and the minimal one applies none. The comparison validates the *shared* data path — particle-kinematics exchange, the `lambdaDot` round trip, shrinkage behaviour — not physical equivalence. It is a manual procedure and is deliberately not wired into `Allrun.yade`/`cases_yade.list`.
+
 ### Doxygen documentation
 
 ```bash

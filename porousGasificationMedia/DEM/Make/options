@@ -1,6 +1,19 @@
 sinclude $(GENERAL_RULES)/mplib$(WM_MPLIB)
 sinclude $(RULES)/mplib$(WM_MPLIB)
 
+/* Which OF-side YADE coupling backend to compile against: foamYade (legacy,
+   the default when YADE_COUPLING_LIB is unset, e.g. a raw wmake) or pgfYade
+   (the minimal PgfToYadeMpiCoupler backend). See demCouplingLib.H. */
+ifeq ($(YADE_COUPLING_LIB),pgfYade)
+    YADE_COUPLING_INC  = -DYADE_COUPLING_PGF=1 \
+        -I$(YADE_TRUNK)/pkg/pgfToYadeCoupling/PgfToYadeMpiCoupler/lnInclude
+    YADE_COUPLING_LIBS = -lPgfToYadeMpiCoupler
+else
+    YADE_COUPLING_INC  = -I$(YADE_TRUNK)/pkg/openfoam/coupling/FoamYade/lnInclude \
+        -I$(YADE_TRUNK)/pkg/openfoam/coupling/FoamYade/meshtree/lnInclude
+    YADE_COUPLING_LIBS = -lMeshTree -lYadeFoam
+endif
+
 EXE_INC = \
     -IinterpolationModels/UsInterpolationModel \
     -IinterpolationModels/laplaceAnchored \
@@ -11,8 +24,7 @@ EXE_INC = \
     -IlambdaDotModels/dTsdtLambdaDot \
     -I$(LIB_SRC)/finiteVolume/lnInclude \
     -I$(LIB_SRC)/meshTools/lnInclude \
-    -I$(YADE_TRUNK)/pkg/openfoam/coupling/FoamYade/lnInclude \
-    -I$(YADE_TRUNK)/pkg/openfoam/coupling/FoamYade/meshtree/lnInclude \
+    $(YADE_COUPLING_INC) \
     -I$(LIB_SRC)/Pstream/mpi/lnInclude \
     $(PFLAGS) $(PINC) \
     -DfoamVersion=$(shell echo $(WM_PROJECT_VERSION) | sed 's/v//g')
@@ -21,7 +33,6 @@ EXE_LIBS = \
     -lfiniteVolume \
     -lmeshTools \
     -L$(FOAM_USER_LIBBIN) \
-    -lMeshTree \
-    -lYadeFoam \
+    $(YADE_COUPLING_LIBS) \
     -L$(FOAM_LIBBIN)/$(FOAM_MPI)/lPstream \
     $(PLIBS)

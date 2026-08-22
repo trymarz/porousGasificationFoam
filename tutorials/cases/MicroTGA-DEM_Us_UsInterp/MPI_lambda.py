@@ -305,15 +305,26 @@ def apply_spring_forces():
 #----------
 
 
-fluidCoupling = FoamCoupling()
-fluidCoupling.couplingModeParallel = parallelYade
-fluidCoupling.isGaussianInterp = True
+# Which YADE-side coupling engine to instantiate. This MUST match the backend
+# the porousGasificationFoam binary was compiled with (build.sh's
+# YADE_COUPLING_LIB): the solver has no runtime choice, and a mismatch is not
+# detected - the run just hangs or dies inside the MPI handshake.
+couplingLib = os.environ.get("YADE_COUPLING_LIB", "foamYade")
+if couplingLib == "pgfYade":
+    fluidCoupling = YadeToPgfMpiCoupler()
+else:
+    fluidCoupling = FoamCoupling()
+    fluidCoupling.couplingModeParallel = parallelYade
+    fluidCoupling.isGaussianInterp = True
 
 
 sphereIDs = [b.id for b in O.bodies if type(b.shape) == Sphere]
 
 
-fluidCoupling.SetOpenFoamSolver("porousGasificationFoam", numProcOF)
+if couplingLib == "pgfYade":
+    fluidCoupling.SetPgfSolver("porousGasificationFoam", numProcOF)
+else:
+    fluidCoupling.SetOpenFoamSolver("porousGasificationFoam", numProcOF)
 
 
 

@@ -46,7 +46,7 @@ Description
 #include "HGSSolidThermo.H"
 
 #ifdef WITH_YADE 
-    #include "FoamYade.H"
+    #include "demCouplingLib.H"
     #include "lambdaDotModel.H"
 #endif // WITH_YADE 
 
@@ -113,12 +113,22 @@ int main(int argc, char *argv[])
         #ifdef WITH_YADE
         if (DEM)
         {
-            vGrad = fvc::grad(U);
             lambdaDotUpdater->updateLambdaDot();
+#if defined(YADE_COUPLING_PGF)
+            yadeCoupling->exchangeParticleDataWithYade(runTime.deltaT().value());
+#else
+            // FoamYade re-reads vGrad through the reference it was handed at
+            // construction, so refresh it before the exchange.
+            vGrad = fvc::grad(U);
             yadeCoupling->setParticleAction(runTime.deltaT().value());
+#endif
             lambdaDotUpdater->updateParticleFields();
             lambdaDotUpdater->writeParticlesData();
+#if defined(YADE_COUPLING_PGF)
+            yadeCoupling->clearParticleExchangeBuffers();
+#else
             yadeCoupling->setSourceZero();
+#endif
         }
         #endif
 

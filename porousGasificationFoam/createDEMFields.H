@@ -20,6 +20,10 @@ if (yadeCouplingProperties.size() > 0 && !DEM)
         << "yadeProperties found but DEM coupling is disabled (active != true)" << nl;
 
 
+// Particle/fluid properties consumed by FoamYade::setScalarProperties() -
+// drag and lift closures. The minimal pgfYade backend exchanges no forces,
+// so it needs none of them.
+#ifndef YADE_COUPLING_PGF
 dimensionedScalar nu (
     "nu",
     dimViscosity,
@@ -37,8 +41,11 @@ dimensionedScalar fluidDensity(
     dimDensity,
     yadeCouplingProperties.lookupOrDefault<scalar>("fluidDensity", 0.0)
 );
+#endif // !YADE_COUPLING_PGF
 
 
+// Cell volume fraction, filled by FoamYade's Gaussian interpolation.
+#ifndef YADE_COUPLING_PGF
 volScalarField alphac
 (
     IOobject
@@ -52,6 +59,7 @@ volScalarField alphac
     mesh,
     dimensionedScalar("0", dimless, 0)
 );
+#endif // !YADE_COUPLING_PGF
 
 
 // DasteXar this field determines if there is any sphere in the cell or no
@@ -85,6 +93,11 @@ volScalarField lambdaDot // lambdaDot: rate of change of per-particle lambda (co
 );
 
 
+// Fluid-side fields passed by reference into FoamYade's constructor and
+// re-read (or written) by it every coupling step: the momentum-source and
+// interpolation machinery of the legacy backend. The pgfYade backend applies
+// no forces and needs none of them.
+#ifndef YADE_COUPLING_PGF
 volVectorField divT(
     IOobject(
     "divT",
@@ -174,6 +187,7 @@ volVectorField uParticle(
     mesh,
     dimensionedVector("uParticle", dimensionSet(0,1,-1,0,0,0,0), vector(0,0,0) )
 );
+#endif // !YADE_COUPLING_PGF
 
 
 volVectorField UsDEM(
@@ -188,6 +202,7 @@ volVectorField UsDEM(
 );
 
 
+#ifndef YADE_COUPLING_PGF
 volVectorField ddtU_f (
     IOobject (
     "ddtU_f",
@@ -198,5 +213,4 @@ volVectorField ddtU_f (
     //fvc::ddt(U)+fvc::div(phi, U)
     ( fvc::ddt(rho, U) + fvc::div(phi, U) ) / rho
 );
-
-
+#endif // !YADE_COUPLING_PGF

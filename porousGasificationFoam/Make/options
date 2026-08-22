@@ -48,11 +48,28 @@ EXE_LIBS = \
 ifeq ($(WITH_YADE),1)
     EXE_INC += \
         -DWITH_YADE=1 \
-        -I$(FOAM_HGS)/DEM/lnInclude \
-        -I$(YADE_TRUNK)/pkg/openfoam/coupling/FoamYade/lnInclude
+        -I$(FOAM_HGS)/DEM/lnInclude
 
     EXE_LIBS += \
-        -lMeshTree \
-        -lYadeFoam \
         -llambdaDotModel
+
+    /* Which OF-side YADE coupling backend to compile against: foamYade (legacy,
+       the default when YADE_COUPLING_LIB is unset, e.g. a raw wmake) or pgfYade
+       (the minimal PgfToYadeMpiCoupler backend). Must match how the DEM library
+       was built - see porousGasificationMedia/DEM/demCouplingLib.H. */
+    ifeq ($(YADE_COUPLING_LIB),pgfYade)
+        EXE_INC += \
+            -DYADE_COUPLING_PGF=1 \
+            -I$(YADE_TRUNK)/pkg/pgfToYadeCoupling/PgfToYadeMpiCoupler/lnInclude
+
+        EXE_LIBS += \
+            -lPgfToYadeMpiCoupler
+    else
+        EXE_INC += \
+            -I$(YADE_TRUNK)/pkg/openfoam/coupling/FoamYade/lnInclude
+
+        EXE_LIBS += \
+            -lMeshTree \
+            -lYadeFoam
+    endif
 endif
