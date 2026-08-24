@@ -877,7 +877,7 @@ void volPyrolysis::postSolveEnergy()
             {
                 totalYm += Ym_[i];
             }
-            solidThermo_.correct(); // eqZx2uHGn046
+            solidThermo_.correct(); 
             volScalarField rhoCp
             (
                 max
@@ -886,17 +886,8 @@ void volPyrolysis::postSolveEnergy()
                     dimensionedScalar("minRhoCp",dimEnergy/dimTemperature/dimVolume,SMALL)
                 )
             );
-            //Info << rhoCp << endl;
-            //Info << gasThermo_.rho()*gasThermo_.Cp()*porosity_ << endl;
-            //volScalarField inBorder = pos(mag(fvc::grad(whereIs_)))*whereIs_;
-            //volScalarField inInter  = pos(0.5-pos(mag(fvc::grad(whereIs_))))*whereIs_;
-            //volScalarField weight = rhoCp*10 - gasThermo_.rho()*gasThermo_.Cp()*porosity_;
             volScalarField weight = critPorosity_ - porosity_;
             T_ = whereIs_*(solidH_()/rhoCp*pos(weight) + gasThermo_.T()*neg(weight));
-            //T_ = inInter*(solidH_()/rhoCp) + inBorder*(solidH_()/rhoCp*pos(weight) + gasThermo_.T()*neg(weight));
-            //T_ = whereIs_*solidH_()/rhoCp;
-            //volScalarField weight2 = dimensionedScalar("maxTs",dimTemperature,1e4) - T_;
-            //T_ = T_*pos(weight2) + gasThermo_.T()*neg(weight2);
             
             T_.correctBoundaryConditions();
 
