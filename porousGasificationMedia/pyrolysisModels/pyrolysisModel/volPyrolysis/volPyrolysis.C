@@ -94,22 +94,12 @@ bool volPyrolysis::read(const dictionary& dict)
 
 void volPyrolysis::deriveYiFromYm()
 {
-    // Reconstruct the mass fractions Ys_ (consumed by chemistry and thermo)
-    // from the transported mass concentrations Ym_ [kg/m3]. Every cell is
-    // visited and the only condition is the solid inventory of the cell, never
-    // whereIs_. Two reasons:
-    //
-    //  - whereIs_ is refreshed in recoverPorosity(), one stage later in the
-    //    time step, so it still reads empty in a cell that solid mass has just
-    //    advected into. Ys_ left stale there leaves rho_ stale too, and rho_ is
-    //    only a valid mixture density where sum_i Ys_i = 1 - which is what
-    //    recoverPorosity() divides the solid mass by.
-    //
-    //  - a cell holding no solid still needs a composition, because rho_ is
-    //    not inert there. HGSSolidMixtureThermo evaluates a patch density from
-    //    the adjacent cell, and fixedYm injects Yi*rho*(1 - porosityF), so a
-    //    cell left at sum_i Ys_i = 0 reports rho_ = 0 and an inlet beside it
-    //    injects nothing at all.
+    // Reconstruct the mass fractions Ys_ from the mass concentrations Ym_
+    // [kg/m3]: Ys_i = Ym_i/sum_j(Ym_j). Keyed on the cell's own solid
+    // inventory, never on whereIs_, which recoverPorosity() refreshes one
+    // stage later. A cell holding no solid still needs a composition:
+    // rho_ = 1/sum_i(Ys_i/rho_i) is a density only where sum_i Ys_i = 1,
+    // and a fixedYm patch injects at the density of the cell beside it.
     forAll(Ym_[0], cellI)
     {
         scalar Ysum = 0.0;
@@ -127,13 +117,11 @@ void volPyrolysis::deriveYiFromYm()
         }
         else
         {
-            // No solid inventory: a cell that has just shed the last of its
-            // solid, or one that has never held any. Assign the first specie
-            // as a default composition so rho_ and Cp stay defined. The cell
-            // carries no mass, so nothing it holds depends on the choice - but
-            // the density it reports is the density a fixedYm patch beside it
-            // injects with, so the first specie in the mixture is also the
-            // solid an inlet fills a fresh domain with.
+            // No solid inventory. The first specie keeps rho_ and Cp
+            // defined; the cell carries no mass, so nothing it holds
+            // depends on the choice - but a fixedYm patch beside it injects
+            // at this density, so the first specie is also what fills a
+            // fresh domain.
             forAll(Ys_, i)
             {
                 Ys_[i][cellI] = 0.0;
@@ -225,11 +213,9 @@ void volPyrolysis::recoverPorosity()
 {
     if (active_)
     {
-        // Chemistry contribution to d(1-por)/dt. Reported below, and not
-        // applied: RRpor = -sum_i RRs_i/rho_i is exactly the time derivative
-        // of sum_i Ym_i/rho_i, and chemistry has already moved that sum
-        // through RRs_i in solveSpeciesMass(). Adding it to the porosity as
-        // well would count it twice.
+        // Diagnostic only. RRpor = -sum_i RRs_i/rho_i is the time
+        // derivative of sum_i Ym_i/rho_i, which solveSpeciesMass() has
+        // already moved through RRs_i; applying it here would double it.
         porositySource_ = solidChemistry_->RRpor(T_)();
 
         volScalarField& por = porosity_;
@@ -243,27 +229,16 @@ void volPyrolysis::recoverPorosity()
             totalYm += Ym_[i];
         }
 
-        // The porosity is not transported. It is the void the solid mass of
-        // the cell leaves behind,
+        // The porosity is not transported. It is the void the cell's solid
+        // mass leaves behind,
         //
         //     1 - por = sum_i Ym_i/rho_i = totalYm/rho_
         //
-        // an identity rather than an approximation: multiComponentSolidMixture
-        // mixes as 1/rho_ = sum_i Ys_i/rho_i wherever sum_i Ys_i = 1, and
-        // deriveYiFromYm() has just established that in every cell holding
-        // solid. Giving por a transport equation of its own makes two fields
-        // out of one quantity, and the limiter in div(phiSolid) is nonlinear:
-        // it resolves the por profile and the Ym profile differently, so the
-        // two contradict each other at any sharp front - a cell can report
-        // por = 1 while holding hundreds of kg/m3 of solid.
-        //
-        // rho_ is current at this point because postSolveEnergy() has called
-        // solidThermo_.correct() and this is the last stage of evolveRegion().
-        // Called any earlier, this would divide by a one-stage-stale density.
-        //
-        // Only the internal field is assigned. The patch values are left to
-        // correctBoundaryConditions() below, so a fixedValue porosity patch
-        // keeps the value its case prescribes.
+        // an identity, not an approximation: multiComponentSolidMixture
+        // mixes as 1/rho_ = sum_i Ys_i/rho_i wherever sum_i Ys_i = 1, which
+        // deriveYiFromYm() has just established. rho_ is current only here,
+        // after postSolveEnergy()'s solidThermo_.correct(). Internal field
+        // only, so a fixedValue porosity patch keeps its prescribed value.
         const dimensionedScalar rhoSolidFloor
         (
             "rhoSolidFloor",
@@ -280,11 +255,9 @@ void volPyrolysis::recoverPorosity()
 
         if (failOnInvalidSolidState_)
         {
-            // Checked before the "< 0.0001 -> 0" clip below, which would
-            // otherwise absorb an undershoot without trace. por > 1 now takes
-            // negative solid mass, which solveSpeciesMass() clips away; por
-            // below zero is a cell packed past solid by the transport, which
-            // no discretisation of the conservative form bounds on its own.
+            // Before the "< 1e-4 -> 0" clip below, which would absorb an
+            // undershoot without trace. por > 1 is negative solid mass;
+            // por < 0 is a cell packed past solid by the transport.
             const label badCell = firstInvalidCell
             (
                 por,
@@ -757,25 +730,13 @@ void volPyrolysis::recoverPorosity()
         else if (emptyFlippedCells_)
         {
             // Emptying a cell means removing the solid it holds, not
-            // rewriting the porosity that solid implies. Every field the
-            // cell carries is set to the state of a cell that holds nothing:
-            // no specie mass, no solid enthalpy, and therefore no solid
-            // temperature. por = 1 is then what the identity
-            // 1 - por = sum_i Ym_i/rho_i gives for the emptied cell, not an
-            // assertion laid over a mass that is still there.
-            //
-            // The mass is destroyed, not moved. Finding a receiving cell is
-            // what the bedCollapse route above does; on this path there is
-            // no destination, so the removal is charged to
-            // cumulativeFlipMass_ and reported with the mass budget rather
-            // than left to close the budget silently.
-            //
-            // T_ is zeroed here only because solidH_ is: postSolveEnergy()
-            // has already run, so this assignment is what the next step
-            // reads as T_.oldTime(), and it has to be the same ratio
-            // solidH_/rhoCp that postSolveEnergy() would recover. Zero
-            // enthalpy over zero mass is zero; zeroing T_ while leaving the
-            // enthalpy is the defect a0d18ac removed one function earlier.
+            // rewriting the porosity that solid implies: every field goes to
+            // the state of a cell that holds nothing, and por = 1 is then
+            // what 1 - por = sum_i Ym_i/rho_i gives. The mass is destroyed
+            // rather than moved - this path has no destination - and charged
+            // to cumulativeFlipMass_. T_ is zeroed only because solidH_ is:
+            // postSolveEnergy() has run, so this is what the next step reads
+            // as T_.oldTime() and it must be the same ratio.
             const scalarField& V = mesh_.V();
             scalar flippedMass = 0.0;
 
@@ -828,13 +789,9 @@ void volPyrolysis::recoverPorosity()
 
         // The invariant the recovery establishes, re-checked per cell after
         // everything above that writes porosity_ directly: the bed-motion
-        // model, the "< 1e-4 -> 0" clip, and the flip of a crit-porosity cell
-        // to 1. Each of those can leave a porosity the cell's own solid mass
-        // contradicts, and a field-wide min/max cannot see it - the defect is
-        // a disagreement between two fields, not an out-of-range value in
-        // either. That is precisely how a cell reporting porosity = 1 while
-        // holding 252 kg/m3 of solid stayed invisible for months, so the
-        // worst cell is reported every step.
+        // model, the "< 1e-4 -> 0" clip, and the flip to por = 1. A
+        // field-wide min/max cannot see two fields disagreeing while
+        // neither is out of range, so the worst cell is reported.
         {
             scalar maxResidual = 0.0;
             label worstCell = -1;
@@ -1051,11 +1008,9 @@ void volPyrolysis::preSolveEnergy()
         else
         {
 
-            // Refresh the solid mass boundary values before anything is
-            // derived from them: fixedYm evaluates Yi*rho*(1-porosityF), and
-            // both rho and porosityF were last updated at the end of the
-            // previous step. solveSpeciesMass() corrects them too, so this
-            // only moves the correction earlier.
+            // fixedYm evaluates Yi*rho*(1-porosityF) from rho and porosityF
+            // as they stood at the end of the previous step, and
+            // solveSpeciesMass() corrects them too: this only moves it up.
             forAll(Ym_, i)
             {
                 Ym_[i].correctBoundaryConditions();
@@ -1067,12 +1022,10 @@ void volPyrolysis::preSolveEnergy()
                 totalYm += Ym_[i];
             }
 
-            // The smallest solid mass concentration distinguishable from zero.
-            // rho_ is the skeletal density, so a cell holding less than
-            // solidStateTolerance_ of a fully packed cell's mass holds nothing.
-            // Floored by SMALL as well, because rho_ is itself zero in a cell
-            // that has never held solid: deriveYiFromYm() leaves its mass
-            // fractions at zero and the mixture rule then gives no density.
+            // The smallest solid mass distinguishable from zero: rho_ is the
+            // skeletal density, so a cell below solidStateTolerance_ of a
+            // packed cell holds nothing. Floored by SMALL too, since rho_ is
+            // itself zero where the cell has never held solid.
             const volScalarField YmFloor
             (
                 max
@@ -1082,21 +1035,15 @@ void volPyrolysis::preSolveEnergy()
                 )
             );
 
-            // Positive only where the cell holds solid. This is what the two Ts
-            // guards below are judged on: a solid temperature has no meaning
-            // where there is no solid to carry it, and the empty-cell test has
-            // to be a mass scale rather than the strict "any mass at all" it
-            // was, or a cell left holding 1e-18 kg/m3 of numerical dust gets
-            // reported as a defect. charOnlyMoveCases/serial aborted on
-            // Ts = -1.1e-8 K in a cell whose rhoCp was at its floor.
+            // Positive only where the cell holds solid, and what the two Ts
+            // guards below are judged on: a solid temperature means nothing
+            // without solid to carry it, and the test has to be a mass scale
+            // or a cell holding 1e-18 kg/m3 of dust reads as a defect.
             const volScalarField solidPresent(totalYm - YmFloor);
 
-            // The heat capacity of the solid the cell actually holds.
-            // Masking it with whereIs_ collapsed it to the floor in any cell
-            // whose mask and mass disagreed, while solidH_ carried no such
-            // factor - which is what turned that disagreement into a
-            // temperature of 1e23 K. postSolveEnergy() builds the same
-            // quantity unmasked.
+            // The heat capacity of the solid the cell actually holds. No
+            // whereIs_ factor: solidH_ carries none either, and masking one
+            // and not the other is a temperature of any size at all.
             volScalarField rhoCp
             (
                 max
@@ -1110,14 +1057,10 @@ void volPyrolysis::preSolveEnergy()
 
             if (failOnInvalidSolidState_)
             {
-                // The undershoot allowance is a temperature tolerance, not a
-                // mass one: at the emptying tail of a moving bed the capacity
-                // decays towards zero while the linear solver's error does not,
-                // so Ts comes back a few 1e-6 K negative. Judging that against
-                // the temperature scale the guard already declares admits the
-                // arithmetic and still catches every excursion that means
-                // something - the 1e23 K on the other side of the window, and
-                // any negative temperature large enough to be physical.
+                // A temperature tolerance, not a mass one: at the emptying
+                // tail of a bed the capacity decays towards zero while the
+                // solver's error does not, so Ts comes back a few 1e-6 K
+                // negative. Judged against the scale the guard declares.
                 const label badCell = firstInvalidCell
                 (
                     T_,
@@ -1248,20 +1191,13 @@ void volPyrolysis::preSolveEnergy()
 
             surfaceScalarField solidFlux(solidVolFlux());
 
-            // Move the solid enthalpy with the solid MASS rather than with the
-            // solid volume. Both used to ride solidFlux under the same
-            // div(phiSolid) limiter, which is not the same thing as riding it
-            // in lockstep: the limiter is nonlinear, so it resolves the solidH
-            // profile and the Ym profile with different face values, and the
-            // arriving mass does not carry the enthalpy that belongs to it.
-            // Measured in charOnlyMoveCases/serial: a cell takes its solid one
-            // step before its enthalpy, so Ts = solidH/rhoCp reads 0 K there
-            // and then climbs 0 -> 28.7 -> 130.8 -> 181.5 K.
-            //
-            // phiYm is assembled from exactly the per-specie face fluxes that
-            // solveSpeciesMass() integrates a few lines later - same flux, same
-            // start-of-step Ym, same div(phiSolid) scheme - so the mass that
-            // leaves a face here is the mass that leaves it there.
+            // The solid enthalpy moves with the solid MASS, not the solid
+            // volume. Sharing solidFlux and the limiter's name is not the
+            // same as riding it in lockstep: div(phiSolid) is nonlinear, so
+            // it resolves the solidH and Ym profiles with different face
+            // values and arriving mass does not carry its own enthalpy.
+            // phiYm is the per-specie face fluxes solveSpeciesMass()
+            // integrates - same flux, same start-of-step Ym, same scheme.
             surfaceScalarField phiYm
             (
                 fvc::flux(solidFlux, Ym_[0], "div(phiSolid)")
@@ -1271,27 +1207,16 @@ void volPyrolysis::preSolveEnergy()
                 phiYm += fvc::flux(solidFlux, Ym_[i], "div(phiSolid)");
             }
 
-            // The specific enthalpy of the solid a cell holds [J/kg], upwinded
-            // with respect to that mass flux, so mass arrives carrying its
-            // donor's specific enthalpy. A receiving cell then holds
-            //
-            //     (solidH + m_in*hs_donor) / (totalYm + m_in)
-            //
-            // which is a convex combination of its own temperature and its
-            // donors', while a donating cell sheds enthalpy and mass in the
-            // same ratio and keeps its temperature exactly. Ts is bounded by
-            // the temperatures already present, whatever the mass limiter does.
-            //
-            // Deliberately upwind and not div(phiSolid): a limiter on hs would
-            // sharpen the thermal front, but it would also produce face values
-            // outside the donor-receiver range, which is the defect above. The
-            // price is a thermal front more diffuse than the mass front.
-            // Below the floor pos() switches the enthalpy flux off entirely:
-            // no mass, no enthalpy carried. That also keeps the ratio finite
-            // where a case prescribes solidH inconsistently with Ym on a patch
-            // (charOnlyMoveCases/solidInlet does, and the raw ratio there is
-            // 1e20 J/kg). The enthalpy withheld is bounded by the mass that
-            // was below the floor, so it is below tolerance by construction.
+            // The specific enthalpy the cell holds [J/kg], upwinded on that
+            // mass flux, so mass arrives carrying its donor's. A receiver
+            // then holds (solidH + m_in*hs_donor)/(totalYm + m_in), a convex
+            // combination of temperatures already present, while a donor
+            // sheds mass and enthalpy in one ratio and keeps its own.
+            // Upwind and not div(phiSolid) deliberately: a limiter on hs
+            // would put face values outside the donor-receiver range. Below
+            // the floor pos() carries no enthalpy - no mass, none to carry -
+            // which also keeps the ratio finite where a patch prescribes
+            // solidH inconsistently with Ym.
             volScalarField hs
             (
                 solidH_()*pos(totalYm - YmFloor)/max(totalYm, YmFloor)
@@ -1379,23 +1304,12 @@ void volPyrolysis::postSolveEnergy()
                     dimensionedScalar("minRhoCp",dimEnergy/dimTemperature/dimVolume,SMALL)
                 )
             );
-            // The same ratio preSolveEnergy() recovers T_ from at the head of
-            // the next step, and deliberately the same expression: this value
-            // is what fvm::ddt(rhoCp, T_) reads as T_.oldTime() there, so the
-            // two have to agree or the explicit step starts from a temperature
-            // the cell does not hold.
-            //
-            // No whereIs_ factor. The mask is one stage stale - it is refreshed
-            // in recoverPorosity(), after solveSpeciesMass() has already moved
-            // mass - so a cell taking solid for the first time is still masked
-            // empty here and had its temperature zeroed while its solid
-            // enthalpy was kept. The next step then recovered Ts = 600 K from
-            // that enthalpy, sized the heat-transfer source on it, and applied
-            // it to an old-time temperature of 0 K: Ts = -128 K in the first
-            // cell downstream of the bed in charOnlyMoveCases/serial. The
-            // factor is not needed for its stated purpose either, since a cell
-            // holding no solid holds no solid enthalpy and the ratio is zero
-            // there anyway.
+            // The same ratio preSolveEnergy() recovers T_ from, deliberately:
+            // this value is what fvm::ddt(rhoCp, T_) reads there as
+            // T_.oldTime(), so the two have to agree. No whereIs_ factor -
+            // the mask is refreshed a stage later, so it still reads empty in
+            // a cell that has just taken solid, and zeroing T_ while keeping
+            // its enthalpy makes the next step start from 0 K.
             T_ = solidH_()/rhoCp;
 
             if (failOnInvalidSolidState_)
@@ -1907,11 +1821,9 @@ volPyrolysis::volPyrolysis
     whereIsNot_ = pos0(porosity_ - 1);
 
     // porosity_ is assigned in recoverPorosity(), not solved, and
-    // GeometricField::storeOldTimes() rolls a field forward only once an
-    // old-time field exists - it silently does nothing the first time, while
-    // still marking the field as current. Create the old-time field here,
-    // from the initial state, or the first assignment leaves porosityF_0
-    // equal to the value just written and the gas-side
+    // storeOldTimes() rolls a field forward only once an old-time field
+    // exists - the first call silently does nothing while still marking the
+    // field current. Create it here from the initial state, or the gas-side
     // fvm::ddt(porosityF, rho) loses a whole step of d(porosity)/dt.
     porosity_.oldTime();
 

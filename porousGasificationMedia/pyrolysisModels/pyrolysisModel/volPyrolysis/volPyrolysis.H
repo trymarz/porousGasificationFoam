@@ -68,12 +68,9 @@ private:
         void readReactingOneDimControls();
 
         //- Derive mass fractions Ys_ from mass concentrations Ym_
-        //  Ys_i = Ym_i / sum_j(Ym_j) in every cell that holds solid mass.
-        //  Keyed off the mass rather than off whereIs_, which is one stage
-        //  stale: rho_ is only a valid mixture density where the mass
-        //  fractions sum to one, and recoverPorosity() divides by it.
-        //  A cell that has just lost its last solid keeps a defined
-        //  composition (first specie unity, rest zero).
+        //  Ys_i = Ym_i/sum_j(Ym_j) wherever the cell holds solid mass, and
+        //  the first specie alone where it holds none. Keyed on the mass,
+        //  not on whereIs_, which is refreshed a stage later.
         void deriveYiFromYm();
 
         //- Solid volumetric face flux [m3/s] carried by Us
@@ -85,11 +82,9 @@ private:
 
         //- Index of the first cell whose value is not finite or lies
         //  outside [lower, upper]; -1 when the field is valid everywhere.
-        //  Cells where the optional mask is not positive are skipped: the
-        //  solid temperature has no meaning in a cell that holds no solid,
-        //  so an empty cell must not be reported as a defect.
-        //  Local to this processor: an invalid state on any one rank
-        //  aborts the whole job, so no collective is needed.
+        //  Cells where the optional mask is not positive are skipped - a
+        //  solid temperature is not a defect in a cell holding no solid.
+        //  Local: an invalid state on any rank aborts the whole job.
         label firstInvalidCell
         (
             const volScalarField& fld,
@@ -99,10 +94,9 @@ private:
         ) const;
 
         //- Abort on an impossible solid state, reporting where it is and
-        //  whatever neighbouring quantities the calling stage knows are
-        //  relevant. The solid transport equations are explicit and
-        //  unbounded, so a value outside its physical range is a defect
-        //  to be diagnosed, not a number to be clipped and carried on.
+        //  whatever the calling stage knows is relevant. The solid
+        //  transport is explicit and unbounded, so a value outside its
+        //  physical range is a defect to diagnose, not a number to clip.
         void reportInvalidSolidState
         (
             const word& stage,
@@ -182,27 +176,14 @@ protected:
 
     //- Switch for emptying a flipped cell rather than leaving its solid
     //  A cell above critPorosity_ with Us pointing into the solid is a flip
-    //  candidate: the trailing edge of a bed being dragged away, holding the
-    //  last of its solid. With the porosity derived from the mass there are
-    //  only two consistent answers for such a cell, and this selects between
-    //  them.
-    //
-    //  When unset the candidate is left alone. It keeps the solid it holds
-    //  and drains through the ordinary transport, so porosity and mass agree
-    //  and nothing is destroyed.
-    //
-    //  When set the cell is emptied for real - its solid specie masses and
-    //  its solid enthalpy are removed - and the porosity recovery then
-    //  derives por = 1 from a cell that is genuinely empty. The mass removed
-    //  is destroyed rather than moved: finding a receiving cell is what the
-    //  bedCollapse route does, and there is none on this path. It is charged
-    //  to cumulativeFlipMass_ and reported with the mass budget.
-    //
-    //  Writing por = 1 while leaving the mass in place - the third option,
-    //  and what this did before - is not available. It leaves the cell
-    //  claiming to be void while it holds solid, which is the contradiction
-    //  the porosity recovery exists to remove, and the solid flux limiter
-    //  reads that link to decide how much room a receiving cell has.
+    //  candidate - the trailing edge of a bed being dragged away. Unset, it
+    //  is left alone and drains through the ordinary transport. Set, it is
+    //  emptied for real, specie masses and solid enthalpy removed, so the
+    //  porosity recovery derives por = 1 from a genuinely empty cell; that
+    //  mass is destroyed rather than moved and charged to
+    //  cumulativeFlipMass_. Writing por = 1 over mass still present is not
+    //  an option: the solid flux limiter reads that link to size a cell's
+    //  room.
     Switch emptyFlippedCells_;
 
     //- Switch for Eulerian advection of the solid fields by Us
@@ -213,9 +194,8 @@ protected:
 
     //- Switch for the fail-fast guards on the solid state
     //  When set, an impossible porosity, Ym, solid enthalpy or solid
-    //  temperature aborts the run at the equation that produced it,
-    //  rather than propagating into a downstream floating-point
-    //  exception whose location says nothing about the cause.
+    //  temperature aborts at the equation that produced it rather than
+    //  propagating into a downstream exception that says nothing.
     Switch failOnInvalidSolidState_;
 
     //- Relative slack admitted by the fail-fast guards [-]
@@ -224,12 +204,9 @@ protected:
     scalar solidStateTolerance_;
 
     //- Bound on a physically credible solid temperature [K]
-    //  Ts is a ratio, solidH_/(totalYm*Cp), and says nothing credible
-    //  about a cell whose solid inventory is vanishing: the linear
-    //  solver's error over a collapsing heat capacity is a temperature of
-    //  any size at all. This is the upper end of the guard window, and
-    //  solidStateTolerance_ times it is the allowance below zero at the
-    //  lower end.
+    //  Ts is a ratio, solidH_/(totalYm*Cp), and says nothing credible about
+    //  a cell whose solid inventory is vanishing. Upper end of the guard
+    //  window; solidStateTolerance_ times it is the allowance below zero.
     scalar maxSolidTemperature_;
 
     //- Criterion for bed motion porosity model
@@ -267,10 +244,9 @@ protected:
         volScalarField chemistrySh_;
 
         //- Porosity growth from chemistry [1/s], diagnostic only
-        //  -sum_i RRs_i/rho_i, i.e. exactly the time derivative of the
-        //  solid volume fraction the chemistry removes. It is reported but
-        //  never applied: the porosity is recovered from Ym_, which the
-        //  same rates have already changed in solveSpeciesMass().
+        //  -sum_i RRs_i/rho_i, the time derivative of the solid volume
+        //  fraction chemistry removes. Reported, never applied: the
+        //  porosity is recovered from Ym_, which RRs_i has already moved.
         volScalarField porositySource_;
 
         //- Masks for equations
@@ -332,10 +308,8 @@ protected:
         scalar cumulativeYmOutflow_;
 
         //- Cumulative mass created by the max(0) clip on Ym [kg]
-        //  The clip fabricates mass whenever a numerical undershoot
-        //  drives Ym negative. Accumulated in solveSpeciesMass() and
-        //  reported with the mass budget so the budget cannot look
-        //  closed while the clip is quietly paying for it.
+        //  Reported with the mass budget, so the budget cannot look closed
+        //  while the clip is quietly paying for it.
         scalar cumulativeYmClip_;
 
         //- Cumulative solid mass destroyed by emptying flipped cells [kg]
@@ -369,9 +343,8 @@ protected:
 
             //- Recover the porosity from the transported solid mass
             //  1 - porosity = sum_i Ym_i/rho_i, exactly. Also refreshes the
-            //  whereIs_ masks and runs the bed-motion model. Must be the
-            //  last stage of evolveRegion(): it divides by rho_, which
-            //  postSolveEnergy() refreshes.
+            //  whereIs_ masks and runs the bed-motion model. Last stage of
+            //  evolveRegion(): it divides by the rho_ postSolveEnergy() sets.
             void recoverPorosity();
 
 public:
