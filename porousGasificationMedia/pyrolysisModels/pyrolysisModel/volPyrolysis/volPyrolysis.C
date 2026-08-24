@@ -212,23 +212,16 @@ void volPyrolysis::accumulateFaceFlux
     }
 }
 
-void volPyrolysis::limitSolidVolFlux()
+void volPyrolysis::solidFluxBudgets
+(
+    PtrList<surfaceScalarField>& phiYm,
+    PtrList<volScalarField>& RRsolid,
+    tmp<surfaceScalarField>& tPhiYmTotal,
+    tmp<surfaceScalarField>& tPhiSolidVol,
+    tmp<volScalarField>& tAlphaS,
+    tmp<volScalarField>& tRRpor
+)
 {
-    phiSolid_ = solidVolFlux();
-
-    if (!active_ || !advectSolidFields_ || nSolidFluxLimiterCorrectors_ < 1)
-    {
-        return;
-    }
-
-    const labelUList& owner = mesh_.owner();
-    const labelUList& neighbour = mesh_.neighbour();
-    const scalarField& V = mesh_.V();
-    const label nCells = mesh_.nCells();
-    const scalar deltaT = time_.deltaTValue();
-    const scalar rDeltaT = 1.0/deltaT;
-    const scalar alphaSMax = 1.0 - minPorosity_;
-
     const dimensionedScalar rhoSolidFloor
     (
         "rhoSolidFloor",
@@ -236,13 +229,8 @@ void volPyrolysis::limitSolidVolFlux()
         SMALL
     );
 
-    // The budgets are written in the terms of the equation they limit,
-    // Ym_i^new = Ym_i + dt*(RRs_i - div(phiYm_i)), so phiYm carries the
-    // transport scheme's own face fluxes. Scaling phiSolid_ scales every
-    // one of them by the same factor: the scheme reads the flux only for
-    // the upwind direction, which a non-negative scale leaves alone.
-    PtrList<surfaceScalarField> phiYm(Ym_.size());
-    PtrList<volScalarField> RRsolid(Ym_.size());
+    phiYm.setSize(Ym_.size());
+    RRsolid.setSize(Ym_.size());
 
     forAll(Ym_, i)
     {
@@ -258,7 +246,9 @@ void volPyrolysis::limitSolidVolFlux()
     }
 
     volScalarField totalYm(Ym_[0]);
-    surfaceScalarField phiYmTotal(phiYm[0]);
+
+    tPhiYmTotal = tmp<surfaceScalarField>(new surfaceScalarField(phiYm[0]));
+    surfaceScalarField& phiYmTotal = tPhiYmTotal.ref();
 
     for (label i = 1; i < Ym_.size(); ++i)
     {
@@ -269,167 +259,192 @@ void volPyrolysis::limitSolidVolFlux()
     // Read from the mass, not from porosity_: the mass is what the limiter
     // moves, and recoverPorosity() writes porosity_ from this same
     // expression - through a "< 1e-4 -> 0" clip that is a second writer.
-    const volScalarField alphaS(totalYm/max(rho_, rhoSolidFloor));
+    tAlphaS = totalYm/max(rho_, rhoSolidFloor);
 
     // Chemistry fills and empties cells too. RRpor = -sum_i RRs_i/rho_i is
     // d(porosity)/dt, so -RRpor is d(alphaS)/dt and a cell that chemistry
     // is densifying has that much less room for what the flux brings.
-    const volScalarField RRpor(solidChemistry_->RRpor(T_));
+    tRRpor = solidChemistry_->RRpor(T_);
 
     // The volume an arriving mass occupies is set by where it came from, so
     // the specific volume is taken upwind of the flux: exact where the
     // species share a density, second order in the composition step.
-    const surfaceScalarField phiSolidVol
-    (
+    tPhiSolidVol =
         phiYmTotal
        *upwind<scalar>(mesh_, phiSolid_).interpolate
         (
             1.0/max(rho_, rhoSolidFloor)
-        )
-    );
+        );
+}
 
-    scalarField allLambda(mesh_.nFaces(), 1.0);
+void volPyrolysis::solidDonorLimit
+(
+    const PtrList<surfaceScalarField>& phiYm,
+    const PtrList<volScalarField>& RRsolid,
+    const surfaceScalarField& lambda,
+    const bool credit,
+    scalarField& lambdaDonor
+) const
+{
+    const scalarField& V = mesh_.V();
+    const scalar rDeltaT = 1.0/time_.deltaTValue();
 
-    slicedSurfaceScalarField lambda
-    (
-        IOobject
+    scalarField sumOut(mesh_.nCells(), Zero);
+    scalarField sumIn(mesh_.nCells(), Zero);
+
+    lambdaDonor = 1.0;
+
+    forAll(Ym_, i)
+    {
+        accumulateFaceFlux(phiYm[i], lambda, sumOut, sumIn);
+
+        forAll(lambdaDonor, cellI)
+        {
+            // Mass of specie i the cell can part with over this step:
+            // what it holds, less what chemistry takes from it.
+            const scalar canLeave = max
+            (
+                0.0,
+                (Ym_[i][cellI]*rDeltaT + RRsolid[i][cellI])*V[cellI]
+              + (credit ? sumIn[cellI] : 0.0)
+            );
+
+            // Nothing leaving means nothing to scale. A factor of zero
+            // here would report a limit on faces carrying no solid at all.
+            if (sumOut[cellI] > 0.0)
+            {
+                lambdaDonor[cellI] = min
+                (
+                    lambdaDonor[cellI],
+                    min(1.0, canLeave/sumOut[cellI])
+                );
+            }
+        }
+    }
+}
+
+void volPyrolysis::solidReceiverLimit
+(
+    const surfaceScalarField& phiSolidVol,
+    const volScalarField& alphaS,
+    const volScalarField& RRpor,
+    const surfaceScalarField& lambda,
+    const bool credit,
+    scalarField& lambdaReceiver
+) const
+{
+    const scalarField& V = mesh_.V();
+    const scalar rDeltaT = 1.0/time_.deltaTValue();
+    const scalar alphaSMax = 1.0 - minPorosity_;
+
+    scalarField sumOut(mesh_.nCells(), Zero);
+    scalarField sumIn(mesh_.nCells(), Zero);
+
+    accumulateFaceFlux(phiSolidVol, lambda, sumOut, sumIn);
+
+    forAll(lambdaReceiver, cellI)
+    {
+        // Solid volume the cell still has room for over this step, after
+        // chemistry has taken its share of it.
+        const scalar room = max
         (
-            "solidFluxLimiter",
-            time_.timeName(),
-            mesh_,
-            IOobject::NO_READ,
-            IOobject::NO_WRITE,
-            false
-        ),
-        mesh_,
-        dimless,
-        allLambda,
-        false               // slice the couples, so syncFaceList sees them
-    );
+            0.0,
+            ((alphaSMax - alphaS[cellI])*rDeltaT + RRpor[cellI])*V[cellI]
+          + (credit ? sumOut[cellI] : 0.0)
+        );
+
+        lambdaReceiver[cellI] =
+            sumIn[cellI] > 0.0
+          ? min(1.0, room/sumIn[cellI])
+          : 1.0;
+    }
+}
+
+void volPyrolysis::applySolidFaceLimit
+(
+    const surfaceScalarField& phiYmTotal,
+    const scalarField& lambdaDonor,
+    const scalarField& lambdaReceiver,
+    scalarField& allLambda,
+    surfaceScalarField& lambda
+) const
+{
+    const labelUList& owner = mesh_.owner();
+    const labelUList& neighbour = mesh_.neighbour();
 
     scalarField& lambdaIn = lambda;
     surfaceScalarField::Boundary& lambdaBf = lambda.boundaryFieldRef();
 
-    scalarField lambdaDonor(nCells, 1.0);
-    scalarField lambdaReceiver(nCells, 1.0);
-    scalarField sumOut(nCells, Zero);
-    scalarField sumIn(nCells, Zero);
-
-    for (label sweep = 0; sweep < nSolidFluxLimiterCorrectors_; ++sweep)
+    forAll(lambdaIn, faceI)
     {
-        // All but the last sweep credit a cell with the flux crossing its
-        // faces the other way - what arrives may also leave, what leaves
-        // makes room - which lets a jam travel back up the bed inside one
-        // step. The last sweep drops the credit, and its bound is the one
-        // that holds for the flux finally applied.
-        const bool credit = (sweep < nSolidFluxLimiterCorrectors_ - 1);
+        const label own = owner[faceI];
+        const label nei = neighbour[faceI];
 
-        lambdaDonor = 1.0;
-
-        forAll(Ym_, i)
+        if (phiYmTotal[faceI] > 0.0)
         {
-            accumulateFaceFlux(phiYm[i], lambda, sumOut, sumIn);
-
-            forAll(lambdaDonor, cellI)
-            {
-                // Mass of specie i the cell can part with over this step:
-                // what it holds, less what chemistry takes from it.
-                const scalar canLeave = max
-                (
-                    0.0,
-                    (Ym_[i][cellI]*rDeltaT + RRsolid[i][cellI])*V[cellI]
-                  + (credit ? sumIn[cellI] : 0.0)
-                );
-
-                // Nothing leaving means nothing to scale. A factor of
-                // zero here would report a limit on faces carrying no
-                // solid at all.
-                if (sumOut[cellI] > 0.0)
-                {
-                    lambdaDonor[cellI] = min
-                    (
-                        lambdaDonor[cellI],
-                        min(1.0, canLeave/sumOut[cellI])
-                    );
-                }
-            }
-        }
-
-        accumulateFaceFlux(phiSolidVol, lambda, sumOut, sumIn);
-
-        forAll(lambdaReceiver, cellI)
-        {
-            // Solid volume the cell still has room for over this step,
-            // after chemistry has taken its share of it.
-            const scalar room = max
+            lambdaIn[faceI] = min
             (
-                0.0,
-                ((alphaSMax - alphaS[cellI])*rDeltaT + RRpor[cellI])*V[cellI]
-              + (credit ? sumOut[cellI] : 0.0)
+                lambdaIn[faceI],
+                min(lambdaDonor[own], lambdaReceiver[nei])
             );
-
-            lambdaReceiver[cellI] =
-                sumIn[cellI] > 0.0
-              ? min(1.0, room/sumIn[cellI])
-              : 1.0;
         }
-
-        // Each face takes the tighter of its two ends, one factor per
-        // face: both sides then move the same solid and the scaling
-        // neither creates nor destroys mass.
-        forAll(lambdaIn, faceI)
+        else
         {
-            const label own = owner[faceI];
-            const label nei = neighbour[faceI];
-
-            if (phiYmTotal[faceI] > 0.0)
-            {
-                lambdaIn[faceI] = min
-                (
-                    lambdaIn[faceI],
-                    min(lambdaDonor[own], lambdaReceiver[nei])
-                );
-            }
-            else
-            {
-                lambdaIn[faceI] = min
-                (
-                    lambdaIn[faceI],
-                    min(lambdaDonor[nei], lambdaReceiver[own])
-                );
-            }
+            lambdaIn[faceI] = min
+            (
+                lambdaIn[faceI],
+                min(lambdaDonor[nei], lambdaReceiver[own])
+            );
         }
-
-        forAll(lambdaBf, patchI)
-        {
-            fvsPatchScalarField& lambdaP = lambdaBf[patchI];
-            const fvsPatchScalarField& phiP =
-                phiYmTotal.boundaryField()[patchI];
-            const labelUList& faceCells =
-                mesh_.boundary()[patchI].faceCells();
-
-            forAll(lambdaP, i)
-            {
-                // Only this side of the patch is reachable here. A coupled
-                // patch takes the other side's factor from the sync below;
-                // a real boundary has no other side, so an inlet is held by
-                // the receiving cell's room and an outlet by what the
-                // draining cell holds.
-                lambdaP[i] = min
-                (
-                    lambdaP[i],
-                    phiP[i] > 0.0
-                  ? lambdaDonor[faceCells[i]]
-                  : lambdaReceiver[faceCells[i]]
-                );
-            }
-        }
-
-        syncTools::syncFaceList(mesh_, allLambda, minEqOp<scalar>());
     }
 
-    // A limiter that acts is Us asking the bed for something it cannot do,
-    // so it reports when it acts and is quiet when it does not.
+    forAll(lambdaBf, patchI)
+    {
+        fvsPatchScalarField& lambdaP = lambdaBf[patchI];
+        const fvsPatchScalarField& phiP =
+            phiYmTotal.boundaryField()[patchI];
+        const labelUList& faceCells =
+            mesh_.boundary()[patchI].faceCells();
+
+        forAll(lambdaP, i)
+        {
+            // Only this side of the patch is reachable here. A coupled
+            // patch takes the other side's factor from the sync below; a
+            // real boundary has no other side, so an inlet is held by the
+            // receiving cell's room and an outlet by what the draining
+            // cell holds.
+            lambdaP[i] = min
+            (
+                lambdaP[i],
+                phiP[i] > 0.0
+              ? lambdaDonor[faceCells[i]]
+              : lambdaReceiver[faceCells[i]]
+            );
+        }
+    }
+
+    // lambda slices allLambda, patch faces included, so the two sides of a
+    // coupled face meet here and both keep the tighter factor.
+    syncTools::syncFaceList(mesh_, allLambda, minEqOp<scalar>());
+}
+
+void volPyrolysis::reportSolidFluxLimiter
+(
+    const PtrList<surfaceScalarField>& phiYm,
+    const PtrList<volScalarField>& RRsolid,
+    const surfaceScalarField& phiSolidVol,
+    const volScalarField& alphaS,
+    const volScalarField& RRpor,
+    const surfaceScalarField& lambda
+) const
+{
+    const scalarField& V = mesh_.V();
+    const scalar deltaT = time_.deltaTValue();
+    const scalar alphaSMax = 1.0 - minPorosity_;
+
+    const scalarField& lambdaIn = lambda;
+    const surfaceScalarField::Boundary& lambdaBf = lambda.boundaryField();
+
     scalar nLimited = 0.0;
     scalar withheld = 0.0;
     scalar minLambda = 1.0;
@@ -475,6 +490,9 @@ void volPyrolysis::limitSolidVolFlux()
     // from. The sweep count is capped, so this is the honest answer.
     scalar maxUndershoot = 0.0;
     scalar YmScale = SMALL;
+
+    scalarField sumOut(mesh_.nCells(), Zero);
+    scalarField sumIn(mesh_.nCells(), Zero);
 
     forAll(Ym_, i)
     {
@@ -539,6 +557,106 @@ void volPyrolysis::limitSolidVolFlux()
 
         Info<< endl;
     }
+}
+
+void volPyrolysis::limitSolidVolFlux()
+{
+    phiSolid_ = solidVolFlux();
+
+    if (!active_ || !advectSolidFields_ || nSolidFluxLimiterCorrectors_ < 1)
+    {
+        return;
+    }
+
+    // The budgets are written in the terms of the equation they limit,
+    // Ym_i^new = Ym_i + dt*(RRs_i - div(phiYm_i)), so phiYm carries the
+    // transport scheme's own face fluxes. Scaling phiSolid_ scales every
+    // one of them by the same factor: the scheme reads the flux only for
+    // the upwind direction, which a non-negative scale leaves alone.
+    PtrList<surfaceScalarField> phiYm;
+    PtrList<volScalarField> RRsolid;
+    tmp<surfaceScalarField> tPhiYmTotal;
+    tmp<surfaceScalarField> tPhiSolidVol;
+    tmp<volScalarField> tAlphaS;
+    tmp<volScalarField> tRRpor;
+
+    solidFluxBudgets
+    (
+        phiYm,
+        RRsolid,
+        tPhiYmTotal,
+        tPhiSolidVol,
+        tAlphaS,
+        tRRpor
+    );
+
+    const surfaceScalarField& phiYmTotal = tPhiYmTotal();
+    const surfaceScalarField& phiSolidVol = tPhiSolidVol();
+    const volScalarField& alphaS = tAlphaS();
+    const volScalarField& RRpor = tRRpor();
+
+    scalarField allLambda(mesh_.nFaces(), 1.0);
+
+    slicedSurfaceScalarField lambda
+    (
+        IOobject
+        (
+            "solidFluxLimiter",
+            time_.timeName(),
+            mesh_,
+            IOobject::NO_READ,
+            IOobject::NO_WRITE,
+            false
+        ),
+        mesh_,
+        dimless,
+        allLambda,
+        false               // slice the couples, so syncFaceList sees them
+    );
+
+    scalarField lambdaDonor(mesh_.nCells(), 1.0);
+    scalarField lambdaReceiver(mesh_.nCells(), 1.0);
+
+    for (label sweep = 0; sweep < nSolidFluxLimiterCorrectors_; ++sweep)
+    {
+        // All but the last sweep credit a cell with the flux crossing its
+        // faces the other way - what arrives may also leave, what leaves
+        // makes room - which lets a jam travel back up the bed inside one
+        // step. The last sweep drops the credit, and its bound is the one
+        // that holds for the flux finally applied.
+        const bool credit = (sweep < nSolidFluxLimiterCorrectors_ - 1);
+
+        solidDonorLimit(phiYm, RRsolid, lambda, credit, lambdaDonor);
+
+        solidReceiverLimit
+        (
+            phiSolidVol,
+            alphaS,
+            RRpor,
+            lambda,
+            credit,
+            lambdaReceiver
+        );
+
+        applySolidFaceLimit
+        (
+            phiYmTotal,
+            lambdaDonor,
+            lambdaReceiver,
+            allLambda,
+            lambda
+        );
+    }
+
+    reportSolidFluxLimiter
+    (
+        phiYm,
+        RRsolid,
+        phiSolidVol,
+        alphaS,
+        RRpor,
+        lambda
+    );
 
     phiSolid_ *= lambda;
 }
