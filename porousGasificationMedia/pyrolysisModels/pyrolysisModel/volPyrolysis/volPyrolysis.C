@@ -920,16 +920,6 @@ void volPyrolysis::postSolveEnergy()
             {
                 Info<< " no solid phase " << endl;
             }
-            if (maxTemp > 6000)
-            {
-               forAll(T_,cellI)
-               {
-                   if (T_[cellI] > 2000)
-                   {
-                      Info << T_[cellI] << " " << porosity_[cellI] << " " << solidH_()[cellI] << " " << rhoCp[cellI] << " " << weight[cellI] << endl; 
-                   }
-               }
-            }
         }
     }
 }
