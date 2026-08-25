@@ -1816,7 +1816,21 @@ void volPyrolysis::postSolveEnergy()
             // the mask is refreshed a stage later, so it still reads empty in
             // a cell that has just taken solid, and zeroing T_ while keeping
             // its enthalpy makes the next step start from 0 K.
-            T_ = solidH_()/rhoCp;
+            if (gasTemperatureBelowCriticalPorosity_)
+            {
+                // Emptier than critPorosity_, the cell follows the gas rather
+                // than its own vanishing heat capacity. pos0 and neg, not pos
+                // and neg: pos(0) and neg(0) are both zero, which would leave
+                // a cell sitting exactly at critPorosity_ with Ts = 0.
+                const volScalarField weight(critPorosity_ - porosity_);
+
+                T_ = solidH_()/rhoCp*pos0(weight)
+                   + gasThermo_.T()*neg(weight);
+            }
+            else
+            {
+                T_ = solidH_()/rhoCp;
+            }
 
             if (failOnInvalidSolidState_)
             {
@@ -1973,6 +1987,7 @@ volPyrolysis::volPyrolysis
     replenishSwitch_(false),
     emptyFlippedCells_(false),
     advectSolidFields_(true),
+    gasTemperatureBelowCriticalPorosity_(false),
     failOnInvalidSolidState_(true),
     solidStateTolerance_(1e-8),
     maxSolidTemperature_(1e5),
@@ -2184,6 +2199,8 @@ volPyrolysis::volPyrolysis
     emptyFlippedCells_ =
         coeffs().lookupOrDefault("emptyFlippedCells",false);
     advectSolidFields_ = coeffs().lookupOrDefault("advectSolidFields",true);
+    gasTemperatureBelowCriticalPorosity_ =
+        coeffs().lookupOrDefault("gasTemperatureBelowCriticalPorosity",false);
     failOnInvalidSolidState_ =
         coeffs().lookupOrDefault("failOnInvalidSolidState",true);
     solidStateTolerance_ =
@@ -2204,7 +2221,7 @@ volPyrolysis::volPyrolysis
     Info << endl;
     Info << "subintegrateHeatTransfer " << subintegrateSwitch_ << endl;
     Info << "bedCollapse              " << bedCollapseSwitch_    << endl;
-    if (bedCollapseSwitch_) 
+    if (bedCollapseSwitch_ || gasTemperatureBelowCriticalPorosity_)
     {
         Info << "criticalPorosity         " << critPorosity_  << endl;
     }
@@ -2214,6 +2231,8 @@ volPyrolysis::volPyrolysis
     Info << "replenish                " << replenishSwitch_    << endl;
     Info << "emptyFlippedCells        " << emptyFlippedCells_  << endl;
     Info << "advectSolidFields        " << advectSolidFields_  << endl;
+    Info << "gasTemperatureBelowCriticalPorosity  "
+         << gasTemperatureBelowCriticalPorosity_ << endl;
     Info << "failOnInvalidSolidState  " << failOnInvalidSolidState_ << endl;
     Info << "solidStateTolerance      " << solidStateTolerance_ << endl;
     Info << "maxSolidTemperature      " << maxSolidTemperature_ << endl;

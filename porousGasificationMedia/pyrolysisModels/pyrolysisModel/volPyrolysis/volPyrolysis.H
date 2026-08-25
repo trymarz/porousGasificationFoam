@@ -291,6 +291,15 @@ protected:
     //  - and so, through the mass, is the recovered porosity.
     Switch advectSolidFields_;
 
+    //- Switch for taking a nearly-empty cell's solid temperature from the gas
+    //  Above critPorosity_ a cell holds too little solid for
+    //  Ts = solidH/(totalYm*Cp) to say anything: the ratio is a frozen
+    //  numerator over a vanishing denominator. Set, such a cell reports the
+    //  gas temperature, and preSolveEnergy()'s solidH = rhoCp*Ts then drops
+    //  the enthalpy it was holding - energy destroyed rather than moved, and
+    //  charged to no budget. Unset, the ratio stands as computed.
+    Switch gasTemperatureBelowCriticalPorosity_;
+
     //- Switch for the fail-fast guards on the solid state
     //  When set, an impossible porosity, Ym, solid enthalpy or solid
     //  temperature aborts at the equation that produced it rather than
