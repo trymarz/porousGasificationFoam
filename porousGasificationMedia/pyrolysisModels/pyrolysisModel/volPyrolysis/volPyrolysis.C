@@ -136,18 +136,18 @@ void volPyrolysis::solvePorosity()
         volScalarField& por = porosity_;
 
         surfaceScalarField phiUs = mesh_.Sf() & fvc::interpolate(Us_,"Us");
-        
-        surfaceScalarField Us (mesh_.Sf() & fvc::interpolate(Us_, "Us"));
 
-        // requires setting same stuff as for diffusion to release flux at the ends of porous media
-        // it would be best to solve 1-porosity as it gives 0 flux naturally when empty?? 
+        // Us_ advects solid, so flux must scale with solid fraction
+        // (1-por), not por. From d(1-por)/dt + div(phiUs*(1-por)) =
+        // -porositySource_, negating and expanding div(phiUs*(1-por))
+        // gives d(por)/dt = porositySource_ + div(phiUs) - div(phiUs,por).
         fvScalarMatrix porosityEqn
         (
             fvm::ddt(por)
          ==
             porositySource_
-          + fvc::div(Us)
-          - fvc::div(Us, por, "div(phiSolid)")
+          + fvc::div(phiUs)
+          - fvc::div(phiUs, por, "div(phiSolid)")
         );
 
         porosityEqn.solve("porosity");
