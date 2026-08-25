@@ -1887,7 +1887,7 @@ void volPyrolysis::postSolveEnergy()
 
                     reportInvalidSolidState
                     (
-                        "Ts = whereIs*solidH/rhoCp in postSolveEnergy()",
+                        "the Ts recovery in postSolveEnergy()",
                         T_,
                         badCell,
                         context.str()
