@@ -144,7 +144,8 @@ void volPyrolysis::solvePorosity()
             fvm::ddt(por)
          ==
             porositySource_
-          - fvc::div(phiUs,por,"div(phiSolid)")
+          + fvc::div(Us)
+          - fvc::div(Us, por, "div(phiSolid)")
         );
 
         porosityEqn.solve("porosity");
