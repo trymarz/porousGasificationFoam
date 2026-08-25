@@ -1719,14 +1719,13 @@ void volPyrolysis::preSolveEnergy()
             // combination of temperatures already present, while a donor
             // sheds mass and enthalpy in one ratio and keeps its own.
             // Upwind and not div(phiSolid) deliberately: a limiter on hs
-            // would put face values outside the donor-receiver range. Below
-            // the floor pos() carries no enthalpy - no mass, none to carry -
-            // which also keeps the ratio finite where a patch prescribes
-            // solidH inconsistently with Ym.
-            volScalarField hs
-            (
-                solidH_()*pos(totalYm - YmFloor)/max(totalYm, YmFloor)
-            );
+            // would put face values outside the donor-receiver range.
+            // Cp*T_ and not solidH/totalYm: the same ratio wherever rhoCp is
+            // unclamped, but floored where T_ is floored and nowhere else. A
+            // mass floor of its own strands the enthalpy of a cell that has
+            // drained below it while solveSpeciesMass() keeps taking its
+            // mass. At a patch it is what fixedSolidH and fixedYm imply.
+            volScalarField hs(solidThermo_.Cp()*T_);
 
             dimensionedScalar ovDt = pow(time_.deltaT(),-1);
             fvScalarMatrix sHEqn
