@@ -273,6 +273,23 @@ protected:
     //- Switch for bed replenishment
     Switch replenishSwitch_;
 
+    //- Switch for bed motion that moves the solid rather than the porosity
+    //  Bed motion shifts a column of solid down a vertical route and leaves
+    //  the cell at the top of it empty. Unset, it does that by writing
+    //  porosity: the void scales by the cell-volume ratio down the route and
+    //  is set to 1 at the top, over the mass those cells still hold. Since
+    //  recoverPorosity() derives the porosity from the mass, every one of
+    //  those writes is contradicted within the step and discarded at the
+    //  next recovery, so the bed moves nothing - and the solid enthalpy is
+    //  not moved at all, so what mass does arrive arrives cold.
+    //  Set, the mass is what moves: Ym_ carries the same cell-volume ratio
+    //  the porosity write applies to the solid volume, solidH_ travels with
+    //  it, and the top of the route is emptied for real, so por = 1 is what
+    //  1 - por = sum_i Ym_i/rho_i gives. With replenishSwitch_ unset the
+    //  solid at the foot of the route has nowhere to go and is charged to
+    //  cumulativeCollapseMass_.
+    Switch collapseMovesSolidMass_;
+
     //- Switch for emptying a flipped cell rather than leaving its solid
     //  A cell above critPorosity_ with Us pointing into the solid is a flip
     //  candidate - the trailing edge of a bed being dragged away. Unset, it
@@ -443,6 +460,18 @@ protected:
         //  budget so a conserved-looking total cannot hide the solid this
         //  removes.
         scalar cumulativeFlipMass_;
+
+        //- Cumulative solid mass shed at the foot of a bed-motion route [kg]
+        //  Nonzero only under collapseMovesSolidMass_. The cell the collapse
+        //  was called for is overwritten by the one above it, so what it
+        //  held leaves the domain; every other cell on the route is read
+        //  into its neighbour before being overwritten, so on a route that
+        //  lies within one processor this is the whole of what the shift
+        //  loses. A route spanning processors also creates mass - see the
+        //  cross-processor branch in recoverPorosity() - so there the budget
+        //  does not close on this figure alone. Reported with the mass
+        //  budget, so neither can hide in a conserved-looking total.
+        scalar cumulativeCollapseMass_;
 
 
     // Protected member functions

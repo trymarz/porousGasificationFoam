@@ -997,6 +997,7 @@ void volPyrolysis::recoverPorosity()
                 // and distributes them to execution on local processors
                 List<List<label>> realRoutes = {};
                 scalar replenishedMass = 0;
+                scalar collapsedMass = 0;
                 if (Pstream::master())
                 {
 
@@ -1034,6 +1035,13 @@ void volPyrolysis::recoverPorosity()
                 porosityArch_.correctBoundaryConditions();
                 T_.correctBoundaryConditions();
                 rho_.correctBoundaryConditions();
+                if (collapseMovesSolidMass_)
+                {
+                    // The solid enthalpy travels with the mass across a
+                    // processor boundary too, so its neighbour values have
+                    // to be current before any route is walked.
+                    solidH_().correctBoundaryConditions();
+                }
                 for (label i = 0; i < Ys_.size(); ++i)
                 {
                     Ym_[i].correctBoundaryConditions();
@@ -1045,6 +1053,32 @@ void volPyrolysis::recoverPorosity()
                     label maxLocalGlobalI = globalIndex[Pstream::myProcNo()][globalIndex[Pstream::myProcNo()].size()-1];
                     bool currentI = false;
                     bool previousI = false;
+                    if
+                    (
+                        collapseMovesSolidMass_
+                     && (minLocalGlobalI <= realRoutes[routeI][0])
+                     && (realRoutes[routeI][0] <= maxLocalGlobalI)
+                     && (realRoutes[routeI].size() > 1 || !replenishSwitch_)
+                    )
+                    {
+                        // The foot of the route is the cell the collapse was
+                        // called for, and what it holds leaves the domain:
+                        // overwritten by the cell above it on a route longer
+                        // than one cell, zeroed below on a route of exactly
+                        // one - which is the foot and the top at once, and is
+                        // left untouched if the bed is being replenished.
+                        // It is all the shift loses: every other cell on the
+                        // route is read into its neighbour before it is
+                        // overwritten. Charged here, before the first write.
+                        const label footCell =
+                            realRoutes[routeI][0] - minLocalGlobalI;
+
+                        forAll(Ym_, i)
+                        {
+                            collapsedMass +=
+                                Ym_[i][footCell]*cellVolume_[footCell];
+                        }
+                    }
                     for (label stepI = 0; stepI < realRoutes[routeI].size(); stepI++)
                     {
                         if ( (minLocalGlobalI <= realRoutes[routeI][stepI]) and (realRoutes[routeI][stepI] <= maxLocalGlobalI))
@@ -1077,9 +1111,30 @@ void volPyrolysis::recoverPorosity()
                             rho_[realRoutes[routeI][stepI-1] - minLocalGlobalI] = rho_[realRoutes[routeI][stepI] - minLocalGlobalI];
                             // Transfer only the transported Ym_; Ys_ is
                             // re-derived once after the whole route loop.
-                            for (label i = 0; i < Ys_.size(); ++i)
+                            // Ym_ is mass per unit total cell volume, so the
+                            // ratio the porosity write above applies to the
+                            // solid volume applies to the mass unchanged,
+                            // and the enthalpy goes with the mass it belongs
+                            // to. Without either, the mass and the void
+                            // disagree on any mesh whose cells differ in
+                            // size, and what solid does arrive arrives cold.
+                            if (collapseMovesSolidMass_)
                             {
-                                Ym_[i][realRoutes[routeI][stepI-1] - minLocalGlobalI] = Ym_[i][realRoutes[routeI][stepI] - minLocalGlobalI];
+                                for (label i = 0; i < Ys_.size(); ++i)
+                                {
+                                    Ym_[i][realRoutes[routeI][stepI-1] - minLocalGlobalI] =
+                                        Ym_[i][realRoutes[routeI][stepI] - minLocalGlobalI]*cellVolumeRatio;
+                                }
+
+                                solidH_()[realRoutes[routeI][stepI-1] - minLocalGlobalI] =
+                                    solidH_()[realRoutes[routeI][stepI] - minLocalGlobalI]*cellVolumeRatio;
+                            }
+                            else
+                            {
+                                for (label i = 0; i < Ys_.size(); ++i)
+                                {
+                                    Ym_[i][realRoutes[routeI][stepI-1] - minLocalGlobalI] = Ym_[i][realRoutes[routeI][stepI] - minLocalGlobalI];
+                                }
                             }
                             
                             //scalar neededMass = porosity_[realRoutes[routeI][stepI-1] - minLocalGlobalI]*(1. - porosity_[realRoutes[routeI][stepI] - minLocalGlobalI])
@@ -1185,9 +1240,33 @@ void volPyrolysis::recoverPorosity()
                                          rho_[realRoutes[routeI][stepI-1] - minLocalGlobalI] = rho_.boundaryField()[patchID].patchNeighbourField()()[faceID];
                                          // Transfer only the transported Ym_;
                                          // Ys_ is re-derived after the loop.
-                                         for (label i = 0; i < Ys_.size(); ++i)
+                                         // Ratio and enthalpy as in the
+                                         // on-processor branch above.
+                                         // The neighbour values read here
+                                         // are those of the single
+                                         // correctBoundaryConditions() ahead
+                                         // of the route loop, so a cell an
+                                         // earlier route already emptied
+                                         // still reads full from the other
+                                         // side and its solid is duplicated:
+                                         // measured at 1.3e-09 kg against a
+                                         // 2.0e-07 kg inventory over 2 s of
+                                         // charOnlyMoveCases/parallel-recon
+                                         // decomposed across the routes.
+                                         if (collapseMovesSolidMass_)
                                          {
-                                             Ym_[i][realRoutes[routeI][stepI-1] - minLocalGlobalI] = Ym_[i].boundaryField()[patchID].patchNeighbourField()()[faceID];
+                                             for (label i = 0; i < Ys_.size(); ++i)
+                                             {
+                                                 Ym_[i][realRoutes[routeI][stepI-1] - minLocalGlobalI] = Ym_[i].boundaryField()[patchID].patchNeighbourField()()[faceID]*cellVolumeRatio;
+                                             }
+                                             solidH_()[realRoutes[routeI][stepI-1] - minLocalGlobalI] = solidH_().boundaryField()[patchID].patchNeighbourField()()[faceID]*cellVolumeRatio;
+                                         }
+                                         else
+                                         {
+                                             for (label i = 0; i < Ys_.size(); ++i)
+                                             {
+                                                 Ym_[i][realRoutes[routeI][stepI-1] - minLocalGlobalI] = Ym_[i].boundaryField()[patchID].patchNeighbourField()()[faceID];
+                                             }
                                          }
                                      }
                                  }
@@ -1204,6 +1283,33 @@ void volPyrolysis::recoverPorosity()
                         //this lines are to stop replenishing
                         if (not replenishSwitch_)
                         {
+                            // Nothing falls in from above the top of the
+                            // route, so it ends the step empty. Under
+                            // collapseMovesSolidMass_ that is made true of
+                            // the mass as well: the specie masses and the
+                            // solid enthalpy go, T_ with them because it is
+                            // their ratio, and por = 1 is then what
+                            // 1 - por = sum_i Ym_i/rho_i gives. Nothing is
+                            // charged here - what this cell held was copied
+                            // one step down the route before it was zeroed;
+                            // the mass the shift loses is the foot of the
+                            // route, charged above. Unset, only the porosity
+                            // is written, and the recovery recomputes it
+                            // from the untouched mass at the next step: the
+                            // cell is declared empty and stays full.
+                            if (collapseMovesSolidMass_)
+                            {
+                                const label topCell = realRoutes[routeI][realRoutes[routeI].size() - 1] - minLocalGlobalI;
+
+                                forAll(Ym_, i)
+                                {
+                                    Ym_[i][topCell] = 0.0;
+                                }
+
+                                solidH_()[topCell] = 0.0;
+                                T_[topCell] = 0.0;
+                            }
+
                             porosity_[realRoutes[routeI][realRoutes[routeI].size() - 1] - minLocalGlobalI] = 1.;
                             porosityArch_[realRoutes[routeI][realRoutes[routeI].size() - 1] - minLocalGlobalI] = 1.;
                         }
@@ -1219,6 +1325,8 @@ void volPyrolysis::recoverPorosity()
                 }
 
                 reduce(replenishedMass, sumOp<scalar>());
+                reduce(collapsedMass, sumOp<scalar>());
+                cumulativeCollapseMass_ += collapsedMass;
                 if (Pstream::master())
                 {
                     totRepMass_ += replenishedMass;
@@ -1483,7 +1591,9 @@ void volPyrolysis::solveSpeciesMass()
         Info<< "solid mass budget: sum(Ym_i * V) = " << totalYmMass
             << ", initial = " << initialTotalYmMass_
             << ", fabricated by clip = " << cumulativeYmClip_
-            << ", destroyed by flip = " << cumulativeFlipMass_ << endl;
+            << ", destroyed by flip = " << cumulativeFlipMass_
+            << ", destroyed by collapse = " << cumulativeCollapseMass_
+            << endl;
 
 
         for (label i = 0; i < Ys_.size(); ++i)
@@ -1984,6 +2094,7 @@ volPyrolysis::volPyrolysis
     subintegrateSwitch_(false),
     bedCollapseSwitch_(false),
     replenishSwitch_(false),
+    collapseMovesSolidMass_(false),
     emptyFlippedCells_(false),
     advectSolidFields_(true),
     gasTemperatureBelowCriticalPorosity_(false),
@@ -2183,7 +2294,8 @@ volPyrolysis::volPyrolysis
     initialTotalYmMass_(0.0),
     cumulativeYmOutflow_(0.0),
     cumulativeYmClip_(0.0),
-    cumulativeFlipMass_(0.0)
+    cumulativeFlipMass_(0.0),
+    cumulativeCollapseMass_(0.0)
 {
 
     mesh.setFluxRequired(T_.name());
@@ -2195,6 +2307,8 @@ volPyrolysis::volPyrolysis
     subintegrateSwitch_ = coeffs().lookupOrDefault("subintegrateHeatTransfer",false);
     bedCollapseSwitch_ = coeffs().lookupOrDefault("bedCollapse",false);
     replenishSwitch_ = coeffs().lookupOrDefault("replenish",false);
+    collapseMovesSolidMass_ =
+        coeffs().lookupOrDefault("collapseMovesSolidMass",false);
     emptyFlippedCells_ =
         coeffs().lookupOrDefault("emptyFlippedCells",false);
     advectSolidFields_ = coeffs().lookupOrDefault("advectSolidFields",true);
@@ -2228,6 +2342,7 @@ volPyrolysis::volPyrolysis
          << poroProtectSolidInflowFluxTolerance_
          << " [kg/m3/s]" << endl;
     Info << "replenish                " << replenishSwitch_    << endl;
+    Info << "collapseMovesSolidMass   " << collapseMovesSolidMass_ << endl;
     Info << "emptyFlippedCells        " << emptyFlippedCells_  << endl;
     Info << "advectSolidFields        " << advectSolidFields_  << endl;
     Info << "gasTemperatureBelowCriticalPorosity  "
