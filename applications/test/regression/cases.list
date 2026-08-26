@@ -37,7 +37,16 @@ tutorials/cases/canonical/equilibrium          fast
 # Prescribed-Us solid-transport suite — Ycharm advection under analytic Us
 # fields (asserts the transported Ycharm and the porosityF recovered from it,
 # max(porosityF) included so an unbounded void fraction fails the tier).
+#
+# Seven of the nine are dilute: the solid never comes close to filling a cell,
+# so the solid flux limiter's receiver cap never binds and they assert the
+# transport alone. convergingJam and convergingJamTight are dense variants of
+# converging that drive the bed onto its packing limit, so min(porosityF) sits
+# pinned at each case's minPorosity — that flat value is the assertion that
+# solidReceiverLimit() refused a flux rather than the solver aborting.
 tutorials/cases/prescribedUsCases/converging         fast
+tutorials/cases/prescribedUsCases/convergingJam      fast
+tutorials/cases/prescribedUsCases/convergingJamTight fast
 tutorials/cases/prescribedUsCases/diverging          fast
 tutorials/cases/prescribedUsCases/shear              fast
 tutorials/cases/prescribedUsCases/vortexIrrotational fast
