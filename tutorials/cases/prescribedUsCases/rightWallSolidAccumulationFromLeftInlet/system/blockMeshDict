@@ -1,0 +1,82 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  v2406
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      blockMeshDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// 2D square, 0.02 x 0.02 m in the x-y plane, one cell thick in z.
+// Fresh solid enters from the left and accumulates at the impermeable right
+// wall; the two z-faces are empty (2D).
+
+convertToMeters 1;
+
+vertices
+(
+    (0     0     0    )
+    (0.02  0     0    )
+    (0.02  0.02  0    )
+    (0     0.02  0    )
+    (0     0     0.001)
+    (0.02  0     0.001)
+    (0.02  0.02  0.001)
+    (0     0.02  0.001)
+);
+
+blocks
+(
+    hex (0 1 2 3 4 5 6 7) (20 20 1) simpleGrading (1 1 1)
+);
+
+edges
+(
+);
+
+boundary
+(
+    left
+    {
+        type wall;
+        faces ( (0 3 7 4) );
+    }
+    right
+    {
+        type wall;
+        faces ( (1 5 6 2) );
+    }
+    bottom
+    {
+        type wall;
+        faces ( (0 4 5 1) );
+    }
+    top
+    {
+        type wall;
+        faces ( (3 2 6 7) );
+    }
+    front
+    {
+        type empty;
+        faces ( (0 1 2 3) );
+    }
+    back
+    {
+        type empty;
+        faces ( (4 5 6 7) );
+    }
+);
+
+mergePatchPairs
+(
+);
+
+// ************************************************************************* //
