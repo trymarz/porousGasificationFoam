@@ -1,9 +1,15 @@
 #!/bin/sh
 cd ${0%/*} || exit 1    # Run from this directory
 
+# Doxyfile refers to the checkout through $(POROUS_DOC_SRC). Derive it from
+# this script's location (we have just cd'd into doc/Doxygen) so the run does
+# not depend on the caller's working directory. An explicit POROUS_DOC_SRC in
+# the environment still wins.
+POROUS_DOC_SRC="${POROUS_DOC_SRC:-$(cd ../.. && pwd -P)}"
+export POROUS_DOC_SRC
+
 [ -d "$POROUS_DOC_SRC" ] || {
     echo "    Error: POROUS_DOC_SRC directory does not exist"
-    echo "        Source the porousGasificationMediaDirectories and try again."
     echo "        POROUS_DOC_SRC=$POROUS_DOC_SRC"
     exit 1
 }

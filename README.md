@@ -54,7 +54,7 @@ Example application areas:
 
 - OpenFOAM-v2406
 - MPI (for parallel runs)
-- Optional: YADE DEM library (for DEM coupling — set `WITH_YADE=1`)
+- Optional: YADE DEM library (for DEM coupling — build with `./Allwmake --yade`)
 
 ### Build and Install
 
@@ -63,7 +63,7 @@ Example application areas:
 # 1. Source OpenFOAM (adjust paths for your installation)
 source /path/to/OpenFOAM-v2406/etc/bashrc
 
-# 2. Build everything
+# 2. Build everything (in place — the checkout can live anywhere)
 cd /path/to/porousGasificationFoam
 ./Allwmake
 
@@ -83,17 +83,58 @@ porousGasificationFoam/
 ├── tutorials/cases/           # tutorial cases (input examples)
 ├── utilities/                 # auxiliary tools (setPorosity, totalMass, …)
 ├── applications/test/         # regression framework
+├── Allwmake / Allwclean       # build / clean everything (non-DEM by default)
 ├── build.sh                   # fine-grained build script
 └── doc/Doxygen/               # API documentation source
 ```
 
 ## Build System
 
+### Where things are built and where they land
+
+porousGasificationFoam uses the ordinary OpenFOAM user-build layout. `wmake`
+runs **in place**, in the component directories of your checkout — the checkout
+may live anywhere, and nothing is copied into `$WM_PROJECT_USER_DIR`.
+
+| What | Where |
+|---|---|
+| Source | your checkout, wherever you cloned it |
+| `lnInclude/`, `Make/<WM_OPTIONS>/` | beside the source, inside the checkout (git-ignored) |
+| Libraries | `$FOAM_USER_LIBBIN` |
+| Executables | `$FOAM_USER_APPBIN` |
+
+`$FOAM_USER_LIBBIN` is already on the runtime library path once you have sourced
+OpenFOAM's `etc/bashrc`, so no extra environment file has to be sourced before
+building or running. (Earlier releases shipped a `porousGasificationMediaDirectories`
+helper that mirrored the sources under `$WM_PROJECT_USER_DIR/applications` and
+exported `FOAM_HGS`. Both the file and the mirror are gone; if you still have an
+old mirror lying around, delete it — nothing consults it any more, and it can
+only confuse a header search.)
+
+`build.sh` resolves its own location, so `./Allwmake`, `./build.sh …` and
+`/abs/path/to/checkout/Allwmake` all behave identically from any working
+directory.
+
+### Generated artifacts and cleaning
+
+A build writes `lnInclude/` and `Make/<WM_OPTIONS>/` next to each component's
+sources. Both are git-ignored; neither should ever be committed.
+
+`./Allwclean` (or `./build.sh clean …`) removes that generated state through
+`wclean`, and additionally deletes the libraries and executables the cleaned
+targets declare in their own `Make/files`. Only PGF's own artifacts are removed
+— other libraries in `$FOAM_USER_LIBBIN`, including Foam-Yade's, are left alone.
+
+One thing `wmake` will not do on its own is prune a symlink in `lnInclude/`
+whose source file you deleted or renamed; it is left dangling, so an include of
+it fails loudly rather than resolving to stale content. Run `./Allwclean` after
+renaming or deleting headers to clear it.
+
 ### Build targets
 
 | Target | Type | Dependency |
 |---|---|---|
-| DEM (if `WITH_YADE=1`)| library | —  |
+| DEM (`--yade` only) | library | Foam-Yade coupling libs |
 | fieldPorosityModel | library | — |
 | radiationModels | library | solid thermo |
 | thermophysicalModels | library suite | — |
@@ -113,9 +154,12 @@ Examples:
 ./build.sh build --all --no-DEM # skip DEM, build all the rest
 
 # Aliases
-./Allwmake  → ./build.sh build --all
-./Allwclean → ./build.sh clean --all
+./Allwmake  → ./build.sh build --all --no-DEM   # normal build: no DEM/Yade
+./Allwclean → ./build.sh clean --all            # cleans DEM too
 ```
+
+Both wrappers forward any extra arguments, so `./Allwmake --yade` is the
+DEM-enabled build.
 
 Run `build.sh --help` for all options.
 
@@ -127,7 +171,24 @@ Run `build.sh --help` for all options.
 
 `--yade` enables the `DEM` library target and compiles the solver with `WITH_YADE=1`, which activates the `#ifdef WITH_YADE` DEM coupling blocks. Without this flag the solver is built without DEM support and Yade will hang waiting for MPI communication.
 
-Requires YADE installed with the OpenFOAM coupling module.
+Requires YADE installed with the OpenFOAM coupling module, with `YADE_TRUNK`
+pointing at the Foam-Yade source checkout. `build.sh` checks both before it
+compiles anything, so a missing prerequisite is reported as an error instead of
+a linker failure — and an existing normal build is left untouched.
+
+**Switching between the normal and `--yade` builds requires a clean.** `wmake`
+decides what to recompile from source timestamps; it does not know that
+`WITH_YADE` changed, so an in-place rebuild after a mode switch would relink a
+mix of the two variants. `build.sh` records which variant produced the objects
+currently in the tree and refuses to build the other one on top of them:
+
+```bash
+./build.sh clean --all     # then
+./build.sh build --yade    # (or ./Allwmake to go back to the normal build)
+```
+
+Only one variant can exist in a given `$FOAM_USER_APPBIN` at a time; the two are
+not built side by side.
 
 ### Doxygen documentation
 
@@ -137,6 +198,10 @@ cd doc/Doxygen
 ```
 
 Output: `$WM_PROJECT_DIR/doc/Doxygen/html/index.html`. Requires `doxygen` and `graphviz`.
+
+The wrapper derives the source root from its own location, so it may also be run
+by absolute path from anywhere; set `POROUS_DOC_SRC` explicitly only if you want
+to document a different tree.
 
 ## Tutorial Cases
 
@@ -611,7 +676,9 @@ Defaults: `rtol=1e-4`, `atol=1e-12`. Both can be overridden per-run. The header 
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| `Cannot find library` | `porousGasificationMediaDirectories` not sourced | Run `source porousGasificationMediaDirectories` |
+| `Cannot find library` | OpenFOAM environment not sourced, or PGF not built into this `$WM_PROJECT_USER_DIR` | `source /path/to/OpenFOAM-v2406/etc/bashrc`, then `./Allwmake` |
+| `Build variant mismatch` | Switching between the normal and `--yade` builds without cleaning | `./build.sh clean --all`, then rebuild in the wanted mode |
+| A deleted or renamed header still appears to be found | Dangling `lnInclude/` symlink from an earlier build | `./Allwclean && ./Allwmake` |
 | `undefined symbol` | Library version mismatch or incomplete rebuild | `./build.sh clean --all && ./build.sh build --all` |
 | Simulation crashes immediately | Missing initial fields | Check `solidComponents` match `0/Y*` files |
 | Negative temperatures | Too large time step, or aggressive reaction parameters | Reduce `deltaT`, `maxCo`, `maxDi`, or `initialChemicalTimeStep` |

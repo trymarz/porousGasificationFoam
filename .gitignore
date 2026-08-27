@@ -1,4 +1,6 @@
 linux64GccDPInt32Opt/
+# wmake build state, whatever $WM_OPTIONS the build used
+Make/*/
 *.foam
 lnInclude/
 .opencode/
