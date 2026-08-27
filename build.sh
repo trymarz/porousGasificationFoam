@@ -39,6 +39,10 @@ declare -A BUILD_TARGETS=( # default values
 # Set to 1 via --yade to compile the solver with Yade/DEM coupling support
 WITH_YADE=0
 
+# Set to 1 via --purge to also delete installed libraries/executables on clean.
+# Off by default: a plain clean matches `wclean` and touches build state only.
+PURGE=0
+
 # Every target is a directory of this checkout. Build order is the order of
 # LIBRARY_TARGETS followed by APP_TARGETS; DEM is first so that a --yade build
 # has liblambdaDotModel in place before the solver links.
@@ -118,16 +122,22 @@ parse_arguments() {
       WITH_YADE=1
       BUILD_TARGETS[DEM]=1
       ;;
+    --purge)
+      PURGE=1
+      ;;
     --dry-run)
       DRY_RUN=1
       ;;
     --help)
       echo "Usage: $0 [build|clean] [OPTIONS]"
-      echo "Options: --reset-all, --all, --libs-only, --apps-only, --yade"
+      echo "Options: --reset-all, --all, --libs-only, --apps-only, --yade, --purge"
       echo "Targets: ${ALL_TARGETS_FLAGS[*]} ${ALL_TARGETS_NO_FLAGS[*]}"
       echo ""
       echo "  --yade   Build the DEM library and solver with WITH_YADE=1"
       echo "           (required for Yade-coupled DEM simulations)"
+      echo "  --purge  On clean, also delete the libraries and executables the"
+      echo "           cleaned targets declare in their own Make/files. Without"
+      echo "           it, clean matches wclean and removes build state only."
       echo ""
       echo "Builds happen in this checkout ($PGF_ROOT); output goes to"
       echo "\$FOAM_USER_LIBBIN and \$FOAM_USER_APPBIN."
@@ -234,7 +244,9 @@ check_build_variant() {
       clog ERROR "  requested:     $requested"
       clog ERROR "wmake keys recompilation on source timestamps, not on WITH_YADE,"
       clog ERROR "so an in-place rebuild would link objects from both variants."
-      clog ERROR "Clean first:  $PGF_ROOT/build.sh clean --all"
+      clog ERROR "Clean first:  $PGF_ROOT/build.sh clean --all --purge"
+      clog ERROR "(--purge also drops the installed binary, so a failed rebuild"
+      clog ERROR " cannot leave the other variant's solver on your PATH.)"
       return 1
     fi
   fi
@@ -262,11 +274,13 @@ expand_make_path() {
   printf '%s' "$raw"
 }
 
-# `wclean` removes objects and lnInclude but leaves the installed library or
-# executable in place. A cleaned target whose binary is still on the run path is
-# precisely the stale state this layout exists to prevent, so remove what the
-# target's own Make/files declares — and only that, which is why unrelated user
-# libraries (Foam-Yade's, say) cannot be caught by this.
+# --purge only. `wclean` deliberately leaves the installed library or executable
+# alone — $FOAM_USER_LIBBIN and $FOAM_USER_APPBIN are shared by every project
+# built into this $WM_PROJECT_USER_DIR, and OpenFOAM only ever sweeps them from
+# `wclean empty`, which is guarded to $WM_PROJECT_DIR. So the default clean
+# matches wclean, and this runs only when the caller asks for a guaranteed blank
+# slate. It removes what the target's own Make/files declares and nothing else,
+# which is why unrelated user libraries (Foam-Yade's, say) cannot be caught.
 remove_target_artifacts() {
   local dir=$1
   local makefiles decl path
@@ -325,7 +339,7 @@ execute_target() {
   # relative to the component.
   (cd "$dir" && eval "$cmd") || return 1
 
-  [ "$MODE" = "clean" ] && remove_target_artifacts "$dir"
+  [ "$MODE" = "clean" ] && [ "$PURGE" -eq 1 ] && remove_target_artifacts "$dir"
 
   return 0
 }
@@ -369,6 +383,7 @@ dry_run() {
   echo "OPTIONS:"
   echo "────────────────────────────────────────────────────────────"
   printf "  WITH_YADE=%s\n" "$WITH_YADE"
+  [ "$MODE" = "clean" ] && printf "  PURGE=%s\n" "$PURGE"
   echo ""
 
   echo "BUILD TARGETS STATUS:"
@@ -442,7 +457,7 @@ main() {
 }
 
 _build_completion() {
-  local opts="build clean --reset-all --all --libs-only --apps-only --yade ${ALL_TARGETS_FLAGS[*]} ${ALL_TARGETS_NO_FLAGS[*]} --help --dry-run"
+  local opts="build clean --reset-all --all --libs-only --apps-only --yade --purge ${ALL_TARGETS_FLAGS[*]} ${ALL_TARGETS_NO_FLAGS[*]} --help --dry-run"
   COMPREPLY=($(compgen -W "$opts" -- "${COMP_WORDS[COMP_CWORD]}"))
 }
 

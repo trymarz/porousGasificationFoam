@@ -121,9 +121,22 @@ A build writes `lnInclude/` and `Make/<WM_OPTIONS>/` next to each component's
 sources. Both are git-ignored; neither should ever be committed.
 
 `./Allwclean` (or `./build.sh clean …`) removes that generated state through
-`wclean`, and additionally deletes the libraries and executables the cleaned
-targets declare in their own `Make/files`. Only PGF's own artifacts are removed
-— other libraries in `$FOAM_USER_LIBBIN`, including Foam-Yade's, are left alone.
+`wclean`. Like `wclean`, it leaves the installed libraries and executables in
+place: `$FOAM_USER_LIBBIN` and `$FOAM_USER_APPBIN` are shared by every project
+built into this `$WM_PROJECT_USER_DIR`, so a clean in one checkout has no
+business reaching into them.
+
+When you do want a guaranteed blank slate — before switching build variants, or
+after a rebuild failed and you would rather have no solver than the previous
+one — add `--purge`:
+
+```bash
+./build.sh clean --all --purge
+```
+
+That additionally deletes the libraries and executables the cleaned targets
+declare in their own `Make/files`, and nothing else. Other libraries in
+`$FOAM_USER_LIBBIN`, including Foam-Yade's, are left alone.
 
 One thing `wmake` will not do on its own is prune a symlink in `lnInclude/`
 whose source file you deleted or renamed; it is left dangling, so an include of
@@ -158,6 +171,9 @@ Examples:
 ./Allwclean → ./build.sh clean --all            # cleans DEM too
 ```
 
+Add `--purge` to a clean to also delete the installed libraries and
+executables; without it, cleaning matches `wclean` and touches build state only.
+
 Both wrappers forward any extra arguments, so `./Allwmake --yade` is the
 DEM-enabled build.
 
@@ -183,9 +199,13 @@ mix of the two variants. `build.sh` records which variant produced the objects
 currently in the tree and refuses to build the other one on top of them:
 
 ```bash
-./build.sh clean --all     # then
-./build.sh build --yade    # (or ./Allwmake to go back to the normal build)
+./build.sh clean --all --purge   # then
+./build.sh build --yade          # (or ./Allwmake for the normal build)
 ```
+
+`--purge` is the right choice here specifically: it drops the installed solver
+too, so a rebuild that fails partway cannot leave the *other* variant's binary
+on your `PATH`.
 
 Only one variant can exist in a given `$FOAM_USER_APPBIN` at a time; the two are
 not built side by side.
@@ -677,7 +697,7 @@ Defaults: `rtol=1e-4`, `atol=1e-12`. Both can be overridden per-run. The header 
 | Symptom | Likely cause | Fix |
 |---|---|---|
 | `Cannot find library` | OpenFOAM environment not sourced, or PGF not built into this `$WM_PROJECT_USER_DIR` | `source /path/to/OpenFOAM-v2406/etc/bashrc`, then `./Allwmake` |
-| `Build variant mismatch` | Switching between the normal and `--yade` builds without cleaning | `./build.sh clean --all`, then rebuild in the wanted mode |
+| `Build variant mismatch` | Switching between the normal and `--yade` builds without cleaning | `./build.sh clean --all --purge`, then rebuild in the wanted mode |
 | A deleted or renamed header still appears to be found | Dangling `lnInclude/` symlink from an earlier build | `./Allwclean && ./Allwmake` |
 | `undefined symbol` | Library version mismatch or incomplete rebuild | `./build.sh clean --all && ./build.sh build --all` |
 | Simulation crashes immediately | Missing initial fields | Check `solidComponents` match `0/Y*` files |
