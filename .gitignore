@@ -1,19 +1,12 @@
-# --- OpenFOAM build artifacts ---------------------------------------------
-# wmake builds in place, beside the sources. These are exactly the paths
-# `wclean` removes, so they are exactly what must never be committed.
-
-# per-$WM_OPTIONS objects, .dep files and link state.
-# The leading **/ is required: a pattern with an inner '/' is anchored to this
-# file's directory, so a bare Make/*/ would only match a Make/ at the repo root.
+# --- OpenFOAM build artifacts (what `wclean` removes) ----------------------
+# **/ is required: an inner '/' anchors a pattern to this file's directory,
+# so a bare Make/*/ would only match a Make/ at the repo root.
 **/Make/*/
-# generated flat header view
 lnInclude/
-# in case anything is ever built into the checkout itself
 platforms/
 *.dep
 
-# --- Editor / tooling indexes ---------------------------------------------
-# Generated per machine, and they hardcode absolute paths.
+# --- Editor / tooling indexes (per machine, hardcode absolute paths) -------
 compile_commands.json
 .cache/
 .opencode/

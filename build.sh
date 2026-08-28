@@ -2,15 +2,9 @@
 #
 # porousGasificationFoam build driver.
 #
-# Native OpenFOAM user-build layout: wmake runs *in place*, in the component
-# directories of this checkout. Generated state (lnInclude/, Make/$WM_OPTIONS/)
-# lands beside the sources it was generated from; the final libraries and
-# executables go to $FOAM_USER_LIBBIN / $FOAM_USER_APPBIN, as declared by each
-# component's Make/files. No source tree is copied anywhere, so a deleted or
-# renamed file cannot survive a branch switch inside a stale mirror.
-#
-# The script resolves its own location, so it may be invoked by absolute path
-# from any working directory.
+# wmake runs in place, per component: lnInclude/ and Make/$WM_OPTIONS/ land
+# beside their sources, binaries in $FOAM_USER_LIBBIN / $FOAM_USER_APPBIN as
+# each Make/files declares. Callable by absolute path from anywhere.
 
 . "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)/utilities/bash_utils/helpers.sh"
 
@@ -39,13 +33,11 @@ declare -A BUILD_TARGETS=( # default values
 # Set to 1 via --yade to compile the solver with Yade/DEM coupling support
 WITH_YADE=0
 
-# Set to 1 via --purge to also delete installed libraries/executables on clean.
-# Off by default: a plain clean matches `wclean` and touches build state only.
+# --purge: on clean, also delete installed binaries. Off by default.
 PURGE=0
 
-# Every target is a directory of this checkout. Build order is the order of
-# LIBRARY_TARGETS followed by APP_TARGETS; DEM is first so that a --yade build
-# has liblambdaDotModel in place before the solver links.
+# Built in order: LIBRARY_TARGETS then APP_TARGETS. DEM first, so a --yade
+# build has liblambdaDotModel before the solver links.
 declare -A TARGET_DIRS=(
   [DEM]="$PGF_ROOT/porousGasificationMedia/DEM"
   [fieldPorosityModel]="$PGF_ROOT/porousGasificationMedia/fieldPorosityModel"
@@ -156,9 +148,8 @@ parse_arguments() {
 # ENVIRONMENT VALIDATION
 # ============================================================
 
-# The native layout has no fallbacks of its own: every path it writes to comes
-# from the OpenFOAM environment. Fail loudly rather than silently building into
-# a half-configured shell.
+# Every output path comes from the OpenFOAM environment; there are no
+# fallbacks, so an unset variable is fatal.
 check_foam_environment() {
   local missing=()
   local var
@@ -180,8 +171,7 @@ check_foam_environment() {
   return 0
 }
 
-# Only reachable from a --yade / --DEM invocation: the normal build must never
-# depend on Foam-Yade being present.
+# --yade / --DEM only; the normal build never requires Foam-Yade.
 check_yade_environment() {
   if [ -z "$YADE_TRUNK" ]; then
     clog ERROR "YADE_TRUNK is not set, but a DEM/Yade build was requested."
@@ -203,8 +193,7 @@ check_yade_environment() {
     return 1
   fi
 
-  # Link-time dependencies of the DEM library and of the WITH_YADE solver.
-  # Missing libraries are reported here rather than as a bare linker error.
+  # Link-time deps of the DEM library and the WITH_YADE solver.
   local lib
   for lib in libMeshTree libYadeFoam; do
     [ -e "$FOAM_USER_LIBBIN/$lib.so" ] ||
@@ -218,12 +207,9 @@ check_yade_environment() {
 # BUILD VARIANT BOOKKEEPING
 # ============================================================
 
-# wmake decides what to recompile from source timestamps; it does not know that
-# WITH_YADE changed. Rebuilding the solver in place after a mode switch would
-# therefore relink whatever objects happen to be there, mixing the two ABIs.
-# We record the mode next to the objects it produced — inside
-# Make/$WM_OPTIONS/, which `wclean` removes wholesale — and refuse to continue
-# when it disagrees with the requested mode.
+# wmake recompiles on timestamps and cannot see WITH_YADE change, so building
+# the other mode over existing objects would mix both ABIs. The mode is stamped
+# in Make/$WM_OPTIONS/ (removed by `wclean`); a mismatch is refused.
 variant_stamp_path() {
   printf '%s/Make/%s/.pgf-build-mode' "${TARGET_DIRS[porousGasificationFoam]}" "$WM_OPTIONS"
 }
@@ -258,11 +244,10 @@ check_build_variant() {
 # ARTIFACT REMOVAL
 # ============================================================
 
-# Resolve an EXE/LIB path as declared in a Make/files, e.g.
+# Resolve a Make/files EXE/LIB declaration, e.g.
 #   $(FOAM_USER_LIBBIN)/libHGSsolid  ->  /…/platforms/…/lib/libHGSsolid
-# Only the two user output variables are substituted: anything else is refused
-# rather than guessed at, and the caller additionally checks the prefix, so no
-# path outside the user output directories can ever be produced here.
+# Only those two variables are substituted; anything else is refused, so no
+# path outside the user output directories can be produced.
 expand_make_path() {
   local raw="$1"
   raw="${raw//[[:space:]]/}"
@@ -274,13 +259,9 @@ expand_make_path() {
   printf '%s' "$raw"
 }
 
-# --purge only. `wclean` deliberately leaves the installed library or executable
-# alone — $FOAM_USER_LIBBIN and $FOAM_USER_APPBIN are shared by every project
-# built into this $WM_PROJECT_USER_DIR, and OpenFOAM only ever sweeps them from
-# `wclean empty`, which is guarded to $WM_PROJECT_DIR. So the default clean
-# matches wclean, and this runs only when the caller asks for a guaranteed blank
-# slate. It removes what the target's own Make/files declares and nothing else,
-# which is why unrelated user libraries (Foam-Yade's, say) cannot be caught.
+# --purge only: $FOAM_USER_LIBBIN and $FOAM_USER_APPBIN are shared by every
+# project in this $WM_PROJECT_USER_DIR, so only what the target's own
+# Make/files declares is removed — never a neighbour's library.
 remove_target_artifacts() {
   local dir=$1
   local makefiles decl path
@@ -334,9 +315,7 @@ execute_target() {
     clog INFO "Cleaning $target..."
   fi
 
-  # Each target is built from its own directory, so wmake generates lnInclude
-  # and Make/$WM_OPTIONS in the checkout and Make/options can use paths
-  # relative to the component.
+  # Run from the target's own directory, so Make/options paths are relative.
   (cd "$dir" && eval "$cmd") || return 1
 
   [ "$MODE" = "clean" ] && [ "$PURGE" -eq 1 ] && remove_target_artifacts "$dir"
