@@ -16,7 +16,7 @@ FoamFile
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 // Prescribed solid velocity. setFields initializes the interior to +x motion;
-// the left boundary supplies solid and the other three in-plane walls stop it.
+// the left boundary supplies solid and the right wall stops it.
 dimensions      [0 1 -1 0 0 0 0];
 
 internalField   uniform (0 0 0);
@@ -28,12 +28,12 @@ boundaryField
         type            fixedValue;
         value           uniform (0.01 0 0);
     }
-    "(right|bottom|top)"
+    right
     {
         type            fixedValue;
         value           uniform (0 0 0);
     }
-    "(front|back)"
+    "(bottom|top|front|back)"
     {
         type            empty;
     }

@@ -21,12 +21,12 @@ internalField   uniform (0 0 0);
 
 boundaryField
 {
-    "(left|right|bottom|top)"
+    "(left|right)"
     {
         type            fixedValue;
         value           uniform (0 0 0);
     }
-    "(front|back)"
+    "(bottom|top|front|back)"
     {
         type            empty;
     }

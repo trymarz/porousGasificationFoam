@@ -103,4 +103,94 @@ regressionPorosityMax
     operation       max;
 }
 
+// Every injected solid component is reduced separately. A single aggregate
+// scalar could hide a negative or overshooting component behind the others.
+regressionSolidMassMin
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (Ychar Yash Ywood Ymineral);
+    operation       min;
+}
+
+regressionSolidMassMax
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (Ychar Yash Ywood Ymineral);
+    operation       max;
+}
+
+regressionSolidMassAverage
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (Ychar Yash Ywood Ymineral);
+    operation       volAverage;
+}
+
+regressionSolidDensityMin
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (rhos);
+    operation       min;
+}
+
+regressionSolidDensityMax
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (rhos);
+    operation       max;
+}
+
+regressionGasDensityMin
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (rho);
+    operation       min;
+}
+
+regressionGasDensityMax
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (rho);
+    operation       max;
+}
+
+regressionPressureMin
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (p);
+    operation       min;
+}
+
+regressionPressureMax
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (p);
+    operation       max;
+}
+
+regressionGasN2Min
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (N2);
+    operation       min;
+}
+
+regressionGasN2Max
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (N2);
+    operation       max;
+}
+
 // ************************************************************************* //

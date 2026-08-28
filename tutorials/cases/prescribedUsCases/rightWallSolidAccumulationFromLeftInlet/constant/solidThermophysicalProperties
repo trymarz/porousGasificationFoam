@@ -17,8 +17,10 @@ FoamFile
 
 thermoType solidMixtureThermo<constHeterogeneous>;
 
-// Single inert solid species: the thing the prescribed Us advects.
-solidComponents ( char );
+// Four inert components with deliberately different skeletal densities. The
+// prescribed Us advects their mixed mass concentrations with one shared solid
+// volume flux, so density weighting is exercised independently of chemistry.
+solidComponents ( char ash wood mineral );
 
 charCoeffs
 {
@@ -35,6 +37,57 @@ charCoeffs
     {
         rho         1050;
     }
-};
+}
+
+ashCoeffs
+{
+    transport
+    {
+        K           0.25;
+    }
+    thermodynamics
+    {
+        Cp          850;
+        Hf          -1.0e4;
+    }
+    density
+    {
+        rho         2500;
+    }
+}
+
+woodCoeffs
+{
+    transport
+    {
+        K           0.08;
+    }
+    thermodynamics
+    {
+        Cp          1600;
+        Hf          -3.0e4;
+    }
+    density
+    {
+        rho         650;
+    }
+}
+
+mineralCoeffs
+{
+    transport
+    {
+        K           1.2;
+    }
+    thermodynamics
+    {
+        Cp          700;
+        Hf          -5.0e3;
+    }
+    density
+    {
+        rho         3000;
+    }
+}
 
 // ************************************************************************* //

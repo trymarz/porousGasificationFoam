@@ -34,6 +34,9 @@ foamChemistryFile   "<constant>/reactions";
 
 foamChemistryThermoFile "<constant>/thermo.compressibleGas";
 
-solveEnergy true;
+// The verification targets solid transport, density weighting and packing.
+// Keep the gas-energy equation out of the zero-void stress so its JANAF range
+// does not mask those checks.
+solveEnergy false;
 
 // ************************************************************************* //

@@ -24,14 +24,16 @@ heterogeneousPyrolysisModel  volPyrolysis;
 
 pyrolysisCoeffs
 {
-    subintegrateHeatTransfer true;
+    subintegrateHeatTransfer false;
     bedCollapse      false;
     criticalPorosity 0.9999;
     replenish        false;
 
-    // Stop the accumulating bed at 60 % solid. The default 0 admits a cell with
-    // no void left at all, which makes the gas continuity diagonal singular.
-    minPorosity      0.4;
+    // Deliberately permit exact solid occupation so the receiver limiter and
+    // zero-void gas safeguards are exercised.
+    minPorosity      0;
+    solidStateTolerance 1e-10;
+    nSolidFluxLimiterCorrectors 8;
 }
 
 infoOutput      true;
