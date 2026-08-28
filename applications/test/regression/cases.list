@@ -49,6 +49,7 @@ tutorials/cases/prescribedUsCases/converging         fast
 tutorials/cases/prescribedUsCases/convergingJam      fast
 tutorials/cases/prescribedUsCases/convergingJamTight fast
 tutorials/cases/prescribedUsCases/rightWallSolidAccumulationFromLeftInlet fast
+tutorials/cases/prescribedUsCases/tetrisCompaction fast
 tutorials/cases/prescribedUsCases/diverging          fast
 tutorials/cases/prescribedUsCases/shear              fast
 tutorials/cases/prescribedUsCases/vortexIrrotational fast

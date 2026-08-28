@@ -311,7 +311,7 @@ void volPyrolysis::solidDonorLimit
 
             // Nothing leaving means nothing to scale. A factor of zero
             // here would report a limit on faces carrying no solid at all.
-            if (sumOut[cellI] > 0.0)
+            if (sumOut[cellI] > SMALL)
             {
                 lambdaDonor[cellI] = min
                 (
@@ -354,7 +354,7 @@ void volPyrolysis::solidReceiverLimit
         );
 
         lambdaReceiver[cellI] =
-            sumIn[cellI] > 0.0
+            sumIn[cellI] > SMALL
           ? min(1.0, room/sumIn[cellI])
           : 1.0;
     }
@@ -1379,12 +1379,14 @@ void volPyrolysis::recoverPorosity()
             }
         }
 
+        label nZeroPorosity = 0;
+
         forAll(porosity_,cellI)
         {
             if (porosity_[cellI] < 0.0001)
             {
                 porosity_[cellI] = 0.0;
-                Info << "porosity 0 in cell " << cellI << endl;
+                ++nZeroPorosity;
             }
             if (porosity_[cellI] < 1.0)
             {
@@ -1396,6 +1398,11 @@ void volPyrolysis::recoverPorosity()
                 whereIs_[cellI] = 0.0;
                 whereIsNot_[cellI] = 1.0;
             }
+        }
+
+        if (nZeroPorosity)
+        {
+            Info << "porosity 0 in " << nZeroPorosity << " cells" << endl;
         }
 
         // The invariant the recovery establishes, re-checked per cell after
@@ -2823,7 +2830,19 @@ Foam::tmp<Foam::volScalarField> volPyrolysis::heatTransfer()
     {
         if (subintegrateSwitch_)
         {
-            volScalarField rhoCpG(gasThermo_.rho() * gasThermo_.Cp() * porosity_);
+            // Keep the subintegrated gas/solid exchange defined in a fully
+            // solid cell. The physical gas capacity vanishes there, while
+            // the finite floor prevents an ill-conditioned analytic update.
+            volScalarField rhoCpG
+            (
+                gasThermo_.rho()
+              * gasThermo_.Cp()
+              * max
+                (
+                    porosity_,
+                    dimensionedScalar("gasPorosityFloor", dimless, 1e-4)
+                )
+            );
             volScalarField Tgas = gasThermo_.T();
             volScalarField rhoCpS
                 (
