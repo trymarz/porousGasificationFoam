@@ -25,6 +25,9 @@ pyrolysisCoeffs
     bedCollapse false;   // Track B: DEM handles solid motion
     criticalPorosity 0.99;
     replenish false;   // enable once chemistry is stable
+    minPorosity 0.1;    // floor against the known rhoEqn zero-porosity SIGFPE
+                         // (rhoeqn-zero-porosity-diagonal-2026-08-26); the bed's
+                         // constant downward Us would otherwise pack a cell to 0
 }
 
 infoOutput      true;
