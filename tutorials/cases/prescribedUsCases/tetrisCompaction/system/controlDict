@@ -1,0 +1,201 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  2406                                  |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+FoamFile
+{
+    version         2;
+    format          ascii;
+    class           dictionary;
+    location        "system";
+    object          controlDict;
+}
+
+application     porousGasificationFoam;
+
+startFrom       startTime;
+
+startTime       0;
+
+stopAt          endTime;
+
+endTime         10.5;
+
+deltaT          0.0005;
+
+writeControl    runTime;
+
+writeInterval   0.1;
+
+purgeWrite      0;
+
+writeFormat     ascii;
+
+writePrecision  8;
+
+writeCompression off;
+
+timeFormat      general;
+
+timePrecision   6;
+
+runTimeModifiable yes;
+
+adjustTimeStep  no;
+
+maxCo           1;
+
+maxDi           5000;
+
+functions
+{
+    regressionBase
+    {
+        type            volFieldValue;
+        libs            ( fieldFunctionObjects );
+        regionType      all;
+        postOperation   none;
+        weightField     none;
+        writeFields     false;
+        writePrecision  10;
+        writeToFile     true;
+        log             false;
+        enabled         false;
+        executeControl  timeStep;
+        executeInterval 1;
+        writeControl    writeTime;
+        writeInterval   -1;
+    }
+    regressionYcharmIntegral
+    {
+        type            volFieldValue;
+        libs            ( fieldFunctionObjects );
+        regionType      all;
+        postOperation   none;
+        weightField     none;
+        writeFields     false;
+        writePrecision  10;
+        writeToFile     true;
+        log             false;
+        enabled         true;
+        executeControl  timeStep;
+        executeInterval 1;
+        writeControl    writeTime;
+        writeInterval   -1;
+        fields          ( Ycharm );
+        operation       volIntegrate;
+    }
+    regressionYcharmMin
+    {
+        type            volFieldValue;
+        libs            ( fieldFunctionObjects );
+        regionType      all;
+        postOperation   none;
+        weightField     none;
+        writeFields     false;
+        writePrecision  10;
+        writeToFile     true;
+        log             false;
+        enabled         true;
+        executeControl  timeStep;
+        executeInterval 1;
+        writeControl    writeTime;
+        writeInterval   -1;
+        fields          ( Ycharm );
+        operation       min;
+    }
+    regressionYcharmMax
+    {
+        type            volFieldValue;
+        libs            ( fieldFunctionObjects );
+        regionType      all;
+        postOperation   none;
+        weightField     none;
+        writeFields     false;
+        writePrecision  10;
+        writeToFile     true;
+        log             false;
+        enabled         true;
+        executeControl  timeStep;
+        executeInterval 1;
+        writeControl    writeTime;
+        writeInterval   -1;
+        fields          ( Ycharm );
+        operation       max;
+    }
+    regressionPorosityAverage
+    {
+        type            volFieldValue;
+        libs            ( fieldFunctionObjects );
+        regionType      all;
+        postOperation   none;
+        weightField     none;
+        writeFields     false;
+        writePrecision  10;
+        writeToFile     true;
+        log             false;
+        enabled         true;
+        executeControl  timeStep;
+        executeInterval 1;
+        writeControl    writeTime;
+        writeInterval   -1;
+        fields          ( porosityF );
+        operation       volAverage;
+    }
+    regressionPorosityMin
+    {
+        type            volFieldValue;
+        libs            ( fieldFunctionObjects );
+        regionType      all;
+        postOperation   none;
+        weightField     none;
+        writeFields     false;
+        writePrecision  10;
+        writeToFile     true;
+        log             false;
+        enabled         true;
+        executeControl  timeStep;
+        executeInterval 1;
+        writeControl    writeTime;
+        writeInterval   -1;
+        fields          ( porosityF );
+        operation       min;
+    }
+    regressionPorosityMax
+    {
+        type            volFieldValue;
+        libs            ( fieldFunctionObjects );
+        regionType      all;
+        postOperation   none;
+        weightField     none;
+        writeFields     false;
+        writePrecision  10;
+        writeToFile     true;
+        log             false;
+        enabled         true;
+        executeControl  timeStep;
+        executeInterval 1;
+        writeControl    writeTime;
+        writeInterval   -1;
+        fields          ( porosityF );
+        operation       max;
+    }
+    probes
+    {
+        type            probes;
+        libs            ( sampling );
+        enabled         true;
+        writePrecision  10;
+        writeControl    timeStep;
+        writeInterval   1;
+        fields          ( porosityF Ycharm Us Ts );
+        probeLocations  ( ( 0.0005 0.0195 0.0005 ) ( 0.0055 0.0155 0.0005 ) ( 0.0105 0.0105 0.0005 ) ( 0.0155 0.0055 0.0005 ) ( 0.0195 0.0005 0.0005 ) );
+    }
+}
+
+
+// ************************************************************************* //

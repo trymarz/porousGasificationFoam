@@ -23,7 +23,7 @@ tmp<fv::convectionScheme<scalar>> mvConvection
 
             fvScalarMatrix YiEqn
             (
-                fvm::ddt(porosityF * rho, Yi)
+                fvm::ddt(max(porosityF, gasPorosityFloor) * rho, Yi)
               + mvConvection->fvmDiv(phi, Yi)
               - fvm::laplacian(turbulence->muEff(), Yi)
              ==
@@ -51,7 +51,7 @@ tmp<fv::convectionScheme<scalar>> mvConvection
 
             fvScalarMatrix YiEqn
             (
-                fvm::ddt(porosityF*rho, Yi)
+                fvm::ddt(max(porosityF, gasPorosityFloor)*rho, Yi)
               + mvConvection->fvmDiv(phi, Yi)
               - fvm::laplacian(turbulence->muEff(), Yi)
             );

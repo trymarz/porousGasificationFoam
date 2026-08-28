@@ -1,0 +1,33 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  v2406
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "system";
+    object      setFieldsDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// Tetris fixture: the empty domain is filled from the top by pure char moving
+// downward. The bottom wall has zero solid velocity, so each incoming figure
+// is pressed onto the compacting bed below it.
+
+defaultFieldValues
+(
+    volScalarFieldValue porosityF  1
+    volScalarFieldValue porosityF0 1
+    volVectorFieldValue Us         (0 -0.1 0)
+);
+
+regions
+(
+);
+
+// ************************************************************************* //

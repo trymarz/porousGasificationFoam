@@ -88,6 +88,15 @@ int main(int argc, char *argv[])
 
     Info<< "\nStarting time loop\n" << endl;
 
+    // Numerical gas-volume floor used only by the gas equations when a cell
+    // is physically fully occupied by solid.
+    const dimensionedScalar gasPorosityFloor
+    (
+        "gasPorosityFloor",
+        dimless,
+        1e-4
+    );
+
     while (runTime.run())
     {
         #include "readTimeControls.H"

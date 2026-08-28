@@ -82,11 +82,11 @@ else
     {
         fvScalarMatrix pEqn
         (
-            fvm::ddt(psi * porosityF, p)
+            fvm::ddt(psi * max(porosityF, gasPorosityFloor), p)
           + fvc::div(phiHbyA)
           - fvm::laplacian(rhorAtU, p)
          ==
-            fvOptions(psi * porosityF, p, rho.name())
+            fvOptions(psi * max(porosityF, gasPorosityFloor), p, rho.name())
           + Srho * (1.0 - porosityF)
         );
 
