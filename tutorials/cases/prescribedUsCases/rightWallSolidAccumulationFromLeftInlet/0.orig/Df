@@ -23,11 +23,11 @@ internalField   uniform (1e+09 0 0 0 1e+09 0 0 0 1e+09);
 
 boundaryField
 {
-    "(left|right|bottom|top)"
+    "(left|right)"
     {
         type            zeroGradient;
     }
-    "(front|back)"
+    "(bottom|top|front|back)"
     {
         type            empty;
     }

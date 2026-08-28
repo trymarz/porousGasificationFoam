@@ -15,8 +15,9 @@ FoamFile
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-// The initial domain is empty of solid. Fresh solid enters at the left boundary
-// with porosity 0.5 and accumulates against the right wall.
+// The initial domain is empty of solid. A fully solid mixed stream enters at
+// the left boundary and accumulates against the right wall. The inlet is
+// intentionally dense but leaves gas volume for the coupled solve.
 dimensions      [0 0 0 0 0 0 0];
 
 internalField   uniform 1;
@@ -28,11 +29,11 @@ boundaryField
         type            fixedValue;
         value           uniform 0.5;
     }
-    "(right|bottom|top)"
+    right
     {
         type            zeroGradient;
     }
-    "(front|back)"
+    "(bottom|top|front|back)"
     {
         type            empty;
     }

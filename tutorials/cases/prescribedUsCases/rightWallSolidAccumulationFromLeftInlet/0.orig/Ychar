@@ -15,7 +15,7 @@ FoamFile
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-// Pure-char composition for the fresh solid supplied at the left boundary.
+// Mixed fresh-solid composition: char is one tenth of the inlet mass.
 dimensions      [0 0 0 0 0 0 0];
 
 internalField   uniform 0;
@@ -25,13 +25,13 @@ boundaryField
     left
     {
         type            fixedValue;
-        value           uniform 1;
+        value           uniform 0.1;
     }
-    "(right|bottom|top)"
+    right
     {
         type            zeroGradient;
     }
-    "(front|back)"
+    "(bottom|top|front|back)"
     {
         type            empty;
     }
