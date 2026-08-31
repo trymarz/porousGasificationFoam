@@ -823,8 +823,21 @@ void volPyrolysis::updateCurrentLambda()
     const volScalarField& lambdaDot = *lambdaDotPtr_;
     const scalar dt = time_.deltaTValue();
 
+    // Integrate only where the DEM skeleton exists. A cell at or above
+    // criticalPorosity holds too little solid to carry particles, so its
+    // lambdaDot is zeroed downstream (lambdaDotModel::updateLambdaDot) and no
+    // particle ever reads it; integrating it here would let lambda accumulate
+    // the temperature-driven term in void cells, and lambda feeds back into
+    // the chemistry-driven term as 1/lambda^2 should the cell re-densify.
+    // lambdaDot itself is left ungated so the written field and the split
+    // diagnostic below still report the rate the model assembled.
     forAll(lambda, cellI)
     {
+        if (porosity_[cellI] >= critPorosity_)
+        {
+            continue;
+        }
+
         lambda[cellI] += lambdaDot[cellI]*dt;
     }
 
