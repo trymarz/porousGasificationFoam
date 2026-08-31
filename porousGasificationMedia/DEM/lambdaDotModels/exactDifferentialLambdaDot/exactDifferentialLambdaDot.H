@@ -2,7 +2,7 @@
 #define exactDifferentialLambdaDot_H
 
 #include "LambdaDotCalculationModel.H"
-#include "scalarField.H"
+#include "volFields.H"
 
 namespace Foam
 {
@@ -22,7 +22,7 @@ namespace Foam
 // massSplitBetweenLamAndPor is taken as particle shrinkage; the remaining
 // (1 - massSplitBetweenLamAndPor) becomes pore space in volPyrolysis's
 // porosity source. dlambdaOverDTs [m/K] therefore carries the units of lambda
-// per kelvin.
+// per kelvin, and lambdaDot is [m/s].
 //
 // The temperature-driven part is set once per step by
 // calculateTemperatureDriven(); the chemistry-driven part is accumulated per
@@ -39,7 +39,7 @@ class exactDifferentialLambdaDot
 {
 private:
     //- Temperature coefficient dlambda/dTs [m/K].
-    scalar dlambdaOverDTs_;
+    dimensionedScalar dlambdaOverDTs_;
 
     //- Fraction of the chemistry mass change redirected into the particle
     //  length scale; the remaining (1 - massSplitBetweenLamAndPor) becomes
@@ -47,7 +47,7 @@ private:
     scalar massSplitBetweenLamAndPor_;
 
     //- Ts snapshot from the previous completed thermal step.
-    scalarField TsForLambdaOld_;
+    volScalarField TsForLambdaOld_;
 
     //- deltaT used by the last completed thermal step.
     scalar lambdaDeltaT_;

@@ -811,9 +811,9 @@ void volPyrolysis::updateCurrentLambda()
     // integrated lambda lives only in YADE's per-spring Python-side
     // integration and is never sent back to OpenFOAM; until that data
     // path exists (a yade-pgf-trunk change), integrate the same rate
-    // here. lambdaDot is dimensionless in the registry (see
-    // createDEMFields.H), so integrate cell-wise rather than with field
-    // algebra, which would trip the dimension check against deltaT.
+    // here. lambdaDot is [m/s] and lambda is [m] (see createDEMFields.H), so
+    // lambdaDot*dt is dimensionally [m]; the loop below is cell-wise only
+    // because of the criticalPorosity gate, not to dodge a dimension check.
     if (!demActive_)
     {
         return;

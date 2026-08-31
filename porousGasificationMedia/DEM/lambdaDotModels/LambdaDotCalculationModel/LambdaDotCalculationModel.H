@@ -9,9 +9,8 @@
 namespace Foam
 {
 
-// Strategy interface for the DEM particle length-scale rate lambdaDot
-// [dimensionless in the registry — see createDEMFields.H]. Owned by
-// volPyrolysis, which selects it from constant/lambdaDict
+// Strategy interface for the DEM particle length-scale rate lambdaDot [m/s].
+// Owned by volPyrolysis, which selects it from constant/lambdaDict
 // (lambdaMode: none | constant | Ts | exactDifferential) and drives it in
 // solveSpeciesMass(): calculateTemperatureDriven() once per step before the
 // species loop, then calculateChemistryDriven() per solid specie inside it.

@@ -236,7 +236,7 @@ protected:
         //  particles by lambdaDotModel. Null when !demActive_.
         volScalarField* lambdaDotPtr_;
 
-        //- Integrated DEM particle length scale (shadow field, see
+        //- Integrated DEM particle length scale [m] (shadow field, see
         //  updateCurrentLambda()). Null when !demActive_.
         volScalarField* lambdaPtr_;
 
