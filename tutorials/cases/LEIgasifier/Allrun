@@ -44,7 +44,7 @@ PY_UTILS="$CASE_DIR/../../../utilities/py_utils"
 uv run --project "$PY_UTILS" python "$CASE_DIR/system/make_mesh.py"
 
 # 2. Build the mesh and initialise fields.
-cp -r 0_orig 0
+cp -r 0.orig 0
 blockMesh
 setFields
 
