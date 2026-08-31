@@ -24,7 +24,7 @@ public:
 
     virtual ~TsLambdaDot() = default;
 
-    virtual void calculate() override;
+    virtual void calculateTemperatureDriven() override;
 };
 
 } // namespace Foam

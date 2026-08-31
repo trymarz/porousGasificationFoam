@@ -8,26 +8,42 @@ FoamFile
 }
 
 
-lambdaMode dTsdt; //  Ts , dTsdt or constant
+lambdaMode exactDifferential; // none, constant, Ts or exactDifferential
 
 
 //INFO:
+//none:
+// lambdaDot = 0
+//constant:
+// lambdaDot = lambdaValue
 //Ts: (K)
-// lambdaDot = f(Ts)
-//dTsdt: (K/s)
-// lambdaDot = f((Ts_now - Ts_old)/deltaT)
+// lambdaDot = f(Ts), f given by the lambdaDot Function1 below
+//exactDifferential:
+// lambdaDot  = dlambdaOverDTs*(Ts_now - Ts_old)/deltaT
+// lambdaDot += massSplitBetweenLamAndPor*V/(3*rho*lambda^2)*sRhoS_i,
+//              summed over the solid species; the remaining
+//              (1 - massSplitBetweenLamAndPor) share of the chemistry mass
+//              change becomes pore space instead.
 
 
 lambdaValue 0.5;
 
 
-//in case of  Ts or dTsdt, x is the value comming from DEM library for Ts or dTsdt
+//exactDifferential parameters
+// dlambdaOverDTs 0.001 reproduces the linear lambdaDot = 0.001*x this case
+// used under the removed dTsdt mode. massSplitBetweenLamAndPor 0 leaves the
+// whole chemistry mass change in the porosity source, as before.
+dlambdaOverDTs 0.001;              // [m/K]
+massSplitBetweenLamAndPor 0;       // [-], in [0,1]
+
+
+//in case of Ts, x is the value comming from DEM library for Ts
 lambdaDot
 {
     type coded;
     code
     #{
-        
+
         return 0.001*x;
     #};
 }

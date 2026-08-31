@@ -1,7 +1,6 @@
 #include "lambdaDotModel.H"
 #include "UsInterpolationModel.H"
 #include "IOdictionary.H"
-#include "LambdaDotCalculationModel.H"
 #include "PstreamReduceOps.H"
 #include "OSspecific.H"
 
@@ -29,8 +28,7 @@ lambdaDotModel::lambdaDotModel
     porosityF_(porosityF),
     yade_(yade),
     interpolateUs_(true),
-    solidPorosityCutoff_(1),
-    lambdaDotCalculationModel_(nullptr)
+    solidPorosityCutoff_(1)
 {
     IOdictionary lambdaDict
     (
@@ -67,11 +65,6 @@ lambdaDotModel::lambdaDotModel
                 .lookup("criticalPorosity")
         );
 
-    // Select the lambdaDot calculation model from constant/lambdaDict.
-    // Valid lambdaMode entries are: constant, Ts, dTsdt.
-    lambdaDotCalculationModel_ =
-        LambdaDotCalculationModel::New(lambdaDict, mesh_, lambdaDot_);
-
     // Keep the existing Us interpolation behavior controlled by lambdaDict.
     interpolateUs_ =
         lambdaDict.lookupOrDefault<Switch>("interpolateUs", true);
@@ -96,10 +89,13 @@ lambdaDotModel::lambdaDotModel
 
 void lambdaDotModel::updateLambdaDot()
 {
-    // Valid lambdaMode entries in constant/lambdaDict are:
-    // constant, Ts, dTsdt.
-    lambdaDotCalculationModel_->calculate();
-
+    // lambdaDot itself is assembled by volPyrolysis::solveSpeciesMass(), which
+    // owns the LambdaDotCalculationModel selected by lambdaMode in
+    // constant/lambdaDict (none | constant | Ts | exactDifferential). That
+    // runs inside pyrolysisZone.evolve(), i.e. after this call in the solver
+    // loop, so the value gated and pushed to the particles here is the one
+    // assembled by the previous time step.
+    //
     // lambdaDot drives deformation of the DEM solid skeleton and must not
     // remain active in cells outside the mechanically active solid region.
     forAll(lambdaDot_, cellI)

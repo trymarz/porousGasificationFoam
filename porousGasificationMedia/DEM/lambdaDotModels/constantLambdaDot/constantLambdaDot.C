@@ -15,7 +15,7 @@ constantLambdaDot::constantLambdaDot
 {}
 
 
-void constantLambdaDot::calculate()
+void constantLambdaDot::calculateTemperatureDriven()
 {
     // Uniform  lambdaDot from constant/lambdaDict.
     lambdaDot_ = lambdaValue_;

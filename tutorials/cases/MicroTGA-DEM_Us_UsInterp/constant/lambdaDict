@@ -7,6 +7,14 @@ FoamFile
     object      lambdaDict;
 }
 
+// Was implicit before: with no lambdaMode entry the selector defaults to
+// constant, and lambdaValue is absent, so lambdaDot = 0. Stated explicitly so
+// the case does not silently follow a change of default. Valid modes:
+// none, constant, Ts or exactDifferential (the latter reads dlambdaOverDTs
+// [m/K] and massSplitBetweenLamAndPor [-], both defaulting to 0.0).
+lambdaMode constant;
+
+// Consumed by lambdaMode Ts only; x is Ts.
 lambdaDot
 {
     type coded;

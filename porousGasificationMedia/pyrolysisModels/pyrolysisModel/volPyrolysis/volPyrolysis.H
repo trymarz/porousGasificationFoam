@@ -38,6 +38,14 @@ SourceFiles
 #include "heterogeneousPyrolysisModel.H"
 #include "HGSSolidThermo.H"
 #include "porousThermoSolidChemistryModel.H"
+
+#ifdef WITH_YADE
+    // DEM lambdaDot strategy models live in the DEM library
+    // (liblambdaDotModel, which links YADE). They are only linked into the
+    // pyrolysis library in a WITH_YADE build; the non-YADE build never
+    // references them.
+    #include "LambdaDotCalculationModel.H"
+#endif
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 namespace Foam
@@ -209,6 +217,37 @@ protected:
         //  0/Us. The solid mass flux and porosity advection consume it.
         const volVectorField& Us_;
 
+    // DEM (YADE) coupling — lambda/porosity exact-differential split
+
+        //- True when DEM coupling is active for this case: the
+        //  yadeProperties dictionary has active=true AND the solver
+        //  registered the DEM fields lambdaDot/lambda. Resolved once at
+        //  construction. DEM *support* is compiled in only with WITH_YADE
+        //  (the lamDotCalc_ model below and its library are gated on it);
+        //  within a WITH_YADE build this flag is the runtime switch, since a
+        //  YADE-built solver can still run a non-DEM case. Kept
+        //  unconditional (and always false without WITH_YADE) so the shared
+        //  code paths need no extra guarding.
+        bool demActive_;
+
+        //- Rate of change of the DEM particle characteristic length
+        //  scale [m/s], registered by the solver (createDEMFields.H).
+        //  Computed here in solveSpeciesMass(), pushed onto the YADE
+        //  particles by lambdaDotModel. Null when !demActive_.
+        volScalarField* lambdaDotPtr_;
+
+        //- Integrated DEM particle length scale (shadow field, see
+        //  updateCurrentLambda()). Null when !demActive_.
+        volScalarField* lambdaPtr_;
+
+#ifdef WITH_YADE
+        //- lambdaDot calculation strategy, selected by lambdaMode in
+        //  constant/lambdaDict. Owns the temperature- and chemistry-driven
+        //  contributions to lambdaDot. Only created when demActive_. Present
+        //  only in a WITH_YADE build.
+        autoPtr<LambdaDotCalculationModel> lamDotCalc_;
+#endif
+
     // Checks
 
         //- Cumulative lost mass of the condensed phase [kg]
@@ -269,6 +308,16 @@ protected:
 
             //- Evolve porosity field
             void solvePorosity();
+
+        // DEM lambda/porosity split
+
+            //- Advance the shadow lambda field: lambda += lambdaDot*dt.
+            //  OpenFOAM never receives the integrated lambda back from
+            //  YADE (the true value lives in YADE's per-spring Python-side
+            //  integration), so the same rate is integrated here. Replace
+            //  the body of this function with a real pull-back once
+            //  yade-pgf-trunk sends lambda to OpenFOAM.
+            void updateCurrentLambda();
 
 public:
 

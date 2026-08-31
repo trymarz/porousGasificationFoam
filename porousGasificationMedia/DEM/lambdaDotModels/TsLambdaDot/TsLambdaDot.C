@@ -15,7 +15,7 @@ TsLambdaDot::TsLambdaDot
 {}
 
 
-void TsLambdaDot::calculate()
+void TsLambdaDot::calculateTemperatureDriven()
 {
     const volScalarField& Ts = mesh_.lookupObject<volScalarField>("Ts");
 

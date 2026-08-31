@@ -6,7 +6,6 @@
 #include "autoPtr.H"
 #include "fvMesh.H"
 #include "FoamYade.H"
-#include "LambdaDotCalculationModel.H"
 
 namespace Foam
 {
@@ -37,9 +36,6 @@ private:
     DynamicList<label> movedToCells_;
     //
 
-    // Runtime-selected lambdaDot calculation model: constant, Ts, or dTsdt.
-    autoPtr<LambdaDotCalculationModel> lambdaDotCalculationModel_;
-
 public:
     lambdaDotModel
     (
@@ -54,7 +50,12 @@ public:
 
     ~lambdaDotModel();
 
+    //- Enforce the solid-region gate on lambdaDot before the DEM particles
+    //  read it. The value itself is assembled by volPyrolysis (which owns the
+    //  LambdaDotCalculationModel); this only zeroes it outside the
+    //  mechanically active solid region.
     void updateLambdaDot();
+
     void updateParticleFields();
 
     const DynamicList<label>& movedFromCells() const;
