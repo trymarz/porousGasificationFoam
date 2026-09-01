@@ -96,13 +96,17 @@ void exactDifferentialLambdaDot::calculateChemistryDriven
     // the volumetric consequence of the specie mass rate sRhoSi into the
     // particle length scale, dlambda/dt = V/(3*rho*lambda^2) per unit mass
     // rate (see the class banner for the derivation). With lambda in [m] the
-    // term is dimensionally [m/s], matching lambdaDot. Kept cell-wise: mesh_.V()
-    // is a scalarField (not a volScalarField) and the per-cell max guards do
-    // not map cleanly to field algebra. Accumulates, since the temperature-
-    // driven term already set the base value and this is called once per solid
-    // specie. The mass change itself stays conserved — the Ym transport in
-    // volPyrolysis consumes the full, unmodified sRhoSi, and the porosity
-    // source is reduced by the same fraction.
+    // term is dimensionally [m/s], matching lambdaDot. Kept cell-wise: the
+    // only real obstacle to field algebra is mesh_.V(), a
+    // DimensionedField<scalar, volMesh> (cell volumes, no boundary field) --
+    // OpenFOAM has no operator combining it directly with a volScalarField,
+    // the same reason volPyrolysis::solveSpeciesMass() drops to .field() to
+    // pair Ym_i with mesh_.V() (max(field, dimensionedScalar) itself is
+    // ordinary field algebra and would map cleanly). Accumulates, since the
+    // temperature-driven term already set the base value and this is called
+    // once per solid specie. The mass change itself stays conserved — the Ym
+    // transport in volPyrolysis consumes the full, unmodified sRhoSi, and the
+    // porosity source is reduced by the same fraction.
     forAll(sRhoSi, cellI)
     {
         lambdaDot_[cellI] +=

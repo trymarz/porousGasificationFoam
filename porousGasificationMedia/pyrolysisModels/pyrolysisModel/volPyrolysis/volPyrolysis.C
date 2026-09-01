@@ -131,13 +131,9 @@ void volPyrolysis::solvePorosity()
 {
     if (active_)
     {
-        // With DEM active, porositySource_ was already assembled in
-        // solveSpeciesMass() — the (1 - massSplitBetweenLamAndPor) share of the chemistry
-        // mass change — and must not be overwritten with the full RRpor.
-        if (!demActive_)
-        {
-            porositySource_ = solidChemistry_->RRpor(T_)();
-        }
+        // porositySource_ is assembled unconditionally in solveSpeciesMass()
+        // (called immediately before this function every step, see
+        // evolveRegion()) -- nothing to (re)compute here.
 
         volScalarField& por = porosity_;
 
@@ -696,13 +692,15 @@ void volPyrolysis::solveSpeciesMass()
         // is set here (once per step, overwriting lambdaDot); the
         // chemistry-driven part is accumulated per specie inside the loop
         // below. Both are delegated to the selected LambdaDotCalculationModel
-        // (lambdaMode in constant/lambdaDict).
+        // (lambdaMode in constant/lambdaDict). demActive_ is unconditionally
+        // false without WITH_YADE (see its declaration), so this whole path
+        // is compiled out rather than left as a dead runtime branch.
+#ifdef WITH_YADE
         if (demActive_)
         {
-#ifdef WITH_YADE
             lamDotCalc_->calculateTemperatureDriven();
-#endif
         }
+#endif
 
         for (label i = 0; i < Ys_.size(); ++i)
         {
@@ -714,15 +712,15 @@ void volPyrolysis::solveSpeciesMass()
             // massSplit * V/(3*rho*lambda^2) * sRhoSi; a no-op for the other
             // modes). The mass change itself stays conserved — the Ym
             // transport below consumes the full, unmodified sRhoSi.
+#ifdef WITH_YADE
             if (demActive_)
             {
-#ifdef WITH_YADE
                 lamDotCalc_->calculateChemistryDriven
                 (
                     sRhoSi, rho_, *lambdaPtr_
                 );
-#endif
             }
+#endif
 
             Ym_i.correctBoundaryConditions();
 
@@ -759,26 +757,19 @@ void volPyrolysis::solveSpeciesMass()
         // chemistry mass change becomes pore space, where massSplit is the
         // model's chemistryMassSplit() — the same coefficient the model just
         // used for the lambda contribution, so the split is conservative.
-        // massSplit = 0 (the default, and every non-exactDifferential mode)
-        // reproduces the pre-split porosity source exactly. RRpor() is reused
-        // verbatim (sum_i -RRs_i/rho_i with per-specie densities).
-        // solvePorosity() skips its own RRpor assignment when demActive_.
+        // massSplit stays 0.0 without DEM (or for every non-exactDifferential
+        // mode), so the unconditional assignment below reduces to the
+        // pre-split porosity source exactly (RRpor() reused verbatim: sum_i
+        // -RRs_i/rho_i with per-specie densities). This is now the only place
+        // porositySource_ is assigned; solvePorosity() (called immediately
+        // after this function every step, see evolveRegion()) just consumes
+        // it, so the two functions can no longer disagree about who owns it.
+        scalar massSplit = 0.0;
+#ifdef WITH_YADE
         if (demActive_)
         {
             lambdaDotPtr_->correctBoundaryConditions();
-
-            scalar massSplit = 0.0;
-#ifdef WITH_YADE
             massSplit = lamDotCalc_->chemistryMassSplit();
-#endif
-
-            const volScalarField RRporF(solidChemistry_->RRpor(T_)());
-            forAll(porositySource_, cellI)
-            {
-                porositySource_[cellI] = (1.0 - massSplit)*RRporF[cellI];
-            }
-            porositySource_.correctBoundaryConditions();
-
             updateCurrentLambda();
 
             Info<< "DEM lambda split: lambdaDot min/max = "
@@ -786,6 +777,14 @@ void volPyrolysis::solveSpeciesMass()
                 << "; lambda min/max = "
                 << gMin(*lambdaPtr_) << ", " << gMax(*lambdaPtr_) << endl;
         }
+#endif
+
+        const volScalarField RRporF(solidChemistry_->RRpor(T_)());
+        forAll(porositySource_, cellI)
+        {
+            porositySource_[cellI] = (1.0 - massSplit)*RRporF[cellI];
+        }
+        porositySource_.correctBoundaryConditions();
 
         scalar totalYmMass = 0.0;
         for (label i = 0; i < Ym_.size(); ++i)
