@@ -10,6 +10,17 @@
 
 tutorials/cases/MicroTGA-DEM_Us_UsInterp
 
+# lambdaMode exactDifferential fixtures: each starts the packed bed hot
+# (Ts=800 K solid, T=850 K gas, so both heat transfer and pyrolysis chemistry
+# are active within the fixture's short 2 ms run) and asserts the sign of
+# lambdaDot over solid cells (porosityF < criticalPorosity) via
+# applications/test/regression/tools/checkFieldSign.py, invoked from each
+# case's own Allrun.
+tutorials/cases/MicroTGA-DEM_lambdaDotOff
+tutorials/cases/MicroTGA-DEM_lambdaDotTemperature
+tutorials/cases/MicroTGA-DEM_lambdaDotChemistry
+tutorials/cases/MicroTGA-DEM_lambdaDotBoth
+
 # tutorials/cases/simple_line_case is NOT listed yet. It builds, meshes and
 # reaches the coupled loop, but its Allrun does not exit 0 under
 # tools/runDEMCase.sh: the run aborts on the heap corruption that also trips

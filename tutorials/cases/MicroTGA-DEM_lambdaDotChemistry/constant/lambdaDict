@@ -1,0 +1,20 @@
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      lambdaDict;
+}
+
+// Regression fixture: chemistry-driven term only (dlambdaOverDTs 0). Exercises calculateChemistryDriven()'s per-cell V/(3*rho*lambda^2)*sRhoSi accumulation.
+// Valid modes: none, constant, Ts or exactDifferential (the latter reads
+// dlambdaOverDTs [m/K] and massSplitBetweenLamAndPor [-], both defaulting to
+// 0.0). setFieldsDict seeds the packed-bed box with porosityF < criticalPorosity;
+// 0.orig/Ts and 0.orig/T start the whole domain hot (Ts=800, T=850) so both
+// the temperature gradient and the pyrolysis chemistry are active from t=0.
+lambdaMode exactDifferential;
+
+dlambdaOverDTs 0.0;
+
+massSplitBetweenLamAndPor 0.5;

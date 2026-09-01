@@ -1,0 +1,16 @@
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      lambdaDict;
+}
+
+// Regression fixture: lambdaMode none must give lambdaDot = 0 exactly, even with a real Ts gradient and active chemistry driving both terms in the other three fixtures.
+// Valid modes: none, constant, Ts or exactDifferential (the latter reads
+// dlambdaOverDTs [m/K] and massSplitBetweenLamAndPor [-], both defaulting to
+// 0.0). setFieldsDict seeds the packed-bed box with porosityF < criticalPorosity;
+// 0.orig/Ts and 0.orig/T start the whole domain hot (Ts=800, T=850) so both
+// the temperature gradient and the pyrolysis chemistry are active from t=0.
+lambdaMode none;
