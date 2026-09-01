@@ -11,7 +11,7 @@ class constantLambdaDot
     public LambdaDotCalculationModel
 {
 private:
-    scalar lambdaValue_;
+    dimensionedScalar lambdaValue_;
 
 public:
     constantLambdaDot
