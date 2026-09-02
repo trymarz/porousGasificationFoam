@@ -8,8 +8,9 @@
 //
 // Regression-test function objects for the prescribed-Us transport cases.
 //
-// These deliberately assert only the EXTENSIVE, correctly-transported field:
-// the solid-species mass concentration Ycharm [kg/m3], advected by Us in
+// Two families of reduction, over the two fields the solid state is made of.
+//
+// Ycharm [kg/m3] is the solid-species mass concentration, advected by Us in
 // volPyrolysis::solveSpeciesMass() as div(phiUs, Ym). That operator is
 // conservative, so these reductions cleanly capture the transport under test:
 //
@@ -19,11 +20,17 @@
 //   min(Ycharm)           bounded-ness: an overshooting scheme drives this < 0.
 //   max(Ycharm)           blob peak — sensitive to where the mass goes.
 //
-// porosityF is intentionally NOT asserted: volPyrolysis advects it as an
-// intensive fraction (solvePorosity()), which is non-physical under a
-// compressive Us (it grows past 1) and is slated to change — see the plans
-// store, "solid-transport-recompute-intensive-from-extensive". Baselining it
-// here would bake in behaviour we expect to fix.
+// porosityF is the void fraction. volPyrolysis::recoverPorosity() derives it
+// from the mass as 1 - sum_i(Ym_i/rho_i) rather than transporting it, so it
+// carries no error of its own and cannot contradict Ycharm. What these
+// reductions assert is the bed structure that transport produces:
+//
+//   volAverage(porosityF) mean void — the domain-wide solid budget read from
+//                         the void side.
+//   min(porosityF)        densest cell: how hard a compressive Us packs the bed.
+//   max(porosityF)        loosest cell. A void fraction above 1 is a cell
+//                         holding a negative volume of solid, so this is the
+//                         reduction that catches an unbounded porosity.
 //
 // applications/test/regression/tools/compareScalars.py diffs every emitted
 // .dat against the committed reference/ baseline.
@@ -67,6 +74,30 @@ regressionYcharmMax
     ${regressionBase}
     enabled         true;
     fields          (Ycharm);
+    operation       max;
+}
+
+regressionPorosityAverage
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (porosityF);
+    operation       volAverage;
+}
+
+regressionPorosityMin
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (porosityF);
+    operation       min;
+}
+
+regressionPorosityMax
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (porosityF);
     operation       max;
 }
 

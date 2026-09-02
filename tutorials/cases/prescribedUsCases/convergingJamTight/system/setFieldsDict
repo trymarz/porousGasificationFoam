@@ -1,0 +1,77 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  v2406
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "system";
+    object      setFieldsDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// Saturation fixture: the same converging prescribed solid velocity Us as
+// prescribedUsCases/converging -- +x in the left half, -x in the right half --
+// but with a blob dense enough that the solid flux limiter has to refuse it.
+//
+// converging's dilute blob (porosityF 0.99, so 1 % solid) never approaches the
+// packing limit: its densest cell over the whole run is 3.3 % solid, and
+// volPyrolysis::solidReceiverLimit() never once refuses a face there -- the
+// limiter reports 0 times across the run. Raising the blob to porosityF 0.5
+// makes saturation arithmetic rather than a matter of trial. The r = 3 mm blob
+// sits centred ON the convergence plane x = 0.01, so the three 1 mm cells on
+// each side of it, each half solid, drive 1.5 cell volumes of solid into the
+// receiving cell. That cannot fit, and the cap is reached before the first
+// write: min(porosityF) is flat at minPorosity across all five writes.
+//
+// Mass note. volIntegrate(Ycharm) rises 4.2e-08 kg per 0.1 s over the run.
+// That is inflow, not fabrication -- Us points INTO the domain at both the left
+// and the right wall, and each wall is 0.02 x 0.001 m, so the two together
+// admit Ym_bg*|Us|*A = 1.05*0.01*4e-05 = 4.2e-07 kg/s of background solid.
+// Committed converging's regressionYcharmIntegral rises at the identical rate.
+
+defaultFieldValues
+(
+    volScalarFieldValue porosityF  0.999
+    volScalarFieldValue porosityF0 0.999
+    volVectorFieldValue Us         (0 0 0)
+);
+
+regions
+(
+    // Solid blob: radius 3 mm cylinder about z, placed off-centre at
+    // (0.01, 0.015) so every prescribed Us field (including the vortices,
+    // which are centred/singular at the domain centre) actually advects it.
+    // Dense here rather than dilute -- porosityF 0.5 is half solid, the
+    // mass that makes the limiter bind; see the header.
+    cylinderToCell
+    {
+        point1  (0.01 0.015 -1);
+        point2  (0.01 0.015  1);
+        radius  0.003;
+        fieldValues
+        (
+            volScalarFieldValue porosityF  0.5
+            volScalarFieldValue porosityF0 0.5
+        );
+    }
+
+    // Converging Us: left half drives +x, right half drives -x.
+    boxToCell
+    {
+        box (0    0 -1) (0.01 0.02 1);
+        fieldValues ( volVectorFieldValue Us (0.01 0 0) );
+    }
+    boxToCell
+    {
+        box (0.01 0 -1) (0.02 0.02 1);
+        fieldValues ( volVectorFieldValue Us (-0.01 0 0) );
+    }
+);
+
+// ************************************************************************* //

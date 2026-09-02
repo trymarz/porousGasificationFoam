@@ -38,6 +38,7 @@ SourceFiles
 #include "heterogeneousPyrolysisModel.H"
 #include "HGSSolidThermo.H"
 #include "porousThermoSolidChemistryModel.H"
+#include "surfaceFields.H"
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 namespace Foam
@@ -68,10 +69,140 @@ private:
         void readReactingOneDimControls();
 
         //- Derive mass fractions Ys_ from mass concentrations Ym_
-        //  Ys_i = Ym_i / sum_j(Ym_j) in every solid cell (whereIs_ == 1).
-        //  If a cell holds no solid mass, the first specie is assigned
-        //  unity and the rest zero to avoid a division-by-zero NaN.
+        //  Ys_i = Ym_i/sum_j(Ym_j) wherever the cell holds solid mass, and
+        //  the first specie alone where it holds none. Keyed on the mass,
+        //  not on whereIs_, which is refreshed a stage later.
         void deriveYiFromYm();
+
+        //- Solid volumetric face flux [m3/s] asked for by Us
+        //  Zero unless advectSolidFields_ is set, and unlimited: this is
+        //  what Us asks for. limitSolidVolFlux() scales it into phiSolid_,
+        //  which is the flux the transport stages ride.
+        tmp<surfaceScalarField> solidVolFlux() const;
+
+        //- Assemble the budgets the flux limit is built from
+        //  Per specie, the transport and chemistry terms of the equation
+        //  being limited (phiYm, RRsolid) and their sum (phiYmTotal); then
+        //  the solid volume that mass flux carries (phiSolidVol), the solid
+        //  volume fraction each cell holds (alphaS) and the rate chemistry
+        //  changes it at (RRpor). Refreshes the Ym_ patches first: a
+        //  fixedYm value is read from the cell behind it and is one stage
+        //  stale until corrected.
+        void solidFluxBudgets
+        (
+            PtrList<surfaceScalarField>& phiYm,
+            PtrList<volScalarField>& RRsolid,
+            tmp<surfaceScalarField>& tPhiYmTotal,
+            tmp<surfaceScalarField>& tPhiSolidVol,
+            tmp<volScalarField>& tAlphaS,
+            tmp<volScalarField>& tRRpor
+        );
+
+        //- Share of the outgoing flux each cell can supply, per cell
+        //  A face may not carry out more of a specie than its donor holds,
+        //  which makes Ym_i >= 0 and porosity <= 1 structural rather than
+        //  clipped. Exact, per specie, from the transport scheme's own face
+        //  fluxes. With credit set, what arrives over the step may leave
+        //  again within it.
+        void solidDonorLimit
+        (
+            const PtrList<surfaceScalarField>& phiYm,
+            const PtrList<volScalarField>& RRsolid,
+            const surfaceScalarField& lambda,
+            const bool credit,
+            scalarField& lambdaDonor
+        ) const;
+
+        //- Share of the incoming flux each cell has room for, per cell
+        //  A face may not deliver more solid volume than fits in its
+        //  receiver, so porosity >= minPorosity_ and the flux into a
+        //  filling cell falls to zero - this is the repulsion. With credit
+        //  set, what leaves over the step counts as room within it.
+        void solidReceiverLimit
+        (
+            const surfaceScalarField& phiSolidVol,
+            const volScalarField& alphaS,
+            const volScalarField& RRpor,
+            const surfaceScalarField& lambda,
+            const bool credit,
+            scalarField& lambdaReceiver
+        ) const;
+
+        //- Give each face the tighter of its two ends' factors
+        //  One factor per face, so both sides move the same solid and the
+        //  scaling neither creates nor destroys mass: what cannot move
+        //  stays in the donor and the bed jams. lambda slices allLambda,
+        //  which is the list the coupled-face sync operates on.
+        void applySolidFaceLimit
+        (
+            const surfaceScalarField& phiYmTotal,
+            const scalarField& lambdaDonor,
+            const scalarField& lambdaReceiver,
+            scalarField& allLambda,
+            surfaceScalarField& lambda
+        ) const;
+
+        //- Report the limiter's activity and what the sweeps left over
+        //  A limiter that acts is Us asking the bed for something it cannot
+        //  do, so it reports when it acts and is quiet when it does not.
+        //  The residual is read off the state the limited flux will
+        //  produce, since the sweep count is capped and convergence is not
+        //  guaranteed.
+        void reportSolidFluxLimiter
+        (
+            const PtrList<surfaceScalarField>& phiYm,
+            const PtrList<volScalarField>& RRsolid,
+            const surfaceScalarField& phiSolidVol,
+            const volScalarField& alphaS,
+            const volScalarField& RRpor,
+            const surfaceScalarField& lambda
+        ) const;
+
+        //- Scale the shared solid flux to what the cells can supply and take
+        //  Two-sided saturation limit on the one flux every solid field
+        //  rides, applied before any of them is transported: the donor
+        //  content and receiver room limits above, swept
+        //  nSolidFluxLimiterCorrectors_ times in Zalesak/FCT form. The
+        //  fail-fast guards are the backstop for what the sweeps do not
+        //  reach.
+        void limitSolidVolFlux();
+
+        //- Face flux leaving and entering each cell, summed per cell
+        //  Both sums positive, direction taken from the scaled flux itself
+        //  rather than from Us. Local: every face of a cell is visible to
+        //  the rank owning it, a coupled patch face included.
+        void accumulateFaceFlux
+        (
+            const surfaceScalarField& phi,
+            const surfaceScalarField& lambda,
+            scalarField& sumOut,
+            scalarField& sumIn
+        ) const;
+
+        //- Index of the first cell whose value is not finite or lies
+        //  outside [lower, upper]; -1 when the field is valid everywhere.
+        //  Cells where the optional mask is not positive are skipped - a
+        //  solid temperature is not a defect in a cell holding no solid.
+        //  Local: an invalid state on any rank aborts the whole job.
+        label firstInvalidCell
+        (
+            const volScalarField& fld,
+            const scalar lower,
+            const scalar upper,
+            const scalarField* mask = nullptr
+        ) const;
+
+        //- Abort on an impossible solid state, reporting where it is and
+        //  whatever the calling stage knows is relevant. The solid
+        //  transport is explicit and unbounded, so a value outside its
+        //  physical range is a defect to diagnose, not a number to clip.
+        void reportInvalidSolidState
+        (
+            const word& stage,
+            const volScalarField& fld,
+            const label cellI,
+            const string& context
+        ) const;
 
 
 protected:
@@ -142,6 +273,79 @@ protected:
     //- Switch for bed replenishment
     Switch replenishSwitch_;
 
+    //- Switch for bed motion that moves the solid rather than the porosity
+    //  Bed motion shifts a column of solid down a vertical route and leaves
+    //  the cell at the top of it empty. Unset, it does that by writing
+    //  porosity: the void scales by the cell-volume ratio down the route and
+    //  is set to 1 at the top, over the mass those cells still hold. Since
+    //  recoverPorosity() derives the porosity from the mass, every one of
+    //  those writes is contradicted within the step and discarded at the
+    //  next recovery, so the bed moves nothing - and the solid enthalpy is
+    //  not moved at all, so what mass does arrive arrives cold.
+    //  Set, the mass is what moves: Ym_ carries the same cell-volume ratio
+    //  the porosity write applies to the solid volume, solidH_ travels with
+    //  it, and the top of the route is emptied for real, so por = 1 is what
+    //  1 - por = sum_i Ym_i/rho_i gives. With replenishSwitch_ unset the
+    //  solid at the foot of the route has nowhere to go and is charged to
+    //  cumulativeCollapseMass_.
+    Switch collapseMovesSolidMass_;
+
+    //- Switch for emptying a flipped cell rather than leaving its solid
+    //  A cell above critPorosity_ with Us pointing into the solid is a flip
+    //  candidate - the trailing edge of a bed being dragged away. Unset, it
+    //  is left alone and drains through the ordinary transport. Set, it is
+    //  emptied for real, specie masses and solid enthalpy removed, so the
+    //  porosity recovery derives por = 1 from a genuinely empty cell; that
+    //  mass is destroyed rather than moved and charged to
+    //  cumulativeFlipMass_. Writing por = 1 over mass still present is not
+    //  an option: the solid flux limiter reads that link to size a cell's
+    //  room.
+    Switch emptyFlippedCells_;
+
+    //- Switch for Eulerian advection of the solid fields by Us
+    //  When false the solid volumetric flux is held at zero, so the solid
+    //  specie masses and the solid enthalpy are only updated by chemistry
+    //  - and so, through the mass, is the recovered porosity.
+    Switch advectSolidFields_;
+
+    //- Switch for taking a nearly-empty cell's solid temperature from the gas
+    //  Above critPorosity_ a cell holds too little solid for
+    //  Ts = solidH/(totalYm*Cp) to say anything: the ratio is a frozen
+    //  numerator over a vanishing denominator. Set, such a cell reports the
+    //  gas temperature, and preSolveEnergy()'s solidH = rhoCp*Ts then drops
+    //  the enthalpy it was holding - energy destroyed rather than moved, and
+    //  charged to no budget. Unset, the ratio stands as computed.
+    Switch gasTemperatureBelowCriticalPorosity_;
+
+    //- Switch for the fail-fast guards on the solid state
+    //  When set, an impossible porosity, Ym, solid enthalpy or solid
+    //  temperature aborts at the equation that produced it rather than
+    //  propagating into a downstream exception that says nothing.
+    Switch failOnInvalidSolidState_;
+
+    //- Relative slack admitted by the fail-fast guards [-]
+    //  Sized to absorb round-off on the explicit updates only; an
+    //  excursion larger than this is a genuine overshoot.
+    scalar solidStateTolerance_;
+
+    //- Bound on a physically credible solid temperature [K]
+    //  Ts is a ratio, solidH_/(totalYm*Cp), and says nothing credible about
+    //  a cell whose solid inventory is vanishing. Upper end of the guard
+    //  window; solidStateTolerance_ times it is the allowance below zero.
+    scalar maxSolidTemperature_;
+
+    //- Sweeps of the solid flux limiter [-]
+    //  Each sweep re-reads the budgets the previous one left, so a jam can
+    //  travel back up the bed within one time step instead of one cell per
+    //  step. Zero leaves the flux Us asks for untouched.
+    label nSolidFluxLimiterCorrectors_;
+
+    //- Lowest porosity the solid flux limiter will pack a cell to [-]
+    //  Zero admits a cell of pure solid. A case with a packing limit of its
+    //  own raises it, and the flux into a cell then stops at that fraction
+    //  instead.
+    scalar minPorosity_;
+
     //- Criterion for bed motion porosity model
     scalar critPorosity_;
 
@@ -176,7 +380,10 @@ protected:
         //- Heat release [J/s/m3]
         volScalarField chemistrySh_;
 
-        //- Porosity growth [1/s]
+        //- Porosity growth from chemistry [1/s], diagnostic only
+        //  -sum_i RRs_i/rho_i, the time derivative of the solid volume
+        //  fraction chemistry removes. Reported, never applied: the
+        //  porosity is recovered from Ym_, which RRs_i has already moved.
         volScalarField porositySource_;
 
         //- Masks for equations
@@ -209,6 +416,12 @@ protected:
         //  0/Us. The solid mass flux and porosity advection consume it.
         const volVectorField& Us_;
 
+        //- The solid volumetric face flux the transport stages ride [m3/s]
+        //  solidVolFlux() scaled by limitSolidVolFlux(). One field, shared
+        //  by the specie masses and the solid enthalpy, so a face moves the
+        //  same solid in every equation that sees it.
+        surfaceScalarField phiSolid_;
+
     // Checks
 
         //- Cumulative lost mass of the condensed phase [kg]
@@ -226,10 +439,10 @@ protected:
         //- scalar chemistryTime
         scalar timeChem_;
 
-        //- Total Ym mass integral at t=0, for conservation diagnostic [kg]
-        //  Lazily initialized on the first solveSpeciesMass() call
-        //  (-1 = not yet computed); on restart it resets to the restart
-        //  state, so conservation is checked from restart onward.
+        //- Total Ym mass integral at construction, for the conservation
+        //  diagnostic [kg]. Accumulated over the species in the
+        //  constructor, so on restart it holds the restart inventory and
+        //  conservation is checked from the restart onward.
         scalar initialTotalYmMass_;
 
         //- Cumulative solid mass advected out through boundaries [kg]
@@ -238,11 +451,27 @@ protected:
         scalar cumulativeYmOutflow_;
 
         //- Cumulative mass created by the max(0) clip on Ym [kg]
-        //  The clip fabricates mass when a numerical undershoot drives
-        //  Ym negative; the run aborts once the total exceeds a small
-        //  fraction of the initial solid inventory (see
-        //  solveSpeciesMass()).
+        //  Reported with the mass budget, so the budget cannot look closed
+        //  while the clip is quietly paying for it.
         scalar cumulativeYmClip_;
+
+        //- Cumulative solid mass destroyed by emptying flipped cells [kg]
+        //  Nonzero only under emptyFlippedCells_. Reported with the mass
+        //  budget so a conserved-looking total cannot hide the solid this
+        //  removes.
+        scalar cumulativeFlipMass_;
+
+        //- Cumulative solid mass shed at the foot of a bed-motion route [kg]
+        //  Nonzero only under collapseMovesSolidMass_. The cell the collapse
+        //  was called for is overwritten by the one above it, so what it
+        //  held leaves the domain; every other cell on the route is read
+        //  into its neighbour before being overwritten, so on a route that
+        //  lies within one processor this is the whole of what the shift
+        //  loses. A route spanning processors also creates mass - see the
+        //  cross-processor branch in recoverPorosity() - so there the budget
+        //  does not close on this figure alone. Reported with the mass
+        //  budget, so neither can hide in a conserved-looking total.
+        scalar cumulativeCollapseMass_;
 
 
     // Protected member functions
@@ -267,8 +496,11 @@ protected:
             //- Solve energy
             void postSolveEnergy();
 
-            //- Evolve porosity field
-            void solvePorosity();
+            //- Recover the porosity from the transported solid mass
+            //  1 - porosity = sum_i Ym_i/rho_i, exactly. Also refreshes the
+            //  whereIs_ masks and runs the bed-motion model. Last stage of
+            //  evolveRegion(): it divides by the rho_ postSolveEnergy() sets.
+            void recoverPorosity();
 
 public:
 
