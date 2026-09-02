@@ -7,10 +7,14 @@ FoamFile
     object      lambdaDict;
 }
 
-// Regression fixture: lambdaMode none must give lambdaDot = 0 exactly, even with a real Ts gradient and active chemistry driving both terms in the other three fixtures.
-// Valid modes: none, constant, Ts or exactDifferential (the latter reads
-// dlambdaOverDTs [m/K] and massSplitBetweenLamAndPor [-], both defaulting to
-// 0.0). setFieldsDict seeds the packed-bed box with porosityF < criticalPorosity;
+// Regression fixture: the "off" reduction. exactDifferential with no
+// coefficients given -- every one defaults to 0.0 -- must give lambdaDot = 0
+// exactly, even with a real Ts gradient and active chemistry driving both
+// terms in the other three fixtures. There is no separate lambdaMode for this.
+// Valid modes: constant, exactDifferential. exactDifferential reads
+// dlambdaOverDTs [m/K], dlambdaOverDYmi [m^4/kg] (a scalar, or a per-specie
+// subdict) and splitMassBetweenLamAndPor [-], all defaulting to 0.0.
+// setFieldsDict seeds the packed-bed box with porosityF < criticalPorosity;
 // 0.orig/Ts and 0.orig/T start the whole domain hot (Ts=800, T=850) so both
 // the temperature gradient and the pyrolysis chemistry are active from t=0.
-lambdaMode none;
+lambdaMode exactDifferential;

@@ -12,10 +12,11 @@ exactDifferentialLambdaDot::exactDifferentialLambdaDot
 :
     LambdaDotCalculationModel(dict, mesh, lambdaDot),
     // Coefficients are read from the selecting dictionary
-    // (constant/lambdaDict). Both default to 0.0 when absent, so a case that
-    // carries neither key reproduces the pre-split behaviour (lambdaDot = 0).
-    // dlambdaOverDTs is read as a bare scalar (the dicts write it without
-    // dimensions) and wrapped in [m/K] here.
+    // (constant/lambdaDict). All of them default to 0.0 when absent, so a case
+    // that carries none of the keys gives lambdaDot = 0 and leaves the whole
+    // chemistry mass change in the porosity source. They are read as bare
+    // scalars (the dicts write them without dimensions) and wrapped in their
+    // physical units where they are used.
     dlambdaOverDTs_
     (
         dimensionedScalar
@@ -25,9 +26,12 @@ exactDifferentialLambdaDot::exactDifferentialLambdaDot
             dict.lookupOrDefault<scalar>("dlambdaOverDTs", 0.0)
         )
     ),
-    massSplitBetweenLamAndPor_
+    dlambdaOverDYmiUniform_(true),
+    dlambdaOverDYmiUniformValue_(0.0),
+    dlambdaOverDYmiPerSpecie_(),
+    splitMassBetweenLamAndPor_
     (
-        dict.lookupOrDefault<scalar>("massSplitBetweenLamAndPor", 0.0)
+        dict.lookupOrDefault<scalar>("splitMassBetweenLamAndPor", 0.0)
     ),
     TsForLambdaOld_
     (
@@ -46,9 +50,54 @@ exactDifferentialLambdaDot::exactDifferentialLambdaDot
     lambdaDeltaT_(0.0),
     haveTsForLambdaOld_(false)
 {
+    // dlambdaOverDYmi accepts either form:
+    //
+    //     dlambdaOverDYmi 1e-4;              // one value for every specie
+    //     dlambdaOverDYmi { char 1e-4; }     // per-specie, missing -> 0.0
+    //
+    // findDict() returns nullptr for a non-dictionary entry, which is what
+    // separates the two spellings.
+    if (const dictionary* subDictPtr = dict.findDict("dlambdaOverDYmi"))
+    {
+        dlambdaOverDYmiUniform_ = false;
+        dlambdaOverDYmiPerSpecie_ = *subDictPtr;
+    }
+    else
+    {
+        dlambdaOverDYmiUniform_ = true;
+        dlambdaOverDYmiUniformValue_ =
+            dict.lookupOrDefault<scalar>("dlambdaOverDYmi", 0.0);
+    }
+
     Info<< "exactDifferentialLambdaDot: dlambdaOverDTs = " << dlambdaOverDTs_
-        << ", massSplitBetweenLamAndPor = " << massSplitBetweenLamAndPor_
-        << nl << endl;
+        << ", splitMassBetweenLamAndPor = " << splitMassBetweenLamAndPor_
+        << nl;
+
+    if (dlambdaOverDYmiUniform_)
+    {
+        Info<< "    dlambdaOverDYmi [m^4/kg] = "
+            << dlambdaOverDYmiUniformValue_ << " (all species)" << nl << endl;
+    }
+    else
+    {
+        Info<< "    dlambdaOverDYmi [m^4/kg] per specie = "
+            << dlambdaOverDYmiPerSpecie_.toc()
+            << " (species not listed read 0.0)" << nl << endl;
+    }
+}
+
+
+scalar exactDifferentialLambdaDot::dlambdaOverDYmi
+(
+    const word& specieName
+) const
+{
+    if (dlambdaOverDYmiUniform_)
+    {
+        return dlambdaOverDYmiUniformValue_;
+    }
+
+    return dlambdaOverDYmiPerSpecie_.lookupOrDefault<scalar>(specieName, 0.0);
 }
 
 
@@ -88,35 +137,26 @@ void exactDifferentialLambdaDot::calculateTemperatureDriven()
 void exactDifferentialLambdaDot::calculateChemistryDriven
 (
     const volScalarField& sRhoSi,
-    const volScalarField& rho,
-    const volScalarField& lambda
+    const word& specieName
 )
 {
-    // Chemistry-driven particle shrinkage: massSplitBetweenLamAndPor redirects
-    // the volumetric consequence of the specie mass rate sRhoSi into the
-    // particle length scale, dlambda/dt = V/(3*rho*lambda^2) per unit mass
-    // rate (see the class banner for the derivation). With lambda in [m] the
-    // term is dimensionally [m/s], matching lambdaDot. Kept cell-wise: the
-    // only real obstacle to field algebra is mesh_.V(), a
-    // DimensionedField<scalar, volMesh> (cell volumes, no boundary field) --
-    // OpenFOAM has no operator combining it directly with a volScalarField,
-    // the same reason volPyrolysis::solveSpeciesMass() drops to .field() to
-    // pair Ym_i with mesh_.V() (max(field, dimensionedScalar) itself is
-    // ordinary field algebra and would map cleanly). Accumulates, since the
-    // temperature-driven term already set the base value and this is called
-    // once per solid specie. The mass change itself stays conserved — the Ym
-    // transport in volPyrolysis consumes the full, unmodified sRhoSi, and the
-    // porosity source is reduced by the same fraction.
-    forAll(sRhoSi, cellI)
-    {
-        lambdaDot_[cellI] +=
-            massSplitBetweenLamAndPor_*mesh_.V()[cellI]
-           /(
-                3.0*max(rho[cellI], SMALL)
-               *sqr(max(lambda[cellI], SMALL))
-            )
-           *sRhoSi[cellI];
-    }
+    // One term of the chemistry sum: splitMassBetweenLamAndPor *
+    // (dlambda/dYm_i) * (dYm_i/dt), with dYm_i/dt = sRhoSi. Linear in sRhoSi
+    // and independent of rho, lambda and the cell volume, so it is plain
+    // field algebra rather than the cell-wise loop the earlier geometric form
+    // needed. Accumulates: calculateTemperatureDriven() already set the base
+    // value, and this is called once per solid specie.
+    //
+    // Sign: sRhoSi is negative while a specie is being consumed, so a positive
+    // dlambdaOverDYmi gives shrinkage (lambdaDot < 0).
+    const dimensionedScalar dlambdaOverDYmi_i
+    (
+        "dlambdaOverDYmi(" + specieName + ')',
+        dimLength/dimDensity,
+        dlambdaOverDYmi(specieName)
+    );
+
+    lambdaDot_ += splitMassBetweenLamAndPor_*dlambdaOverDYmi_i*sRhoSi;
 }
 
 } // namespace Foam

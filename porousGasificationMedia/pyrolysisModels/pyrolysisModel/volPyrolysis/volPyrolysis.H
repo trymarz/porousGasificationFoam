@@ -236,8 +236,10 @@ protected:
         //  particles by lambdaDotModel. Null when !demActive_.
         volScalarField* lambdaDotPtr_;
 
-        //- Integrated DEM particle length scale [m] (shadow field, see
-        //  updateCurrentLambda()). Null when !demActive_.
+        //- DEM particle length scale [m]. Owned and integrated by YADE
+        //  (State::lambda_) and populated on the mesh by lambdaDotModel's
+        //  lambda interpolation, not by this class — held here only to log its
+        //  min/max next to lambdaDot's. Null when !demActive_.
         volScalarField* lambdaPtr_;
 
 #ifdef WITH_YADE
@@ -308,16 +310,6 @@ protected:
 
             //- Evolve porosity field
             void solvePorosity();
-
-        // DEM lambda/porosity split
-
-            //- Advance the shadow lambda field: lambda += lambdaDot*dt.
-            //  OpenFOAM never receives the integrated lambda back from
-            //  YADE (the true value lives in YADE's per-spring Python-side
-            //  integration), so the same rate is integrated here. Replace
-            //  the body of this function with a real pull-back once
-            //  yade-pgf-trunk sends lambda to OpenFOAM.
-            void updateCurrentLambda();
 
 public:
 

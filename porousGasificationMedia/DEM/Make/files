@@ -2,10 +2,12 @@ interpolationModels/UsInterpolationModel/UsInterpolationModel.C
 interpolationModels/laplaceAnchored/laplaceAnchored.C
 interpolationModels/laplaceSetValues/laplaceSetValues.C
 
+interpolationModels/LambdaInterpolationModel/LambdaInterpolationModel.C
+interpolationModels/laplaceAnchoredLambda/laplaceAnchoredLambda.C
+interpolationModels/laplaceSetValuesLambda/laplaceSetValuesLambda.C
+
 lambdaDotModels/LambdaDotCalculationModel/LambdaDotCalculationModel.C
-lambdaDotModels/noneLambdaDot/noneLambdaDot.C
 lambdaDotModels/constantLambdaDot/constantLambdaDot.C
-lambdaDotModels/TsLambdaDot/TsLambdaDot.C
 lambdaDotModels/exactDifferentialLambdaDot/exactDifferentialLambdaDot.C
 
 lambdaDotModel.C

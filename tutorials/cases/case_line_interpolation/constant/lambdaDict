@@ -8,53 +8,24 @@ FoamFile
 }
 
 
-lambdaMode constant; // none, constant, Ts or exactDifferential
+lambdaMode constant; // constant or exactDifferential
 lambdaValue 0.5;
 
 
-// exactDifferential mode only; both default to 0.0 when absent:
-// dlambdaOverDTs 0.0;            // [m/K]  lambdaDot = dlambdaOverDTs*dTs/dt
-// massSplitBetweenLamAndPor 0.0; // [-]    chemistry mass-change share taken
-//                                //        as particle shrinkage instead of
-//                                //        pore space
-
-
-// lambdaDot
-// {
-//     type coded;
-//     code
-//     #{
-//         return 0.1*sin(x);
-//     #};
-// }
-
-
-// lambdaDot
-// {
-//     type coded;
-//     code
-//     #{
-//         const scalar factor = 10;
-//         return factor*x;
-//     #};
-// }
-
-
-lambdaDot
-{
-    type coded;
-    code
-    #{
-        
-        return 0.001*x;
-    #};
-}
+// exactDifferential mode only; all default to 0.0 when absent:
+// dlambdaOverDTs 0.0;             // [m/K]     dlambda/dTs
+// dlambdaOverDYmi 0.0;            // [m^4/kg]  dlambda/dYm_i, one value for
+//                                 //           every specie, or a subdict of
+//                                 //           per-specie values
+// splitMassBetweenLamAndPor 0.0;  // [-]       chemistry mass-change share
+//                                 //           taken as particle shrinkage
+//                                 //           instead of pore space
 
 
 interpolateUs true; // true: interpolate UsDEM into a continuous Us field inside solid cells. false: use only raw UsDEM, so cells without sphere centers keep Us = 0.
 
-interpolationMode laplaceAnchored; //laplaceAnchored; 
-// laplaceAnchored: current soft anchored solve. 
+interpolationMode laplaceAnchored; //laplaceAnchored;
+// laplaceAnchored: current soft anchored solve.
 // laplaceSetValues: pgfVeloInt hard setValues Laplace solve.
 
 
@@ -74,10 +45,10 @@ nLaplaceSetValuesCorrectors 0; // 0: no extra corrector. 1 or more: extra pseudo
 
 
 
+// lambda interpolation: same two strategies as Us, on their own keys, so
+// lambda (which YADE owns and PGF only reads back) can be smoothed
+// independently of the solid velocity. Defaults shown.
 
-
-
-
-
-
-
+        interpolateLambda true;                  // false: take lambdaDEM raw, background cells pinned
+        lambdaInterpolationMode laplaceSetValues; // laplaceAnchored or laplaceSetValues
+        lambdaBackgroundValue 1.0;               // [m] value held outside the solid region

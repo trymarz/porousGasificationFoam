@@ -343,6 +343,52 @@ pyrolysisCoeffs
 }
 ```
 
+### `constant/lambdaDict` (required by `WITH_YADE` builds running a DEM case)
+
+Read only when DEM coupling is active (`constant/yadeProperties` with `active true`), by two independent consumers that share the one file: `volPyrolysis` (which model computes `lambdaDot`) and `lambdaDotModel` (how the DEM fields are smoothed onto the mesh).
+
+```cpp
+lambdaMode      exactDifferential;  // constant | exactDifferential
+
+// -- lambdaMode constant
+lambdaValue     0.0;         // [m/s]  fixed lambdaDot everywhere
+
+// -- lambdaMode exactDifferential; every coefficient defaults to 0.0
+dlambdaOverDTs             1e-6;    // [m/K]     dlambda/dTs
+dlambdaOverDYmi            2.5e-12; // [m^4/kg]  dlambda/dYm_i, one value for
+                                    //           every solid specie...
+// dlambdaOverDYmi { char 2.5e-12; wood 1e-12; }  // ...or per specie, keyed by
+                                    //           solidComponents name; species
+                                    //           left out read 0.0
+splitMassBetweenLamAndPor  0.5;     // [-] in [0,1]: share of the chemistry
+                                    //     mass change taken as particle
+                                    //     shrinkage; the rest becomes pore space
+
+// -- Us interpolation (UsDEM -> Us), consumed by lambdaDotModel
+interpolateUs              true;
+interpolationMode          laplaceSetValues;  // laplaceAnchored | laplaceSetValues
+solidPorosityCutoff        1;
+nLaplaceSetValuesCorrectors 0;
+demVelocityAnchorCoeff     1e6;     // laplaceAnchored only
+backgroundUsAnchorCoeff    1e-12;   // laplaceAnchored only
+nUsInterpolationCorrectors 1;       // laplaceAnchored only
+
+// -- lambda interpolation (lambdaDEM -> lambda), same two strategies
+interpolateLambda          true;
+lambdaInterpolationMode    laplaceSetValues;
+lambdaBackgroundValue      1.0;     // [m] value held outside the solid region
+nLaplaceSetValuesLambdaCorrectors 0;
+demLambdaAnchorCoeff       1e6;     // laplaceAnchored only
+backgroundLambdaAnchorCoeff 1e-12;  // laplaceAnchored only
+nLambdaInterpolationCorrectors 1;   // laplaceAnchored only
+```
+
+Leaving every `exactDifferential` coefficient at its `0.0` default gives `lambdaDot = 0` and sends the whole chemistry mass change to porosity — the behaviour before the feature existed, and the reason there is no separate "off" mode. For the governing equations and the dimension derivations, read the `Description` block at the top of `porousGasificationMedia/DEM/lambdaDotModels/exactDifferentialLambdaDot/exactDifferentialLambdaDot.H`.
+
+The `Us` interpolation solve needs a `Us` entry under `system/fvSolution`'s `solvers` (and `UsDEMInterpolation` for `laplaceAnchored`). The lambda interpolation does **not**: it falls back to in-code controls (`smoothSolver`/`symGaussSeidel`, `tolerance 1e-6`, `relTol 0.01`) when no `lambda` / `lambdaDEMInterpolation` entry exists, and uses the case's entry when it does. It is an internal smoothing step, so an existing case does not have to gain an `fvSolution` key to keep running.
+
+**Who owns what.** PGF owns the rate `lambdaDot`; YADE owns the integrated `lambda` (`State::lambda_`, advanced every DEM step in `NewtonIntegrator`) and sends it back through the particle-data buffer. PGF's `lambda` field is therefore derived output — nothing in the solver computes with it. The buffer stride is a compile-time constant on both sides with no MPI-level negotiation, so **Foam-Yade and PGF must be rebuilt together** whenever the coupling layout changes.
+
 ### `constant/heatTransferProperties`
 
 ```cpp
@@ -722,7 +768,7 @@ Gas and solid coexist in every cell, distinguished by the porosity field `porosi
 The main loop is in `porousGasificationFoam/porousGasificationFoam.C`. Each piece of work is pulled in via an `#include`, so the file reads top-to-bottom as a sequence. The steps below cite the include or function that does the work:
 
 1. **Time-step control** — Courant (gas), diffusion (solid), and chemistry timescale are combined into one stable `deltaT`. See `setMultiRegionDeltaT.H` and `updateChemistryTimeStep.H`.
-2. **DEM coupling** (compiled only when `WITH_YADE` is defined) — particle positions and velocities are exchanged with YADE, then the interpolated solid-velocity field is computed (raw per-cell average, then Laplace-smoothed into adjacent solid cells). See `lambdaDotModel::update()` in `porousGasificationMedia/DEM/lambdaDotModel.C`.
+2. **DEM coupling** (compiled only when `WITH_YADE` is defined) — per-particle state is exchanged with YADE, then the mesh-level fields are rebuilt from it: the solid velocity `Us` from `UsDEM`, and the particle length scale `lambda` from `lambdaDEM`, each a raw per-cell average Laplace-smoothed into adjacent solid cells. Finally `lambdaDot` (the rate PGF owns, assembled by `volPyrolysis`) is pushed back onto the particles, and YADE integrates it into the `lambda` this step read. See `lambdaDotModel::updateLambdaDot()` and `lambdaDotModel::updateParticleFields()` in `porousGasificationMedia/DEM/lambdaDotModel.C`, and `constant/lambdaDict` in the Input File Reference for the dictionary that selects all of it.
 3. **Radiation** — heterogeneous radiation model (`heterogeneousP1` or `heterogeneousMeanTemp`) updates the solid radiative source term. See `porousGasificationFoam/radiation.H` and `porousGasificationMedia/radiationModels/`.
 4. **Solid phase evolution** — the heart of the solver: per-cell chemistry ODE, porosity evolution (with optional bed-collapse), solid species mass-concentration (`Ym`) transport, and the solid energy equation, in that order. See `volPyrolysis::evolveRegion()` in `porousGasificationMedia/pyrolysisModels/pyrolysisModel/volPyrolysis/volPyrolysis.C`.
 5. **Gas continuity** — gas-phase density update with the solid-to-gas mass source. See `porousGasificationFoam/rhoEqn.H`.

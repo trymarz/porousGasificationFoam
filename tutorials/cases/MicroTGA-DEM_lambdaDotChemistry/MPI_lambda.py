@@ -170,32 +170,22 @@ if mp.rank != 0:
 
 
 
-springsLambda = { sid: 1.0 for sid in springsList }  # per-spring lambda storage
-
-# broadcast springsLambda to all MPI ranks
-if mp.rank == 0:
-    springsLambda_serial = [(sid, springsLambda[sid]) for sid in springsLambda]
-else:
-    springsLambda_serial = None
-
-springsLambda_serial = mp.comm.bcast(springsLambda_serial, root=0)
-
-springsLambda = { sid: lam for (sid, lam) in springsLambda_serial }
-
-if mp.rank != 0:
-    print(f"[rank {mp.rank}] received springsLambda for {len(springsLambda)} springs")
-
+# No Python-side lambda storage. Yade integrates lambda itself, per body, in
+# NewtonIntegrator (State::lambda_ += lambdaDot*dt every DEM step) from the
+# lambdaDot OpenFOAM sends, and sends the integrated value back to OpenFOAM.
+# A shadow dict here would be a second, independently-integrated copy of the
+# same quantity, free to drift from both.
 
 
 def apply_spring_forces():
-    """ 
+    """
     Each rank computes forces for springs which endpoints it can access locally,
     then master rank gathers all forces and applies them consistently.
     """
     if O.iter == 2:
     	print("[CHECK] apply_spring_forces is running on rank", mp.rank)
-	    
-    global springsList, broken_springs, springsLambda
+
+    global springsList, broken_springs
 
     local_forces = []   # (sphereID, Fx, Fy, Fz)
     to_remove = []
@@ -234,27 +224,23 @@ def apply_spring_forces():
             to_remove.append(spring_id)
             continue
 
-        
-        # PER-SPRING DYNAMIC LAMBDA UPDATE                          ***THIS IS AN IMPORTANT PART***
+
+        # PER-SPRING LAMBDA                                         ***THIS IS AN IMPORTANT PART***
         # ------------------------------------------------------------
+        # lambda is read, not integrated, here. Each body carries its own
+        # integrated value in state.lambda_ (NewtonIntegrator advances it every
+        # DEM step from the lambdaDot OpenFOAM sends); a spring just averages
+        # its two endpoints to get a rest-length scaling.
 
-        lambdaDot_i = bi.state.lambdaDot
-        lambdaDot_j = bj.state.lambdaDot
+        lambda_avg = 0.5 * (bi.state.lambda_ + bj.state.lambda_)
 
-        lambdaDot_avg = -(0.5 * (lambdaDot_i + lambdaDot_j))  # should not be negative ! negative is just to test here
-        lambdaDot_avg *= 500    # scaling factor to increase the impact for now just for test
-
-
-        lambda_prev = springsLambda[spring_id]
-        lambda_new = lambda_prev + O.dt * lambdaDot_avg
-
-        # clamp for stability
-        lambda_new = max(0.1, min(lambda_new, 2.0))
-
-        springsLambda[spring_id] = lambda_new
+        # Local safety clamp on the force computation only -- it does not write
+        # back into the integrated state, so a clamped spring does not corrupt
+        # what OpenFOAM reads.
+        lambda_avg = max(0.1, min(lambda_avg, 2.0))
 
         # new target rest length
-        target_L = L0 * lambda_new
+        target_L = L0 * lambda_avg
 
         # Hooke force
         lambda_eff = L_current - target_L
@@ -263,12 +249,12 @@ def apply_spring_forces():
         """if spring_id == 0:
             print(
                 f"[DEBUG] iter={O.iter}  "
-                f"λ_prev={lambda_prev:.6f}  "
-                f"λ_new={lambda_new:.6f}  "
-                f"Δλ={lambda_new - lambda_prev:.2e}  "
+                f"λ_avg={lambda_avg:.6f}  "
+                f"λ_i={bi.state.lambda_:.6f}  "
+                f"λ_j={bj.state.lambda_:.6f}  "
             ) """
 
-  
+
         # store local force contributions
         local_forces.append((i,  Fvec[0],  Fvec[1],  Fvec[2]))
         local_forces.append((j, -Fvec[0], -Fvec[1], -Fvec[2]))
@@ -300,7 +286,6 @@ def apply_spring_forces():
     for sid in to_remove:
         if sid in springsList:
             del springsList[sid]
-            del springsLambda[sid]
 
 #----------
 

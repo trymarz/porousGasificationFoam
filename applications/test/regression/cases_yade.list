@@ -15,7 +15,14 @@ tutorials/cases/MicroTGA-DEM_Us_UsInterp
 # are active within the fixture's short 2 ms run) and asserts the sign of
 # lambdaDot over solid cells (porosityF < criticalPorosity) via
 # applications/test/regression/tools/checkFieldSign.py, invoked from each
-# case's own Allrun.
+# case's own Allrun. ...Off is the "off" reduction: exactDifferential with
+# every coefficient at its 0.0 default, which must give lambdaDot = 0 exactly.
+#
+# These four also exercise the reverse (YADE -> PGF) lambda channel, since
+# YADE integrates State::lambda_ from the lambdaDot they produce and PGF
+# interpolates it back into the lambda field. That path needs Foam-Yade and PGF
+# built from matching revisions -- the particle-data buffer stride is a
+# compile-time constant on both sides, with no MPI-level negotiation.
 tutorials/cases/MicroTGA-DEM_lambdaDotOff
 tutorials/cases/MicroTGA-DEM_lambdaDotTemperature
 tutorials/cases/MicroTGA-DEM_lambdaDotChemistry

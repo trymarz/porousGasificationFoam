@@ -1,5 +1,6 @@
 #include "lambdaDotModel.H"
 #include "UsInterpolationModel.H"
+#include "LambdaInterpolationModel.H"
 #include "IOdictionary.H"
 #include "PstreamReduceOps.H"
 #include "OSspecific.H"
@@ -16,6 +17,8 @@ lambdaDotModel::lambdaDotModel
     volScalarField& nParticles,
     volVectorField& UsDEM,
     volVectorField& Us,
+    volScalarField& lambdaDEM,
+    volScalarField& lambda,
     volScalarField& porosityF,
     FoamYade& yade
 )
@@ -25,10 +28,14 @@ lambdaDotModel::lambdaDotModel
     nParticles_(nParticles),
     UsDEM_(UsDEM),
     Us_(Us),
+    lambdaDEM_(lambdaDEM),
+    lambda_(lambda),
     porosityF_(porosityF),
     yade_(yade),
     interpolateUs_(true),
-    solidPorosityCutoff_(1)
+    solidPorosityCutoff_(1),
+    interpolateLambda_(true),
+    lambdaBackgroundValue_(1.0)
 {
     IOdictionary lambdaDict
     (
@@ -84,6 +91,31 @@ lambdaDotModel::lambdaDotModel
             porosityF_
         );
     }
+
+    // Same pattern for lambda, on its own keys so a case can smooth lambda
+    // and Us independently. lambdaBackgroundValue is read here rather than
+    // inside the interpolation model because the non-interpolating branch of
+    // updateParticleFields() needs it too, and that branch never constructs a
+    // model.
+    interpolateLambda_ =
+        lambdaDict.lookupOrDefault<Switch>("interpolateLambda", true);
+
+    lambdaBackgroundValue_ =
+        lambdaDict.lookupOrDefault<scalar>("lambdaBackgroundValue", 1.0);
+
+    if (interpolateLambda_)
+    {
+        lambdaInterpolationModel_ = LambdaInterpolationModel::New
+        (
+            lambdaDict,
+            mesh_,
+            lambdaDEM_,
+            lambda_,
+            nParticles_,
+            porosityF_,
+            lambdaBackgroundValue_
+        );
+    }
 }
 
 
@@ -91,10 +123,10 @@ void lambdaDotModel::updateLambdaDot()
 {
     // lambdaDot itself is assembled by volPyrolysis::solveSpeciesMass(), which
     // owns the LambdaDotCalculationModel selected by lambdaMode in
-    // constant/lambdaDict (none | constant | Ts | exactDifferential). That
-    // runs inside pyrolysisZone.evolve(), i.e. after this call in the solver
-    // loop, so the value gated and pushed to the particles here is the one
-    // assembled by the previous time step.
+    // constant/lambdaDict (constant | exactDifferential). That runs inside
+    // pyrolysisZone.evolve(), i.e. after this call in the solver loop, so the
+    // value gated and pushed to the particles here is the one assembled by the
+    // previous time step.
     //
     // lambdaDot drives deformation of the DEM solid skeleton and must not
     // remain active in cells outside the mechanically active solid region.
@@ -114,10 +146,11 @@ lambdaDotModel::~lambdaDotModel() = default;
 
 void lambdaDotModel::updateParticleFields()
 {
-    // count particles per cell
-    // and sum velocities per cell
+    // count particles per cell, and sum the per-particle state YADE owns
+    // (velocity, length scale) per cell
     nParticles_ = 0.0;
     UsDEM_ = dimensionedVector("zero", UsDEM_.dimensions(), vector::zero);
+    lambdaDEM_ = dimensionedScalar("zero", lambdaDEM_.dimensions(), 0.0);
 
     movedFromCells_.clear();
     movedToCells_.clear();
@@ -152,24 +185,34 @@ void lambdaDotModel::updateParticleFields()
 
             // sum particle velocities into the cell
             UsDEM_[cellI] += partPtr->linearVelocity;
+
+            // sum the particles' integrated length scale into the cell. YADE
+            // owns this value (State::lambda_, advanced every DEM step from
+            // the lambdaDot PGF sends it); PGF only reads it back.
+            lambdaDEM_[cellI] += partPtr->lambda;
         }
     }
 
-    // average velocity in cells containing sphere(s)
-    // empty cells remain zero
+    // average velocity and length scale in cells containing sphere(s).
+    // Empty cells are left at zero: both are raw accumulators, meaningless
+    // where no particle contributed. The continuous fields built from them
+    // (Us_, lambda_) are what carry a defined value everywhere.
     forAll(UsDEM_, cellI)
     {
         if (nParticles_[cellI] > 0.5)
         {
             UsDEM_[cellI] /= nParticles_[cellI];
+            lambdaDEM_[cellI] /= nParticles_[cellI];
         }
         else
         {
             UsDEM_[cellI] = vector::zero;
+            lambdaDEM_[cellI] = 0.0;
         }
     }
 
     UsDEM_.correctBoundaryConditions();
+    lambdaDEM_.correctBoundaryConditions();
 
     // Raw DEM velocity in occupied cells. Keep empty cells at zero while
     // validating the coupled data path; broad smoothing can destabilize
@@ -201,6 +244,31 @@ void lambdaDotModel::updateParticleFields()
         }
 
         Us_.correctBoundaryConditions();
+    }
+
+    // Same for lambda: either smooth lambdaDEM over the solid region, or take
+    // it raw with the non-solid cells held at the background value. lambda is
+    // diagnostic output in PGF — no equation reads it — so this only affects
+    // what gets written.
+    if (interpolateLambda_)
+    {
+        lambdaInterpolationModel_->interpolate();
+    }
+    else
+    {
+        forAll(lambda_, cellI)
+        {
+            if (nParticles_[cellI] > 0.5)
+            {
+                lambda_[cellI] = lambdaDEM_[cellI];
+            }
+            else
+            {
+                lambda_[cellI] = lambdaBackgroundValue_;
+            }
+        }
+
+        lambda_.correctBoundaryConditions();
     }
 
     // Assign lambdaDot to particles (only if occupied)

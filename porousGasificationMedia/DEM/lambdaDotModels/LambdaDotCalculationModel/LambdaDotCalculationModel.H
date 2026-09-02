@@ -11,12 +11,16 @@ namespace Foam
 
 // Strategy interface for the DEM particle length-scale rate lambdaDot [m/s].
 // Owned by volPyrolysis, which selects it from constant/lambdaDict
-// (lambdaMode: none | constant | Ts | exactDifferential) and drives it in
+// (lambdaMode: constant | exactDifferential) and drives it in
 // solveSpeciesMass(): calculateTemperatureDriven() once per step before the
 // species loop, then calculateChemistryDriven() per solid specie inside it.
 // The model coefficients are read from the same dictionary; lambdaDict also
-// carries the unrelated DEM->CFD velocity-interpolation entries consumed by
-// lambdaDotModel.
+// carries the unrelated DEM->CFD velocity- and lambda-interpolation entries
+// consumed by lambdaDotModel.
+//
+// PGF owns only this rate. The integrated lambda is owned by YADE
+// (State::lambda_, advanced every DEM step) and travels back to the mesh
+// through lambdaDotModel's interpolation, so no model here reads lambda.
 class LambdaDotCalculationModel
 {
 protected:
@@ -46,13 +50,15 @@ public:
     virtual void calculateTemperatureDriven() = 0;
 
     //- Chemistry-driven part — called per solid specie inside the species
-    //  loop. Adds to lambdaDot_ the per-specie mass-change contribution.
-    //  Default empty: only exactDifferentialLambdaDot overrides it.
+    //  loop. Adds to lambdaDot_ the contribution of that specie's mass rate
+    //  sRhoSi [kg/m^3/s]. specieName is the bare solidComponents name (e.g.
+    //  "char", not the field name "Ychar"), so a model can resolve a
+    //  per-specie coefficient. Default empty: only exactDifferentialLambdaDot
+    //  overrides it.
     virtual void calculateChemistryDriven
     (
         const volScalarField& sRhoSi,
-        const volScalarField& rho,
-        const volScalarField& lambda
+        const word& specieName
     )
     {}
 
