@@ -1,7 +1,14 @@
 #!/bin/bash
+#
+# porousGasificationFoam build driver.
+#
+# wmake runs in place, per component: lnInclude/ and Make/$WM_OPTIONS/ land
+# beside their sources, binaries in $FOAM_USER_LIBBIN / $FOAM_USER_APPBIN as
+# each Make/files declares. Callable by absolute path from anywhere.
 
-. ./porousGasificationMediaDirectories
-. ./utilities/bash_utils/helpers.sh
+. "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)/utilities/bash_utils/helpers.sh"
+
+PGF_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 
 # ============================================================
 # CONFIGURATION
@@ -26,14 +33,19 @@ declare -A BUILD_TARGETS=( # default values
 # Set to 1 via --yade to compile the solver with Yade/DEM coupling support
 WITH_YADE=0
 
+# --purge: on clean, also delete installed binaries. Off by default.
+PURGE=0
+
+# Built in order: LIBRARY_TARGETS then APP_TARGETS. DEM first, so a --yade
+# build has liblambdaDotModel before the solver links.
 declare -A TARGET_DIRS=(
-  [DEM]="$FOAM_HGS/DEM"
-  [fieldPorosityModel]="$FOAM_HGS/fieldPorosityModel"
-  [radiationModels]="$FOAM_HGS/radiationModels"
-  [thermophysicalModels]="$FOAM_HGS/thermophysicalModels"
-  [pyrolysisModels]="$FOAM_HGS/pyrolysisModels"
-  [porousGasificationFoam]="$WM_PROJECT_USER_DIR/applications/porousGasificationFoam"
-  [utilities]="$WM_PROJECT_USER_DIR/applications/utilities"
+  [DEM]="$PGF_ROOT/porousGasificationMedia/DEM"
+  [fieldPorosityModel]="$PGF_ROOT/porousGasificationMedia/fieldPorosityModel"
+  [radiationModels]="$PGF_ROOT/porousGasificationMedia/radiationModels"
+  [thermophysicalModels]="$PGF_ROOT/porousGasificationMedia/thermophysicalModels"
+  [pyrolysisModels]="$PGF_ROOT/porousGasificationMedia/pyrolysisModels"
+  [porousGasificationFoam]="$PGF_ROOT/porousGasificationFoam"
+  [utilities]="$PGF_ROOT/utilities"
 )
 
 declare -A BUILD_COMMANDS=(
@@ -102,17 +114,25 @@ parse_arguments() {
       WITH_YADE=1
       BUILD_TARGETS[DEM]=1
       ;;
+    --purge)
+      PURGE=1
+      ;;
     --dry-run)
-      dry_run
-      exit 0
+      DRY_RUN=1
       ;;
     --help)
       echo "Usage: $0 [build|clean] [OPTIONS]"
-      echo "Options: --reset-all, --all, --libs-only, --apps-only, --yade"
+      echo "Options: --reset-all, --all, --libs-only, --apps-only, --yade, --purge"
       echo "Targets: ${ALL_TARGETS_FLAGS[*]} ${ALL_TARGETS_NO_FLAGS[*]}"
       echo ""
       echo "  --yade   Build the DEM library and solver with WITH_YADE=1"
       echo "           (required for Yade-coupled DEM simulations)"
+      echo "  --purge  On clean, also delete the libraries and executables the"
+      echo "           cleaned targets declare in their own Make/files. Without"
+      echo "           it, clean matches wclean and removes build state only."
+      echo ""
+      echo "Builds happen in this checkout ($PGF_ROOT); output goes to"
+      echo "\$FOAM_USER_LIBBIN and \$FOAM_USER_APPBIN."
       exit 0
       ;;
     *)
@@ -125,47 +145,152 @@ parse_arguments() {
 }
 
 # ============================================================
-# BUILD OPERATIONS
+# ENVIRONMENT VALIDATION
 # ============================================================
 
-setup_directories() {
-  [ "$MODE" != "build" ] && return 0
+# Every output path comes from the OpenFOAM environment; there are no
+# fallbacks, so an unset variable is fatal.
+check_foam_environment() {
+  local missing=()
+  local var
+  for var in WM_PROJECT_DIR WM_OPTIONS FOAM_USER_LIBBIN FOAM_USER_APPBIN; do
+    [ -n "${!var}" ] || missing+=("$var")
+  done
 
-  clog INFO "Setting up directories..."
-  mkdir -p "$WM_PROJECT_USER_DIR/applications" "$FOAM_HGS" || return 1
+  if [ ${#missing[@]} -gt 0 ]; then
+    clog ERROR "OpenFOAM environment is not set: ${missing[*]} unset."
+    clog ERROR "Source your OpenFOAM etc/bashrc first."
+    return 1
+  fi
 
-  # Copy only selected targets
-  [ "${BUILD_TARGETS[porousGasificationFoam]:-0}" -eq 1 ] && {
-    clog INFO "  Copying porousGasificationFoam..."
-    cp -r porousGasificationFoam "$WM_PROJECT_USER_DIR/applications/"
-  }
-  [ "${BUILD_TARGETS[utilities]:-0}" -eq 1 ] && {
-    clog INFO "  Copying utilities..."
-    cp -r utilities "$WM_PROJECT_USER_DIR/applications/"
-  }
-  [ "${BUILD_TARGETS[DEM]:-0}" -eq 1 ] && {
-    clog INFO "  Copying DEM..."
-    cp -r porousGasificationMedia/DEM "$FOAM_HGS/"
-  }
-  [ "${BUILD_TARGETS[fieldPorosityModel]:-0}" -eq 1 ] && {
-    clog INFO "  Copying fieldPorosityModel..."
-    cp -r porousGasificationMedia/fieldPorosityModel "$FOAM_HGS/"
-  }
-  [ "${BUILD_TARGETS[radiationModels]:-0}" -eq 1 ] && {
-    clog INFO "  Copying radiationModels..."
-    cp -r porousGasificationMedia/radiationModels "$FOAM_HGS/"
-  }
-  [ "${BUILD_TARGETS[thermophysicalModels]:-0}" -eq 1 ] && {
-    clog INFO "  Copying thermophysicalModels..."
-    cp -r porousGasificationMedia/thermophysicalModels "$FOAM_HGS/"
-  }
-  [ "${BUILD_TARGETS[pyrolysisModels]:-0}" -eq 1 ] && {
-    clog INFO "  Copying pyrolysisModels..."
-    cp -r porousGasificationMedia/pyrolysisModels "$FOAM_HGS/"
-  }
+  if ! command -v wmake >/dev/null 2>&1; then
+    clog ERROR "'wmake' is not on PATH; the OpenFOAM environment is incomplete."
+    return 1
+  fi
 
-  clog SUCCESS "Setup complete"
+  return 0
 }
+
+# --yade / --DEM only; the normal build never requires Foam-Yade.
+check_yade_environment() {
+  if [ -z "$YADE_TRUNK" ]; then
+    clog ERROR "YADE_TRUNK is not set, but a DEM/Yade build was requested."
+    clog ERROR "Point it at the Foam-Yade source checkout, e.g."
+    clog ERROR "  export YADE_TRUNK=/path/to/foam-yade"
+    return 1
+  fi
+
+  local coupling="$YADE_TRUNK/pkg/openfoam/coupling/FoamYade"
+  local missing=()
+  [ -d "$coupling/lnInclude" ] || missing+=("$coupling/lnInclude")
+  [ -d "$coupling/meshtree/lnInclude" ] || missing+=("$coupling/meshtree/lnInclude")
+
+  if [ ${#missing[@]} -gt 0 ]; then
+    clog ERROR "Foam-Yade coupling headers not found under YADE_TRUNK=$YADE_TRUNK:"
+    local m
+    for m in "${missing[@]}"; do clog ERROR "  missing: $m"; done
+    clog ERROR "Build Foam-Yade (and its OpenFOAM coupling libraries) first."
+    return 1
+  fi
+
+  # Link-time deps of the DEM library and the WITH_YADE solver.
+  local lib
+  for lib in libMeshTree libYadeFoam; do
+    [ -e "$FOAM_USER_LIBBIN/$lib.so" ] ||
+      clog WARNING "$lib.so not found in \$FOAM_USER_LIBBIN; linking will fail unless it is elsewhere on the link path."
+  done
+
+  return 0
+}
+
+# ============================================================
+# BUILD VARIANT BOOKKEEPING
+# ============================================================
+
+# wmake recompiles on timestamps and cannot see WITH_YADE change, so building
+# the other mode over existing objects would mix both ABIs. The mode is stamped
+# in Make/$WM_OPTIONS/ (removed by `wclean`); a mismatch is refused.
+variant_stamp_path() {
+  printf '%s/Make/%s/.pgf-build-mode' "${TARGET_DIRS[porousGasificationFoam]}" "$WM_OPTIONS"
+}
+
+check_build_variant() {
+  [ "$MODE" = "build" ] || return 0
+  [ "${BUILD_TARGETS[porousGasificationFoam]:-0}" -eq 1 ] || return 0
+
+  local stamp requested recorded
+  stamp="$(variant_stamp_path)"
+  requested="WITH_YADE=$WITH_YADE"
+
+  if [ -f "$stamp" ]; then
+    recorded="$(cat "$stamp")"
+    if [ "$recorded" != "$requested" ]; then
+      clog ERROR "Build variant mismatch for porousGasificationFoam."
+      clog ERROR "  already built: $recorded"
+      clog ERROR "  requested:     $requested"
+      clog ERROR "wmake keys recompilation on source timestamps, not on WITH_YADE,"
+      clog ERROR "so an in-place rebuild would link objects from both variants."
+      clog ERROR "Clean first:  $PGF_ROOT/build.sh clean --all --purge"
+      clog ERROR "(--purge also drops the installed binary, so a failed rebuild"
+      clog ERROR " cannot leave the other variant's solver on your PATH.)"
+      return 1
+    fi
+  fi
+
+  mkdir -p "${stamp%/*}" && printf '%s\n' "$requested" >"$stamp"
+}
+
+# ============================================================
+# ARTIFACT REMOVAL
+# ============================================================
+
+# Resolve a Make/files EXE/LIB declaration, e.g.
+#   $(FOAM_USER_LIBBIN)/libHGSsolid  ->  /…/platforms/…/lib/libHGSsolid
+# Only those two variables are substituted; anything else is refused, so no
+# path outside the user output directories can be produced.
+expand_make_path() {
+  local raw="$1"
+  raw="${raw//[[:space:]]/}"
+  raw="${raw//\$(FOAM_USER_LIBBIN)/$FOAM_USER_LIBBIN}"
+  raw="${raw//\$(FOAM_USER_APPBIN)/$FOAM_USER_APPBIN}"
+  case "$raw" in
+  '' | *'$('*) return 1 ;;
+  esac
+  printf '%s' "$raw"
+}
+
+# --purge only: $FOAM_USER_LIBBIN and $FOAM_USER_APPBIN are shared by every
+# project in this $WM_PROJECT_USER_DIR, so only what the target's own
+# Make/files declares is removed — never a neighbour's library.
+remove_target_artifacts() {
+  local dir=$1
+  local makefiles decl path
+
+  while IFS= read -r makefiles; do
+    while IFS= read -r decl; do
+      path="$(expand_make_path "${decl#*=}")" || {
+        clog WARNING "  unresolved target path in ${makefiles}: ${decl}"
+        continue
+      }
+      case "$decl" in
+      *LIB*) path="$path.so" ;;
+      esac
+      case "$path" in
+      "$FOAM_USER_LIBBIN"/* | "$FOAM_USER_APPBIN"/*) ;;
+      *)
+        clog WARNING "  refusing to remove $path (outside the user output directories)"
+        continue
+        ;;
+      esac
+      [ -e "$path" ] || continue
+      rm -f "$path" && clog INFO "  removed $path"
+    done < <(grep -E '^[[:space:]]*(EXE|LIB)[[:space:]]*=' "$makefiles")
+  done < <(find "$dir" -type f -path '*/Make/files')
+}
+
+# ============================================================
+# BUILD OPERATIONS
+# ============================================================
 
 execute_target() {
   local target=$1
@@ -190,14 +315,12 @@ execute_target() {
     clog INFO "Cleaning $target..."
   fi
 
-  cd "$dir" || return 1
-  if eval "$cmd"; then
-    clog SUCCESS "$target done"
-    return 0
-  else
-    "✗ Failed on $target"
-    return 1
-  fi
+  # Run from the target's own directory, so Make/options paths are relative.
+  (cd "$dir" && eval "$cmd") || return 1
+
+  [ "$MODE" = "clean" ] && [ "$PURGE" -eq 1 ] && remove_target_artifacts "$dir"
+
+  return 0
 }
 
 build_all_targets() {
@@ -205,7 +328,10 @@ build_all_targets() {
 
   for target in "${LIBRARY_TARGETS[@]}" "${APP_TARGETS[@]}"; do
     if [ "${BUILD_TARGETS[$target]:-0}" -eq 1 ]; then
-      if ! execute_target "$target"; then
+      if execute_target "$target"; then
+        clog SUCCESS "$target done"
+      else
+        clog ERROR "Failed on $target"
         failed+=("$target")
       fi
     fi
@@ -226,9 +352,17 @@ dry_run() {
   echo "════════════════════════════════════════════════════════════"
   echo ""
 
+  echo "PATHS:"
+  echo "────────────────────────────────────────────────────────────"
+  printf "  checkout:          %s\n" "$PGF_ROOT"
+  printf "  FOAM_USER_LIBBIN:  %s\n" "${FOAM_USER_LIBBIN:-<unset>}"
+  printf "  FOAM_USER_APPBIN:  %s\n" "${FOAM_USER_APPBIN:-<unset>}"
+  echo ""
+
   echo "OPTIONS:"
   echo "────────────────────────────────────────────────────────────"
   printf "  WITH_YADE=%s\n" "$WITH_YADE"
+  [ "$MODE" = "clean" ] && printf "  PURGE=%s\n" "$PURGE"
   echo ""
 
   echo "BUILD TARGETS STATUS:"
@@ -281,16 +415,28 @@ dry_run() {
 # ============================================================
 
 main() {
+  DRY_RUN=0
   parse_arguments "$@"
-  setup_directories || {
-    clog ERROR "Setup failed"
-    exit 1
+
+  [ "$DRY_RUN" -eq 1 ] && {
+    dry_run
+    exit 0
   }
+
+  check_foam_environment || exit 1
+
+  if [ "$MODE" = "build" ] &&
+    { [ "$WITH_YADE" -eq 1 ] || [ "${BUILD_TARGETS[DEM]:-0}" -eq 1 ]; }; then
+    check_yade_environment || exit 1
+  fi
+
+  check_build_variant || exit 1
+
   build_all_targets || exit 1
 }
 
 _build_completion() {
-  local opts="build clean --reset-all --all --libs-only --apps-only --yade ${ALL_TARGETS_FLAGS[*]} ${ALL_TARGETS_NO_FLAGS[*]} --help --dry-run"
+  local opts="build clean --reset-all --all --libs-only --apps-only --yade --purge ${ALL_TARGETS_FLAGS[*]} ${ALL_TARGETS_NO_FLAGS[*]} --help --dry-run"
   COMPREPLY=($(compgen -W "$opts" -- "${COMP_WORDS[COMP_CWORD]}"))
 }
 
