@@ -23,6 +23,13 @@ tutorials/cases/MicroTGA-DEM_Us_UsInterp
 # interpolates it back into the lambda field. That path needs Foam-Yade and PGF
 # built from matching revisions -- the particle-data buffer stride is a
 # compile-time constant on both sides, with no MPI-level negotiation.
+#
+# The signs asserted by ...Chemistry and ...Both are honest statements about
+# these fixtures' own dlambdaOverDYmi (2.5e-6, tuned so both terms stay
+# visible at fixture scale -- see each dict's own comment), not a physics
+# claim. A physically calibrated dlambdaOverDYmi is nearer 1e-3 m^4/kg (see
+# README's lambdaDict reference), which would swamp the temperature term at
+# this scale and flip ...Both's asserted positive sign.
 tutorials/cases/MicroTGA-DEM_lambdaDotOff
 tutorials/cases/MicroTGA-DEM_lambdaDotTemperature
 tutorials/cases/MicroTGA-DEM_lambdaDotChemistry
