@@ -1,0 +1,63 @@
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      lambdaDict;
+}
+
+// Regression fixture: same chemistry-driven-only setup as
+// MicroTGA-DEM_lambdaDotChemistry (dlambdaOverDTs 0, so the temperature term
+// stays out of the sign assertion), but built to exercise the four
+// lambdaDict paths that fixture leaves untouched -- laplaceAnchored
+// interpolation, a per-specie dlambdaOverDYmi subdict, and a non-default
+// lambdaBackgroundValue. (The fourth untested path, interpolateLambda
+// false, is a throwaway /scratch variant, not a committed fixture -- see
+// lambdaDot-yade-owned-lambda-followup-2026-09-02.md Block B.)
+// Valid modes: constant, exactDifferential. exactDifferential reads
+// dlambdaOverDTs [m/K], dlambdaOverDYmi [m^4/kg] (a scalar, or a per-specie
+// subdict) and splitMassBetweenLamAndPor [-], all defaulting to 0.0.
+// setFieldsDict seeds the packed-bed box with porosityF < criticalPorosity;
+// 0.orig/Ts and 0.orig/T start the whole domain hot (Ts=800, T=850) so both
+// the temperature gradient and the pyrolysis chemistry are active from t=0.
+lambdaMode exactDifferential;
+
+dlambdaOverDTs 0.0;
+
+// Per-specie form (the Chemistry fixture uses the uniform-scalar form).
+// solidComponents for this case are wood, char1, char, hum
+// (constant/solidThermophysicalProperties); only wood and char1 are given a
+// nonzero coefficient here, so char and hum read the documented 0.0 default.
+// wood is the dominant reactant (irreversibleSolidArrheniusHeterogeneousReaction
+// wood = targas / wood = char1, both consuming it -- sRhoSi < 0) and drives
+// the negative sign this fixture asserts; char1 is a transient intermediate
+// (produced by wood's decomposition, consumed into char); char is a pure
+// reaction product (sRhoSi > 0) and is deliberately left out so its positive
+// contribution doesn't have to be netted against wood's -- unlike the
+// uniform-scalar Chemistry fixture, which does include it. See that fixture's
+// dict for where the 2.5e-6 magnitude itself comes from.
+dlambdaOverDYmi
+{
+    wood  2.5e-6;
+    char1 2.5e-6;
+}
+
+splitMassBetweenLamAndPor 0.5;
+
+// Alternate interpolation strategy (Chemistry/Temperature/Both/Off all use
+// the laplaceSetValues default). Implicit anchored-Laplacian smoothing of
+// lambdaDEM over the solid region -- see laplaceAnchoredLambda.C. Reuses the
+// Us family's default solver controls when the case carries no matching
+// fvSolution entry, exactly like laplaceSetValues does, so no fvSolution
+// change is needed here either.
+lambdaInterpolationMode laplaceAnchored;
+
+// Non-default background for cells outside the solid region (default 1.0 m).
+// This is a PGF-mesh-side diagnostic value only -- lambdaDEM_/lambda_ never
+// feed back into the coupling, and YADE's own State::lambda_ (what
+// MPI_lambda.py actually integrates and reads) has no dependency on it. So,
+// unlike a change to dlambdaOverDTs/dlambdaOverDYmi/splitMassBetweenLamAndPor,
+// this key cannot move the DEM packing or the asserted sign; it only changes
+// what the written lambda field reads in non-solid cells.
+lambdaBackgroundValue 0.5;
