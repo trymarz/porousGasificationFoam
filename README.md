@@ -765,7 +765,7 @@ A single branch may bundle multiple low-risk meta concerns (e.g. formatter, docs
 
 ### Issue Tracking
 
-Planning work has a matching GitHub Issue on [project #4 "PGF development"](https://github.com/users/trymarz/projects/4) — that board is the place to check current status (Backlog/Ready/In progress/In review/Done), not `/plans` (a private planning store used for the deeper working detail — files to touch, approach, step-by-step log). Start the branch that resolves an issue from that issue's own **Development** panel ("Create a branch") so GitHub links the two automatically, and include `Closes #<issue>` in the PR body so merging the PR closes the issue and moves its board card to `Done` on its own.
+Planning work has a matching GitHub Issue (public, like this repo) tracked on a project board named "PGF development" — that's the place to check current status (Backlog/Ready/In progress/In review/Done), not `/plans` (a private planning store used for the deeper working detail — files to touch, approach, step-by-step log). The board itself is currently private to the maintainer, so external contributors should rely on the issue's own labels/state rather than the board view. Start the branch that resolves an issue from that issue's own **Development** panel ("Create a branch") so GitHub links the two automatically, and include `Closes #<issue>` in the PR body so merging the PR closes the issue and moves its board card to `Done` on its own.
 
 ### Merge Strategy
 

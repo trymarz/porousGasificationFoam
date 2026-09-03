@@ -44,10 +44,13 @@ The full human-facing version of this rule is in README → Development Workflow
 ## GitHub Issues Workflow
 
 GitHub Issues + Project #4 ("PGF development") is the current-status source for
-planning on this repo — anyone browsing GitHub should see an accurate
-Problem/Objective/Deliverables and rough progress, without digging through
-`/plans`. `/plans` stays the store for implementation detail (files to touch,
-approach, step log) and is unaffected by this section. (This is
+planning on this repo — the issue itself (public, like this repo) should show
+an accurate Problem/Objective/Deliverables and rough progress without digging
+through `/plans`. The project board is currently private to the maintainer
+(unlike the repo and its issues), so don't imply board access when writing for
+an external audience — cite the issue by number/label/state instead.
+`/plans` stays the store for implementation detail (files to touch, approach,
+step log) and is unaffected by this section. (This is
 porousGasificationFoam-specific for now; generalizing it into a reusable
 pattern is tracked as backlog item `github-issues-plans-sync-skill-2026-09-02`
 in agent-corral's `/plans`, not part of this repo's workflow yet.)
