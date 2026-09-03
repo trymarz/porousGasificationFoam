@@ -10,8 +10,7 @@
 namespace Foam
 {
 
-class UsInterpolationModel;
-class LambdaInterpolationModel;
+template<class Type> class InterpolationModel;
 
 class lambdaDotModel
 {
@@ -30,14 +29,14 @@ private:
     // DasteXar interpolation Us from UsDEM (June 12 2026)
     Switch interpolateUs_;
     scalar solidPorosityCutoff_;
-    autoPtr<UsInterpolationModel> usInterpolationModel_;
+    autoPtr<InterpolationModel<vector>> usInterpolationModel_;
     // Ta inja
 
     // lambda comes back from YADE the same way Us does: raw per-cell average
     // in lambdaDEM_, then smoothed into lambda_ over the solid region.
     Switch interpolateLambda_;
     scalar lambdaBackgroundValue_;
-    autoPtr<LambdaInterpolationModel> lambdaInterpolationModel_;
+    autoPtr<InterpolationModel<scalar>> lambdaInterpolationModel_;
 
     // to pass values from one cell to another
     Map<label> previousParticleCell_;

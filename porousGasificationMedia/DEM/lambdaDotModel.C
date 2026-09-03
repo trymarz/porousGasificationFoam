@@ -1,6 +1,5 @@
 #include "lambdaDotModel.H"
-#include "UsInterpolationModel.H"
-#include "LambdaInterpolationModel.H"
+#include "InterpolationModel.H"
 #include "IOdictionary.H"
 #include "PstreamReduceOps.H"
 #include "OSspecific.H"
@@ -81,14 +80,16 @@ lambdaDotModel::lambdaDotModel
 
     if (interpolateUs_)
     {
-        usInterpolationModel_ = UsInterpolationModel::New
+        usInterpolationModel_ = InterpolationModel<vector>::New
         (
+            "interpolationMode",
             lambdaDict,
             mesh_,
             UsDEM_,
             Us_,
             nParticles_,
-            porosityF_
+            porosityF_,
+            pTraits<vector>::zero
         );
     }
 
@@ -105,8 +106,9 @@ lambdaDotModel::lambdaDotModel
 
     if (interpolateLambda_)
     {
-        lambdaInterpolationModel_ = LambdaInterpolationModel::New
+        lambdaInterpolationModel_ = InterpolationModel<scalar>::New
         (
+            "lambdaInterpolationMode",
             lambdaDict,
             mesh_,
             lambdaDEM_,

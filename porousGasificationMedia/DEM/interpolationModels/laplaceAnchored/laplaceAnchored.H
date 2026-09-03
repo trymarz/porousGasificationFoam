@@ -1,32 +1,40 @@
 #ifndef laplaceAnchored_H
 #define laplaceAnchored_H
 
-#include "UsInterpolationModel.H"
+#include "InterpolationModel.H"
 
 namespace Foam
 {
 
-class laplaceAnchored
+// Anchored Laplacian interpolation: occupied cells and non-solid cells are
+// strongly anchored to their known/background value, solid cells without
+// particles are weakly anchored while receiving the value from neighbours
+// through the Laplacian term. Templated over Type so the one algorithm
+// serves both the vector solid velocity (Us) and the scalar DEM particle
+// length scale (lambda) — see InterpolationModel.H.
+template<class Type>
+class LaplaceAnchoredInterpolation
 :
-    public UsInterpolationModel
+    public InterpolationModel<Type>
 {
 private:
-    scalar demVelocityAnchorCoeff_;
-    scalar backgroundUsAnchorCoeff_;
-    label nUsInterpolationCorrectors_;
+    scalar demAnchorCoeff_;
+    scalar backgroundAnchorCoeff_;
+    label nInterpolationCorrectors_;
 
 public:
-    laplaceAnchored
+    LaplaceAnchoredInterpolation
     (
         const dictionary& dict,
         const fvMesh& mesh,
-        volVectorField& UsDEM,
-        volVectorField& Us,
+        GeometricField<Type, fvPatchField, volMesh>& fieldDEM,
+        GeometricField<Type, fvPatchField, volMesh>& field,
         const volScalarField& nParticles,
-        const volScalarField& porosityF
+        const volScalarField& porosityF,
+        const Type& backgroundValue
     );
 
-    virtual ~laplaceAnchored() = default;
+    virtual ~LaplaceAnchoredInterpolation() = default;
 
     virtual void interpolate() override;
 };

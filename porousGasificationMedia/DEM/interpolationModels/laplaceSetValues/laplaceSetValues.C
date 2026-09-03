@@ -1,115 +1,160 @@
+/*
+ * Hard set-values Laplacian interpolation model, generic over the field Type
+ * (vector for the solid velocity Us, scalar for the DEM particle length
+ * scale lambda).
+ *
+ * Cells holding particles and cells outside the solid region are imposed as
+ * hard constraints on the Laplace matrix via setValues(), and the solve
+ * fills the solid cells in between. The interface faces of the solid region
+ * are disconnected first so the smoothing cannot reach outside it.
+ */
+
 #include "laplaceSetValues.H"
 #include "surfaceInterpolate.H"
 #include "fvmDdt.H"
 #include "fvmLaplacian.H"
 #include "processorPolyPatch.H"
-// #include "IOdictionary.H"
 
 namespace Foam
 {
 
-  // initialize the base interpolation model and read the number of corrector steps (if any).  
-laplaceSetValues::laplaceSetValues
+// Per-field dictionary key name for the optional corrector count, and
+// per-field name/write-option for the diagnostic solid-region mask field.
+// Kept distinct rather than templated away: committed case dictionaries
+// (tutorials/cases/simple_line_case, case_line_interpolation) already set
+// nLaplaceSetValuesCorrectors under that exact name in Us's own lambdaDict
+// sub-block, and the "Us" build writes its mask to the case time
+// directories under its existing name (solidVelocityInterpolationWhereIs);
+// lambda's does not.
+template<class Type>
+struct laplaceSetValuesKeys;
+
+template<>
+struct laplaceSetValuesKeys<vector>
+{
+    static word nCorrectors() { return "nLaplaceSetValuesCorrectors"; }
+    static word whereIsName() { return "solidVelocityInterpolationWhereIs"; }
+    static IOobject::writeOption whereIsWriteOpt()
+    {
+        return IOobject::AUTO_WRITE;
+    }
+};
+
+template<>
+struct laplaceSetValuesKeys<scalar>
+{
+    static word nCorrectors() { return "nLaplaceSetValuesLambdaCorrectors"; }
+    static word whereIsName() { return "solidLambdaInterpolationWhereIs"; }
+    static IOobject::writeOption whereIsWriteOpt()
+    {
+        return IOobject::NO_WRITE;
+    }
+};
+
+
+template<class Type>
+LaplaceSetValuesInterpolation<Type>::LaplaceSetValuesInterpolation
 (
     const dictionary& dict,
     const fvMesh& mesh,
-    volVectorField& UsDEM,
-    volVectorField& Us,
+    GeometricField<Type, fvPatchField, volMesh>& fieldDEM,
+    GeometricField<Type, fvPatchField, volMesh>& field,
     const volScalarField& nParticles,
-    const volScalarField& porosityF
+    const volScalarField& porosityF,
+    const Type& backgroundValue
 )
 :
-    UsInterpolationModel
+    InterpolationModel<Type>
     (
         dict,
         mesh,
-        UsDEM,
-        Us,
+        fieldDEM,
+        field,
         nParticles,
-        porosityF
+        porosityF,
+        backgroundValue
     ),
-    nLaplaceSetValuesCorrectors_
+    nSetValuesCorrectors_
     (
-        dict.lookupOrDefault<label>("nLaplaceSetValuesCorrectors", 0)
+        dict.lookupOrDefault<label>
+        (
+            laplaceSetValuesKeys<Type>::nCorrectors(), 0
+        )
     )
 {}
 
-// Interpolate the DEM solid velocity into cells without particles using a laplacian set-values method
-void laplaceSetValues::interpolate()
+
+template<class Type>
+void LaplaceSetValuesInterpolation<Type>::interpolate()
 {
+    // Cells containing particles already hold the values YADE sent.
+    this->field_ = this->fieldDEM_;
 
-    // start from the DEM velocity field
-    // cells with particle data already contain known values passed from Yade (UsDEM)
-    Us_ = UsDEM_;
-
-
-    // create a mask to identify the porous (solid porosityF < 1) region based on porosity.
-        
-      Info<< "laplaceSetValues: criticalPorosity = "
-        << solidPorosityCutoff_ << nl << endl;
-
+    // Mask of the solid region (porosityF below criticalPorosity).
     volScalarField whereIs
     (
         IOobject
         (
-            "solidVelocityInterpolationWhereIs",
-            mesh_.time().timeName(),
-            mesh_,
+            laplaceSetValuesKeys<Type>::whereIsName(),
+            this->mesh_.time().timeName(),
+            this->mesh_,
             IOobject::NO_READ,
-            IOobject::AUTO_WRITE
+            laplaceSetValuesKeys<Type>::whereIsWriteOpt()
         ),
-        //read the value from constant/pyrolysisProperties : criticalPorosity
-            pos(-(porosityF_ - scalar(solidPorosityCutoff_)))
+        pos(-(this->porosityF_ - scalar(this->solidPorosityCutoff_)))
     );
 
-    // Interpolate the porous region mask to cells to detect interface faces.
+    // Interpolated to faces so interface faces can be detected: a face with
+    // 0 < value < 1 has one solid and one non-solid side.
     surfaceScalarField whereIsPatch = fvc::interpolate(whereIs);
 
-
-    // diffusion coefficient used in the Laplacian interpolation equation.
+    // Diffusivity of the interpolation Laplacian. Its magnitude does not
+    // matter for the converged solution — only the matrix structure does.
     dimensionedScalar coeffD
     (
-        "solidVelocityInterpolationDiffusivity",
+        "solidInterpolationDiffusivity",
         dimensionSet(0, 2, 0, 0, 0, 0, 0),
         1e-4
     );
 
     dimensionedScalar coeffDt
     (
-        "solidVelocityInterpolationCorrectorDt",
+        "solidInterpolationCorrectorDt",
         dimensionSet(0, 0, 1, 0, 0, 0, 0),
         1e-4
     );
-//if (nLaplaceSetValuesCorrectors_ > 0)
 
-// vars used to monitor convergence of the repeated Laplacian solve.
-    vector oldInitialResidual = vector(1e6, 1e6, 1e6);
+    const dictionary controls(this->solverControls(this->field_.name()));
+
+    Type oldInitialResidual(1e6*pTraits<Type>::one);
     bool solved = false;
     label keepSolving = 0;
 
-    // repeat the Laplacian solve until the residual is small and stable, or up to 5 attempts.
+    // Repeat until the residual is small and no longer moving, or 5
+    // attempts.
     while ((keepSolving < 5) && (!solved))
     {
-
-        // build the Laplacian equation that interpolates the Us
-        fvVectorMatrix UsLap
+        fvMatrix<Type> fieldLap
         (
-            fvm::laplacian(coeffD, Us_)
+            fvm::laplacian(coeffD, this->field_)
         );
 
-
+        // Disconnect the solid-region interface faces. Only upper() is
+        // zeroed: the laplacian matrix is symmetric, so upper() and lower()
+        // share one array and zeroing both would flip the matrix to
+        // asymmetric.
         forAll(whereIsPatch, faceI)
         {
             if ((whereIsPatch[faceI] > 0) && (whereIsPatch[faceI] < 1))
             {
-                UsLap.upper()[faceI] = 0.0;
+                fieldLap.upper()[faceI] = 0.0;
             }
         }
 
-         // apply the same interface treatment on processor boundaries for parallel runs.   
+        // Same treatment on processor boundaries, for parallel runs.
         forAll(whereIsPatch.boundaryField(), patchI)
         {
-            if (isA<processorPolyPatch>(mesh_.boundaryMesh()[patchI]))
+            if (isA<processorPolyPatch>(this->mesh_.boundaryMesh()[patchI]))
             {
                 forAll(whereIsPatch.boundaryField()[patchI], faceI)
                 {
@@ -119,97 +164,90 @@ void laplaceSetValues::interpolate()
                      && (whereIsPatch.boundaryField()[patchI][faceI] < 1)
                     )
                     {
-                        UsLap.boundaryCoeffs()[patchI][faceI] = vector(0, 0, 0);
-                        UsLap.internalCoeffs()[patchI][faceI] = vector(0, 0, 0);
+                        fieldLap.boundaryCoeffs()[patchI][faceI] =
+                            pTraits<Type>::zero;
+                        fieldLap.internalCoeffs()[patchI][faceI] =
+                            pTraits<Type>::zero;
                     }
                 }
             }
         }
 
-        // rebuild the matrix diagonal and clear the source term after modifying face coefficients
-        UsLap.diag() = 0;
-        UsLap.negSumDiag();
-        UsLap.source() = vector(0, 0, 0);
+        // Rebuild the diagonal from the modified face coefficients and clear
+        // the source.
+        fieldLap.diag() = 0;
+        fieldLap.negSumDiag();
+        fieldLap.source() = pTraits<Type>::zero;
 
-        // Copy the prepared Laplacian matrix into the equation that will be solved.
-        fvVectorMatrix UsEqn
+        fvMatrix<Type> fieldEqn
         (
-            UsLap
+            fieldLap
         );
 
-        
         List<label> cellList = {};
-        Field<vector> UsList = {};
+        Field<Type> valueList = {};
 
-
-        // Fix cells containing particles to their DEM velocity.
-        // Fix cells outside the interpolation region to zero.
-        forAll(UsDEM_, cellI)
+        forAll(this->fieldDEM_, cellI)
         {
-            // Cells containing particles keep the DEM velocity
-            if (nParticles_[cellI] > 0.5)
+            // Cells containing particles keep the DEM value.
+            if (this->nParticles_[cellI] > 0.5)
             {
                 cellList.append(cellI);
-                UsList.append(UsDEM_[cellI]);
+                valueList.append(this->fieldDEM_[cellI]);
             }
-            // Cells outside the interpolation region are fixed to zero
+            // Cells outside the solid region hold the background value.
             else if (whereIs[cellI] < 0.5)
             {
                 cellList.append(cellI);
-                UsList.append(vector::zero);
+                valueList.append(this->backgroundValue_);
             }
-            // Isolated cells with zero matrix diagonal are also fixed to zero
-            else if (mag(UsLap.diag()[cellI]) < SMALL)
+            // Cells left with a zero diagonal are disconnected from every
+            // neighbour; pin them too rather than leave the matrix singular.
+            else if (mag(fieldLap.diag()[cellI]) < SMALL)
             {
                 cellList.append(cellI);
-                UsList.append(vector::zero);
+                valueList.append(this->backgroundValue_);
             }
         }
 
-
         const labelUList& cellUList = cellList;
-        const Field<vector>& UsUList = UsList;
+        const Field<Type>& valueUList = valueList;
 
         /*
-         * Apply hard velocity constraints before solving:
+         * Hard constraints applied before solving:
          *
-         * 1. Cells containing DEM particles retain their cell-averaged
-         *    DEM velocity.
+         * 1. Cells containing DEM particles keep their cell-averaged
+         *    DEM value.
          *
-         * 2. Cells outside the active solid region remain at zero velocity.
+         * 2. Cells outside the active solid region hold the background
+         *    value.
          *
-         * 3. Disconnected cells remain fixed at zero to prevent a singular
-         *    interpolation matrix.
-         *
-         * This operation only constrains the velocity interpolation equation.
-         * It does not modify solid mass, porosity, chemistry, or energy.
+         * 3. Disconnected cells are pinned, to keep the matrix
+         *    non-singular.
          */
-        UsEqn.setValues(cellUList, UsUList);
+        fieldEqn.setValues(cellUList, valueUList);
 
-        UsEqn.relax();
+        fieldEqn.relax();
 
-        // A cell that is disconnected from every neighbour - all its face
-        // coefficients having been zeroed at the interface - leaves a zero
-        // diagonal, on which symGaussSeidel divides by zero. Pin such a cell
-        // to zero velocity instead.
-        forAll(UsEqn.diag(), cellI)
+        // A cell disconnected from all of its neighbours - every face
+        // coefficient zeroed at the interface - leaves a zero diagonal, on
+        // which symGaussSeidel divides by zero. Pin such a cell instead.
+        forAll(fieldEqn.diag(), cellI)
         {
-            scalar& diag = UsEqn.diag()[cellI];
+            scalar& diag = fieldEqn.diag()[cellI];
 
             if (!std::isfinite(diag) || mag(diag) < SMALL)
             {
                 diag = 1.0;
-                UsEqn.source()[cellI] = vector::zero;
-                Us_[cellI] = vector::zero;
+                fieldEqn.source()[cellI] = this->backgroundValue_;
+                this->field_[cellI] = this->backgroundValue_;
             }
         }
 
-        Foam::SolverPerformance<Foam::vector> sp = UsEqn.solve();
+        SolverPerformance<Type> sp = fieldEqn.solve(controls);
 
-        // Print the initial residual to monitor convergence.
-        Info << sp.initialResidual() << endl;
+        Info<< sp.initialResidual() << endl;
 
-        // Mark the solution as converged when the residual is small and no longer changing significantly.
         if
         (
             mag
@@ -229,26 +267,25 @@ void laplaceSetValues::interpolate()
         keepSolving++;
     }
 
-    // optional corrector step: run additional pseudo-time smoothing iterations if requested in lambdaDict. 
-    // Default nLaplaceSetValuesCorrectors_ is 0 means no corrector steps 
-    if (solved && nLaplaceSetValuesCorrectors_ > 0)
+    // Optional pseudo-time smoothing after the set-values solve.
+    if (solved && nSetValuesCorrectors_ > 0)
     {
-        fvVectorMatrix UsLap
+        fvMatrix<Type> fieldLap
         (
-            fvm::laplacian(coeffD, Us_)
+            fvm::laplacian(coeffD, this->field_)
         );
 
         forAll(whereIsPatch, faceI)
         {
             if ((whereIsPatch[faceI] > 0) && (whereIsPatch[faceI] < 1))
             {
-                UsLap.upper()[faceI] = 0.0;
+                fieldLap.upper()[faceI] = 0.0;
             }
         }
 
         forAll(whereIsPatch.boundaryField(), patchI)
         {
-            if (isA<processorPolyPatch>(mesh_.boundaryMesh()[patchI]))
+            if (isA<processorPolyPatch>(this->mesh_.boundaryMesh()[patchI]))
             {
                 forAll(whereIsPatch.boundaryField()[patchI], faceI)
                 {
@@ -258,36 +295,35 @@ void laplaceSetValues::interpolate()
                      && (whereIsPatch.boundaryField()[patchI][faceI] < 1)
                     )
                     {
-                        UsLap.boundaryCoeffs()[patchI][faceI] = vector(0, 0, 0);
-                        UsLap.internalCoeffs()[patchI][faceI] = vector(0, 0, 0);
+                        fieldLap.boundaryCoeffs()[patchI][faceI] =
+                            pTraits<Type>::zero;
+                        fieldLap.internalCoeffs()[patchI][faceI] =
+                            pTraits<Type>::zero;
                     }
                 }
             }
         }
 
+        fieldLap.diag() = 0;
+        fieldLap.negSumDiag();
+        fieldLap.source() = pTraits<Type>::zero;
 
-
-        UsLap.diag() = 0;
-        UsLap.negSumDiag();
-        UsLap.source() = vector(0, 0, 0);
-
-        for (label corr = 0; corr < nLaplaceSetValuesCorrectors_; ++corr)
+        for (label corr = 0; corr < nSetValuesCorrectors_; ++corr)
         {
-            Info << "calculating laplaceSetValues corrector step" << endl;
-
-            fvVectorMatrix UsCorrectorEqn
+            fvMatrix<Type> fieldCorrectorEqn
             (
-                fvm::ddt(coeffDt, Us_)
-              - UsLap
+                fvm::ddt(coeffDt, this->field_)
+              - fieldLap
             );
 
-            UsCorrectorEqn.solve();
+            fieldCorrectorEqn.solve(controls);
         }
     }
 
-    
-
-    Us_.correctBoundaryConditions();
+    this->field_.correctBoundaryConditions();
 }
 
 } // namespace Foam
+
+template class Foam::LaplaceSetValuesInterpolation<Foam::vector>;
+template class Foam::LaplaceSetValuesInterpolation<Foam::scalar>;

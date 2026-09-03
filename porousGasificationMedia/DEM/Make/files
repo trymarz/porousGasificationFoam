@@ -1,10 +1,6 @@
-interpolationModels/UsInterpolationModel/UsInterpolationModel.C
+interpolationModels/InterpolationModel/InterpolationModel.C
 interpolationModels/laplaceAnchored/laplaceAnchored.C
 interpolationModels/laplaceSetValues/laplaceSetValues.C
-
-interpolationModels/LambdaInterpolationModel/LambdaInterpolationModel.C
-interpolationModels/laplaceAnchoredLambda/laplaceAnchoredLambda.C
-interpolationModels/laplaceSetValuesLambda/laplaceSetValuesLambda.C
 
 lambdaDotModels/LambdaDotCalculationModel/LambdaDotCalculationModel.C
 lambdaDotModels/constantLambdaDot/constantLambdaDot.C
