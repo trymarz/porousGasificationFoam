@@ -8,7 +8,7 @@ This file may lag the codebase. Before acting on any specific claim below, sanit
 
 Also flag if the *Last verified* date below predates significant recent commits in the affected area; in that case, propose a refresh rather than acting on stale guidance.
 
-*Last verified: 2026-05-21*
+*Last verified: 2026-09-03*
 
 ## Documentation split
 
@@ -41,6 +41,70 @@ The full human-facing version of this rule is in README → Development Workflow
 - Stage specific files by name (`git add path/to/file`). Avoid `git add -A` / `git add .` — tutorial runs leave behind `processor*/`, `postProcessing/`, time directories, and logs that are not meant for version control.
 - Do not push to `origin` unless the user explicitly asks.
 
+## GitHub Issues Workflow
+
+GitHub Issues + Project #4 ("PGF development") is the current-status source for
+planning on this repo — anyone browsing GitHub should see an accurate
+Problem/Objective/Deliverables and rough progress, without digging through
+`/plans`. `/plans` stays the store for implementation detail (files to touch,
+approach, step log) and is unaffected by this section. (This is
+porousGasificationFoam-specific for now; generalizing it into a reusable
+pattern is tracked as backlog item `github-issues-plans-sync-skill-2026-09-02`
+in agent-corral's `/plans`, not part of this repo's workflow yet.)
+
+**Status mapping** (`/plans` frontmatter `status:` → Project `Status`):
+
+| `/plans` `status:` | Project `Status` |
+|---|---|
+| `backlog` | `Backlog` |
+| `active` | `Ready` |
+| `in_progress` | `In progress` |
+| `done` | `Done` |
+| `superseded` | `Done` (closed, with a note) |
+
+**On creating a new plan for this repo**:
+1. Write the `/plans` file as usual.
+2. Create a matching GitHub issue using the `Plan` template
+   (`.github/ISSUE_TEMPLATE/plan.md`): title `Plan: <same title as the plan's
+   `# Plan: …` heading>`; Problem from the plan's Context → Why; Objective /
+   Deliverables from Context → What + any acceptance criteria; a `Plan`
+   checklist with one box per the plan's `## Approach` Blocks (or, for a
+   backlog item with no Blocks yet, per its logical phases), each with a
+   rough time estimate; `domain:*` label(s) matching the plan's frontmatter
+   `domain:`.
+3. Add the issue to project #4 with `Status` per the mapping above.
+4. Record `github_issue: <N>` in the plan's frontmatter (see AGENT-KB.md's
+   Plan Metadata field table).
+
+**As each block lands**: tick that block's checkbox on the issue. This is the
+routine, cheap touchpoint — a checkbox flip, not a rewrite. Nothing else on
+the issue should change for routine progress.
+
+**Body edits are explicit and rare**: only rewrite Problem/Objective/
+Deliverables when work on the plan proves the original spec wrong — flag it
+to the user first, then correct deliberately. Never edit the spec as a side
+effect of routine progress; that belongs in `/plans`' step log instead.
+
+**Before starting work tied to an issue number**: fetch the issue's current
+body + recent comments (`gh issue view <N> --comments`) and compare against
+what `/plans` last recorded. If it diverged — the user edited the issue
+directly — reconcile by discussing with the user; never silently overwrite
+either side.
+
+**Anyone can edit either side.** This isn't an exclusivity rule — it's a
+"don't let the public-facing copy go stale" discipline. The freshness
+guarantee comes from checking in at the right moments, not from restricting
+who writes where.
+
+**Branch / PR linkage**: create the branch that resolves an issue via the
+issue's own **Development** panel → "Create a branch", so GitHub links it
+automatically — don't link it by hand. That auto-generated branch name
+(`<issue-number>-<slug>`) becomes this repo's worktree `<short-name>` (see
+`/plans` memory: `worktree-layout-main-in-primary`). PR bodies include
+`Closes #<issue>` so merging auto-closes the issue, which the project's
+"item closed → Done" workflow rule then moves the card to `Done`
+automatically — no manual board edit needed.
+
 ## Verification habits
 
 - **Before claiming a file, symbol, or flag exists, verify it.** Grep or read the file. Memory and prior conversation context are not authoritative; the current tree is.
@@ -67,3 +131,4 @@ When you need a load-bearing fact, go to the README rather than re-deriving it f
 | Build targets and dependencies | "Build System" |
 | Common failure modes | "Troubleshooting" |
 | Regression framework — hook a case, capture a baseline, run comparisons | "Regression Testing" |
+| GitHub Issues workflow — issue-per-plan creation, checkbox ticks, reconciliation, branch/PR linkage | "GitHub Issues Workflow" (this file, not the README) |
