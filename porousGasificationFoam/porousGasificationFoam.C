@@ -117,7 +117,6 @@ int main(int argc, char *argv[])
             lambdaDotUpdater->updateLambdaDot();
             yadeCoupling->setParticleAction(runTime.deltaT().value());
             lambdaDotUpdater->updateParticleFields();
-            lambdaDotUpdater->writeParticlesData();
             yadeCoupling->setSourceZero();
         }
         #endif

@@ -292,46 +292,6 @@ void lambdaDotModel::updateParticleFields()
 }
 
 
-void lambdaDotModel::writeParticlesData() const
-{
-    if (!mesh_.time().outputTime()) return;
-
-    const int myRank = Pstream::myProcNo();
-
-    fileName outDir = mesh_.time().timePath();
-    mkDir(outDir);
-
-    fileName outPath = outDir / "ParticlesData.txt";
-
-    std::ofstream ofs(outPath.c_str(), std::ios::app);
-    ofs.setf(std::ios::scientific);
-    ofs.precision(8);
-
-    ofs << "# rank " << myRank
-        << " time " << mesh_.time().timeName()
-        << " (particleID cellID lambdaDot)\n";
-
-    for (const auto& procPtr : yade_.inCommProcs)
-    {
-        if (!procPtr) continue;
-
-        for (const auto& partPtr : procPtr->foundParticles)
-        {
-            if (!partPtr) continue;
-
-            label cellI = partPtr->inCell;
-            if (cellI < 0) continue;
-            if (nParticles_[cellI] < 0.5) continue;
-
-            ofs << partPtr->indx << " "
-                << cellI << " "
-                << lambdaDot_[cellI] << "\n";
-        }
-    }
-
-    ofs << "\n";
-}
-
 const DynamicList<label>& lambdaDotModel::movedFromCells() const
 {
     return movedFromCells_;

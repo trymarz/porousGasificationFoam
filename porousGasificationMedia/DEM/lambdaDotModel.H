@@ -75,8 +75,6 @@ public:
     const DynamicList<label>& movedFromCells() const;
     const DynamicList<label>& movedToCells() const;
 
-    void writeParticlesData() const;  // to write ParticlesData.txt in each time step for each rank
-
 };
 
 } // namespace Foam
