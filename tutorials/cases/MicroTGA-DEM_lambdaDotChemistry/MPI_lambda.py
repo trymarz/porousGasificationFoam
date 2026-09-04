@@ -26,7 +26,6 @@ writeInterval = 0.1   # seconds — Yade VTK write interval (separate from OF wr
 
 
 spring_frame_number = 0
-sphere_frame_number = 0
 
 #timeRatio = 5000  # itterations to write vtk files
 
@@ -55,6 +54,11 @@ numspheres = 100
 young = 25e6 #5e6
 density = 1200
 NSTEPS = int(os.environ.get('YADE_NSTEPS', 2000000))
+
+# VTKRecorder cadence for spheres: timeRatio (writeInterval-derived) never
+# fires within this fixture's short NSTEPS, so pick a period scaled to the
+# actual run length instead.
+vtkSphereIterPeriod = max(1, NSTEPS // 10)
 
 O.materials.append(FrictMat(young=young, poisson=0.5, frictionAngle=radians(15), density=density, label='spheremat'))
 O.materials.append(FrictMat(young=young * 100, poisson=0.5, frictionAngle=0, density=0, label='wallmat'))
@@ -345,8 +349,9 @@ export.text("spheres/spheres_0.txt")
 
 
 # to list all vtk files in a single pvd file with time stamps. in paraview only open this pvd file not all vtk files.
+# Spheres use Yade's native VTKRecorder (see O.engines) instead -- it writes
+# its own .pvd, so only the hand-rolled springs exporter needs this here.
 
-pvd_spheres = []   # list of (time, filename) for pvd file
 pvd_springs = []
 
 def write_pvd(pvd_path, entries):
@@ -479,131 +484,6 @@ def export_springs():
         spring_frame_number += float(writeInterval)
 
 
-# Export spheres as VTK ( not VTKRecorder )
-# ---------------------
-def export_spheres():
-    global sphere_frame_number
-    os.makedirs("spheres", exist_ok=True)
-
-#    collection (each MPI rank)
-    local_centers = []
-    local_radii   = []
-    local_vels    = [] # for velocity
-
-    for b in O.bodies:
-        if isinstance(b.shape, Sphere):
-            local_centers.append(b.state.pos)
-            local_radii.append(b.shape.radius)
-            local_vels.append(b.state.vel) # velocity of  the sphere
-
-   # GATHER to master
-
-    all_centers = mp.comm.gather(local_centers, root=0)
-    all_radii   = mp.comm.gather(local_radii,   root=0)
-    all_vels    = mp.comm.gather(local_vels,    root=0) # for velocity
-
-    if mp.rank == 0:
-
-        centers = []
-        radii   = []
-        vels    = []   # velocity of spheres
-
-        for sub in all_centers:
-            centers.extend(sub)
-        for sub in all_radii:
-            radii.extend(sub)
-        for sub in all_vels:
-            vels.extend(sub)
-
-        npts = len(centers)
-
-        """file_path = f"spheres/spheres_{sphere_frame_number:.1f}.vtk"
-        with open(file_path, "w") as f:
-            f.write("# vtk DataFile Version 3.0\n")
-            f.write("YADE spheres (manual export)\n")
-            f.write("ASCII\n")
-            f.write("DATASET POLYDATA\n")
-
-            # points
-            f.write(f"POINTS {npts} float\n")
-            for p in centers:
-                f.write(f"{p[0]} {p[1]} {p[2]}\n")
-
-
-            # one vertex per point
-            f.write(f"\nVERTICES {npts} {2*npts}\n")
-            for i in range(npts):
-                f.write(f"1 {i}\n")
-
-
-            f.write(f"\nPOINT_DATA {npts}\n")
-
-            # radius
-            f.write("SCALARS radius float 1\n")
-            f.write("LOOKUP_TABLE default\n")
-            for r in radii:
-                f.write(f"{r}\n")
-
-        print(f"[VTK] Exported {npts} spheres -> {file_path}")"""
-
-        file_path = f"spheres/spheres_{sphere_frame_number:.1f}.vtp"
-        with open(file_path, "w") as f:
-            f.write('<?xml version="1.0"?>\n')
-            f.write('<VTKFile type="PolyData" version="0.1" byte_order="LittleEndian">\n')
-            f.write('  <PolyData>\n')
-            f.write(f'    <Piece NumberOfPoints="{npts}" NumberOfVerts="{npts}">\n')
-
-            # Points (centers)
-            f.write('      <Points>\n')
-            f.write('        <DataArray type="Float32" NumberOfComponents="3" format="ascii">\n')
-            for p in centers:
-                f.write(f'          {p[0]} {p[1]} {p[2]}\n')
-            f.write('        </DataArray>\n')
-            f.write('      </Points>\n')
-
-            # (one vertex per point)
-            f.write('      <Verts>\n')
-            f.write('        <DataArray type="Int32" Name="connectivity" format="ascii">\n')
-            for i in range(npts):
-                f.write(f'          {i}\n')
-            f.write('        </DataArray>\n')
-            f.write('        <DataArray type="Int32" Name="offsets" format="ascii">\n')
-            for i in range(npts):
-                f.write(f'          {i+1}\n')
-            f.write('        </DataArray>\n')
-            f.write('      </Verts>\n')
-
-            # PointData
-            f.write('      <PointData>\n')
-
-            # radius
-            f.write('        <DataArray type="Float32" Name="radius" format="ascii">\n')
-            for r in radii:
-                f.write(f'          {r}\n')
-            f.write('        </DataArray>\n')
-
-            # velocity vector
-            f.write('        <DataArray type="Float32" Name="velocity" NumberOfComponents="3" format="ascii">\n')
-            for v in vels:
-                f.write(f'          {v[0]} {v[1]} {v[2]}\n')
-            f.write('        </DataArray>\n')
-
-            f.write('      </PointData>\n')
-
-            f.write('    </Piece>\n')
-            f.write('  </PolyData>\n')
-            f.write('</VTKFile>\n')
-
-
-        global pvd_spheres
-        vtk_name = os.path.basename(file_path)
-        pvd_spheres.append((sphere_frame_number, vtk_name))
-        write_pvd("spheres/spheres.pvd", pvd_spheres)
-
-        sphere_frame_number += float(writeInterval)
-
-
-
 """
 if mp.rank == 0:
     print("[YADE] FoamCoupling type:", type(fluidCoupling))
@@ -669,11 +549,9 @@ O.engines = [
         
         PyRunner(command='apply_spring_forces()', iterPeriod=20, firstIterRun=1),
         PyRunner(command="export_springs()", iterPeriod=timeRatio, firstIterRun=1),
-        PyRunner(command="export_spheres()", iterPeriod=timeRatio, firstIterRun=1),
+        VTKRecorder(fileName='spheres/vtk-', recorders=['spheres'], parallelMode=True, iterPeriod=vtkSphereIterPeriod),
 
-        #PyRunner(command='printlambdaDotNew()', iterPeriod=1), #it works! prints a list of sphereID and lambdaDot 
-        #VTKRecorder(fileName='spheres/vtk-', recorders=['spheres'], parallelMode=True, virtPeriod=1e-3),
-        #VTKRecorder(fileName='spheres/vtk-', recorders=['spheres'], parallelMode=True, iterPeriod=timeRatio),
+        #PyRunner(command='printlambdaDotNew()', iterPeriod=1), #it works! prints a list of sphereID and lambdaDot
 
         PyRunner(iterPeriod=timeRatio, command='gatherHydroFT()'), # it works! prints a list of hydrodynamic forces + lambdaDot sent from OF
         #PyRunner(command='savePos()', iterPeriod=5000) 
