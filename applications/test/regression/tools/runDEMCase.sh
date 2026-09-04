@@ -228,7 +228,7 @@ grep -q "RUN FINISH" run.log \
     || { echo "ERROR: simulation did not complete — check run.log"; finish 1 "simulation did not complete (no RUN FINISH in run.log)"; }
 grep -q "DEM coupling: active" run.log \
     || { echo "ERROR: DEM coupling not active — solver built without -DWITH_YADE=1?"; finish 1 "DEM coupling not active — solver built without -DWITH_YADE=1?"; }
-ls spheres/spheres_*.vtp > /dev/null 2>&1 || { echo "ERROR: no sphere VTK files written"; finish 1 "no sphere VTK files written"; }
+ls spheres/vtk-spheres_*.vtu > /dev/null 2>&1 || { echo "ERROR: no sphere VTK files written"; finish 1 "no sphere VTK files written"; }
 ls springs/springs_*.vtp > /dev/null 2>&1 || { echo "ERROR: no spring VTK files written"; finish 1 "no spring VTK files written"; }
 echo "  DEM output check passed"
 
