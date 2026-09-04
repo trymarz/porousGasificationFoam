@@ -60,9 +60,9 @@ lambdaDotModel::lambdaDotModel
         )
     );
 
-    // Required entry, shared with UsInterpolationModel: a cell whose porosity
-    // reaches criticalPorosity holds too little solid to carry the DEM
-    // skeleton, so lambdaDot is switched off there.
+    // Required entry, shared with InterpolationModel<vector>: a cell whose
+    // porosity reaches criticalPorosity holds too little solid to carry the
+    // DEM skeleton, so lambdaDot is switched off there.
     criticalPorosity_ =
         readScalar
         (

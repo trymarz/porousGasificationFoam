@@ -355,9 +355,9 @@ lambdaValue     0.0;         // [m/s]  fixed lambdaDot everywhere
 
 // -- lambdaMode exactDifferential; every coefficient defaults to 0.0
 dlambdaOverDTs             1e-6;    // [m/K]     dlambda/dTs
-dlambdaOverDYmi            2.5e-12; // [m^4/kg]  dlambda/dYm_i, one value for
+dlambdaOverDYmi            2.5e-6;  // [m^4/kg]  dlambda/dYm_i, one value for
                                     //           every solid specie...
-// dlambdaOverDYmi { char 2.5e-12; wood 1e-12; }  // ...or per specie, keyed by
+// dlambdaOverDYmi { char 2.5e-6; wood 1e-6; }  // ...or per specie, keyed by
                                     //           solidComponents name; species
                                     //           left out read 0.0
 splitMassBetweenLamAndPor  0.5;     // [-] in [0,1]: share of the chemistry

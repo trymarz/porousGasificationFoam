@@ -2,12 +2,8 @@ sinclude $(GENERAL_RULES)/mplib$(WM_MPLIB)
 sinclude $(RULES)/mplib$(WM_MPLIB)
 
 EXE_INC = \
-    -IinterpolationModels/UsInterpolationModel \
     -IinterpolationModels/laplaceAnchored \
     -IinterpolationModels/laplaceSetValues \
-    -IinterpolationModels/LambdaInterpolationModel \
-    -IinterpolationModels/laplaceAnchoredLambda \
-    -IinterpolationModels/laplaceSetValuesLambda \
     -IlambdaDotModels/LambdaDotCalculationModel \
     -IlambdaDotModels/constantLambdaDot \
     -IlambdaDotModels/exactDifferentialLambdaDot \

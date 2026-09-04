@@ -47,10 +47,10 @@ splitMassBetweenLamAndPor 0.5;
 
 // Alternate interpolation strategy (Chemistry/Temperature/Both/Off all use
 // the laplaceSetValues default). Implicit anchored-Laplacian smoothing of
-// lambdaDEM over the solid region -- see laplaceAnchoredLambda.C. Reuses the
-// Us family's default solver controls when the case carries no matching
-// fvSolution entry, exactly like laplaceSetValues does, so no fvSolution
-// change is needed here either.
+// lambdaDEM over the solid region -- see laplaceAnchored.C (templated,
+// shared with the Us field). Reuses the Us instantiation's default solver
+// controls when the case carries no matching fvSolution entry, exactly like
+// laplaceSetValues does, so no fvSolution change is needed here either.
 lambdaInterpolationMode laplaceAnchored;
 
 // Non-default background for cells outside the solid region (default 1.0 m).
