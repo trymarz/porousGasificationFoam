@@ -37,6 +37,7 @@ License
 #include "fvCFD.H"
 #include "DynamicList.H"
 #include "processorPolyPatch.H"
+#include "processorCyclicPolyPatch.H"
 
 #include "BCs/fixedSolidH/fixedSolidHFvPatchScalarField.H"
 #include "BCs/fixedYm/fixedYmFvPatchScalarField.H"
@@ -136,14 +137,17 @@ void volPyrolysis::solvePorosity()
 
         surfaceScalarField phiUs = mesh_.Sf() & fvc::interpolate(Us_,"Us");
 
-        // requires setting same stuff as for diffusion to release flux at the ends of porous media
-        // it would be best to solve 1-porosity as it gives 0 flux naturally when empty?? 
+        // Us_ advects solid, so flux must scale with solid fraction
+        // (1-por), not por. From d(1-por)/dt + div(phiUs*(1-por)) =
+        // -porositySource_, negating and expanding div(phiUs*(1-por))
+        // gives d(por)/dt = porositySource_ + div(phiUs) - div(phiUs,por).
         fvScalarMatrix porosityEqn
         (
             fvm::ddt(por)
          ==
             porositySource_
-          - fvc::div(phiUs,por,"div(phiSolid)")
+          + fvc::div(phiUs)
+          - fvc::div(phiUs, por, "div(phiSolid)")
         );
 
         porosityEqn.solve("porosity");
@@ -162,11 +166,14 @@ void volPyrolysis::solvePorosity()
 
         forAll(porosity_,cellI)
         {
-            if ((porosity_[cellI] > critPorosity_) && ( (Us_[cellI] & whereIsGrad[cellI]) > 0) )
+            if (porosity_[cellI] > critPorosity_) 
             {
-                if (porosity_[cellI] < 1.0)
+                if ( (mag(whereIsGrad[cellI]) == 0) || ((mag(whereIsGrad[cellI]) > 0) && ((Us_[cellI] & whereIsGrad[cellI]) > 0))  )
                 {
-                    candidateStack.push(cellI);
+                    if (porosity_[cellI] < 1.0)
+                    {
+                        candidateStack.push(cellI);
+                    }
                 }
             }
             if (porosity_[cellI] < 0.0001)
@@ -774,7 +781,7 @@ void volPyrolysis::preSolveEnergy()
             whereIsNot_.correctBoundaryConditions();
             surfaceScalarField  whereIsPatch  = fvc::interpolate(whereIs_);
 
-            volScalarField heatTransfField = whereIs_*heatTransfer()();
+            volScalarField heatTransfField = whereIs_*heatTransfer()()*pos(critPorosity_ - porosity_);
 
             // Simplistic immersed boundary for heat transport in solid phase.
             fvScalarMatrix TLap
@@ -793,7 +800,7 @@ void volPyrolysis::preSolveEnergy()
             }
             forAll(whereIsPatch.boundaryField(),patchI)
             {
-               if (isA<processorPolyPatch>(mesh_.boundaryMesh()[patchI]))
+               if (isA<processorPolyPatch>(mesh_.boundaryMesh()[patchI]) or isA<cyclicPolyPatch>(mesh_.boundaryMesh()[patchI]) or isA<processorCyclicPolyPatch>(mesh_.boundaryMesh()[patchI]) )
                {
                    forAll(whereIsPatch.boundaryField()[patchI],faceI)
                    {
@@ -873,7 +880,7 @@ void volPyrolysis::postSolveEnergy()
             {
                 totalYm += Ym_[i];
             }
-            solidThermo_.correct(); // eqZx2uHGn046
+            solidThermo_.correct(); 
             volScalarField rhoCp
             (
                 max
@@ -882,7 +889,9 @@ void volPyrolysis::postSolveEnergy()
                     dimensionedScalar("minRhoCp",dimEnergy/dimTemperature/dimVolume,SMALL)
                 )
             );
-            T_ = whereIs_*solidH_()/rhoCp;
+            volScalarField weight = critPorosity_ - porosity_;
+            T_ = whereIs_*(solidH_()/rhoCp*pos(weight) + gasThermo_.T()*neg(weight));
+            
             T_.correctBoundaryConditions();
 
             scalar minTemp = GREAT;
@@ -1300,20 +1309,53 @@ volPyrolysis::volPyrolysis
             tbt
         )
     );
+
     solidH_() = rho_ * solidThermo_.Cp() * (1 - porosity_) * T_;
+
+    forAll(tbf, patchi)
+    {
+        if (isA<cyclicFvPatch>(mesh_.boundary()[patchi]))
+        {
+            if (isA<fixedValueFvPatchScalarField>(tbf[patchi]))
+            {
+                tmp<fvPatchScalarField> tPatch
+                (
+                    fvPatchScalarField::New
+                    (
+                        fixedSolidHFvPatchScalarField::typeName,
+                        cyclicPolyPatch::typeName,
+                        mesh.boundary()[patchi],
+                        solidH_().internalField()
+                    )
+                ); 
+                solidH_().boundaryFieldRef().set(patchi, tPatch);
+            }
+            if (isA<zeroGradientFvPatchScalarField>(tbf[patchi]))
+            {
+                tmp<fvPatchScalarField> tPatch
+                (
+                    fvPatchScalarField::New
+                    (
+                        zeroGradientFvPatchScalarField::typeName,
+                        cyclicPolyPatch::typeName,
+                        mesh.boundary()[patchi],
+                        solidH_().internalField()
+                    )
+                ); 
+                solidH_().boundaryFieldRef().set(patchi, tPatch);
+            }
+        }
+    }
+
     solidH_().correctBoundaryConditions();
+
+    whereIs_ = neg(porosity_ - 1);
+    whereIsNot_ = pos0(porosity_ - 1);
 
     forAll(rho_,cellI)
     {
-        if (porosity_[cellI] < 1.)
+        if (porosity_[cellI] == 1.)
         {
-             whereIsNot_[cellI] = 0.;
-             whereIs_[cellI] = 1.;
-        }
-        else
-        {
-             whereIsNot_[cellI] = 1.;
-             whereIs_[cellI] = 0.;
              rho0_[cellI] = 3.14;
         }
     }
@@ -1506,9 +1548,8 @@ void volPyrolysis::evolveRegion()
 
     preSolveEnergy(); 
     solveSpeciesMass(); 
-    postSolveEnergy();
-
     solvePorosity();    
+    postSolveEnergy();
 
     calculateMassTransfer();
     info();

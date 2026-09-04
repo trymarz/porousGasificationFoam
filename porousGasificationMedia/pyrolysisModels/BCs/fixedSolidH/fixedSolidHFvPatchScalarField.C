@@ -120,7 +120,7 @@ void fixedSolidHFvPatchScalarField::updateCoeffs()
         const_cast<fvPatchScalarField&>(thermo.rho().boundaryField()[patchi]);
     rho.evaluate();
 
-    operator==(rho * (porosityF.boundaryField()[patchi] - 1.) * Cp().boundaryField()[patchi] * Ts.boundaryField()[patchi]);
+    operator==(rho * (1. - porosityF.boundaryField()[patchi]) * Cp().boundaryField()[patchi] * Ts.boundaryField()[patchi]);
 
 
     fixedValueFvPatchScalarField::updateCoeffs();

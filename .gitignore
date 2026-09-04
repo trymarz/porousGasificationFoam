@@ -1,8 +1,19 @@
-linux64GccDPInt32Opt/
-*.foam
+# --- OpenFOAM build artifacts (what `wclean` removes) ----------------------
+# **/ is required: an inner '/' anchors a pattern to this file's directory,
+# so a bare Make/*/ would only match a Make/ at the repo root.
+**/Make/*/
 lnInclude/
+platforms/
+*.dep
+
+# --- Editor / tooling indexes (per machine, hardcode absolute paths) -------
+compile_commands.json
+.cache/
 .opencode/
 .plans/
+
+# --- Case output ----------------------------------------------------------
+*.foam
 simulation_logs
 dtInfo.txt
 run.log

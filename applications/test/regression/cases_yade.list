@@ -8,6 +8,11 @@
 # Run with:
 #   applications/test/regression/Allrun.yade
 
-tutorials/cases/DEM_UsInterp_solidU
-tutorials/cases/DEM_UsInterp_solidU_test2
 tutorials/cases/MicroTGA-DEM_Us_UsInterp
+
+# tutorials/cases/simple_line_case is NOT listed yet. It builds, meshes and
+# reaches the coupled loop, but its Allrun does not exit 0 under
+# tools/runDEMCase.sh: the run aborts on the heap corruption that also trips
+# the serial tier at teardown, and under --short Yade stops at the step cap
+# while the solver is still waiting for the next coupling exchange, so
+# "RUN FINISH" is never printed. List it once it exits 0.

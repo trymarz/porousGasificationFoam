@@ -1,8 +1,8 @@
 EXE_INC = \
-    -I$(FOAM_HGS)/thermophysicalModels/solid/lnInclude \
-    -I$(FOAM_HGS)/pyrolysisModels/lnInclude \
-    -I$(FOAM_HGS)/thermophysicalModels/HGSSolidThermo/lnInclude \
-    -I$(FOAM_HGS)/thermophysicalModels/porousSolidChemistryModel/lnInclude \
+    -I../thermophysicalModels/solid/lnInclude \
+    -IlnInclude \
+    -I../thermophysicalModels/HGSSolidThermo/lnInclude \
+    -I../thermophysicalModels/porousSolidChemistryModel/lnInclude \
     -I$(LIB_SRC)/finiteVolume/lnInclude \
     -I$(LIB_SRC)/meshTools/meshTools/lnInclude \
     -I$(LIB_SRC)/meshTools/lnInclude \

@@ -1,3 +1,6 @@
 #!/bin/sh
+# Clean every target in this checkout, DEM included, so no generated state
+# from an earlier --yade build survives a switch back to the normal build.
+cd "${0%/*}" || exit 1
 
-./build.sh clean --all
+exec ./build.sh clean --all "$@"

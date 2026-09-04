@@ -22,6 +22,11 @@ heterogeneousPyrolysisModel  volPyrolysis;
 pyrolysisCoeffs
 {
     subintegrateHeatTransfer true;
+
+    // Required by the DEM coupling: lambdaDot is switched off in cells whose
+    // porosity has reached this value, as they hold too little solid to carry
+    // the sphere skeleton.
+    criticalPorosity 0.9999;
 }
 
 infoOutput      true;

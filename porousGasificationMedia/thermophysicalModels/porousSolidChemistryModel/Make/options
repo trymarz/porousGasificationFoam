@@ -1,6 +1,6 @@
 EXE_INC =  \
-    -I$(FOAM_HGS)/thermophysicalModels/HGSSolidThermo/lnInclude \
-    -I$(FOAM_HGS)/thermophysicalModels/solid/lnInclude \
+    -I../HGSSolidThermo/lnInclude \
+    -I../solid/lnInclude \
     -I$(LIB_SRC)/thermophysicalModels/reactionThermo/lnInclude \
     -I$(LIB_SRC)/thermophysicalModels/basic/lnInclude \
     -I$(LIB_SRC)/thermophysicalModels/specie/lnInclude \

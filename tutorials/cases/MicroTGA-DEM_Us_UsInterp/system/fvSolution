@@ -80,6 +80,14 @@ solvers
         relTol          0;
     }
 
+    Ts
+    {
+        solver          PCG;
+        preconditioner  DIC;
+        tolerance       1e-6;
+        relTol          0;
+    }
+
     Us
     {
         solver          smoothSolver;
