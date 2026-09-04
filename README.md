@@ -674,7 +674,67 @@ Some cases run to completion and write correct output, then the solver aborts du
 
 This is a solver/library teardown lifetime defect, tracked separately from the regression tooling. It is **intermittent**: the same binary running the same `fast`-tier case has aborted on every attempt in one environment and completed cleanly on every attempt in another, and the same fault has also been seen to surface as a teardown *hang* rather than an abort. So a green fast tier is evidence about a particular run, not about the code, and a red one is not necessarily a regression introduced by the change under test.
 
-A tracked pre-push hook running the fast tier is therefore deferred until the teardown defect is fixed — a gate that goes red for reasons outside a given change would only train people to bypass it. Do **not** paper over the abort with `|| true`; that would trade an honest CRASH for a false green.
+Do **not** paper over the abort with `|| true`; that would trade an honest CRASH for a false green. The suite reports what the process did, and that does not change. What *can* change is the question a **gate** asks about the result — see [The pre-push gate](#the-pre-push-gate) below.
+
+### The pre-push gate
+
+```bash
+./scripts/install-hooks.sh          # install (refuses to clobber an existing hook)
+./scripts/install-hooks.sh --list   # what is installed now
+./scripts/install-hooks.sh --remove # uninstall
+git push --no-verify                # skip it once
+```
+
+The hook does **not** ask "is the fast tier green?". It cannot: the tier is not
+green on `main`, for two reasons that have nothing to do with whatever you are
+pushing — three cases compare against baselines captured at `4073e55` and never
+regenerated, and the intermittent teardown abort kills a varying subset of cases
+*after* they have written correct output. A gate that demanded green would be
+red on every push, and a gate that is always red only teaches people to type
+`--no-verify`.
+
+So it asks a different question: **did this push make something worse?**
+
+| Case outcome | Gate |
+|---|---|
+| `PASS` | allowed |
+| `CRASH`, output still matches the baseline | reported, allowed |
+| `CRASH`, output does not match | **blocked** |
+| `FAIL` listed in `expected.list` | reported, allowed |
+| `FAIL` not listed | **blocked** |
+| `PASS` but listed as `FAIL` | **blocked** — `expected.list` is now lying |
+| `ERROR` | **blocked** — nothing was compared |
+
+The crash row is the load-bearing one. A `CRASH` result stops at the `run`
+phase, so the suite never got to compare; the hook re-runs `runCase.sh --no-run`
+on the output the aborted case already wrote. That is what separates "died on
+the way out with correct numbers" from "died, and the numbers are wrong".
+
+Nothing about the suite is relaxed to make this work. `Allrun` still reports a
+`CRASH` as a `CRASH` and still exits non-zero; the hook is one of the external
+observers its `--state-dir` interface was built for, and reads per-case
+`result.json` rather than parsing log text.
+
+#### `applications/test/regression/expected.list`
+
+One line per case that is expected not to pass, each with a mandatory reason:
+
+```
+<case path from cases.list>   FAIL   <why, and how it gets fixed>
+```
+
+A case not listed is expected to `PASS`. A malformed line or an unknown status
+aborts the gate rather than being guessed at, and a case listed here that starts
+passing **blocks the push** — that means either the underlying problem is fixed
+or something else drifted, and either way the file needs updating. This is
+deliberate: an expectations file that nobody is forced to revisit rots into a
+list of ignored failures.
+
+The three entries there today are all the same problem — the baselines predate
+five solver commits on `main` and describe a solver that no longer exists.
+Recapturing them is a physics decision (are the current numbers right?), not a
+tooling one, which is why the gate reports the situation on every push instead
+of quietly tolerating it forever.
 
 ### What the comparison does
 
@@ -762,6 +822,10 @@ Branches use a short prefix that signals intent, followed by a kebab-case descri
 Examples: `feature/UsInterp-laplace-smoothing`, `fix/regression-allrun-set-u`, `chore/format-and-docs`.
 
 A single branch may bundle multiple low-risk meta concerns (e.g. formatter, docs, and dev-workflow changes can ride on one `chore/...` branch). Anything that can affect numerical results stays on its own branch.
+
+### Issue Tracking
+
+Planning work has a matching GitHub Issue (public, like this repo) tracked on a project board named "PGF development" — that's the place to check current status (Backlog/Ready/In progress/In review/Done), not `/plans` (a private planning store used for the deeper working detail — files to touch, approach, step-by-step log). The board itself is currently private to the maintainer, so external contributors should rely on the issue's own labels/state rather than the board view. Start the branch that resolves an issue from that issue's own **Development** panel ("Create a branch") so GitHub links the two automatically, and include `Closes #<issue>` in the PR body so merging the PR closes the issue and moves its board card to `Done` on its own.
 
 ### Merge Strategy
 
