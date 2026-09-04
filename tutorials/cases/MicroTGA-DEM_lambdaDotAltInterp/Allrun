@@ -1,0 +1,33 @@
+#!/bin/sh
+cd "${0%/*}" || exit
+. ${WM_PROJECT_DIR:?}/bin/tools/RunFunctions
+# Requires a Yade-enabled solver build: ./build.sh --yade
+
+restore0Dir
+runApplication blockMesh
+runApplication topoSet
+runApplication setFields
+runApplication decomposePar
+mkdir -p spheres springs
+# This fixture's endTime/deltaT (0.002/1e-6) fixes the OpenFOAM side at 2000
+# steps; YADE_NSTEPS must match exactly or one side of the coupling hangs
+# waiting on the other (unlike MicroTGA-DEM_Us_UsInterp, this is not a tunable
+# smoke-test cap, so it is not read from the environment).
+export YADE_NSTEPS=2000
+# Solver runs inside Yade via the MPI coupling script — not a standard runParallel,
+# so it is launched directly here (output captured to log.yade).
+mpirun --allow-run-as-root -n 2 yade MPI_lambda.py 2>&1 | tee log.yade
+
+# Case-specific assertion, beyond runDEMCase.sh's shared DEM checks:
+# dimensions of lambdaDot/lambda and the sign of lambdaDot over solid cells
+# (porosityF < criticalPorosity).
+python3 ../../../applications/test/regression/tools/checkFieldSign.py . \
+    --dims lambdaDot="0 1 -1 0 0 0 0" \
+    --dims lambda="0 1 0 0 0 0 0" \
+    --sign lambdaDot=negative
+
+# No lambdaAverage/lambdaMin baseline here, unlike the other four fixtures:
+# lambdaInterpolationMode laplaceAnchored solves an ill-conditioned system
+# (anchor coefficients spanning 1e6 to 1e-12), so its converged lambda drifts
+# with parallel floating-point ordering while lambdaDot*/lambdaMax stay
+# identical. See issue #85.

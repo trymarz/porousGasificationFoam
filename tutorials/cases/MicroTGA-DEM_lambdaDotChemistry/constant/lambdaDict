@@ -1,0 +1,28 @@
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      lambdaDict;
+}
+
+// Regression fixture: chemistry-driven term only (dlambdaOverDTs 0),
+// exercising calculateChemistryDriven()'s per-specie sRhoSi accumulation.
+// sRhoSi < 0 while consuming, so a positive dlambdaOverDYmi gives the
+// shrinkage (negative lambdaDot) this fixture asserts.
+// exactDifferential reads dlambdaOverDTs/dlambdaOverDYmi/
+// splitMassBetweenLamAndPor (default 0.0); setFieldsDict seeds the packed
+// bed, domain starts hot (Ts=800, T=850) so both terms are active from t=0.
+lambdaMode exactDifferential;
+
+dlambdaOverDTs 0.0;
+
+// [m^4/kg]. Tuned by running, not derived: linear in the coefficient (1e-6
+// -> mean lambdaDot -1.71e-4 m/s over 360 cells, so 2.5e-6 -> ~-4.3e-4 m/s).
+// A fixture-tuning value, not physical -- a real shrinking-particle model is
+// nearer 1e-3, which would swamp the temperature term here. One value for
+// every specie; per-specie form: dlambdaOverDYmi { char 2.5e-6; }, unlisted -> 0.0.
+dlambdaOverDYmi 2.5e-6;
+
+splitMassBetweenLamAndPor 0.5;

@@ -15,7 +15,8 @@ if (DEM)
   Info << "Particles properties set." << endl;
 
   lambdaDotUpdater.reset(new lambdaDotModel(mesh, lambdaDot, nParticles, UsDEM,
-                                        Us, porosityF, yadeCoupling()));
+                                        Us, lambdaDEM, lambda, porosityF,
+                                        yadeCoupling()));
 
   yadeCoupling().locateAllParticles(); // places the location of spheres from time 0
 }

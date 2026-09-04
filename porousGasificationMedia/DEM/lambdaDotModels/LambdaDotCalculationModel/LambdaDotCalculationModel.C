@@ -1,7 +1,6 @@
 #include "LambdaDotCalculationModel.H"
 #include "constantLambdaDot.H"
-#include "TsLambdaDot.H"
-#include "dTsdtLambdaDot.H"
+#include "exactDifferentialLambdaDot.H"
 
 namespace Foam
 {
@@ -40,24 +39,19 @@ autoPtr<LambdaDotCalculationModel> LambdaDotCalculationModel::New
             new constantLambdaDot(dict, mesh, lambdaDot)
         );
     }
-    else if (modelName == "Ts")
+    else if (modelName == "exactDifferential")
     {
         return autoPtr<LambdaDotCalculationModel>
         (
-            new TsLambdaDot(dict, mesh, lambdaDot)
-        );
-    }
-    else if (modelName == "dTsdt")
-    {
-        return autoPtr<LambdaDotCalculationModel>
-        (
-            new dTsdtLambdaDot(dict, mesh, lambdaDot)
+            new exactDifferentialLambdaDot(dict, mesh, lambdaDot)
         );
     }
 
+    // No "off" mode: exactDifferential with every coefficient at its 0.0
+    // default gives lambdaDot = 0 exactly.
     FatalErrorInFunction
         << "Unknown lambdaMode '" << modelName << "'." << nl
-        << "Valid options are: constant, Ts, dTsdt"
+        << "Valid options are: constant, exactDifferential"
         << exit(FatalError);
 
     return autoPtr<LambdaDotCalculationModel>();

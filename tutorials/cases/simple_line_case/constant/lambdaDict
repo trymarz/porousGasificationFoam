@@ -8,35 +8,37 @@ FoamFile
 }
 
 
-lambdaMode dTsdt; //  Ts , dTsdt or constant
+lambdaMode exactDifferential; // constant or exactDifferential
 
 
 //INFO:
-//Ts: (K)
-// lambdaDot = f(Ts)
-//dTsdt: (K/s)
-// lambdaDot = f((Ts_now - Ts_old)/deltaT)
+//constant:
+// lambdaDot = lambdaValue
+//exactDifferential:
+// lambdaDot  = dlambdaOverDTs*(Ts_now - Ts_old)/deltaT
+// lambdaDot += splitMassBetweenLamAndPor
+//              * sum_i( dlambdaOverDYmi_i * sRhoS_i ),
+//              over the solid species; the remaining
+//              (1 - splitMassBetweenLamAndPor) share of the chemistry mass
+//              change becomes pore space instead.
+// Leaving every coefficient at its 0.0 default gives lambdaDot = 0, which is
+// why there is no separate "off" mode.
 
 
-lambdaValue 0.5;
-
-
-//in case of  Ts or dTsdt, x is the value comming from DEM library for Ts or dTsdt
-lambdaDot
-{
-    type coded;
-    code
-    #{
-        
-        return 0.001*x;
-    #};
-}
+//exactDifferential parameters
+// dlambdaOverDTs 0.001 reproduces the linear lambdaDot = 0.001*x this case
+// used under the removed dTsdt mode. splitMassBetweenLamAndPor 0 leaves the
+// whole chemistry mass change in the porosity source, as before, so
+// dlambdaOverDYmi has no effect here; it is spelled out to show the key.
+dlambdaOverDTs 0.001;               // [m/K]
+dlambdaOverDYmi 0.0;                // [m^4/kg], or a per-specie subdict
+splitMassBetweenLamAndPor 0;        // [-], in [0,1]
 
 
 interpolateUs true; // true: interpolate UsDEM into a continuous Us field inside solid cells. false: use only raw UsDEM, so cells without sphere centers keep Us = 0.
 
-interpolationMode laplaceSetValues; //laplaceAnchored; 
-// laplaceAnchored: current soft anchored solve. 
+interpolationMode laplaceSetValues; //laplaceAnchored;
+// laplaceAnchored: current soft anchored solve.
 // laplaceSetValues: pgfVeloInt hard setValues Laplace solve.
 
 
@@ -56,10 +58,10 @@ nLaplaceSetValuesCorrectors 0; // 0: no extra corrector. 1 or more: extra pseudo
 
 
 
+// lambda interpolation: same two strategies as Us, on their own keys, so
+// lambda (which YADE owns and PGF only reads back) can be smoothed
+// independently of the solid velocity. Defaults shown.
 
-
-
-
-
-
-
+        interpolateLambda true;                  // false: take lambdaDEM raw, background cells pinned
+        lambdaInterpolationMode laplaceSetValues; // laplaceAnchored or laplaceSetValues
+        lambdaBackgroundValue 1.0;               // [m] value held outside the solid region

@@ -1,0 +1,20 @@
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      lambdaDict;
+}
+
+// Regression fixture: temperature-driven term only (splitMassBetweenLamAndPor
+// 0 sends all chemistry mass to porosity). Isolates the dt-dimension bug (a
+// bare scalar dt silently left lambdaDot at [m] instead of [m/s]).
+// exactDifferential reads dlambdaOverDTs/dlambdaOverDYmi/
+// splitMassBetweenLamAndPor (default 0.0); setFieldsDict seeds the packed
+// bed, domain starts hot (Ts=800, T=850) so both terms are active from t=0.
+lambdaMode exactDifferential;
+
+dlambdaOverDTs 1e-6;
+
+splitMassBetweenLamAndPor 0.0;

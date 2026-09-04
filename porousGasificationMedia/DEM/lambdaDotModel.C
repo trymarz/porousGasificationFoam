@@ -1,11 +1,6 @@
 #include "lambdaDotModel.H"
-#include "UsInterpolationModel.H"
+#include "InterpolationModel.H"
 #include "IOdictionary.H"
-#include "LambdaDotCalculationModel.H"
-#include "PstreamReduceOps.H"
-#include "OSspecific.H"
-
-#include <fstream>
 
 namespace Foam
 {
@@ -17,6 +12,8 @@ lambdaDotModel::lambdaDotModel
     volScalarField& nParticles,
     volVectorField& UsDEM,
     volVectorField& Us,
+    volScalarField& lambdaDEM,
+    volScalarField& lambda,
     volScalarField& porosityF,
     FoamYade& yade
 )
@@ -26,11 +23,14 @@ lambdaDotModel::lambdaDotModel
     nParticles_(nParticles),
     UsDEM_(UsDEM),
     Us_(Us),
+    lambdaDEM_(lambdaDEM),
+    lambda_(lambda),
     porosityF_(porosityF),
     yade_(yade),
     interpolateUs_(true),
     solidPorosityCutoff_(1),
-    lambdaDotCalculationModel_(nullptr)
+    interpolateLambda_(true),
+    lambdaBackgroundValue_(1.0)
 {
     IOdictionary lambdaDict
     (
@@ -56,8 +56,8 @@ lambdaDotModel::lambdaDotModel
         )
     );
 
-    // Required entry, shared with UsInterpolationModel: a cell whose porosity
-    // reaches criticalPorosity holds too little solid to carry the DEM
+    // Required entry, shared with the interpolation models: at or above
+    // criticalPorosity a cell holds too little solid to carry the DEM
     // skeleton, so lambdaDot is switched off there.
     criticalPorosity_ =
         readScalar
@@ -67,12 +67,6 @@ lambdaDotModel::lambdaDotModel
                 .lookup("criticalPorosity")
         );
 
-    // Select the lambdaDot calculation model from constant/lambdaDict.
-    // Valid lambdaMode entries are: constant, Ts, dTsdt.
-    lambdaDotCalculationModel_ =
-        LambdaDotCalculationModel::New(lambdaDict, mesh_, lambdaDot_);
-
-    // Keep the existing Us interpolation behavior controlled by lambdaDict.
     interpolateUs_ =
         lambdaDict.lookupOrDefault<Switch>("interpolateUs", true);
 
@@ -81,14 +75,40 @@ lambdaDotModel::lambdaDotModel
 
     if (interpolateUs_)
     {
-        usInterpolationModel_ = UsInterpolationModel::New
+        usInterpolationModel_ = InterpolationModel<vector>::New
         (
+            "interpolationMode",
             lambdaDict,
             mesh_,
             UsDEM_,
             Us_,
             nParticles_,
-            porosityF_
+            porosityF_,
+            pTraits<vector>::zero
+        );
+    }
+
+    // On their own keys, so a case can smooth lambda and Us differently.
+    // Read here rather than in the model: the non-interpolating branch of
+    // updateParticleFields() needs them too.
+    interpolateLambda_ =
+        lambdaDict.lookupOrDefault<Switch>("interpolateLambda", true);
+
+    lambdaBackgroundValue_ =
+        lambdaDict.lookupOrDefault<scalar>("lambdaBackgroundValue", 1.0);
+
+    if (interpolateLambda_)
+    {
+        lambdaInterpolationModel_ = InterpolationModel<scalar>::New
+        (
+            "lambdaInterpolationMode",
+            lambdaDict,
+            mesh_,
+            lambdaDEM_,
+            lambda_,
+            nParticles_,
+            porosityF_,
+            lambdaBackgroundValue_
         );
     }
 }
@@ -96,12 +116,10 @@ lambdaDotModel::lambdaDotModel
 
 void lambdaDotModel::updateLambdaDot()
 {
-    // Valid lambdaMode entries in constant/lambdaDict are:
-    // constant, Ts, dTsdt.
-    lambdaDotCalculationModel_->calculate();
-
-    // lambdaDot drives deformation of the DEM solid skeleton and must not
-    // remain active in cells outside the mechanically active solid region.
+    // lambdaDot drives deformation of the DEM skeleton, so it must not stay
+    // active outside the solid region. volPyrolysis::solveSpeciesMass()
+    // assembles it later in the step, so the value gated and pushed to
+    // particles here is the previous step's.
     forAll(lambdaDot_, cellI)
     {
         if (porosityF_[cellI] >= criticalPorosity_)
@@ -118,10 +136,11 @@ lambdaDotModel::~lambdaDotModel() = default;
 
 void lambdaDotModel::updateParticleFields()
 {
-    // count particles per cell
-    // and sum velocities per cell
+    // count particles per cell, and sum the per-particle state YADE owns
+    // (velocity, length scale) per cell
     nParticles_ = 0.0;
     UsDEM_ = dimensionedVector("zero", UsDEM_.dimensions(), vector::zero);
+    lambdaDEM_ = dimensionedScalar("zero", lambdaDEM_.dimensions(), 0.0);
 
     movedFromCells_.clear();
     movedToCells_.clear();
@@ -156,37 +175,31 @@ void lambdaDotModel::updateParticleFields()
 
             // sum particle velocities into the cell
             UsDEM_[cellI] += partPtr->linearVelocity;
+
+            // Length scale, owned by YADE (State::lambda_, advanced every
+            // DEM step from the lambdaDot PGF sends); PGF only reads it back.
+            lambdaDEM_[cellI] += partPtr->lambda;
         }
     }
 
-    // average velocity in cells containing sphere(s)
-    // empty cells remain zero
+    // Average over occupied cells; empty cells stay zero. Both are raw
+    // accumulators -- Us_/lambda_ carry the defined value everywhere.
     forAll(UsDEM_, cellI)
     {
         if (nParticles_[cellI] > 0.5)
         {
             UsDEM_[cellI] /= nParticles_[cellI];
+            lambdaDEM_[cellI] /= nParticles_[cellI];
         }
         else
         {
             UsDEM_[cellI] = vector::zero;
+            lambdaDEM_[cellI] = 0.0;
         }
     }
 
     UsDEM_.correctBoundaryConditions();
-
-    // Raw DEM velocity in occupied cells. Keep empty cells at zero while
-    // validating the coupled data path; broad smoothing can destabilize
-    // solid species/porosity transport before the DEM velocity is limited.
-    // Us_ = UsDEM_;
-
-    // forAll(Us_, cellI)
-    // {
-    //     if (porosityF_[cellI] >= 0.999)
-    //     {
-    //         Us_[cellI] = vector::zero;
-    //     }
-    // }
+    lambdaDEM_.correctBoundaryConditions();
 
     if (interpolateUs_)
     {
@@ -207,7 +220,30 @@ void lambdaDotModel::updateParticleFields()
         Us_.correctBoundaryConditions();
     }
 
-    // Assign lambdaDot to particles (only if occupied)
+    // Same for lambda, raw cells falling back to the background value. No
+    // PGF equation reads lambda; it is diagnostic output.
+    if (interpolateLambda_)
+    {
+        lambdaInterpolationModel_->interpolate();
+    }
+    else
+    {
+        forAll(lambda_, cellI)
+        {
+            if (nParticles_[cellI] > 0.5)
+            {
+                lambda_[cellI] = lambdaDEM_[cellI];
+            }
+            else
+            {
+                lambda_[cellI] = lambdaBackgroundValue_;
+            }
+        }
+
+        lambda_.correctBoundaryConditions();
+    }
+
+    // Push lambdaDot back to the particles in occupied cells.
     for (const auto& procPtr : yade_.inCommProcs)
     {
         if (!procPtr) continue;
@@ -223,182 +259,6 @@ void lambdaDotModel::updateParticleFields()
             partPtr->lambdaDot = lambdaDot_[cellI];
         }
     }
-}
-
-
-void lambdaDotModel::writeParticlesData() const
-{
-    if (!mesh_.time().outputTime()) return;
-
-    const int myRank = Pstream::myProcNo();
-
-    fileName outDir = mesh_.time().timePath();
-    mkDir(outDir);
-
-    fileName outPath = outDir / "ParticlesData.txt";
-
-    std::ofstream ofs(outPath.c_str(), std::ios::app);
-    ofs.setf(std::ios::scientific);
-    ofs.precision(8);
-
-    ofs << "# rank " << myRank
-        << " time " << mesh_.time().timeName()
-        << " (particleID cellID lambdaDot)\n";
-
-    for (const auto& procPtr : yade_.inCommProcs)
-    {
-        if (!procPtr) continue;
-
-        for (const auto& partPtr : procPtr->foundParticles)
-        {
-            if (!partPtr) continue;
-
-            label cellI = partPtr->inCell;
-            if (cellI < 0) continue;
-            if (nParticles_[cellI] < 0.5) continue;
-
-            ofs << partPtr->indx << " "
-                << cellI << " "
-                << lambdaDot_[cellI] << "\n";
-        }
-    }
-
-    ofs << "\n";
-}
-
-// Report, at write times only, the two integrals over the solid region
-// (cells with porosityF below criticalPorosity): its total volume, and its
-// volume-weighted average porosity.
-void lambdaDotModel::writeVolumeOfSolidArea() const
-{
-    if (!mesh_.time().outputTime()) return;
-
-    scalar localVolume = 0.0;
-    scalar localPorosityVolume = 0.0;
-
-    const scalarField& cellVolumes = mesh_.V();
-
-    // Use exactly the same cells for both calculations.
-    forAll(porosityF_, cellI)
-    {
-        if (porosityF_[cellI] < criticalPorosity_)
-        {
-            localVolume += cellVolumes[cellI];
-
-            localPorosityVolume +=
-                porosityF_[cellI] * cellVolumes[cellI];
-        }
-    }
-
-    // Combine contributions from all MPI processors.
-    scalar totalVolume = localVolume;
-    scalar totalPorosityVolume = localPorosityVolume;
-
-    reduce(totalVolume, sumOp<scalar>());
-    reduce(totalPorosityVolume, sumOp<scalar>());
-
-    // Only the master processor writes the global results.
-    if (!Pstream::master())
-    {
-        return;
-    }
-
-    scalar averagePorosity = 0.0;
-
-    if (totalVolume > VSMALL)
-    {
-        averagePorosity =
-            totalPorosityVolume / totalVolume;
-    }
-
-    const fileName casePath
-    (
-        mesh_.time().rootPath()
-      / mesh_.time().globalCaseName()
-    );
-
-    const fileName postProcessingDir
-    (
-        casePath / "postProcessing"
-    );
-
-    const fileName outputDir
-    (
-        postProcessingDir / "solidAreaVolume"
-    );
-
-    mkDir(postProcessingDir);
-    mkDir(outputDir);
-
-
-    // ---------------------------------------------------------
-    // Write solidAreaVolume.dat
-    // ---------------------------------------------------------
-
-    const fileName volumeOutputFile
-    (
-        outputDir / "solidAreaVolume.dat"
-    );
-
-    const bool writeVolumeHeader = !isFile(volumeOutputFile);
-
-    std::ofstream volumeOfs
-    (
-        volumeOutputFile.c_str(),
-        std::ios::out | std::ios::app
-    );
-
-    if (writeVolumeHeader)
-    {
-        volumeOfs << "# Time\tVolumeOfSolidArea\n";
-        volumeOfs << "# criticalPorosity = "
-                  << criticalPorosity_ << "\n";
-    }
-
-    volumeOfs.setf(std::ios::scientific);
-    volumeOfs.precision(12);
-
-    // timeName() gives exactly the same time name used
-    // for the OpenFOAM write-time directory.
-    volumeOfs << mesh_.time().timeName()
-              << "\t"
-              << totalVolume
-              << "\n";
-
-
-    // ---------------------------------------------------------
-    // Write avgPorosity.dat
-    // ---------------------------------------------------------
-
-    const fileName porosityOutputFile
-    (
-        outputDir / "avgPorosity.dat"
-    );
-
-    const bool writePorosityHeader = !isFile(porosityOutputFile);
-
-    std::ofstream porosityOfs
-    (
-        porosityOutputFile.c_str(),
-        std::ios::out | std::ios::app
-    );
-
-    if (writePorosityHeader)
-    {
-        porosityOfs << "# Time\tAveragePorosity\n";
-        porosityOfs << "# Selected cells: porosityF < criticalPorosity\n";
-        porosityOfs << "# criticalPorosity = "
-                    << criticalPorosity_ << "\n";
-        porosityOfs << "# Average is volume-weighted\n";
-    }
-
-    porosityOfs.setf(std::ios::scientific);
-    porosityOfs.precision(12);
-
-    porosityOfs << mesh_.time().timeName()
-                << "\t"
-                << averagePorosity
-                << "\n";
 }
 
 

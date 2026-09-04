@@ -10,6 +10,28 @@
 
 tutorials/cases/MicroTGA-DEM_Us_UsInterp
 
+# lambdaMode exactDifferential fixtures. Each starts the packed bed hot
+# (Ts=800 K, T=850 K) so heat transfer and chemistry are both active, and
+# asserts lambdaDot's sign over solid cells via checkFieldSign.py in its own
+# Allrun. ...Off leaves every coefficient at its 0.0 default.
+#
+# They also exercise the reverse YADE->PGF lambda channel, which needs
+# Foam-Yade and PGF built from matching revisions: the buffer stride is a
+# compile-time constant with no MPI negotiation.
+#
+# ...Chemistry/...Both use dlambdaOverDYmi 2.5e-6, tuned for fixture-scale
+# visibility rather than physical accuracy. A realistic ~1e-3 (see README)
+# would swamp the temperature term and flip ...Both's asserted sign.
+tutorials/cases/MicroTGA-DEM_lambdaDotOff
+tutorials/cases/MicroTGA-DEM_lambdaDotTemperature
+tutorials/cases/MicroTGA-DEM_lambdaDotChemistry
+tutorials/cases/MicroTGA-DEM_lambdaDotBoth
+
+# ...Chemistry's setup over three paths the four above never touch:
+# laplaceAnchored interpolation, a per-specie dlambdaOverDYmi subdict, and a
+# non-default lambdaBackgroundValue. See its constant/lambdaDict.
+tutorials/cases/MicroTGA-DEM_lambdaDotAltInterp
+
 # tutorials/cases/simple_line_case is NOT listed yet. It builds, meshes and
 # reaches the coupled loop, but its Allrun does not exit 0 under
 # tools/runDEMCase.sh: the run aborts on the heap corruption that also trips

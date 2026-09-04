@@ -54,7 +54,7 @@ volScalarField alphac
 );
 
 
-// DasteXar this field determines if there is any sphere in the cell or no
+// Number of DEM particle centres in each cell; 0 marks an empty cell.
 volScalarField nParticles
 (
     IOobject
@@ -69,8 +69,10 @@ volScalarField nParticles
     dimensionedScalar("zero", dimless, 0.0)
 );
 
-//DasteXar  this field (lambdaDot) represents the rate of Lambda change  in each cell
-volScalarField lambdaDot // lambdaDot: rate of change of per-particle lambda (computed by lambdaDotModel)
+// lambdaDot [m/s]: rate of change of the particle length scale. Assembled by
+// volPyrolysis::solveSpeciesMass(); lambdaDotModel gates it outside the solid
+// region and pushes it to the YADE particles.
+volScalarField lambdaDot
 (
     IOobject
     (
@@ -81,7 +83,28 @@ volScalarField lambdaDot // lambdaDot: rate of change of per-particle lambda (co
         IOobject::AUTO_WRITE
     ),
     mesh,
-    dimensionedScalar("0", dimless, 0)
+    dimensionedScalar("0", dimLength/dimTime, 0)
+);
+
+// lambda [m]: particle length scale, interpolated from lambdaDEM. Derived
+// diagnostic -- YADE owns the integration (State::lambda_) and no PGF
+// equation consumes it. Default 1.0 matches YADE's State::lambda_; a 0/lambda
+// file must carry dimensions [0 1 0 0 0 0 0]. zeroGradient rather than
+// calculated, because the interpolation models solve an implicit Laplacian on
+// it and calculatedFvPatchField has no gradientInternalCoeffs.
+volScalarField lambda
+(
+    IOobject
+    (
+        "lambda",
+        runTime.timeName(),
+        mesh,
+        IOobject::READ_IF_PRESENT,
+        IOobject::AUTO_WRITE
+    ),
+    mesh,
+    dimensionedScalar("one", dimLength, 1.0),
+    "zeroGradient"
 );
 
 
@@ -185,6 +208,21 @@ volVectorField UsDEM(
     IOobject::AUTO_WRITE),
     mesh,
     dimensionedVector("UsDEM", dimensionSet(0,1,-1,0,0,0,0), vector(0,0,0) )
+);
+
+
+// lambdaDEM [m]: raw per-cell average of particle lambda, UsDEM's scalar
+// counterpart. Rebuilt every exchange (NO_READ); empty cells stay zero, and
+// lambda rather than this field carries a defined value everywhere.
+volScalarField lambdaDEM(
+    IOobject(
+    "lambdaDEM",
+    runTime.timeName(),
+    mesh,
+    IOobject::NO_READ,
+    IOobject::AUTO_WRITE),
+    mesh,
+    dimensionedScalar("lambdaDEM", dimLength, 0.0 )
 );
 
 

@@ -1,0 +1,16 @@
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      lambdaDict;
+}
+
+// Regression fixture: the "off" reduction -- exactDifferential with every
+// coefficient at its 0.0 default must give lambdaDot = 0 exactly, even with
+// a real Ts gradient and active chemistry (no separate lambdaMode for "off").
+// exactDifferential reads dlambdaOverDTs/dlambdaOverDYmi/
+// splitMassBetweenLamAndPor (default 0.0); setFieldsDict seeds the packed
+// bed, domain starts hot (Ts=800, T=850) so both terms are active from t=0.
+lambdaMode exactDifferential;

@@ -117,22 +117,12 @@ int main(int argc, char *argv[])
             lambdaDotUpdater->updateLambdaDot();
             yadeCoupling->setParticleAction(runTime.deltaT().value());
             lambdaDotUpdater->updateParticleFields();
-            lambdaDotUpdater->writeParticlesData();
             yadeCoupling->setSourceZero();
         }
         #endif
 
         #include "radiation.H"
         pyrolysisZone.evolve();
-
-        // Report the solid-region volume after the pyrolysis update, so the
-        // porosity it integrates is the one the DEM skeleton will see next.
-        #ifdef WITH_YADE
-        if (DEM)
-        {
-            lambdaDotUpdater->writeVolumeOfSolidArea();
-        }
-        #endif
 
         #include "rhoEqn.H"
 

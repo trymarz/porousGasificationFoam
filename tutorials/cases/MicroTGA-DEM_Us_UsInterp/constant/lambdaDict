@@ -7,11 +7,8 @@ FoamFile
     object      lambdaDict;
 }
 
-lambdaDot
-{
-    type coded;
-    code
-    #{
-        return 0.1*sin(x);
-    #};
-}
+// Stated explicitly (was implicit via the constant/no-lambdaValue default)
+// so the case doesn't silently follow a future default change. This case is
+// about Us interpolation only -- lambdaDot stays 0, YADE's lambda never
+// moves off its 1.0 default.
+lambdaMode constant;

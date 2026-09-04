@@ -38,6 +38,11 @@ SourceFiles
 #include "heterogeneousPyrolysisModel.H"
 #include "HGSSolidThermo.H"
 #include "porousThermoSolidChemistryModel.H"
+
+#ifdef WITH_YADE
+    // liblambdaDotModel links YADE, so it is referenced only here.
+    #include "LambdaDotCalculationModel.H"
+#endif
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 namespace Foam
@@ -208,6 +213,25 @@ protected:
         //  Laplace-smoothed UsDEM aggregate; without DEM it is read from
         //  0/Us. The solid mass flux and porosity advection consume it.
         const volVectorField& Us_;
+
+    // DEM (YADE) coupling — lambda/porosity exact-differential split
+
+        //- DEM coupling is active for this case: yadeProperties active=true
+        //  and lambdaDot/lambda registered. Resolved once at construction,
+        //  and always false without WITH_YADE. A WITH_YADE build can still
+        //  run a non-DEM case.
+        bool demActive_;
+
+        //- Rate of change of the DEM particle length scale [m/s], from
+        //  createDEMFields.H. Computed in solveSpeciesMass() and pushed to
+        //  the YADE particles by lambdaDotModel. Null when !demActive_.
+        volScalarField* lambdaDotPtr_;
+
+#ifdef WITH_YADE
+        //- lambdaDot strategy, selected by lambdaMode in constant/lambdaDict.
+        //  Created only when demActive_.
+        autoPtr<LambdaDotCalculationModel> lamDotCalc_;
+#endif
 
     // Checks
 

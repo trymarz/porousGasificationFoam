@@ -11,6 +11,13 @@ VTK/
 !0*orig/
 !**/reference/postProcessing/*/[0-9]*/
 
+# Case output written directly at the case root by a run (function-object
+# .dat files, VTK, etc. -- everything Allrun leaves behind outside 0*/).
+# Not the committed reference/ baselines: re-include that directory itself
+# so the rules above and below can still see inside it.
+postProcessing/
+!**/reference/postProcessing/
+
 # Baselines assert the regression* volFieldValue function objects only. The
 # probes FO is TUI-monitor support; its output is not part of the assertion
 # surface, so keep captured probe data out of reference/.
