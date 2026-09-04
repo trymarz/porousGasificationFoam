@@ -186,8 +186,6 @@ def apply_spring_forces():
     Each rank computes forces for springs which endpoints it can access locally,
     then master rank gathers all forces and applies them consistently.
     """
-    if O.iter == 2:
-    	print("[CHECK] apply_spring_forces is running on rank", mp.rank)
 
     global springsList, broken_springs
 
@@ -484,14 +482,6 @@ def export_springs():
         spring_frame_number += float(writeInterval)
 
 
-"""
-if mp.rank == 0:
-    print("[YADE] FoamCoupling type:", type(fluidCoupling))
-    print("[YADE] Has inCommProcs?", hasattr(fluidCoupling, "inCommProcs"))
-    print("[YADE] dir(fluidCoupling):", dir(fluidCoupling))
-"""    
-    
-
 def gatherHydroFT():
     local = []
     ids = fluidCoupling.getIdList()
@@ -524,13 +514,6 @@ def gatherHydroFT():
                   f"T=({Tx:.3e},{Ty:.3e},{Tz:.3e}) lambdaDot={lam:.7e}")
 
 
-def printlambdaDotNew():      
-	for b in O.bodies:
-	    if isinstance(b.shape, utils.Sphere):
-	    	print(f"particle ID={b.id}  lambdaDot={b.state.lambdaDot}")
-
-	    	#if b: print(f"particle ID=" {b.id}, " lambdaDot="{b.state.lambdaDot},)
-    
 #---------------
 # ENGINES 
 #---------------
@@ -551,7 +534,6 @@ O.engines = [
         PyRunner(command="export_springs()", iterPeriod=timeRatio, firstIterRun=1),
         VTKRecorder(fileName='spheres/vtk-', recorders=['spheres'], parallelMode=True, iterPeriod=vtkSphereIterPeriod),
 
-        #PyRunner(command='printlambdaDotNew()', iterPeriod=1), #it works! prints a list of sphereID and lambdaDot
 
         PyRunner(iterPeriod=timeRatio, command='gatherHydroFT()'), # it works! prints a list of hydrodynamic forces + lambdaDot sent from OF
         #PyRunner(command='savePos()', iterPeriod=5000) 
