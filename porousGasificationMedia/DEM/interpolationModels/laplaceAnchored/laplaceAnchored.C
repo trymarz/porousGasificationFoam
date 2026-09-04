@@ -1,10 +1,9 @@
 /*
- * Anchored Laplacian interpolation model, generic over Type (vector for Us,
- * scalar for lambda). Occupied cells are strongly anchored to their raw DEM
- * value, non-solid cells to the background value (lambdaBackgroundValue for
- * lambda -- 0 is not a neutral particle size), and empty solid cells only
- * weakly, so the Laplacian carries the value in from solid neighbours.
- * Occupied/non-solid cells are reset exactly to their anchor after solving.
+ * Anchored Laplacian interpolation. Occupied cells are strongly anchored to
+ * their raw DEM value, non-solid cells to backgroundValue_ (for lambda, 0 is
+ * not a neutral particle size), and empty solid cells only weakly, so the
+ * Laplacian carries the value in from solid neighbours. Occupied and
+ * non-solid cells are reset exactly to their anchor after the solve.
  */
 
 #include "laplaceAnchored.H"
@@ -15,10 +14,7 @@
 namespace Foam
 {
 
-// Per-field anchor-coefficient key names. Kept distinct rather than
-// templated away: committed cases already set demVelocityAnchorCoeff /
-// backgroundUsAnchorCoeff / nUsInterpolationCorrectors under these exact
-// names in Us's lambdaDict block.
+// Per-field anchor-coefficient key names in lambdaDict.
 template<class Type>
 struct laplaceAnchoredKeys;
 
@@ -62,8 +58,8 @@ LaplaceAnchoredInterpolation<Type>::LaplaceAnchoredInterpolation
         backgroundValue
     ),
 
-    // Constraint strength holding occupied cells to their raw DEM value --
-    // larger follows it more strictly, smaller lets neighbours smooth it more.
+    // Constraint holding occupied cells to their raw DEM value; larger
+    // follows it more strictly, smaller lets neighbours smooth it more.
     demAnchorCoeff_
     (
         dict.lookupOrDefault<scalar>
@@ -72,11 +68,10 @@ LaplaceAnchoredInterpolation<Type>::LaplaceAnchoredInterpolation
         )
     ),
 
-    // Small regularization keeping empty solid cells well posed. Their anchor
-    // source is the raw DEM field, which is zero where no particle sits, so
-    // this pulls them toward zero -- not toward backgroundValue_, which only
-    // non-solid cells hold. Larger pulls harder, smaller spreads occupied
-    // values more freely; at the 1e-12 default the Laplacian dominates.
+    // Regularization keeping empty solid cells well posed. Their anchor
+    // source is the raw DEM field, zero where no particle sits, so this pulls
+    // toward zero -- not toward backgroundValue_, which only non-solid cells
+    // hold. At the 1e-12 default the Laplacian dominates.
     backgroundAnchorCoeff_
     (
         dict.lookupOrDefault<scalar>
@@ -116,9 +111,8 @@ void LaplaceAnchoredInterpolation<Type>::interpolate()
         dimensionedScalar("zero", dimless, 0.0)
     );
 
-    // Anchor strength per cell: how hard each cell is pulled toward its
-    // source value. Dimensions 1/m^2 so anchor*field matches
-    // laplacian(field).
+    // How hard each cell is pulled toward its source value. 1/m^2, so
+    // anchor*field matches laplacian(field).
     volScalarField anchor
     (
         IOobject
@@ -151,8 +145,8 @@ void LaplaceAnchoredInterpolation<Type>::interpolate()
             (this->porosityF_[cellI] < this->solidPorosityCutoff_)
          || occupied;
 
-        // Local length scale squared from the cell volume, so the anchor
-        // strength stays comparable across mesh resolutions.
+        // Cell length scale squared, keeping the anchor strength comparable
+        // across mesh resolutions.
         const scalar length2 =
             max(pow(this->mesh_.V()[cellI], 2.0/3.0), VSMALL);
 
@@ -232,8 +226,7 @@ void LaplaceAnchoredInterpolation<Type>::interpolate()
         fieldEqn.solve(controls);
     }
 
-    // Enforce the exact anchor values: occupied cells keep the raw DEM
-    // value, non-solid cells keep the background.
+    // Enforce the anchors exactly.
     forAll(this->field_, cellI)
     {
         if (this->nParticles_[cellI] > 0.5)

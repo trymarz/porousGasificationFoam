@@ -131,8 +131,8 @@ void volPyrolysis::solvePorosity()
 {
     if (active_)
     {
-        // porositySource_ is assembled in solveSpeciesMass() (called just
-        // before this, see evolveRegion()) -- nothing to (re)compute here.
+        // porositySource_ is assembled in solveSpeciesMass(), which
+        // evolveRegion() calls just before this.
 
         volScalarField& por = porosity_;
 
@@ -531,7 +531,7 @@ void volPyrolysis::solvePorosity()
                                      faceID = mesh_.boundaryMesh()[patchID].whichFace(mesh_.cells()[realRoutes[routeI][stepI-1] - minLocalGlobalI][faceI]);
                                      if (isA<processorPolyPatch>(mesh_.boundaryMesh()[patchID]))
                                         {
-                                            //DasteXar to pass values from one subdomain to another 
+                                            // Pass values from one subdomain to another.
                                             label neighbourGlobalID =
                                                 globalIndices.boundaryField()[patchID].patchNeighbourField()()[faceID];
 
@@ -687,10 +687,8 @@ void volPyrolysis::solveSpeciesMass()
 
         surfaceScalarField phiUs = mesh_.Sf() & fvc::interpolate(Us_);
 
-        // Temperature-driven lambdaDot contribution (chemistry-driven part
-        // accumulates per specie below), delegated to the selected
-        // LambdaDotCalculationModel. demActive_ is unconditionally false
-        // without WITH_YADE, so this path compiles out entirely.
+        // Temperature-driven lambdaDot term; the chemistry-driven part
+        // accumulates per specie below.
 #ifdef WITH_YADE
         if (demActive_)
         {
@@ -703,12 +701,11 @@ void volPyrolysis::solveSpeciesMass()
             volScalarField& Ym_i = Ym_[i];
             volScalarField sRhoSi = solidChemistry_->RRs(i);
 
-            // Chemistry-driven lambdaDot contribution for this specie
-            // (exactDifferential: massSplit * dlambdaOverDYmi_i * sRhoSi; a
-            // no-op for constant). Mass stays conserved -- Ym transport below
-            // still consumes the full, unmodified sRhoSi. Passes the bare
-            // solidComponents name, not Ys_[i].name() ("Ychar" vs "char"),
-            // matching how a per-specie dlambdaOverDYmi subdict is keyed.
+            // Chemistry-driven lambdaDot term for this specie; a no-op
+            // under lambdaMode constant. Ym transport below still consumes
+            // the full, unmodified sRhoSi. The bare solidComponents name is
+            // passed, not Ys_[i].name() ("char", not "Ychar"), matching how a
+            // per-specie dlambdaOverDYmi subdict is keyed.
 #ifdef WITH_YADE
             if (demActive_)
             {
@@ -751,15 +748,14 @@ void volPyrolysis::solveSpeciesMass()
 
         deriveYiFromYm();
 
-        // (1 - massSplit) of the chemistry mass change opens pore space; the
-        // remaining massSplit is instead accounted for by particle shrinkage,
-        // tracked in the DEM through lambdaDot's chemistry term. The two
-        // channels share the one coefficient, but nothing enforces a volume
-        // balance between them: dlambdaOverDYmi is an independent calibration
-        // input, so this is a modelling attribution, not a conservation law.
-        // massSplit is 0.0 without DEM (or under lambdaMode constant),
-        // reducing this to the pre-split porositySource_ exactly. Now the only
-        // place porositySource_ is assigned -- solvePorosity() only consumes it.
+        // (1 - massSplit) of the chemistry mass change opens pore space;
+        // massSplit is instead accounted for by particle shrinkage, tracked
+        // in the DEM through lambdaDot's chemistry term. Nothing enforces a
+        // volume balance between the two channels -- dlambdaOverDYmi is an
+        // independent calibration input -- so this is an attribution, not a
+        // conservation law. massSplit is 0.0 without DEM and under lambdaMode
+        // constant. The only place porositySource_ is assigned;
+        // solvePorosity() consumes it.
         scalar massSplit = 0.0;
 #ifdef WITH_YADE
         if (demActive_)
@@ -1467,9 +1463,9 @@ volPyrolysis::volPyrolysis
     }
     cellVolume_.correctBoundaryConditions();
 
-    // Resolve DEM-active state at runtime: neither signal alone suffices --
-    // a WITH_YADE solver registers lambdaDot/lambda even with DEM off, and
-    // a non-YADE solver may still see a yadeProperties with active=true.
+    // DEM-active state, from two signals because neither alone suffices: a
+    // WITH_YADE solver registers lambdaDot/lambda even with DEM off, and a
+    // non-YADE solver may still see a yadeProperties with active=true.
     {
         IOdictionary yadeProperties
         (
@@ -1501,10 +1497,9 @@ volPyrolysis::volPyrolysis
                 &mesh_.lookupObjectRef<volScalarField>("lambdaDot");
 
 #ifdef WITH_YADE
-            // Select the lambdaDot model from lambdaMode in
-            // constant/lambdaDict, which also carries the model coefficients.
-            // Opened unregistered: lambdaDotModel reads the same dictionary
-            // for its Us- and lambda-interpolation entries.
+            // lambdaMode and its coefficients. Opened unregistered, as
+            // lambdaDotModel reads the same dictionary for its interpolation
+            // entries.
             IOdictionary lambdaDict
             (
                 IOobject

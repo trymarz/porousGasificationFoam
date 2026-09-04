@@ -11,9 +11,8 @@ constantLambdaDot::constantLambdaDot
 )
 :
     LambdaDotCalculationModel(dict, mesh, lambdaDot),
-    // lambdaValue is read as a bare scalar (dict has no dimensions) and
-    // wrapped in [m/s]: assigned bare, it would construct a dimensionless
-    // dimensionedScalar and abort lambdaDot_'s dimension check.
+    // Read as a bare scalar (dicts carry no dimensions) and wrapped in [m/s];
+    // assigned bare it would be dimensionless and fail lambdaDot_'s check.
     lambdaValue_
     (
         dimensionedScalar
@@ -28,7 +27,7 @@ constantLambdaDot::constantLambdaDot
 
 void constantLambdaDot::calculateTemperatureDriven()
 {
-    // Uniform  lambdaDot from constant/lambdaDict.
+    // Uniform lambdaDot from constant/lambdaDict.
     lambdaDot_ = lambdaValue_;
 }
 

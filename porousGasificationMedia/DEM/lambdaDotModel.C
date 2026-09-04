@@ -56,9 +56,9 @@ lambdaDotModel::lambdaDotModel
         )
     );
 
-    // Required entry, shared with InterpolationModel<vector>: a cell whose
-    // porosity reaches criticalPorosity holds too little solid to carry the
-    // DEM skeleton, so lambdaDot is switched off there.
+    // Required entry, shared with the interpolation models: at or above
+    // criticalPorosity a cell holds too little solid to carry the DEM
+    // skeleton, so lambdaDot is switched off there.
     criticalPorosity_ =
         readScalar
         (
@@ -67,7 +67,6 @@ lambdaDotModel::lambdaDotModel
                 .lookup("criticalPorosity")
         );
 
-    // Keep the existing Us interpolation behavior controlled by lambdaDict.
     interpolateUs_ =
         lambdaDict.lookupOrDefault<Switch>("interpolateUs", true);
 
@@ -89,9 +88,9 @@ lambdaDotModel::lambdaDotModel
         );
     }
 
-    // Same pattern for lambda, on its own keys so a case can smooth lambda
-    // and Us independently. Read here (not inside the interpolation model)
-    // because updateParticleFields()'s non-interpolating branch needs it too.
+    // On their own keys, so a case can smooth lambda and Us differently.
+    // Read here rather than in the model: the non-interpolating branch of
+    // updateParticleFields() needs them too.
     interpolateLambda_ =
         lambdaDict.lookupOrDefault<Switch>("interpolateLambda", true);
 
@@ -117,12 +116,10 @@ lambdaDotModel::lambdaDotModel
 
 void lambdaDotModel::updateLambdaDot()
 {
-    // lambdaDot is assembled by volPyrolysis::solveSpeciesMass() (via
-    // pyrolysisZone.evolve(), which runs after this call each time step), so
-    // the value gated and pushed to particles here is last step's value.
-    //
-    // lambdaDot drives deformation of the DEM solid skeleton and must not
-    // remain active in cells outside the mechanically active solid region.
+    // lambdaDot drives deformation of the DEM skeleton, so it must not stay
+    // active outside the solid region. volPyrolysis::solveSpeciesMass()
+    // assembles it later in the step, so the value gated and pushed to
+    // particles here is the previous step's.
     forAll(lambdaDot_, cellI)
     {
         if (porosityF_[cellI] >= criticalPorosity_)
@@ -179,16 +176,14 @@ void lambdaDotModel::updateParticleFields()
             // sum particle velocities into the cell
             UsDEM_[cellI] += partPtr->linearVelocity;
 
-            // sum the particles' integrated length scale into the cell. YADE
-            // owns this value (State::lambda_, advanced every DEM step from
-            // the lambdaDot PGF sends it); PGF only reads it back.
+            // Length scale, owned by YADE (State::lambda_, advanced every
+            // DEM step from the lambdaDot PGF sends); PGF only reads it back.
             lambdaDEM_[cellI] += partPtr->lambda;
         }
     }
 
-    // Average velocity/length scale in occupied cells; empty cells stay
-    // zero -- both are raw accumulators, meaningless with no particle
-    // contribution. Us_/lambda_ are what carry a defined value everywhere.
+    // Average over occupied cells; empty cells stay zero. Both are raw
+    // accumulators -- Us_/lambda_ carry the defined value everywhere.
     forAll(UsDEM_, cellI)
     {
         if (nParticles_[cellI] > 0.5)
@@ -205,19 +200,6 @@ void lambdaDotModel::updateParticleFields()
 
     UsDEM_.correctBoundaryConditions();
     lambdaDEM_.correctBoundaryConditions();
-
-    // Raw DEM velocity in occupied cells. Keep empty cells at zero while
-    // validating the coupled data path; broad smoothing can destabilize
-    // solid species/porosity transport before the DEM velocity is limited.
-    // Us_ = UsDEM_;
-
-    // forAll(Us_, cellI)
-    // {
-    //     if (porosityF_[cellI] >= 0.999)
-    //     {
-    //         Us_[cellI] = vector::zero;
-    //     }
-    // }
 
     if (interpolateUs_)
     {
@@ -238,8 +220,8 @@ void lambdaDotModel::updateParticleFields()
         Us_.correctBoundaryConditions();
     }
 
-    // Same for lambda: smooth lambdaDEM, or take it raw with non-solid cells
-    // at the background value. Diagnostic output only -- no equation reads it.
+    // Same for lambda, raw cells falling back to the background value. No
+    // PGF equation reads lambda; it is diagnostic output.
     if (interpolateLambda_)
     {
         lambdaInterpolationModel_->interpolate();
@@ -261,7 +243,7 @@ void lambdaDotModel::updateParticleFields()
         lambda_.correctBoundaryConditions();
     }
 
-    // Assign lambdaDot to particles (only if occupied)
+    // Push lambdaDot back to the particles in occupied cells.
     for (const auto& procPtr : yade_.inCommProcs)
     {
         if (!procPtr) continue;

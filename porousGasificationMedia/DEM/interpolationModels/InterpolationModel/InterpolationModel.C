@@ -28,9 +28,8 @@ InterpolationModel<Type>::InterpolationModel
 {
     (void)dict;
 
-    // criticalPorosity lives in pyrolysisProperties, not lambdaDict, and is
-    // shared with lambdaDotModel so the Us and lambda interpolation models
-    // agree with it on where the solid region ends.
+    // criticalPorosity lives in pyrolysisProperties, not lambdaDict, so both
+    // interpolation models and lambdaDotModel agree on where the solid ends.
     IOdictionary pyrolysisProperties
     (
         IOobject
@@ -66,8 +65,7 @@ dictionary InterpolationModel<Type>::solverControls
         return *dictPtr;
     }
 
-    // Same controls as the "Us" entry the DEM cases carry for the velocity
-    // interpolation solve.
+    // Matches the "Us" entry the DEM cases carry.
     dictionary controls;
     controls.add("solver", word("smoothSolver"));
     controls.add("smoother", word("symGaussSeidel"));
@@ -91,11 +89,9 @@ autoPtr<InterpolationModel<Type>> InterpolationModel<Type>::New
     const Type& backgroundValue
 )
 {
-    // Select the fieldDEM-to-field interpolation method: laplaceAnchored
-    // keeps a soft anchored diffusion solve, laplaceSetValues uses a hard
-    // setValues Laplace solve. modeKey is passed in (rather than hardcoded)
-    // so Us and lambda dispatch on their own dictionary keys and can be
-    // smoothed differently within one lambdaDict.
+    // laplaceAnchored is a soft anchored diffusion solve, laplaceSetValues a
+    // hard setValues Laplace solve. modeKey is an argument so Us and lambda
+    // dispatch on their own keys within one lambdaDict.
     const word modelName
     (
         dict.lookupOrDefault<word>(modeKey, "laplaceSetValues")
@@ -147,7 +143,6 @@ autoPtr<InterpolationModel<Type>> InterpolationModel<Type>::New
 
 } // namespace Foam
 
-// The only two fields that use this model are the vector solid velocity
-// (Us) and the scalar DEM particle length scale (lambda).
+// Us (vector) and the particle length scale lambda (scalar).
 template class Foam::InterpolationModel<Foam::vector>;
 template class Foam::InterpolationModel<Foam::scalar>;

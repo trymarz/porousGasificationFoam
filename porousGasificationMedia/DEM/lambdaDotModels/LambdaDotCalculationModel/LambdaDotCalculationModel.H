@@ -12,8 +12,8 @@ namespace Foam
 // Strategy interface for the DEM particle length-scale rate lambdaDot [m/s].
 // Owned by volPyrolysis, selected via lambdaMode in constant/lambdaDict, and
 // driven in solveSpeciesMass(): calculateTemperatureDriven() once per step,
-// then calculateChemistryDriven() per solid specie. PGF owns only this rate
-// -- YADE integrates lambda itself (State::lambda_); no model here reads it.
+// then calculateChemistryDriven() per solid specie. PGF owns only the rate;
+// YADE integrates lambda itself (State::lambda_) and no model here reads it.
 class LambdaDotCalculationModel
 {
 protected:
@@ -37,16 +37,13 @@ public:
         volScalarField& lambdaDot
     );
 
-    //- Temperature-driven part — called once per step before the species
-    //  loop. Sets (overwrites) lambdaDot_ with the current temperature-driven
-    //  contribution.
+    //- Overwrites lambdaDot_ with the temperature-driven contribution.
+    //  Called once per step, before the species loop.
     virtual void calculateTemperatureDriven() = 0;
 
-    //- Chemistry-driven part: adds this specie's mass-rate sRhoSi
-    //  [kg/m^3/s] contribution to lambdaDot_. specieName is the bare
-    //  solidComponents name ("char", not "Ychar"), for per-specie
-    //  coefficient lookup. Default empty; only exactDifferentialLambdaDot
-    //  overrides it.
+    //- Adds this specie's mass-rate sRhoSi [kg/m^3/s] contribution to
+    //  lambdaDot_. specieName is the bare solidComponents name ("char", not
+    //  "Ychar"), keying the per-specie coefficient. Default no-op.
     virtual void calculateChemistryDriven
     (
         const volScalarField& sRhoSi,
@@ -54,13 +51,11 @@ public:
     )
     {}
 
-    //- Fraction of the chemistry mass change attributed to particle
-    //  shrinkage rather than to pore opening; volPyrolysis reduces
-    //  porositySource_ by this same fraction. It splits the attribution
-    //  only: the shrinkage magnitude comes from dlambdaOverDYmi, an
-    //  independent coefficient, so no volume balance is enforced between the
-    //  two channels. Default 0 (all mass to porosity); only
-    //  exactDifferentialLambdaDot overrides it.
+    //- Fraction of the chemistry mass change attributed to shrinkage rather
+    //  than to pore opening; volPyrolysis reduces porositySource_ by the same
+    //  fraction. Attribution only -- the shrinkage magnitude comes from
+    //  dlambdaOverDYmi, so no volume balance is enforced between the two
+    //  channels. Default 0 (all mass to porosity).
     virtual scalar chemistryMassSplit() const
     {
         return 0.0;

@@ -18,17 +18,16 @@ export YADE_NSTEPS=2000
 # so it is launched directly here (output captured to log.yade).
 mpirun --allow-run-as-root -n 2 yade MPI_lambda.py 2>&1 | tee log.yade
 
-# Case-specific assertion (not part of the shared DEM asserts in
-# runDEMCase.sh): dimensions and sign of lambdaDot/lambda over solid cells
+# Case-specific assertion, beyond runDEMCase.sh's shared DEM checks:
+# dimensions of lambdaDot/lambda and the sign of lambdaDot over solid cells
 # (porosityF < criticalPorosity).
 python3 ../../../applications/test/regression/tools/checkFieldSign.py . \
     --dims lambdaDot="0 1 -1 0 0 0 0" \
     --dims lambda="0 1 0 0 0 0 0" \
     --sign lambdaDot=negative
 
-# lambdaAverage/lambdaMin baselines are intentionally absent here (unlike the
-# other four MicroTGA-DEM_lambdaDot* cases): lambdaInterpolationMode
-# laplaceAnchored solves an ill-conditioned system (anchor coefficients span
-# 1e6 to 1e-12), so its converged lambda drifts with parallel floating-point
-# ordering -- three reruns gave three different average/min(lambda) values
-# while lambdaDot*/lambdaMax stayed identical. See issue #85.
+# No lambdaAverage/lambdaMin baseline here, unlike the other four fixtures:
+# lambdaInterpolationMode laplaceAnchored solves an ill-conditioned system
+# (anchor coefficients spanning 1e6 to 1e-12), so its converged lambda drifts
+# with parallel floating-point ordering while lambdaDot*/lambdaMax stay
+# identical. See issue #85.

@@ -47,8 +47,8 @@ autoPtr<LambdaDotCalculationModel> LambdaDotCalculationModel::New
         );
     }
 
-    // There is no separate "off" mode: exactDifferential with every
-    // coefficient left at its 0.0 default gives lambdaDot = 0 exactly.
+    // No "off" mode: exactDifferential with every coefficient at its 0.0
+    // default gives lambdaDot = 0 exactly.
     FatalErrorInFunction
         << "Unknown lambdaMode '" << modelName << "'." << nl
         << "Valid options are: constant, exactDifferential"

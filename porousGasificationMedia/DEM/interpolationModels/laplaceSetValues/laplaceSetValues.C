@@ -1,9 +1,8 @@
 /*
- * Hard set-values Laplacian interpolation model, generic over Type (vector
- * for Us, scalar for lambda). Cells with particles and cells outside the
- * solid region are hard-pinned via setValues(); the solve fills the gaps
- * between them. Interface faces are disconnected first so smoothing can't
- * reach outside the solid region.
+ * Hard set-values Laplacian interpolation. Cells with particles and cells
+ * outside the solid region are pinned via setValues() and the solve fills the
+ * gaps between them. Interface faces are disconnected first, so smoothing
+ * cannot reach outside the solid region.
  */
 
 #include "laplaceSetValues.H"
@@ -15,10 +14,8 @@
 namespace Foam
 {
 
-// Per-field key names (corrector count; solid-mask field name/write-option).
-// Kept distinct rather than templated away: committed cases already set
-// nLaplaceSetValuesCorrectors and solidVelocityInterpolationWhereIs under
-// these exact names in Us's lambdaDict block; lambda's mask isn't written.
+// Per-field key names: corrector count, and the solid-mask field's name and
+// write option. Only Us's mask is written out.
 template<class Type>
 struct laplaceSetValuesKeys;
 
@@ -101,8 +98,8 @@ void LaplaceSetValuesInterpolation<Type>::interpolate()
     // 0 < value < 1 has one solid and one non-solid side.
     surfaceScalarField whereIsPatch = fvc::interpolate(whereIs);
 
-    // Diffusivity of the interpolation Laplacian. Its magnitude does not
-    // matter for the converged solution — only the matrix structure does.
+    // Diffusivity of the interpolation Laplacian. Only the matrix structure
+    // affects the converged solution, not this magnitude.
     dimensionedScalar coeffD
     (
         "solidInterpolationDiffusivity",
@@ -123,8 +120,7 @@ void LaplaceSetValuesInterpolation<Type>::interpolate()
     bool solved = false;
     label keepSolving = 0;
 
-    // Repeat until the residual is small and no longer moving, or 5
-    // attempts.
+    // Repeat until the residual is small and no longer moving, or 5 tries.
     while ((keepSolving < 5) && (!solved))
     {
         fvMatrix<Type> fieldLap
@@ -132,7 +128,7 @@ void LaplaceSetValuesInterpolation<Type>::interpolate()
             fvm::laplacian(coeffD, this->field_)
         );
 
-        // Disconnect solid-region interface faces: only upper() is zeroed --
+        // Disconnect solid-region interface faces. Only upper() is zeroed:
         // upper()/lower() share storage on this symmetric matrix, so zeroing
         // both would flip it asymmetric.
         forAll(whereIsPatch, faceI)

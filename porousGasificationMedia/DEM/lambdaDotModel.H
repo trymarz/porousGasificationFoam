@@ -22,27 +22,25 @@ private:
     volVectorField& Us_;    // interpolated sphere velocity
     volScalarField& lambdaDEM_;   // raw per-cell average of the particles' lambda
     volScalarField& lambda_;      // interpolated particle length scale
-    volScalarField& porosityF_;   // porosity field  get from the main solver
-    scalar criticalPorosity_; // to read criticalPorosity from constant/pyrolysisProperties
+    volScalarField& porosityF_;   // from the main solver
+    scalar criticalPorosity_;     // from constant/pyrolysisProperties
+
     FoamYade& yade_;
 
-    // DasteXar interpolation Us from UsDEM (June 12 2026)
+    // Us from UsDEM: raw per-cell average, smoothed over the solid region.
     Switch interpolateUs_;
     scalar solidPorosityCutoff_;
     autoPtr<InterpolationModel<vector>> usInterpolationModel_;
-    // Ta inja
 
-    // lambda comes back from YADE the same way Us does: raw per-cell average
-    // in lambdaDEM_, then smoothed into lambda_ over the solid region.
+    // lambda from lambdaDEM, the same way, on its own dictionary keys.
     Switch interpolateLambda_;
     scalar lambdaBackgroundValue_;
     autoPtr<InterpolationModel<scalar>> lambdaInterpolationModel_;
 
-    // to pass values from one cell to another
+    // Cell-to-cell particle moves since the last exchange.
     Map<label> previousParticleCell_;
     DynamicList<label> movedFromCells_;
     DynamicList<label> movedToCells_;
-    //
 
 public:
     lambdaDotModel

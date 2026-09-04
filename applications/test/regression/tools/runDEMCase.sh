@@ -33,11 +33,10 @@
 #   YADE_TIMEOUT      wall-clock bound in seconds           (default 3600)
 #   YADE_KILL_GRACE   TERM-to-KILL grace for the timeout    (default 30)
 #
-# postProcessing comparison: if the case carries a committed
-# reference/postProcessing/ baseline (as runCase.sh's serial cases do), this
-# script diffs the run's postProcessing/ against it with compareScalars.py.
-# Cases with no reference/ yet (e.g. MicroTGA-DEM_Us_UsInterp, not covered by
-# this plan) skip the comparison rather than failing.
+# postProcessing comparison: a case carrying a committed
+# reference/postProcessing/ baseline has its run diffed against it with
+# compareScalars.py. A case without one (e.g. MicroTGA-DEM_Us_UsInterp) skips
+# the comparison rather than failing.
 #
 # Exit codes (shared outcome taxonomy — see regressionLib.sh):
 #   0      - PASS  (ran to completion, all output asserts satisfied, and any
@@ -280,9 +279,7 @@ print("  PGF coupling check passed (foamDt={:.3e})".format(foamDt))
 PYCHECK
 then finish 1 "dtInfo.txt assertion failed — no positive PGF time step received"; fi
 
-# -- postProcessing comparison -------------------------------------------------
-# Optional: only cases with a committed reference/postProcessing/ baseline are
-# compared (see the header comment above).
+# -- postProcessing comparison (only when a baseline is committed) -------------
 
 if [ -d "$CASE_DIR/reference/postProcessing" ]; then
     reg_phase compare

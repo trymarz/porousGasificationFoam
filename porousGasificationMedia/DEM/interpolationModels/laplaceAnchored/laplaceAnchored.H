@@ -8,9 +8,7 @@ namespace Foam
 
 // Anchored Laplacian interpolation: occupied and non-solid cells are
 // strongly anchored to their known/background value; empty solid cells are
-// weakly anchored, receiving their value from neighbours via the Laplacian
-// term. Templated over Type to serve both Us (vector) and lambda (scalar)
-// -- see InterpolationModel.H.
+// weakly anchored and take their value from neighbours via the Laplacian.
 template<class Type>
 class LaplaceAnchoredInterpolation
 :

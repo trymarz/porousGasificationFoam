@@ -40,8 +40,7 @@ SourceFiles
 #include "porousThermoSolidChemistryModel.H"
 
 #ifdef WITH_YADE
-    // lambdaDot strategy models live in liblambdaDotModel (links YADE);
-    // only referenced by the pyrolysis library in a WITH_YADE build.
+    // liblambdaDotModel links YADE, so it is referenced only here.
     #include "LambdaDotCalculationModel.H"
 #endif
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
@@ -217,22 +216,20 @@ protected:
 
     // DEM (YADE) coupling — lambda/porosity exact-differential split
 
-        //- True when DEM coupling is active for this case (yadeProperties
-        //  active=true and lambdaDot/lambda registered), resolved once at
-        //  construction. Kept unconditional (always false without
-        //  WITH_YADE) so shared code paths need no extra guarding -- a
-        //  WITH_YADE build can still run a non-DEM case.
+        //- DEM coupling is active for this case: yadeProperties active=true
+        //  and lambdaDot/lambda registered. Resolved once at construction,
+        //  and always false without WITH_YADE. A WITH_YADE build can still
+        //  run a non-DEM case.
         bool demActive_;
 
-        //- Rate of change of the DEM particle length scale [m/s]
-        //  (createDEMFields.H). Computed in solveSpeciesMass(), pushed to
-        //  YADE particles by lambdaDotModel. Null when !demActive_.
+        //- Rate of change of the DEM particle length scale [m/s], from
+        //  createDEMFields.H. Computed in solveSpeciesMass() and pushed to
+        //  the YADE particles by lambdaDotModel. Null when !demActive_.
         volScalarField* lambdaDotPtr_;
 
 #ifdef WITH_YADE
-        //- lambdaDot calculation strategy, selected by lambdaMode in
-        //  constant/lambdaDict; owns lambdaDot's temperature/chemistry
-        //  contributions. Created only when demActive_.
+        //- lambdaDot strategy, selected by lambdaMode in constant/lambdaDict.
+        //  Created only when demActive_.
         autoPtr<LambdaDotCalculationModel> lamDotCalc_;
 #endif
 

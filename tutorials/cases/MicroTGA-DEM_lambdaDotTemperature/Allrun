@@ -18,8 +18,8 @@ export YADE_NSTEPS=2000
 # so it is launched directly here (output captured to log.yade).
 mpirun --allow-run-as-root -n 2 yade MPI_lambda.py 2>&1 | tee log.yade
 
-# Case-specific assertion (not part of the shared DEM asserts in
-# runDEMCase.sh): dimensions and sign of lambdaDot/lambda over solid cells
+# Case-specific assertion, beyond runDEMCase.sh's shared DEM checks:
+# dimensions of lambdaDot/lambda and the sign of lambdaDot over solid cells
 # (porosityF < criticalPorosity).
 python3 ../../../applications/test/regression/tools/checkFieldSign.py . \
     --dims lambdaDot="0 1 -1 0 0 0 0" \

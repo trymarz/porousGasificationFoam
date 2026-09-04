@@ -33,10 +33,10 @@ declare -A BUILD_TARGETS=( # default values
 # Set to 1 via --yade to compile the solver with Yade/DEM coupling support
 WITH_YADE=0
 
-# Targets whose Make/options carries an ifeq ($(WITH_YADE),1) block, i.e. whose
+# Targets whose Make/options carries an ifeq ($(WITH_YADE),1) block, so their
 # compiled ABI differs between the two variants: the solver, and the pyrolysis
-# library (volPyrolysis owns a WITH_YADE-only LambdaDotCalculationModel member).
-# They get WITH_YADE=1 on the wmake line and share the build-variant stamp.
+# library (volPyrolysis holds a WITH_YADE-only LambdaDotCalculationModel).
+# They get WITH_YADE=1 on the wmake line and each carry a build-variant stamp.
 declare -a YADE_SENSITIVE_TARGETS=(pyrolysisModels porousGasificationFoam)
 
 yade_sensitive_target() {

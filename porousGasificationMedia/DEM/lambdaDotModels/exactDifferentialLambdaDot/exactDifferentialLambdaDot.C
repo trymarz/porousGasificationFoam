@@ -11,9 +11,7 @@ exactDifferentialLambdaDot::exactDifferentialLambdaDot
 )
 :
     LambdaDotCalculationModel(dict, mesh, lambdaDot),
-    // Coefficients default to 0.0 when absent (unconfigured -> lambdaDot = 0,
-    // all mass to porosity). Read as bare scalars (dicts have no dimensions)
-    // and wrapped in their physical units here.
+    // Read as bare scalars (dicts carry no dimensions), wrapped in units here.
     dlambdaOverDTs_
     (
         dimensionedScalar
@@ -47,13 +45,11 @@ exactDifferentialLambdaDot::exactDifferentialLambdaDot
     lambdaDeltaT_(0.0),
     haveTsForLambdaOld_(false)
 {
-    // dlambdaOverDYmi accepts either form:
+    // Two accepted spellings, told apart by findDict() returning nullptr for
+    // a non-dictionary entry:
     //
     //     dlambdaOverDYmi 1e-4;              // one value for every specie
     //     dlambdaOverDYmi { char 1e-4; }     // per-specie, missing -> 0.0
-    //
-    // findDict() returns nullptr for a non-dictionary entry, which is what
-    // separates the two spellings.
     if (const dictionary* subDictPtr = dict.findDict("dlambdaOverDYmi"))
     {
         dlambdaOverDYmiUniform_ = false;
@@ -103,8 +99,8 @@ void exactDifferentialLambdaDot::calculateTemperatureDriven()
     const volScalarField& TsField =
         mesh_.lookupObject<volScalarField>("Ts");
 
-    // This runs before Ts is solved for the current step, so oldTime() is not
-    // useful here. Compute the rate from the last completed thermal step:
+    // Runs before Ts is solved for this step, so oldTime() is not usable; the
+    // rate is differenced over the last completed step instead:
     //     dTsdt = (Ts^n - Ts^(n-1))/deltaT^n
     if (!haveTsForLambdaOld_ || TsForLambdaOld_.size() != TsField.size())
     {
@@ -112,19 +108,17 @@ void exactDifferentialLambdaDot::calculateTemperatureDriven()
         lambdaDeltaT_ = mesh_.time().deltaTValue();
         haveTsForLambdaOld_ = true;
 
-        // No completed temperature increment exists on the first call.
+        // No completed increment to difference yet.
         lambdaDot_ = dimensionedScalar("0", dimLength/dimTime, 0.0);
         return;
     }
 
     const dimensionedScalar dt("dt", dimTime, max(lambdaDeltaT_, VSMALL));
 
-    // dlambdaOverDTs [m/K] * (Ts - TsOld)/dt [K/s] = [m/s]. dt must carry
-    // dimTime, not a bare scalar, or lambdaDot_ ends up [m] and this
-    // assignment aborts on a dimensionSet mismatch.
+    // [m/K]*[K/s] = [m/s]. dt must carry dimTime, not be a bare scalar, or the
+    // result is [m] and the assignment aborts on a dimension mismatch.
     lambdaDot_ = dlambdaOverDTs_*(TsField - TsForLambdaOld_)/dt;
 
-    // Store current Ts for the next call.
     TsForLambdaOld_ = TsField;
     lambdaDeltaT_ = mesh_.time().deltaTValue();
 }
@@ -136,11 +130,10 @@ void exactDifferentialLambdaDot::calculateChemistryDriven
     const word& specieName
 )
 {
-    // One term of splitMassBetweenLamAndPor * (dlambda/dYm_i) * sRhoSi,
-    // accumulated per specie onto the base value calculateTemperatureDriven()
-    // already set. Linear in sRhoSi and independent of rho/lambda/cell
-    // volume, so plain field algebra suffices (no cell-wise loop). Sign:
-    // sRhoSi < 0 while consuming, so a positive coefficient gives shrinkage.
+    // Accumulates onto the temperature term calculateTemperatureDriven() set.
+    // Linear in sRhoSi and independent of rho/lambda/cell volume, so field
+    // algebra suffices. sRhoSi < 0 while consuming, so a positive coefficient
+    // gives shrinkage.
     const dimensionedScalar dlambdaOverDYmi_i
     (
         "dlambdaOverDYmi(" + specieName + ')',
