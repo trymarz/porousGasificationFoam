@@ -246,8 +246,6 @@ void LaplaceSetValuesInterpolation<Type>::interpolate()
 
         SolverPerformance<Type> sp = fieldEqn.solve(controls);
 
-        Info<< sp.initialResidual() << endl;
-
         if
         (
             mag

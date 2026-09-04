@@ -780,10 +780,6 @@ void volPyrolysis::solveSpeciesMass()
             // lambda is reported, not computed, here: YADE integrates it and
             // lambdaDotModel interpolates it back onto the mesh, one solver
             // step ahead of this call.
-            Info<< "DEM lambda split: lambdaDot min/max = "
-                << gMin(*lambdaDotPtr_) << ", " << gMax(*lambdaDotPtr_)
-                << "; lambda min/max = "
-                << gMin(*lambdaPtr_) << ", " << gMax(*lambdaPtr_) << endl;
         }
 #endif
 
