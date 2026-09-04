@@ -14,15 +14,6 @@ comm = mp.comm_slave
 
 
 
-"""
-print("\n=== Available communicators in mpy:  ")
-for a in dir(mp):
-    if "comm" in a.lower():
-        print(a, "=>", getattr(mp, a))
-#print("======================================\n")
- """
-#print("YADE: current working directory:", os.getcwd())
-
 writeInterval = 0.1   # seconds — Yade VTK write interval (separate from OF writeInterval)
 
 
@@ -249,15 +240,6 @@ def apply_spring_forces():
         lambda_eff = L_current - target_L
         Fvec = spring_k * lambda_eff * direction
 
-        """if spring_id == 0:
-            print(
-                f"[DEBUG] iter={O.iter}  "
-                f"λ_avg={lambda_avg:.6f}  "
-                f"λ_i={bi.state.lambda_:.6f}  "
-                f"λ_j={bj.state.lambda_:.6f}  "
-            ) """
-
-
         # store local force contributions
         local_forces.append((i,  Fvec[0],  Fvec[1],  Fvec[2]))
         local_forces.append((j, -Fvec[0], -Fvec[1], -Fvec[2]))
@@ -336,17 +318,6 @@ def printAndSaveDtInfo():
 
 
 
-def printStep():
-	print("step = ", O.iter)
-
-
-def savePos():
-    export.text(f"spheres/spheres_{O.iter:05d}.txt")
-    
-export.text("spheres/spheres_0.txt")
-#export.VTKExporter("spheres/vtk-0").exportSpheres()
-
-
 # to list all vtk files in a single pvd file with time stamps. in paraview only open this pvd file not all vtk files.
 # Spheres use Yade's native VTKRecorder (see O.engines) instead -- it writes
 # its own .pvd, so only the hand-rolled springs exporter needs this here.
@@ -404,30 +375,6 @@ def export_springs():
 
         num_lines = len(pts) // 2
 
-        # this part works for classic vtk file paraview can not read them if they are listed in a pvt file.
-        """file_path = f"springs/springs_{spring_frame_number:.1f}.vtk"
-        with open(file_path, "w") as f:
-            f.write("# vtk DataFile Version 3.0\nSpring network\nASCII\nDATASET POLYDATA\n")
-
-            # points
-            f.write(f"POINTS {len(pts)} float\n")
-            for p in pts:
-                f.write(f"{p[0]} {p[1]} {p[2]}\n")
-
-            #lines
-            f.write(f"\nLINES {num_lines} {num_lines*3}\n")
-            idx = 0
-            for k in range(num_lines):
-                f.write(f"2 {idx} {idx+1}\n")
-                idx += 2
-
-            # spring type ( nothing specific for now, all the same time )
-            f.write(f"\nCELL_DATA {num_lines}\n")
-            f.write("SCALARS springType int 1\nLOOKUP_TABLE default\n")
-            for _ in range(num_lines):
-                f.write("0\n")
-
-        print(f"[VTK] Exported {num_lines} springs -> {file_path}")"""
 
         file_path = f"springs/springs_{spring_frame_number:.1f}.vtp"
         with open(file_path, "w") as f:
@@ -535,7 +482,6 @@ O.engines = [
         # Cadence scaled to this fixture's NSTEPS (see vtkSphereIterPeriod above) --
         # timeRatio never fires within a short fixture's step count.
         PyRunner(iterPeriod=vtkSphereIterPeriod, command='logLambdaUs()'),
-        #PyRunner(command='savePos()', iterPeriod=5000) 
 
         PyRunner(command="printAndSaveDtInfo()", iterPeriod=timeRatio, firstIterRun=1)
 
