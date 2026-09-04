@@ -246,6 +246,24 @@ All 14 cases under `tutorials/cases/`:
 | `MicroTGA-DEM/` | DEM-coupled micro TGA | Requires YADE |
 | `simple_line_case/` | DEM-coupled 1-D packed line, pyrolysing | Requires YADE |
 
+### Render gallery
+
+`foamcli` keeps PNG snapshots beside the case that produced them, under
+`tutorials/cases/<case>/render/`. To build one browsable view without copying
+the images, run:
+
+```bash
+python3 tutorials/render_gallery.py
+```
+
+This creates the generated `tutorials/render/` directory. It groups cases on
+the landing page, creates `tutorials/render/cases/<group>/<case>/index.html`
+for each case, and links each case page to its local PNGs without copying
+them. The landing page supports search, group filtering, and expand/collapse;
+case pages support search and a keyboard-navigable image viewer. The generated
+directory and PNG snapshots are ignored by Git; rerun the generator after
+creating or deleting snapshots.
+
 ## Input File Reference
 
 ### `constant/chemistryProperties`
@@ -503,6 +521,18 @@ Gas-phase reactions are typically orders of magnitude faster than heterogeneous 
 
 Numerical regression tests live under `applications/test/regression/`. The framework runs selected tutorial cases, extracts a small set of summary scalars produced by OpenFOAM `volFieldValue` function objects, and diffs the results against a committed reference baseline within a numerical tolerance.
 
+The canonical porous-flow fixtures are `tutorials/cases/canonical/darcy` and
+`tutorials/cases/canonical/forchheimer`. Both are true one-dimensional porous
+plugs with `empty` transverse patches. `darcy` disables the Forchheimer term;
+`forchheimer` enables it. Their regression observables include inlet/outlet
+pressure, inlet/outlet mass flux, average velocity, and minimum/maximum velocity
+magnitude. To run the disposable `Df` and inlet-velocity study against the
+isothermal ideal-gas pressure-drop estimate, run:
+
+```bash
+python3 applications/test/regression/tools/porousResistanceStudy.py
+```
+
 The point is to give refactors a safety net: any change that perturbs the selected scalars beyond tolerance fails the regression and surfaces a clear diff. The gate is deliberately **honest** — it never reports success unless it actually ran a case and compared it (see the outcome contract below).
 
 The framework has two runners that share one outcome vocabulary:
@@ -573,9 +603,16 @@ cd applications/test/regression
 ./Allrun --no-run                         # compare existing output only
 ./Allrun --rtol 1e-3                      # override default relative tolerance
 ./Allrun --jobs 4                         # four cases at a time (see below)
-./Allrun --list                           # show the selected cases, run nothing
+./Allrun --list                           # show selected case paths, run nothing
+./Allrun --list-full                      # show cases and human-readable descriptions
 ./Allrun --state-dir /scratch/reg-state   # also write machine-readable run state
 ```
+
+`cases.list` may place `Purpose:` and `Expected view:` comment lines immediately
+before a case. Plain-text `--list` and `--list-full` use a numbered, aligned
+layout; the latter adds these qualitative descriptions for human inspection.
+Descriptions do not affect case selection, comparison, or the machine-readable
+run state. `--list-full` cannot be combined with `--json`.
 
 Exit code `0` means every case that ran PASSed; any non-zero means at least one case was not green (FAIL/ERROR/TIMEOUT/CRASH). The summary lists each case with its outcome and, on a FAIL, the rows that diverged; a CRASH shows the signal name so a teardown abort is not mistaken for a numerical divergence.
 

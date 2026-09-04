@@ -28,6 +28,10 @@ log.*
 # ParaView touch files created by foam or paraFoam
 *.foam
 
+# foamcli-generated PNGs and the mirrored HTML gallery
+render/
+cases/**/render/
+
 # Runtime-generated sub-case directories (created by parent Allrun scripts
 # via cp -r from the template, then run inside)
 cases/flatPlate/flatPlateCold/

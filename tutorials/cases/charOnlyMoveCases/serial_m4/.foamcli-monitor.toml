@@ -7,3 +7,22 @@ labels = ["inlet-mid", "outlet-mid", "inlet-bot", "outlet-bot", "inlet-top", "ou
 [monitor]
 refresh_interval = 2.0
 panels = ["progress", "probes", "heatmap"]
+
+[slice]
+axis = "y"
+position = 0.0
+
+[render]
+
+[[render.slice]]
+axis = "y"
+position = 0.0
+fields = ["T"]
+output = "render/snapshots/postrun/{field}_{axis}{position}.png"
+
+[snapshots]
+enabled = true
+automatic = true
+directory = "render/snapshots"
+stride = 1
+fields = ["T"]

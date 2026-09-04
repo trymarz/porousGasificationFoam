@@ -23,8 +23,69 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import sys
 from pathlib import Path
+
+
+class ComparisonError(ValueError):
+    """An output file cannot be compared as a well-formed data file."""
+
+
+_COMPOUND_RE = re.compile(r"\([^()]*\)")
+
+
+def _parse_data_row(line: str, line_number: int) -> tuple[float, ...]:
+    """Parse scalar tokens and top-level parenthesized OpenFOAM values.
+
+    OpenFOAM writes a vector as one logical value, for example ``(1 2 3)``.
+    Flattening it keeps the comparison deterministic while allowing the header
+    to retain the logical field name.
+    """
+    values: list[float] = []
+    pos = 0
+    while pos < len(line):
+        if line[pos].isspace():
+            pos += 1
+            continue
+
+        if line[pos] == "(":
+            match = _COMPOUND_RE.match(line, pos)
+            if match is None:
+                raise ComparisonError(
+                    f"line {line_number}: malformed parenthesized value"
+                )
+            contents = match.group()[1:-1].split()
+            if not contents:
+                raise ComparisonError(
+                    f"line {line_number}: empty parenthesized value"
+                )
+            try:
+                values.extend(float(token) for token in contents)
+            except ValueError as exc:
+                raise ComparisonError(
+                    f"line {line_number}: non-numeric compound value"
+                ) from exc
+            pos = match.end()
+            continue
+
+        end = pos
+        while end < len(line) and not line[end].isspace():
+            end += 1
+        token = line[pos:end]
+        if "(" in token or ")" in token:
+            raise ComparisonError(f"line {line_number}: malformed value")
+        try:
+            values.append(float(token))
+        except ValueError as exc:
+            raise ComparisonError(
+                f"line {line_number}: non-numeric value {token!r}"
+            ) from exc
+        pos = end
+
+    if not values:
+        raise ComparisonError(f"line {line_number}: empty data row")
+    return tuple(values)
 
 
 def parse_dat(path: Path) -> tuple[list[str], list[tuple[float, ...]]]:
@@ -33,25 +94,29 @@ def parse_dat(path: Path) -> tuple[list[str], list[tuple[float, ...]]]:
     header_columns: list of column names (Time first), drawn from the LAST
                     comment line before data starts. May be empty if no
                     column header was emitted.
-    rows:           list of tuples of floats, one tuple per data line.
+    rows:           list of flattened numeric tuples, one tuple per data line.
+
+    A non-comment, non-empty line is a data row and must be parseable. Silently
+    skipping malformed rows would make a partial output look like a pass.
     """
     columns: list[str] = []
     rows: list[tuple[float, ...]] = []
     last_comment: str | None = None
     with open(path, "r") as f:
-        for raw in f:
+        for line_number, raw in enumerate(f, start=1):
             line = raw.strip()
             if not line:
                 continue
             if line.startswith("#"):
                 last_comment = line.lstrip("#").strip()
                 continue
-            tokens = line.split()
-            try:
-                rows.append(tuple(float(t) for t in tokens))
-            except ValueError:
-                # Skip non-numeric line (defensive).
-                continue
+            row = _parse_data_row(line, line_number)
+            if rows and len(row) != len(rows[0]):
+                raise ComparisonError(
+                    f"line {line_number}: column count differs within file: "
+                    f"expected={len(rows[0])} vs found={len(row)}"
+                )
+            rows.append(row)
     if last_comment:
         columns = last_comment.split()
     return columns, rows
@@ -64,31 +129,43 @@ def within_tol(a: float, b: float, rtol: float, atol: float) -> bool:
 def compare_file(
     ref_path: Path, cand_path: Path, rtol: float, atol: float
 ) -> list[str]:
-    """Return list of failure descriptions; empty list means PASS."""
+    """Return numerical failure descriptions; raise for invalid file shapes."""
     failures: list[str] = []
-    ref_cols, ref_rows = parse_dat(ref_path)
-    cand_cols, cand_rows = parse_dat(cand_path)
+    if not ref_path.is_file():
+        raise ComparisonError(f"reference file not found: {ref_path}")
+    if not cand_path.is_file():
+        raise ComparisonError(f"candidate file not found: {cand_path}")
+
+    try:
+        ref_cols, ref_rows = parse_dat(ref_path)
+    except ComparisonError as exc:
+        raise ComparisonError(f"reference {ref_path}: {exc}") from exc
+    try:
+        cand_cols, cand_rows = parse_dat(cand_path)
+    except ComparisonError as exc:
+        raise ComparisonError(f"candidate {cand_path}: {exc}") from exc
+
+    if not ref_rows:
+        raise ComparisonError(f"reference {ref_path} contains no data rows")
+    if not cand_rows:
+        raise ComparisonError(f"candidate {cand_path} contains no data rows")
 
     if len(ref_rows) != len(cand_rows):
-        failures.append(
+        raise ComparisonError(
             f"row count differs: ref={len(ref_rows)} vs cand={len(cand_rows)}"
         )
-        # Continue with min length so we still report numeric divergence.
 
-    n = min(len(ref_rows), len(cand_rows))
-    if n == 0:
-        return failures
-
+    n = len(ref_rows)
     ncols = len(ref_rows[0])
-    for cand_row in cand_rows[:n]:
-        if len(cand_row) != ncols:
-            failures.append(
-                f"column count differs: ref={ncols} vs cand={len(cand_row)}"
-            )
-            return failures
+    if len(cand_rows[0]) != ncols:
+        raise ComparisonError(
+            f"column count differs: ref={ncols} vs cand={len(cand_rows[0])}"
+        )
 
     col_names = (
-        ref_cols if len(ref_cols) == ncols else [f"col{i}" for i in range(ncols)]
+        ref_cols
+        if len(ref_cols) == ncols
+        else _expanded_column_names(ref_cols, ncols)
     )
 
     for i in range(n):
@@ -103,6 +180,13 @@ def compare_file(
                     f"rel_diff={abs(a - b) / max(abs(a), abs(b), 1e-300):.3e}"
                 )
     return failures
+
+
+def _expanded_column_names(columns: list[str], width: int) -> list[str]:
+    """Name flattened components while retaining the logical field name."""
+    if len(columns) == 2 and width > 2:
+        return [columns[0]] + [f"{columns[1]}[{i}]" for i in range(width - 1)]
+    return [f"col{i}" for i in range(width)]
 
 
 def collect_dat_files(root: Path) -> list[Path]:
@@ -153,15 +237,21 @@ def main() -> int:
     total = len(ref_files)
     failed = 0
     missing = 0
+    invalid = 0
 
     for ref_path in sorted(ref_files):
         rel = ref_path.relative_to(ref_root)
         cand_path = cand_root / rel
         if not cand_path.is_file():
-            print(f"MISS  {rel} (no candidate file)", file=sys.stderr)
+            print(f"ERROR {rel} (no candidate file)", file=sys.stderr)
             missing += 1
             continue
-        failures = compare_file(ref_path, cand_path, args.rtol, args.atol)
+        try:
+            failures = compare_file(ref_path, cand_path, args.rtol, args.atol)
+        except ComparisonError as exc:
+            print(f"ERROR {rel}: {exc}", file=sys.stderr)
+            invalid += 1
+            continue
         if failures:
             failed += 1
             print(f"FAIL  {rel}")
@@ -176,15 +266,19 @@ def main() -> int:
 
     print()
     print(
-        f"compareScalars.py: {total - failed - missing}/{total} files within tolerance "
+        f"compareScalars.py: {total - failed - missing - invalid}/{total} files within tolerance "
         f"(rtol={args.rtol}, atol={args.atol})"
     )
     if missing:
         print(
             f"compareScalars.py: {missing} reference file(s) not present in candidate"
         )
+    if invalid:
+        print(f"compareScalars.py: {invalid} file(s) had invalid data", file=sys.stderr)
 
-    if failed > 0 or missing > 0:
+    if missing > 0 or invalid > 0:
+        return 2
+    if failed > 0:
         return 1
     return 0
 
