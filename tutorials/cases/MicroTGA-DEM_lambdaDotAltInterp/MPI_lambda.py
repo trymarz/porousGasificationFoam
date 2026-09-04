@@ -1,6 +1,7 @@
 import os
 from yade import mpy as mp
 from yade import export 
+from yade import plot
 import math
 from collections import defaultdict
 import numpy as np
@@ -482,36 +483,33 @@ def export_springs():
         spring_frame_number += float(writeInterval)
 
 
-def gatherHydroFT():
+def logLambdaUs():
+    # This coupling mode only exchanges Us (in, from OpenFOAM) and
+    # lambda/lambdaDot (out, to OpenFOAM) -- log those, not force/torque
+    # (unused here, that was a hydro-coupling leftover).
     local = []
     ids = fluidCoupling.getIdList()
 
     for i in ids:
         if i < len(O.bodies) and O.bodies[i] is not None:
-            
-            f = O.forces.f(i)
-            t = O.forces.t(i)
-
-            # read lambdaDot from YADE state :D it works!
-            lam = O.bodies[i].state.lambdaDot
-
-            local.append((i, (f[0], f[1], f[2],
-                               t[0], t[1], t[2],
-                               lam)))
+            state = O.bodies[i].state
+            local.append((state.lambdaDot, state.lambda_, state.vel.norm()))
 
     all_data = mp.comm.gather(local, root=0)
 
     if mp.rank == 0:
-        merged = {}
-        for lst in all_data:
-            for i, vals in lst:
-                merged[i] = vals
-
-        # Print first 5
-        for k in sorted(merged)[:10]:
-            Fx, Fy, Fz, Tx, Ty, Tz, lam = merged[k]
-            print(f"[Forces+lambdaDot (5 points only)] id {k}: F=({Fx:.3e},{Fy:.3e},{Fz:.3e}) "
-                  f"T=({Tx:.3e},{Ty:.3e},{Tz:.3e}) lambdaDot={lam:.7e}")
+        merged = [v for lst in all_data for v in lst]
+        if merged:
+            n = len(merged)
+            lambdaDotMean = sum(v[0] for v in merged) / n
+            lambdaMean = sum(v[1] for v in merged) / n
+            UsMean = sum(v[2] for v in merged) / n
+            plot.addData(
+                iter=O.iter,
+                lambdaDotMean=lambdaDotMean,
+                lambdaMean=lambdaMean,
+                UsMean=UsMean,
+            )
 
 
 #---------------
@@ -535,7 +533,9 @@ O.engines = [
         VTKRecorder(fileName='spheres/vtk-', recorders=['spheres'], parallelMode=True, iterPeriod=vtkSphereIterPeriod),
 
 
-        PyRunner(iterPeriod=timeRatio, command='gatherHydroFT()'), # it works! prints a list of hydrodynamic forces + lambdaDot sent from OF
+        # Cadence scaled to this fixture's NSTEPS (see vtkSphereIterPeriod above) --
+        # timeRatio never fires within a short fixture's step count.
+        PyRunner(iterPeriod=vtkSphereIterPeriod, command='logLambdaUs()'),
         #PyRunner(command='savePos()', iterPeriod=5000) 
 
         PyRunner(command="printAndSaveDtInfo()", iterPeriod=timeRatio, firstIterRun=1)
@@ -555,6 +555,9 @@ mp.fluidBodies = sphereIDs
 mp.DOMAIN_DECOMPOSITION = True
 mp.mpirun(NSTEPS,np=numProcOF)
 mp.mprint("RUN FINISH")      
+
+if mp.rank == 0:
+    plot.saveDataTxt("lambdaUsHistory.txt")
 
         
 
