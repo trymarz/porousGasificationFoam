@@ -31,7 +31,7 @@ deltaT          1e-6;
 
 writeControl    adjustableRunTime;
 
-writeInterval   0.001;
+writeInterval   0.0002;
 
 purgeWrite      0;
 
@@ -62,6 +62,73 @@ functions
         type            solverInfo;
         libs            (utilityFunctionObjects);
         fields          ("p,U,Ts");
+    }
+
+    solidBedFieldValueBase
+    {
+        type            volFieldValue;
+        libs            (fieldFunctionObjects);
+        regionType      cellZone;
+        name            solidBed;
+        postOperation   none;
+        weightField     none;
+        writeFields     false;
+        writePrecision  10;
+        writeToFile     true;
+        log             false;
+        enabled         false;      // template; children override
+        executeControl  timeStep;
+        executeInterval 1;
+        writeControl    writeTime;
+        writeInterval   -1;
+    }
+
+    lambdaDotAverage
+    {
+        ${solidBedFieldValueBase}
+        enabled         true;
+        fields          (lambdaDot);
+        operation       average;
+    }
+
+    lambdaDotMin
+    {
+        ${solidBedFieldValueBase}
+        enabled         true;
+        fields          (lambdaDot);
+        operation       min;
+    }
+
+    lambdaDotMax
+    {
+        ${solidBedFieldValueBase}
+        enabled         true;
+        fields          (lambdaDot);
+        operation       max;
+    }
+
+    lambdaAverage
+    {
+        ${solidBedFieldValueBase}
+        enabled         true;
+        fields          (lambda);
+        operation       average;
+    }
+
+    lambdaMin
+    {
+        ${solidBedFieldValueBase}
+        enabled         true;
+        fields          (lambda);
+        operation       min;
+    }
+
+    lambdaMax
+    {
+        ${solidBedFieldValueBase}
+        enabled         true;
+        fields          (lambda);
+        operation       max;
     }
 
     #includeFunc probes

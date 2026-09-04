@@ -76,7 +76,6 @@ public:
     const DynamicList<label>& movedToCells() const;
 
     void writeParticlesData() const;  // to write ParticlesData.txt in each time step for each rank
-    void writeVolumeOfSolidArea() const;  // to write the solid-region volume each time step
 
 };
 

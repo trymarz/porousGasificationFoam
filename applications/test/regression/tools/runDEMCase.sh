@@ -9,12 +9,16 @@
 #
 # Usage:
 #   runDEMCase.sh <caseDir> [--timeout SECONDS] [--nsteps N]
+#                 [--rtol R] [--atol A] [--compare PATH]
 #                 [--state-dir DIR] [--suite-events PATH]
 #                 [--case-id ID] [--suite-id ID]
 #
 # Options:
 #   --timeout S       Wall-clock bound for the run (overrides $YADE_TIMEOUT).
 #   --nsteps N        DEM step cap (overrides $YADE_NSTEPS).
+#   --rtol R          Relative tolerance for the postProcessing comparator.
+#   --atol A          Absolute tolerance for the postProcessing comparator.
+#   --compare PATH    Comparator to use (default: sibling compareScalars.py).
 #   --state-dir DIR   Write structured run state for this case into DIR
 #                     (state.json, events.ndjson, result.json). Optional:
 #                     without it nothing extra is written and the script behaves
@@ -29,9 +33,17 @@
 #   YADE_TIMEOUT      wall-clock bound in seconds           (default 3600)
 #   YADE_KILL_GRACE   TERM-to-KILL grace for the timeout    (default 30)
 #
+# postProcessing comparison: if the case carries a committed
+# reference/postProcessing/ baseline (as runCase.sh's serial cases do), this
+# script diffs the run's postProcessing/ against it with compareScalars.py.
+# Cases with no reference/ yet (e.g. MicroTGA-DEM_Us_UsInterp, not covered by
+# this plan) skip the comparison rather than failing.
+#
 # Exit codes (shared outcome taxonomy — see regressionLib.sh):
-#   0      - PASS  (ran to completion, all output asserts satisfied)
-#   1      - FAIL  (ran, but an output assert failed: no RUN FINISH / VTK / dt)
+#   0      - PASS  (ran to completion, all output asserts satisfied, and any
+#                   postProcessing comparison was within tolerance)
+#   1      - FAIL  (ran, but an output assert failed: no RUN FINISH / VTK / dt;
+#                   or postProcessing diverged from the reference baseline)
 #   2      - ERROR (infrastructure: missing case dir, failed clean)
 #   124    - TIMEOUT (the run exceeded the timeout and its process group was
 #                     terminated)
@@ -51,6 +63,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CASE_DIR=""
 OPT_TIMEOUT=""
 OPT_NSTEPS=""
+RTOL="1e-4"
+ATOL="1e-12"
+COMPARE=""
 STATE_DIR=""
 SUITE_EVENTS=""
 CASE_ID=""
@@ -64,6 +79,18 @@ while [ $# -gt 0 ]; do
         ;;
     --nsteps)
         OPT_NSTEPS="$2"
+        shift 2
+        ;;
+    --rtol)
+        RTOL="$2"
+        shift 2
+        ;;
+    --atol)
+        ATOL="$2"
+        shift 2
+        ;;
+    --compare)
+        COMPARE="$2"
         shift 2
         ;;
     --state-dir)
@@ -98,6 +125,7 @@ done
 
 NSTEPS="${OPT_NSTEPS:-${YADE_NSTEPS:-2000000}}"
 TIMEOUT="${OPT_TIMEOUT:-${YADE_TIMEOUT:-3600}}"
+[ -n "$COMPARE" ] || COMPARE="$SCRIPT_DIR/compareScalars.py"
 # Grace period between the timeout TERM and the follow-up KILL, to let MPI tear
 # down cleanly before the group is force-killed.
 KILL_GRACE="${YADE_KILL_GRACE:-30}"
@@ -252,4 +280,29 @@ print("  PGF coupling check passed (foamDt={:.3e})".format(foamDt))
 PYCHECK
 then finish 1 "dtInfo.txt assertion failed — no positive PGF time step received"; fi
 
-finish 0 "DEM run completed; coupling, VTK and dtInfo assertions satisfied"
+# -- postProcessing comparison -------------------------------------------------
+# Optional: only cases with a committed reference/postProcessing/ baseline are
+# compared (see the header comment above).
+
+if [ -d "$CASE_DIR/reference/postProcessing" ]; then
+    reg_phase compare
+    RESULT_FIELDS+=(
+        --artifact "candidate=$CASE_DIR/postProcessing"
+        --artifact "reference=$CASE_DIR/reference/postProcessing"
+    )
+    python3 "$COMPARE" \
+        --reference "$CASE_DIR/reference/postProcessing" \
+        --candidate "$CASE_DIR/postProcessing" \
+        --rtol "$RTOL" \
+        --atol "$ATOL"
+    rc=$?
+    if [ "$rc" -eq 0 ]; then
+        echo "  postProcessing comparison passed"
+    elif [ "$rc" -eq 1 ]; then
+        finish 1 "postProcessing diverged from reference/postProcessing baseline"
+    else
+        finish 2 "comparator reported an infrastructure error (exit $rc)"
+    fi
+fi
+
+finish 0 "DEM run completed; coupling, VTK, dtInfo and postProcessing assertions satisfied"

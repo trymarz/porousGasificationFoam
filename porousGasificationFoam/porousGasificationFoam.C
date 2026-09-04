@@ -125,15 +125,6 @@ int main(int argc, char *argv[])
         #include "radiation.H"
         pyrolysisZone.evolve();
 
-        // Report the solid-region volume after the pyrolysis update, so the
-        // porosity it integrates is the one the DEM skeleton will see next.
-        #ifdef WITH_YADE
-        if (DEM)
-        {
-            lambdaDotUpdater->writeVolumeOfSolidArea();
-        }
-        #endif
-
         #include "rhoEqn.H"
 
         while (pimple.loop())
