@@ -484,9 +484,8 @@ def export_springs():
 
 
 def logLambdaUs():
-    # This coupling mode only exchanges Us (in, from OpenFOAM) and
-    # lambda/lambdaDot (out, to OpenFOAM) -- log those, not force/torque
-    # (unused here, that was a hydro-coupling leftover).
+    # Only Us/lambda/lambdaDot are exchanged in this coupling mode --
+    # force/torque logging was a hydro-coupling leftover.
     local = []
     ids = fluidCoupling.getIdList()
 

@@ -26,13 +26,9 @@ python3 ../../../applications/test/regression/tools/checkFieldSign.py . \
     --dims lambda="0 1 0 0 0 0 0" \
     --sign lambdaDot=negative
 
-# No reference/postProcessing/lambdaAverage or lambdaMin baseline is captured
-# for this fixture (unlike the other four MicroTGA-DEM_lambdaDot* cases):
-# lambdaInterpolationMode laplaceAnchored solves an ill-conditioned system
-# (anchor coefficients spanning 1e6 to 1e-12 in the same matrix), whose
-# converged value is sensitive to parallel floating-point summation order.
-# Independent reruns of this exact fixture measured average(lambda) and
-# min(lambda) drifting by ~0.1% and ~2x respectively -- not reproducible
-# closely enough for compareScalars.py's tolerance. lambdaDot* and lambdaMax
-# stay deterministic (confirmed across reruns) and keep their baselines.
-# See issue #85 for a determinism-tolerant test of this interpolation mode.
+# lambdaAverage/lambdaMin baselines are intentionally absent here (unlike the
+# other four MicroTGA-DEM_lambdaDot* cases): lambdaInterpolationMode
+# laplaceAnchored solves an ill-conditioned system (anchor coefficients span
+# 1e6 to 1e-12), so its converged lambda drifts with parallel floating-point
+# ordering -- three reruns gave three different average/min(lambda) values
+# while lambdaDot*/lambdaMax stayed identical. See issue #85.
