@@ -84,25 +84,14 @@ volScalarField lambdaDot // lambdaDot: rate of change of per-particle lambda (co
     dimensionedScalar("0", dimLength/dimTime, 0)
 );
 
-// lambda: DEM particle characteristic length scale [m], interpolated onto the
-// mesh from lambdaDEM by lambdaDotModel::updateParticleFields(). It is a
-// derived field, not integrated state: YADE owns the integration
-// (State::lambda_, advanced every DEM step from the lambdaDot PGF sends it),
-// and PGF reads the result back purely as diagnostic output — no PGF equation
-// consumes lambda. READ_IF_PRESENT is kept so a restart starts from the
-// written field rather than the default until the first coupling exchange
-// refreshes it. The default 1.0 m matches YADE's State::lambda_ default and
-// its convention for an unstretched spring (MPI_lambda.py). Any 0/lambda file
-// must therefore carry dimensions [0 1 0 0 0 0 0].
-//
-// zeroGradient rather than the default calculated patch type: the lambda
-// interpolation models solve an implicit Laplacian for this field, and
-// calculatedFvPatchField has no gradientInternalCoeffs, so a calculated
-// boundary makes that solve a fatal error. Us escapes this only because every
-// DEM case supplies a 0/Us file with real boundary conditions; lambda is
-// constructed here so no case has to add one. Physically zeroGradient is the
-// right choice for a diagnostic field defined only where particles are: the
-// wall carries no independent lambda of its own.
+// lambda [m]: particle length scale, interpolated from lambdaDEM. Derived
+// diagnostic only -- YADE owns the integration (State::lambda_); no PGF
+// equation consumes it. Default 1.0 m matches YADE's unstretched-spring
+// convention; a 0/lambda file must carry dimensions [0 1 0 0 0 0 0].
+// zeroGradient, not calculated: the interpolation models solve an implicit
+// Laplacian here, which calculatedFvPatchField can't support (no
+// gradientInternalCoeffs) -- unlike Us, lambda has no case-supplied 0/ file
+// to carry a real BC instead.
 volScalarField lambda
 (
     IOobject
@@ -222,11 +211,9 @@ volVectorField UsDEM(
 );
 
 
-// lambdaDEM: raw per-cell average of the particles' lambda [m], the scalar
-// counterpart of UsDEM. Rebuilt from scratch every coupling exchange, so it is
-// NO_READ; cells holding no particle are left at zero, which is why the
-// interpolated lambda field, not this one, is what carries a defined value
-// everywhere.
+// lambdaDEM [m]: raw per-cell average of particle lambda (UsDEM's scalar
+// counterpart). Rebuilt from scratch every exchange (NO_READ); empty cells
+// stay zero -- lambda, not this field, carries a defined value everywhere.
 volScalarField lambdaDEM(
     IOobject(
     "lambdaDEM",

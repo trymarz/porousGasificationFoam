@@ -1,12 +1,9 @@
 /*
- * Hard set-values Laplacian interpolation model, generic over the field Type
- * (vector for the solid velocity Us, scalar for the DEM particle length
- * scale lambda).
- *
- * Cells holding particles and cells outside the solid region are imposed as
- * hard constraints on the Laplace matrix via setValues(), and the solve
- * fills the solid cells in between. The interface faces of the solid region
- * are disconnected first so the smoothing cannot reach outside it.
+ * Hard set-values Laplacian interpolation model, generic over Type (vector
+ * for Us, scalar for lambda). Cells with particles and cells outside the
+ * solid region are hard-pinned via setValues(); the solve fills the gaps
+ * between them. Interface faces are disconnected first so smoothing can't
+ * reach outside the solid region.
  */
 
 #include "laplaceSetValues.H"
@@ -18,14 +15,10 @@
 namespace Foam
 {
 
-// Per-field dictionary key name for the optional corrector count, and
-// per-field name/write-option for the diagnostic solid-region mask field.
-// Kept distinct rather than templated away: committed case dictionaries
-// (tutorials/cases/simple_line_case, case_line_interpolation) already set
-// nLaplaceSetValuesCorrectors under that exact name in Us's own lambdaDict
-// sub-block, and the "Us" build writes its mask to the case time
-// directories under its existing name (solidVelocityInterpolationWhereIs);
-// lambda's does not.
+// Per-field key names (corrector count; solid-mask field name/write-option).
+// Kept distinct rather than templated away: committed cases already set
+// nLaplaceSetValuesCorrectors and solidVelocityInterpolationWhereIs under
+// these exact names in Us's lambdaDict block; lambda's mask isn't written.
 template<class Type>
 struct laplaceSetValuesKeys;
 
@@ -139,10 +132,9 @@ void LaplaceSetValuesInterpolation<Type>::interpolate()
             fvm::laplacian(coeffD, this->field_)
         );
 
-        // Disconnect the solid-region interface faces. Only upper() is
-        // zeroed: the laplacian matrix is symmetric, so upper() and lower()
-        // share one array and zeroing both would flip the matrix to
-        // asymmetric.
+        // Disconnect solid-region interface faces: only upper() is zeroed --
+        // upper()/lower() share storage on this symmetric matrix, so zeroing
+        // both would flip it asymmetric.
         forAll(whereIsPatch, faceI)
         {
             if ((whereIsPatch[faceI] > 0) && (whereIsPatch[faceI] < 1))
@@ -173,8 +165,7 @@ void LaplaceSetValuesInterpolation<Type>::interpolate()
             }
         }
 
-        // Rebuild the diagonal from the modified face coefficients and clear
-        // the source.
+        // Rebuild the diagonal from the modified coefficients; clear the source.
         fieldLap.diag() = 0;
         fieldLap.negSumDiag();
         fieldLap.source() = pTraits<Type>::zero;
@@ -213,25 +204,13 @@ void LaplaceSetValuesInterpolation<Type>::interpolate()
         const labelUList& cellUList = cellList;
         const Field<Type>& valueUList = valueList;
 
-        /*
-         * Hard constraints applied before solving:
-         *
-         * 1. Cells containing DEM particles keep their cell-averaged
-         *    DEM value.
-         *
-         * 2. Cells outside the active solid region hold the background
-         *    value.
-         *
-         * 3. Disconnected cells are pinned, to keep the matrix
-         *    non-singular.
-         */
+        // Apply the hard constraints collected above.
         fieldEqn.setValues(cellUList, valueUList);
 
         fieldEqn.relax();
 
-        // A cell disconnected from all of its neighbours - every face
-        // coefficient zeroed at the interface - leaves a zero diagonal, on
-        // which symGaussSeidel divides by zero. Pin such a cell instead.
+        // A cell disconnected from every neighbour has a zero diagonal,
+        // which symGaussSeidel divides by zero on -- pin it instead.
         forAll(fieldEqn.diag(), cellI)
         {
             scalar& diag = fieldEqn.diag()[cellI];

@@ -60,16 +60,13 @@ public:
 
     ~lambdaDotModel();
 
-    //- Enforce the solid-region gate on lambdaDot before the DEM particles
-    //  read it. The value itself is assembled by volPyrolysis (which owns the
-    //  LambdaDotCalculationModel); this only zeroes it outside the
-    //  mechanically active solid region.
+    //- Zero lambdaDot outside the mechanically active solid region before
+    //  particles read it (volPyrolysis assembles the value itself).
     void updateLambdaDot();
 
-    //- Pull the per-particle state YADE owns onto the mesh: the per-cell
-    //  particle count, the raw solid velocity UsDEM_ and the raw particle
-    //  length scale lambdaDEM_, then smooth each into its continuous field
-    //  (Us_, lambda_). Finally push lambdaDot_ out to the particles.
+    //- Pull per-particle state from YADE onto the mesh (count, UsDEM_,
+    //  lambdaDEM_), smooth each into its continuous field (Us_, lambda_),
+    //  then push lambdaDot_ back out to the particles.
     void updateParticleFields();
 
     const DynamicList<label>& movedFromCells() const;

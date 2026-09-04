@@ -7,28 +7,22 @@ FoamFile
     object      lambdaDict;
 }
 
-// Regression fixture: both terms active together -- the configuration a real
-// case would use, and the only fixture that tests their sum. The temperature
-// term is positive (the bed is heating) and the chemistry term is negative
-// (solid mass is being consumed), so the asserted positive sign holds only
-// while the temperature term dominates: dlambdaOverDYmi below is tuned against
-// that, not carried over from another case.
-// Valid modes: constant, exactDifferential. exactDifferential reads
-// dlambdaOverDTs [m/K], dlambdaOverDYmi [m^4/kg] (a scalar, or a per-specie
-// subdict) and splitMassBetweenLamAndPor [-], all defaulting to 0.0.
-// setFieldsDict seeds the packed-bed box with porosityF < criticalPorosity;
-// 0.orig/Ts and 0.orig/T start the whole domain hot (Ts=800, T=850) so both
-// the temperature gradient and the pyrolysis chemistry are active from t=0.
+// Regression fixture: both terms active together -- the only fixture testing
+// their sum. Temperature is positive (heating), chemistry is negative (mass
+// consumed), so the asserted positive sign holds only while temperature
+// dominates -- dlambdaOverDYmi below is tuned against that.
+// exactDifferential reads dlambdaOverDTs/dlambdaOverDYmi/
+// splitMassBetweenLamAndPor (default 0.0); setFieldsDict seeds the packed
+// bed, domain starts hot (Ts=800, T=850) so both terms are active from t=0.
 lambdaMode exactDifferential;
 
 // [m/K]. Same value as the Temperature fixture, so the two are comparable:
 // it measures as a mean lambdaDot of +1.70e-3 m/s over the 360 solid cells.
 dlambdaOverDTs 1e-6;
 
-// [m^4/kg]. Same value as the Chemistry fixture, where it was tuned by running:
-// about -4.3e-4 m/s, so the sum measures +1.3e-3 m/s -- negative contribution,
-// positive total, which is the sign this fixture asserts. Raising this much
-// above 1e-5 flips that sign; see the Chemistry fixture's dict for the scaling.
+// [m^4/kg]. Same value as Chemistry (tuned there to ~-4.3e-4 m/s), so the sum
+// measures +1.3e-3 m/s -- negative contribution, positive total, the sign
+// asserted here. Above ~1e-5 flips that sign.
 dlambdaOverDYmi 2.5e-6;
 
 splitMassBetweenLamAndPor 0.5;

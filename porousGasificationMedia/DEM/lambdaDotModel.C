@@ -94,10 +94,8 @@ lambdaDotModel::lambdaDotModel
     }
 
     // Same pattern for lambda, on its own keys so a case can smooth lambda
-    // and Us independently. lambdaBackgroundValue is read here rather than
-    // inside the interpolation model because the non-interpolating branch of
-    // updateParticleFields() needs it too, and that branch never constructs a
-    // model.
+    // and Us independently. Read here (not inside the interpolation model)
+    // because updateParticleFields()'s non-interpolating branch needs it too.
     interpolateLambda_ =
         lambdaDict.lookupOrDefault<Switch>("interpolateLambda", true);
 
@@ -123,12 +121,9 @@ lambdaDotModel::lambdaDotModel
 
 void lambdaDotModel::updateLambdaDot()
 {
-    // lambdaDot itself is assembled by volPyrolysis::solveSpeciesMass(), which
-    // owns the LambdaDotCalculationModel selected by lambdaMode in
-    // constant/lambdaDict (constant | exactDifferential). That runs inside
-    // pyrolysisZone.evolve(), i.e. after this call in the solver loop, so the
-    // value gated and pushed to the particles here is the one assembled by the
-    // previous time step.
+    // lambdaDot is assembled by volPyrolysis::solveSpeciesMass() (via
+    // pyrolysisZone.evolve(), which runs after this call each time step), so
+    // the value gated and pushed to particles here is last step's value.
     //
     // lambdaDot drives deformation of the DEM solid skeleton and must not
     // remain active in cells outside the mechanically active solid region.
@@ -195,10 +190,9 @@ void lambdaDotModel::updateParticleFields()
         }
     }
 
-    // average velocity and length scale in cells containing sphere(s).
-    // Empty cells are left at zero: both are raw accumulators, meaningless
-    // where no particle contributed. The continuous fields built from them
-    // (Us_, lambda_) are what carry a defined value everywhere.
+    // Average velocity/length scale in occupied cells; empty cells stay
+    // zero -- both are raw accumulators, meaningless with no particle
+    // contribution. Us_/lambda_ are what carry a defined value everywhere.
     forAll(UsDEM_, cellI)
     {
         if (nParticles_[cellI] > 0.5)
@@ -248,10 +242,8 @@ void lambdaDotModel::updateParticleFields()
         Us_.correctBoundaryConditions();
     }
 
-    // Same for lambda: either smooth lambdaDEM over the solid region, or take
-    // it raw with the non-solid cells held at the background value. lambda is
-    // diagnostic output in PGF — no equation reads it — so this only affects
-    // what gets written.
+    // Same for lambda: smooth lambdaDEM, or take it raw with non-solid cells
+    // at the background value. Diagnostic output only -- no equation reads it.
     if (interpolateLambda_)
     {
         lambdaInterpolationModel_->interpolate();

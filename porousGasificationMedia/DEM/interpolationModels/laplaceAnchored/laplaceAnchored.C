@@ -1,15 +1,10 @@
 /*
- * Anchored Laplacian interpolation model, generic over the field Type
- * (vector for the solid velocity Us, scalar for the DEM particle length
- * scale lambda).
- *
- * Occupied cells (containing a DEM particle) are strongly anchored to their
- * raw DEM value, cells outside the solid region are strongly anchored to the
- * background value (vector::zero for Us, lambdaBackgroundValue for lambda —
- * 0 is not a neutral particle size), and solid cells without particles are
- * only weakly anchored so the Laplacian term can carry the value into them
- * from their solid neighbours. After the solve, occupied and non-solid cells
- * are reset exactly to their anchor values.
+ * Anchored Laplacian interpolation model, generic over Type (vector for Us,
+ * scalar for lambda). Occupied cells are strongly anchored to their raw DEM
+ * value, non-solid cells to the background value (lambdaBackgroundValue for
+ * lambda -- 0 is not a neutral particle size), and empty solid cells only
+ * weakly, so the Laplacian carries the value in from solid neighbours.
+ * Occupied/non-solid cells are reset exactly to their anchor after solving.
  */
 
 #include "laplaceAnchored.H"
@@ -20,11 +15,10 @@
 namespace Foam
 {
 
-// Per-field dictionary key names for the anchor-coefficient controls. Kept
-// distinct rather than templated away: committed case dictionaries
-// (tutorials/cases/simple_line_case, case_line_interpolation) already set
-// demVelocityAnchorCoeff / backgroundUsAnchorCoeff / nUsInterpolationCorrectors
-// under exactly these names in Us's own lambdaDict sub-block.
+// Per-field anchor-coefficient key names. Kept distinct rather than
+// templated away: committed cases already set demVelocityAnchorCoeff /
+// backgroundUsAnchorCoeff / nUsInterpolationCorrectors under these exact
+// names in Us's lambdaDict block.
 template<class Type>
 struct laplaceAnchoredKeys;
 
@@ -68,9 +62,8 @@ LaplaceAnchoredInterpolation<Type>::LaplaceAnchoredInterpolation
         backgroundValue
     ),
 
-    // Constraint strength holding occupied cells close to their raw DEM
-    // value. Larger: occupied cells follow the DEM value more strictly.
-    // Smaller: occupied-cell value is smoothed more by neighbours.
+    // Constraint strength holding occupied cells to their raw DEM value --
+    // larger follows it more strictly, smaller lets neighbours smooth it more.
     demAnchorCoeff_
     (
         dict.lookupOrDefault<scalar>
@@ -79,10 +72,9 @@ LaplaceAnchoredInterpolation<Type>::LaplaceAnchoredInterpolation
         )
     ),
 
-    // Small regularization for empty solid cells so the interpolation
-    // equation stays well posed. Larger: empty solid cells are pulled harder
-    // toward the background. Smaller: the value spreads more freely from the
-    // occupied cells.
+    // Small regularization keeping empty solid cells well posed -- larger
+    // pulls them harder toward background, smaller spreads occupied values
+    // more freely.
     backgroundAnchorCoeff_
     (
         dict.lookupOrDefault<scalar>

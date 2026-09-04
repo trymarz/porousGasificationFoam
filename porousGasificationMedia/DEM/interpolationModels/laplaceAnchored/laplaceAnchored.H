@@ -6,12 +6,11 @@
 namespace Foam
 {
 
-// Anchored Laplacian interpolation: occupied cells and non-solid cells are
-// strongly anchored to their known/background value, solid cells without
-// particles are weakly anchored while receiving the value from neighbours
-// through the Laplacian term. Templated over Type so the one algorithm
-// serves both the vector solid velocity (Us) and the scalar DEM particle
-// length scale (lambda) — see InterpolationModel.H.
+// Anchored Laplacian interpolation: occupied and non-solid cells are
+// strongly anchored to their known/background value; empty solid cells are
+// weakly anchored, receiving their value from neighbours via the Laplacian
+// term. Templated over Type to serve both Us (vector) and lambda (scalar)
+// -- see InterpolationModel.H.
 template<class Type>
 class LaplaceAnchoredInterpolation
 :

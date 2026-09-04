@@ -11,10 +11,9 @@ constantLambdaDot::constantLambdaDot
 )
 :
     LambdaDotCalculationModel(dict, mesh, lambdaDot),
-    // lambdaValue is read as a bare scalar (the dict writes it without
-    // dimensions) and wrapped in [m/s] here -- a bare scalar assigned
-    // straight to lambdaDot_ would implicitly construct a dimensionless
-    // dimensioned<scalar> and abort on the dimension check.
+    // lambdaValue is read as a bare scalar (dict has no dimensions) and
+    // wrapped in [m/s]: assigned bare, it would construct a dimensionless
+    // dimensionedScalar and abort lambdaDot_'s dimension check.
     lambdaValue_
     (
         dimensionedScalar

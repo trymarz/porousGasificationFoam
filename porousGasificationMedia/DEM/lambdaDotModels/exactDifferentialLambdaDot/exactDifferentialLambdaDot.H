@@ -7,41 +7,34 @@
 namespace Foam
 {
 
-// Exact-differential lambda/porosity split. lambdaDot is the total derivative
-// of the DEM particle length scale lambda [m] with respect to the two state
-// variables it is taken to depend on — the solid temperature Ts and the solid
-// specie mass concentrations Ym_i:
+// Exact-differential lambda/porosity split. lambdaDot is the total
+// derivative of the DEM particle length scale lambda [m] w.r.t. the solid
+// temperature Ts and specie mass concentrations Ym_i:
 //
 //   dlambda/dt = (dlambda/dTs)*(dTs/dt)
 //              + splitMassBetweenLamAndPor
-//                * sum_i[ (dlambda/dYm_i)*(dYm_i/dt) ]
+//                * sum_i[ (dlambda/dYm_i)*(dYm_i/dt) ],   dYm_i/dt = sRhoSi
 //
-//   dYm_i/dt = RRs(i) = sRhoSi   [kg/m^3/s]
+// Both partials are free coefficients from constant/lambdaDict (a
+// calibration input, not a geometric assumption):
 //
-// Both partial derivatives are free coefficients read from
-// constant/lambdaDict, so the split is a calibration input rather than a
-// geometric assumption:
+//   dlambdaOverDTs   [m/K]     scalar
+//   dlambdaOverDYmi  [m^4/kg]  scalar, or a per-specie subdict
 //
-//   dlambdaOverDTs   [m/K]         scalar
-//   dlambdaOverDYmi  [m^4/kg]      scalar, or a subdict of per-specie scalars
+// dlambdaOverDYmi carries dimLength/dimDensity: [m]/[kg/m^3] = [m^4/kg], and
+// [m^4/kg]*[kg/m^3/s] = [m/s] = lambdaDot's dimensions.
 //
-// dlambdaOverDYmi carries dimLength/dimDensity because sRhoSi is a density
-// rate: [m]/([kg/m^3]) = [m^4/kg], and [m^4/kg]*[kg/m^3/s] = [m/s] = the
-// dimensions of lambdaDot.
+// splitMassBetweenLamAndPor [-] scales only the chemistry sum -- that
+// fraction of the mass change becomes particle shrinkage, volPyrolysis feeds
+// the rest into porosity, and the mass change itself is never scaled (Ym
+// transport still consumes the full sRhoSi), so the two consumers stay
+// consistent.
 //
-// splitMassBetweenLamAndPor [-] scales only the chemistry sum: that fraction
-// of the chemistry mass change is taken as particle shrinkage, and
-// volPyrolysis feeds the remaining (1 - splitMassBetweenLamAndPor) share into
-// its porosity source, so the two consumers of one mass change stay
-// consistent. The mass change itself is never scaled — the Ym transport in
-// volPyrolysis consumes the full, unmodified sRhoSi.
-//
-// The temperature-driven part is set once per step by
-// calculateTemperatureDriven(); the chemistry-driven part is accumulated per
-// solid specie by calculateChemistryDriven() inside volPyrolysis's species
-// loop. Every coefficient defaults to 0.0, so an unconfigured case gives
-// lambdaDot = 0 exactly and all chemistry mass loss becomes porosity — the
-// pre-feature behaviour, and the reason no separate "off" mode exists.
+// calculateTemperatureDriven() sets the temperature term once per step;
+// calculateChemistryDriven() accumulates the chemistry term per specie.
+// Every coefficient defaults to 0.0, so an unconfigured case reduces to the
+// pre-feature behaviour (lambdaDot = 0, all mass to porosity) -- why there
+// is no separate "off" mode.
 class exactDifferentialLambdaDot
 :
     public LambdaDotCalculationModel

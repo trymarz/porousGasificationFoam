@@ -40,10 +40,8 @@ SourceFiles
 #include "porousThermoSolidChemistryModel.H"
 
 #ifdef WITH_YADE
-    // DEM lambdaDot strategy models live in the DEM library
-    // (liblambdaDotModel, which links YADE). They are only linked into the
-    // pyrolysis library in a WITH_YADE build; the non-YADE build never
-    // references them.
+    // lambdaDot strategy models live in liblambdaDotModel (links YADE);
+    // only referenced by the pyrolysis library in a WITH_YADE build.
     #include "LambdaDotCalculationModel.H"
 #endif
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
@@ -219,34 +217,27 @@ protected:
 
     // DEM (YADE) coupling — lambda/porosity exact-differential split
 
-        //- True when DEM coupling is active for this case: the
-        //  yadeProperties dictionary has active=true AND the solver
-        //  registered the DEM fields lambdaDot/lambda. Resolved once at
-        //  construction. DEM *support* is compiled in only with WITH_YADE
-        //  (the lamDotCalc_ model below and its library are gated on it);
-        //  within a WITH_YADE build this flag is the runtime switch, since a
-        //  YADE-built solver can still run a non-DEM case. Kept
-        //  unconditional (and always false without WITH_YADE) so the shared
-        //  code paths need no extra guarding.
+        //- True when DEM coupling is active for this case (yadeProperties
+        //  active=true and lambdaDot/lambda registered), resolved once at
+        //  construction. Kept unconditional (always false without
+        //  WITH_YADE) so shared code paths need no extra guarding -- a
+        //  WITH_YADE build can still run a non-DEM case.
         bool demActive_;
 
-        //- Rate of change of the DEM particle characteristic length
-        //  scale [m/s], registered by the solver (createDEMFields.H).
-        //  Computed here in solveSpeciesMass(), pushed onto the YADE
-        //  particles by lambdaDotModel. Null when !demActive_.
+        //- Rate of change of the DEM particle length scale [m/s]
+        //  (createDEMFields.H). Computed in solveSpeciesMass(), pushed to
+        //  YADE particles by lambdaDotModel. Null when !demActive_.
         volScalarField* lambdaDotPtr_;
 
-        //- DEM particle length scale [m]. Owned and integrated by YADE
-        //  (State::lambda_) and populated on the mesh by lambdaDotModel's
-        //  lambda interpolation, not by this class — held here only to log its
-        //  min/max next to lambdaDot's. Null when !demActive_.
+        //- DEM particle length scale [m]. Owned/integrated by YADE
+        //  (State::lambda_), populated by lambdaDotModel's interpolation --
+        //  held here only to log alongside lambdaDot. Null when !demActive_.
         volScalarField* lambdaPtr_;
 
 #ifdef WITH_YADE
         //- lambdaDot calculation strategy, selected by lambdaMode in
-        //  constant/lambdaDict. Owns the temperature- and chemistry-driven
-        //  contributions to lambdaDot. Only created when demActive_. Present
-        //  only in a WITH_YADE build.
+        //  constant/lambdaDict; owns lambdaDot's temperature/chemistry
+        //  contributions. Created only when demActive_.
         autoPtr<LambdaDotCalculationModel> lamDotCalc_;
 #endif
 

@@ -7,17 +7,12 @@ FoamFile
     object      lambdaDict;
 }
 
-// Regression fixture: temperature-driven term only. splitMassBetweenLamAndPor
-// 0 switches the chemistry sum off, so the whole chemistry mass change goes to
-// porosity. Isolates the dt-dimension bug fixed in
-// exactDifferentialLambdaDot.C: a bare scalar dt silently left lambdaDot at
-// [m] instead of [m/s].
-// Valid modes: constant, exactDifferential. exactDifferential reads
-// dlambdaOverDTs [m/K], dlambdaOverDYmi [m^4/kg] (a scalar, or a per-specie
-// subdict) and splitMassBetweenLamAndPor [-], all defaulting to 0.0.
-// setFieldsDict seeds the packed-bed box with porosityF < criticalPorosity;
-// 0.orig/Ts and 0.orig/T start the whole domain hot (Ts=800, T=850) so both
-// the temperature gradient and the pyrolysis chemistry are active from t=0.
+// Regression fixture: temperature-driven term only (splitMassBetweenLamAndPor
+// 0 sends all chemistry mass to porosity). Isolates the dt-dimension bug (a
+// bare scalar dt silently left lambdaDot at [m] instead of [m/s]).
+// exactDifferential reads dlambdaOverDTs/dlambdaOverDYmi/
+// splitMassBetweenLamAndPor (default 0.0); setFieldsDict seeds the packed
+// bed, domain starts hot (Ts=800, T=850) so both terms are active from t=0.
 lambdaMode exactDifferential;
 
 dlambdaOverDTs 1e-6;

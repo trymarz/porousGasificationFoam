@@ -7,11 +7,9 @@ namespace Foam
 {
 
 // Hard set-values Laplacian interpolation: cells holding particles and cells
-// outside the solid region are imposed as hard constraints on the Laplace
-// matrix via setValues(), and the solve fills the solid cells in between.
-// Templated over Type so the one algorithm serves both the vector solid
-// velocity (Us) and the scalar DEM particle length scale (lambda) — see
-// InterpolationModel.H.
+// outside the solid region are hard-pinned via setValues(); the solve fills
+// the gaps between them. Templated over Type to serve both Us (vector) and
+// lambda (scalar) -- see InterpolationModel.H.
 template<class Type>
 class LaplaceSetValuesInterpolation
 :

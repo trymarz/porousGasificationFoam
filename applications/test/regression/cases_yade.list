@@ -11,43 +11,28 @@
 tutorials/cases/MicroTGA-DEM_Us_UsInterp
 
 # lambdaMode exactDifferential fixtures: each starts the packed bed hot
-# (Ts=800 K solid, T=850 K gas, so both heat transfer and pyrolysis chemistry
-# are active within the fixture's short 2 ms run) and asserts the sign of
-# lambdaDot over solid cells (porosityF < criticalPorosity) via
-# applications/test/regression/tools/checkFieldSign.py, invoked from each
-# case's own Allrun. ...Off is the "off" reduction: exactDifferential with
-# every coefficient at its 0.0 default, which must give lambdaDot = 0 exactly.
+# (Ts=800 K, T=850 K) so heat transfer and chemistry are both active, and
+# asserts lambdaDot's sign over solid cells via checkFieldSign.py (each
+# case's own Allrun). ...Off is the "off" reduction (every coefficient at
+# its 0.0 default).
 #
-# These four also exercise the reverse (YADE -> PGF) lambda channel, since
-# YADE integrates State::lambda_ from the lambdaDot they produce and PGF
-# interpolates it back into the lambda field. That path needs Foam-Yade and PGF
-# built from matching revisions -- the particle-data buffer stride is a
-# compile-time constant on both sides, with no MPI-level negotiation.
+# These four also exercise the reverse YADE->PGF lambda channel (YADE
+# integrates State::lambda_, PGF reads it back), which needs Foam-Yade and
+# PGF built from matching revisions (buffer stride is a compile-time
+# constant, no MPI negotiation).
 #
-# The signs asserted by ...Chemistry and ...Both are honest statements about
-# these fixtures' own dlambdaOverDYmi (2.5e-6, tuned so both terms stay
-# visible at fixture scale -- see each dict's own comment), not a physics
-# claim. A physically calibrated dlambdaOverDYmi is nearer 1e-3 m^4/kg (see
-# README's lambdaDict reference), which would swamp the temperature term at
-# this scale and flip ...Both's asserted positive sign.
+# ...Chemistry/...Both's dlambdaOverDYmi (2.5e-6) is tuned for fixture-scale
+# visibility, not physical -- a real value (~1e-3, see README) would swamp
+# the temperature term and flip ...Both's asserted sign.
 tutorials/cases/MicroTGA-DEM_lambdaDotOff
 tutorials/cases/MicroTGA-DEM_lambdaDotTemperature
 tutorials/cases/MicroTGA-DEM_lambdaDotChemistry
 tutorials/cases/MicroTGA-DEM_lambdaDotBoth
 
-# Same chemistry-driven-only setup as ...Chemistry (dlambdaOverDTs 0, negative
-# lambdaDot sign asserted the same way), but exercising three lambdaDict
-# configuration paths the four fixtures above never touch: a non-default
-# lambdaInterpolationMode (laplaceAnchored instead of the laplaceSetValues
-# default), a per-specie dlambdaOverDYmi subdict instead of one uniform
-# scalar, and a non-default lambdaBackgroundValue. See the case's own
-# constant/lambdaDict for what each key does and why the two species it
-# gives a nonzero coefficient to (wood, char1) were picked over the other two
-# (char, hum). A fourth untested path, interpolateLambda false, is
-# deliberately not a committed fixture -- it is a diagnostic-only fallback
-# nobody is expected to select; it was instead exercised once as a throwaway
-# /scratch run, recorded in lambdaDot-yade-owned-lambda-followup-2026-09-02.md
-# Block B rather than checked in here.
+# Same chemistry-driven-only setup as ...Chemistry, exercising paths the
+# four fixtures above never touch: laplaceAnchored interpolation, a
+# per-specie dlambdaOverDYmi subdict, and a non-default lambdaBackgroundValue
+# -- see the case's own constant/lambdaDict for details.
 tutorials/cases/MicroTGA-DEM_lambdaDotAltInterp
 
 # tutorials/cases/simple_line_case is NOT listed yet. It builds, meshes and

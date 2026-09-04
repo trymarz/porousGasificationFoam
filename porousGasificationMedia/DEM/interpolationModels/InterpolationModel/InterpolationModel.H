@@ -9,21 +9,13 @@
 namespace Foam
 {
 
-// Strategy interface for smoothing a raw per-cell DEM field (e.g. UsDEM,
-// lambdaDEM) into a continuous mesh field (Us, lambda) in the solid cells
-// that hold no particles. Templated on the field Type (vector for Us,
-// scalar for lambda) so the one algorithm is implemented once instead of
-// once per field; replaces the former UsInterpolationModel and
-// LambdaInterpolationModel, which duplicated this base for each field.
-//
-// Two points that differ per field are constructor/factory arguments rather
-// than template specialisations:
-//   * the background value held by cells outside the solid region (zero for
-//     Us, lambdaBackgroundValue for lambda — 0 is not a neutral particle
-//     size);
-//   * the dictionary key New() dispatches on (interpolationMode for Us,
-//     lambdaInterpolationMode for lambda), so a case can smooth the two
-//     fields differently within one lambdaDict.
+// Strategy interface for smoothing a raw per-cell DEM field (UsDEM,
+// lambdaDEM) into a continuous mesh field (Us, lambda) in solid cells with
+// no particles. Templated on Type (vector/scalar) so one algorithm serves
+// both fields instead of the former duplicated UsInterpolationModel/
+// LambdaInterpolationModel. Per-field differences (the background value;
+// New()'s dispatch key) are constructor/factory arguments, not template
+// specialisations, so a case can smooth Us and lambda differently.
 template<class Type>
 class InterpolationModel
 {
@@ -34,21 +26,16 @@ protected:
     const volScalarField& nParticles_;
     const volScalarField& porosityF_;
 
-    //- Porosity at or above which a cell holds too little solid to carry the
-    //  DEM skeleton. Read from pyrolysisProperties' criticalPorosity, shared
-    //  with lambdaDotModel so both interpolation models agree with it on
-    //  where the solid region ends.
+    //- Porosity at/above which a cell can't carry the DEM skeleton; read
+    //  from pyrolysisProperties' criticalPorosity, shared with lambdaDotModel.
     scalar solidPorosityCutoff_;
 
     //- Value held by cells outside the solid region.
     Type backgroundValue_;
 
-    //- Linear-solver controls for the interpolation solve under solverName.
-    //  Returns the case's system/fvSolution entry when it has one, otherwise
-    //  an in-code default, so interpolation is an internal smoothing step
-    //  rather than a physics equation and must not make a case fail to run
-    //  for want of an fvSolution key it never needed before — while still
-    //  being tunable by adding one.
+    //- Linear-solver controls for the interpolation solve: the case's
+    //  fvSolution entry if present, else an in-code default -- so this
+    //  internal smoothing step never requires a new fvSolution key.
     dictionary solverControls(const word& solverName) const;
 
 public:

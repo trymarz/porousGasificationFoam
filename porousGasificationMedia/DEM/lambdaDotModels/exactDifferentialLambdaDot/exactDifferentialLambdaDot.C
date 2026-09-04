@@ -11,12 +11,9 @@ exactDifferentialLambdaDot::exactDifferentialLambdaDot
 )
 :
     LambdaDotCalculationModel(dict, mesh, lambdaDot),
-    // Coefficients are read from the selecting dictionary
-    // (constant/lambdaDict). All of them default to 0.0 when absent, so a case
-    // that carries none of the keys gives lambdaDot = 0 and leaves the whole
-    // chemistry mass change in the porosity source. They are read as bare
-    // scalars (the dicts write them without dimensions) and wrapped in their
-    // physical units where they are used.
+    // Coefficients default to 0.0 when absent (unconfigured -> lambdaDot = 0,
+    // all mass to porosity). Read as bare scalars (dicts have no dimensions)
+    // and wrapped in their physical units here.
     dlambdaOverDTs_
     (
         dimensionedScalar
@@ -122,10 +119,9 @@ void exactDifferentialLambdaDot::calculateTemperatureDriven()
 
     const dimensionedScalar dt("dt", dimTime, max(lambdaDeltaT_, VSMALL));
 
-    // Field algebra: dlambdaOverDTs [m/K] * (Ts - TsOld)/dt [K/s] = [m/s].
-    // dt must carry dimTime, not a bare scalar, or the division leaves
-    // lambdaDot_ with dims [m] instead of [m/s] and this assignment aborts
-    // with a dimensionSet mismatch.
+    // dlambdaOverDTs [m/K] * (Ts - TsOld)/dt [K/s] = [m/s]. dt must carry
+    // dimTime, not a bare scalar, or lambdaDot_ ends up [m] and this
+    // assignment aborts on a dimensionSet mismatch.
     lambdaDot_ = dlambdaOverDTs_*(TsField - TsForLambdaOld_)/dt;
 
     // Store current Ts for the next call.
@@ -140,15 +136,11 @@ void exactDifferentialLambdaDot::calculateChemistryDriven
     const word& specieName
 )
 {
-    // One term of the chemistry sum: splitMassBetweenLamAndPor *
-    // (dlambda/dYm_i) * (dYm_i/dt), with dYm_i/dt = sRhoSi. Linear in sRhoSi
-    // and independent of rho, lambda and the cell volume, so it is plain
-    // field algebra rather than the cell-wise loop the earlier geometric form
-    // needed. Accumulates: calculateTemperatureDriven() already set the base
-    // value, and this is called once per solid specie.
-    //
-    // Sign: sRhoSi is negative while a specie is being consumed, so a positive
-    // dlambdaOverDYmi gives shrinkage (lambdaDot < 0).
+    // One term of splitMassBetweenLamAndPor * (dlambda/dYm_i) * sRhoSi,
+    // accumulated per specie onto the base value calculateTemperatureDriven()
+    // already set. Linear in sRhoSi and independent of rho/lambda/cell
+    // volume, so plain field algebra suffices (no cell-wise loop). Sign:
+    // sRhoSi < 0 while consuming, so a positive coefficient gives shrinkage.
     const dimensionedScalar dlambdaOverDYmi_i
     (
         "dlambdaOverDYmi(" + specieName + ')',
