@@ -16,4 +16,5 @@ compile_commands.json
 *.foam
 simulation_logs
 dtInfo.txt
+lambdaUsHistory.txt
 run.log

@@ -14,6 +14,9 @@ checked fields share the same decomposition), and checks:
     to be exactly 0.0, not just a small mean -- the code paths this guards
     produce a hard zero, not a cancellation).
 
+--threshold defaults to 0.9999, the criticalPorosity these fixtures set in
+constant/pyrolysisProperties; pass it explicitly for a case that differs.
+
 Usage:
   checkFieldSign.py <caseDir> [--mask FIELD] [--threshold VALUE]
                     [--dims FIELD=d0 d1 d2 d3 d4 d5 d6]...
@@ -116,6 +119,17 @@ def main():
 
     dims_checks = dict(parse_field_arg(s) for s in args.dims)
     sign_checks = dict(parse_field_arg(s) for s in args.sign)
+
+    # Reject an unrecognised sign rather than silently asserting nothing:
+    # neither branch below would match it and the case would pass unchecked.
+    bad = {f: s for f, s in sign_checks.items()
+           if s not in ("positive", "negative", "zero")}
+    if bad:
+        for field, sign in bad.items():
+            print(f"ERROR: --sign {field}={sign}: expected one of "
+                  "positive, negative, zero", file=sys.stderr)
+        return 2
+
     needed_fields = set(dims_checks) | set(sign_checks) | {args.mask}
 
     dims_seen = {f: set() for f in dims_checks}

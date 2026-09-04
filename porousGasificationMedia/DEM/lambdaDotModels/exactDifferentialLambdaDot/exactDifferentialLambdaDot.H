@@ -25,10 +25,11 @@ namespace Foam
 // [m^4/kg]*[kg/m^3/s] = [m/s] = lambdaDot's dimensions.
 //
 // splitMassBetweenLamAndPor [-] scales only the chemistry sum -- that
-// fraction of the mass change becomes particle shrinkage, volPyrolysis feeds
-// the rest into porosity, and the mass change itself is never scaled (Ym
-// transport still consumes the full sRhoSi), so the two consumers stay
-// consistent.
+// fraction of the mass change is attributed to particle shrinkage,
+// volPyrolysis feeds the rest into porosity, and the mass change itself is
+// never scaled (Ym transport still consumes the full sRhoSi), so the two
+// consumers stay consistent. It splits the attribution, not a volume: how
+// much the particle actually shrinks is set by dlambdaOverDYmi alone.
 //
 // calculateTemperatureDriven() sets the temperature term once per step;
 // calculateChemistryDriven() accumulates the chemistry term per specie.

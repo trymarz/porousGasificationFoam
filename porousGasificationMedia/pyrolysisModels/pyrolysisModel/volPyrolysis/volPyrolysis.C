@@ -751,22 +751,21 @@ void volPyrolysis::solveSpeciesMass()
 
         deriveYiFromYm();
 
-        // (1 - massSplit) of the chemistry mass change becomes pore space;
-        // massSplit is the same chemistryMassSplit() coefficient just used
-        // for lambdaDot, so the split is conservative. massSplit is 0.0
-        // without DEM (or under lambdaMode constant), reducing this to the
-        // pre-split porositySource_ exactly. Now the only place
-        // porositySource_ is assigned -- solvePorosity() only consumes it.
+        // (1 - massSplit) of the chemistry mass change opens pore space; the
+        // remaining massSplit is instead accounted for by particle shrinkage,
+        // tracked in the DEM through lambdaDot's chemistry term. The two
+        // channels share the one coefficient, but nothing enforces a volume
+        // balance between them: dlambdaOverDYmi is an independent calibration
+        // input, so this is a modelling attribution, not a conservation law.
+        // massSplit is 0.0 without DEM (or under lambdaMode constant),
+        // reducing this to the pre-split porositySource_ exactly. Now the only
+        // place porositySource_ is assigned -- solvePorosity() only consumes it.
         scalar massSplit = 0.0;
 #ifdef WITH_YADE
         if (demActive_)
         {
             lambdaDotPtr_->correctBoundaryConditions();
             massSplit = lamDotCalc_->chemistryMassSplit();
-
-            // lambda is reported, not computed, here: YADE integrates it and
-            // lambdaDotModel interpolates it back onto the mesh, one solver
-            // step ahead of this call.
         }
 #endif
 
@@ -1246,7 +1245,6 @@ volPyrolysis::volPyrolysis
     ),
     demActive_(false),
     lambdaDotPtr_(nullptr),
-    lambdaPtr_(nullptr),
     lostSolidMass_(dimensionedScalar("zero", dimMass, 0.0)),
     addedGasMass_(dimensionedScalar("zero", dimMass, 0.0)),
     totalGasMassFlux_(dimensionedScalar("zero", dimMass/dimTime, 0.0)),
@@ -1501,8 +1499,6 @@ volPyrolysis::volPyrolysis
         {
             lambdaDotPtr_ =
                 &mesh_.lookupObjectRef<volScalarField>("lambdaDot");
-            lambdaPtr_ =
-                &mesh_.lookupObjectRef<volScalarField>("lambda");
 
 #ifdef WITH_YADE
             // Select the lambdaDot model from lambdaMode in

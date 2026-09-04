@@ -54,10 +54,13 @@ public:
     )
     {}
 
-    //- Fraction of the chemistry mass change redirected to lambda (the rest
-    //  becomes pore space); volPyrolysis reduces porositySource_ by this
-    //  same fraction, keeping the split conservative. Default 0 (all mass
-    //  to porosity); only exactDifferentialLambdaDot overrides it.
+    //- Fraction of the chemistry mass change attributed to particle
+    //  shrinkage rather than to pore opening; volPyrolysis reduces
+    //  porositySource_ by this same fraction. It splits the attribution
+    //  only: the shrinkage magnitude comes from dlambdaOverDYmi, an
+    //  independent coefficient, so no volume balance is enforced between the
+    //  two channels. Default 0 (all mass to porosity); only
+    //  exactDifferentialLambdaDot overrides it.
     virtual scalar chemistryMassSplit() const
     {
         return 0.0;

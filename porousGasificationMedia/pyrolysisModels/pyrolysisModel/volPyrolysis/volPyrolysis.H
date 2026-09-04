@@ -229,11 +229,6 @@ protected:
         //  YADE particles by lambdaDotModel. Null when !demActive_.
         volScalarField* lambdaDotPtr_;
 
-        //- DEM particle length scale [m]. Owned/integrated by YADE
-        //  (State::lambda_), populated by lambdaDotModel's interpolation --
-        //  held here only to log alongside lambdaDot. Null when !demActive_.
-        volScalarField* lambdaPtr_;
-
 #ifdef WITH_YADE
         //- lambdaDot calculation strategy, selected by lambdaMode in
         //  constant/lambdaDict; owns lambdaDot's temperature/chemistry

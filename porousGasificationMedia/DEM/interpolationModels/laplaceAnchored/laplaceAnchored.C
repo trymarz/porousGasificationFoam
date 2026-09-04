@@ -72,9 +72,11 @@ LaplaceAnchoredInterpolation<Type>::LaplaceAnchoredInterpolation
         )
     ),
 
-    // Small regularization keeping empty solid cells well posed -- larger
-    // pulls them harder toward background, smaller spreads occupied values
-    // more freely.
+    // Small regularization keeping empty solid cells well posed. Their anchor
+    // source is the raw DEM field, which is zero where no particle sits, so
+    // this pulls them toward zero -- not toward backgroundValue_, which only
+    // non-solid cells hold. Larger pulls harder, smaller spreads occupied
+    // values more freely; at the 1e-12 default the Laplacian dominates.
     backgroundAnchorCoeff_
     (
         dict.lookupOrDefault<scalar>

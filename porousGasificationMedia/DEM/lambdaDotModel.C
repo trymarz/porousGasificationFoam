@@ -1,10 +1,6 @@
 #include "lambdaDotModel.H"
 #include "InterpolationModel.H"
 #include "IOdictionary.H"
-#include "PstreamReduceOps.H"
-#include "OSspecific.H"
-
-#include <fstream>
 
 namespace Foam
 {
