@@ -22,6 +22,12 @@ tutorials/cases/MicroTGA-DEM_Us_UsInterp
 # ...Chemistry/...Both use dlambdaOverDYmi 2.5e-6, tuned for fixture-scale
 # visibility rather than physical accuracy. A realistic ~1e-3 (see README)
 # would swamp the temperature term and flip ...Both's asserted sign.
+#
+# The coupled solve is not bit-reproducible: two runs of one build differ in
+# the last few digits of the lambda metrics, well inside the comparator's
+# rtol. Issue #85 covers this for ...AltInterp, where the ill-conditioned
+# laplaceAnchored solve drifts far enough that its lambdaAverage/lambdaMin
+# baselines are dropped; the other fixtures keep theirs.
 tutorials/cases/MicroTGA-DEM_lambdaDotOff
 tutorials/cases/MicroTGA-DEM_lambdaDotTemperature
 tutorials/cases/MicroTGA-DEM_lambdaDotChemistry

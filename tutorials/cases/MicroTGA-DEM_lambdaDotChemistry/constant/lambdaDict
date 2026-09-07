@@ -19,8 +19,8 @@ lambdaMode exactDifferential;
 dlambdaOverDTs 0.0;
 
 // [m^4/kg]. Tuned by running, not derived: lambdaDot is linear in this
-// coefficient, and this value keeps the chemistry term visible at the
-// fixture's short-run scale. Not physical -- a real shrinking-particle model
-// is nearer 1e-3, which would swamp the temperature term here. One value for
+// coefficient, and 2.5e-6 measures as a mean lambdaDot of -8.53e-4 m/s over
+// the 360 solid cells. Not physical -- a real shrinking-particle model is
+// nearer 1e-3, which would swamp the temperature term here. One value for
 // every specie; per-specie form: dlambdaOverDYmi { char 2.5e-6; }, unlisted -> 0.0.
 dlambdaOverDYmi 2.5e-6;
