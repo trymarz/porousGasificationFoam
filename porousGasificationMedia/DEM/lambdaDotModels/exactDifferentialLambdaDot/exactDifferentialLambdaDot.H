@@ -24,10 +24,16 @@ namespace Foam
 // dlambdaOverDYmi is dimLength/dimDensity, so
 // [m^4/kg]*[kg/m^3/s] = [m/s] = lambdaDot.
 //
-// splitMassBetweenLamAndPor scales only the chemistry sum; volPyrolysis
-// feeds the remaining fraction into porosity. It splits the attribution, not
-// a volume -- the shrinkage magnitude is dlambdaOverDYmi's alone -- and never
-// scales the mass change itself, which Ym transport consumes in full.
+// splitMassBetweenLamAndPor scales this chemistry sum, and volPyrolysis
+// withholds that same fraction from the porosity source it would otherwise
+// assign the unsplit rate -- one coefficient, read in both places, splitting
+// one mass-loss rate between the two channels. It never touches the mass
+// change itself, which Ym transport consumes in full regardless; only how
+// that rate counts afterwards -- toward shrinkage or toward pore-opening --
+// is split. The resulting shrinkage magnitude also depends on
+// dlambdaOverDYmi, an independently calibrated conversion, so there is no
+// volume-conservation law tying the particle-volume change to the pore
+// volume withheld -- only the rate split itself is exact.
 //
 // calculateTemperatureDriven() sets the temperature term once per step;
 // calculateChemistryDriven() accumulates the chemistry term per specie.

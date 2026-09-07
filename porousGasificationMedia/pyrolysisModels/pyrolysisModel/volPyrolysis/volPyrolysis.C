@@ -748,14 +748,18 @@ void volPyrolysis::solveSpeciesMass()
 
         deriveYiFromYm();
 
-        // (1 - massSplit) of the chemistry mass change opens pore space;
-        // massSplit is instead accounted for by particle shrinkage, tracked
-        // in the DEM through lambdaDot's chemistry term. Nothing enforces a
-        // volume balance between the two channels -- dlambdaOverDYmi is an
-        // independent calibration input -- so this is an attribution, not a
-        // conservation law. massSplit is 0.0 without DEM and under lambdaMode
-        // constant. The only place porositySource_ is assigned;
-        // solvePorosity() consumes it.
+        // (1 - massSplit) of the chemistry mass-loss rate opens pore space,
+        // as on main when massSplit is 0; the remaining massSplit fraction
+        // of that same rate instead drives lambdaDot's chemistry term above
+        // (scaled further by dlambdaOverDYmi into an actual shrinkage rate).
+        // The split itself is exact -- both lines read the one massSplit
+        // value -- but the resulting shrinkage magnitude is not:
+        // dlambdaOverDYmi is an independent calibration input, so nothing
+        // ties the particle-volume change it produces to the pore volume
+        // the split withholds; the two are related by the split fraction,
+        // not by a volume-conservation law. massSplit is 0.0 without DEM
+        // and under lambdaMode constant. The only place porositySource_ is
+        // assigned; solvePorosity() consumes it.
         scalar massSplit = 0.0;
 #ifdef WITH_YADE
         if (demActive_)
