@@ -12,14 +12,12 @@ lambdaMode constant; // constant or exactDifferential
 lambdaValue 0.5;
 
 
-// exactDifferential mode only; all default to 0.0 when absent:
+// exactDifferential mode only; both default to 0.0 when absent, and either
+// sign is allowed:
 // dlambdaOverDTs 0.0;             // [m/K]     dlambda/dTs
 // dlambdaOverDYmi 0.0;            // [m^4/kg]  dlambda/dYm_i, one value for
 //                                 //           every specie, or a subdict of
 //                                 //           per-specie values
-// splitMassBetweenLamAndPor 0.0;  // [-]       chemistry mass-change share
-//                                 //           taken as particle shrinkage
-//                                 //           instead of pore space
 
 
 interpolateUs true; // true: interpolate UsDEM into a continuous Us field inside solid cells. false: use only raw UsDEM, so cells without sphere centers keep Us = 0.

@@ -11,9 +11,9 @@ FoamFile
 // MicroTGA-DEM_lambdaDotChemistry, but exercising the paths that fixture
 // leaves untouched -- laplaceAnchored interpolation, a per-specie
 // dlambdaOverDYmi subdict, and a non-default lambdaBackgroundValue.
-// exactDifferential reads dlambdaOverDTs/dlambdaOverDYmi/
-// splitMassBetweenLamAndPor (default 0.0); setFieldsDict seeds the packed
-// bed, domain starts hot (Ts=800, T=850) so both terms are active from t=0.
+// exactDifferential reads dlambdaOverDTs/dlambdaOverDYmi (default 0.0);
+// setFieldsDict seeds the packed bed, domain starts hot (Ts=800, T=850) so
+// both terms are active from t=0.
 lambdaMode exactDifferential;
 
 dlambdaOverDTs 0.0;
@@ -29,8 +29,6 @@ dlambdaOverDYmi
     wood  2.5e-6;
     char1 2.5e-6;
 }
-
-splitMassBetweenLamAndPor 0.5;
 
 // Alternate interpolation strategy (the other four fixtures use the
 // laplaceSetValues default) -- see laplaceAnchored.C. Falls back to Us's

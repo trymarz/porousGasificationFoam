@@ -16,23 +16,19 @@ lambdaMode exactDifferential; // constant or exactDifferential
 // lambdaDot = lambdaValue
 //exactDifferential:
 // lambdaDot  = dlambdaOverDTs*(Ts_now - Ts_old)/deltaT
-// lambdaDot += splitMassBetweenLamAndPor
-//              * sum_i( dlambdaOverDYmi_i * sRhoS_i ),
-//              over the solid species; the remaining
-//              (1 - splitMassBetweenLamAndPor) share of the chemistry mass
-//              change becomes pore space instead.
+// lambdaDot += sum_i( dlambdaOverDYmi_i * sRhoS_i ), over the solid species.
+// The porosity source takes the full chemistry rate independently; lambda and
+// porosity are separate state variables, neither derived from the other.
 // Leaving every coefficient at its 0.0 default gives lambdaDot = 0, which is
 // why there is no separate "off" mode.
 
 
 //exactDifferential parameters
-// dlambdaOverDTs 0.001 reproduces the linear lambdaDot = 0.001*x this case
-// used under the removed dTsdt mode. splitMassBetweenLamAndPor 0 leaves the
-// whole chemistry mass change in the porosity source, as before, so
-// dlambdaOverDYmi has no effect here; it is spelled out to show the key.
+// dlambdaOverDTs 0.001 drives lambdaDot from the solid heating rate alone.
+// dlambdaOverDYmi 0 leaves the chemistry term inactive here; it is spelled
+// out to show the key.
 dlambdaOverDTs 0.001;               // [m/K]
 dlambdaOverDYmi 0.0;                // [m^4/kg], or a per-specie subdict
-splitMassBetweenLamAndPor 0;        // [-], in [0,1]
 
 
 interpolateUs true; // true: interpolate UsDEM into a continuous Us field inside solid cells. false: use only raw UsDEM, so cells without sphere centers keep Us = 0.

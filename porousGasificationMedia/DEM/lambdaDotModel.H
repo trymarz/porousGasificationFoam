@@ -52,7 +52,7 @@ public:
         volVectorField& Us, // interpolated sphere velocity
         volScalarField& lambdaDEM, // raw per-cell average of particle lambda
         volScalarField& lambda, // interpolated particle length scale
-        volScalarField& porosityF, // porosity field  get from the main solver
+        volScalarField& porosityF, // from the main solver
         FoamYade& yade
     );
 

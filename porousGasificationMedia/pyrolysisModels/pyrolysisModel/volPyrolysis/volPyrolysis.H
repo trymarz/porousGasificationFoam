@@ -214,7 +214,7 @@ protected:
         //  0/Us. The solid mass flux and porosity advection consume it.
         const volVectorField& Us_;
 
-    // DEM (YADE) coupling — lambda/porosity exact-differential split
+    // DEM (YADE) coupling — lambdaDot
 
         //- DEM coupling is active for this case: yadeProperties active=true
         //  and lambdaDot/lambda registered. Resolved once at construction,

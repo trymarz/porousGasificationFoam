@@ -353,16 +353,14 @@ lambdaMode      exactDifferential;  // constant | exactDifferential
 // -- lambdaMode constant
 lambdaValue     0.0;         // [m/s]  fixed lambdaDot everywhere
 
-// -- lambdaMode exactDifferential; every coefficient defaults to 0.0
+// -- lambdaMode exactDifferential; both coefficients default to 0.0 and may
+//    take either sign
 dlambdaOverDTs             1e-6;    // [m/K]     dlambda/dTs
 dlambdaOverDYmi            2.5e-6;  // [m^4/kg]  dlambda/dYm_i, one value for
                                     //           every solid specie...
 // dlambdaOverDYmi { char 2.5e-6; wood 1e-6; }  // ...or per specie, keyed by
                                     //           solidComponents name; species
                                     //           left out read 0.0
-splitMassBetweenLamAndPor  0.5;     // [-] in [0,1]: share of the chemistry
-                                    //     mass change taken as particle
-                                    //     shrinkage; the rest becomes pore space
 
 // -- Us interpolation (UsDEM -> Us), consumed by lambdaDotModel
 interpolateUs              true;
@@ -383,11 +381,11 @@ backgroundLambdaAnchorCoeff 1e-12;  // laplaceAnchored only
 nLambdaInterpolationCorrectors 1;   // laplaceAnchored only
 ```
 
-Leaving every `exactDifferential` coefficient at its `0.0` default gives `lambdaDot = 0` and sends the whole chemistry mass change to porosity — the behaviour before the feature existed, and the reason there is no separate "off" mode. For the governing equations and the dimension derivations, read the `Description` block at the top of `porousGasificationMedia/DEM/lambdaDotModels/exactDifferentialLambdaDot/exactDifferentialLambdaDot.H`.
+Leaving every `exactDifferential` coefficient at its `0.0` default gives `lambdaDot = 0` — the reason there is no separate "off" mode. Porosity is unaffected either way: it is by definition `1 - Vsolid/Vfvm`, so its source always takes the full chemistry mass-loss rate, independently of what `lambdaDot` does. For the governing equations and the dimension derivations, read the `Description` block at the top of `porousGasificationMedia/DEM/lambdaDotModels/exactDifferentialLambdaDot/exactDifferentialLambdaDot.H`.
 
 A physically defensible starting `dlambdaOverDYmi` for a real case is nearer `1e-3` [m⁴/kg] — the order of magnitude for a particle losing roughly a third of its length over full conversion of ~140 kg/m³ of solid. That is **not** what the values shown above or in the regression fixtures (`applications/test/regression/cases_yade.list`) use: those are tuned to keep both `exactDifferential` terms visible at the fixtures' short-run scale, ~400× smaller than this estimate, and a coefficient near `1e-3` would swamp the temperature term at that scale and flip the sign the `...Both` fixture asserts.
 
-Both interpolation solves look up their linear-solver controls under `system/fvSolution`'s `solvers` by the name of the field being smoothed — `Us` and `lambda` — and fall back to in-code controls (`smoothSolver`/`symGaussSeidel`, `tolerance 1e-6`, `relTol 0.01`) when the entry is absent. (Before this generalisation, `laplaceAnchored` solved under the separate name `UsDEMInterpolation`; that key is no longer consulted, though the committed cases match both names with one regex entry.) These are internal smoothing steps, so an existing case does not have to gain an `fvSolution` key to keep running.
+Both interpolation solves look up their linear-solver controls under `system/fvSolution`'s `solvers` by the name of the field being smoothed — `Us` and `lambda` — and fall back to in-code controls (`smoothSolver`/`symGaussSeidel`, `tolerance 1e-6`, `relTol 0.01`) when the entry is absent. The separate name `UsDEMInterpolation` is not consulted; the committed cases match both names with one regex entry. These are internal smoothing steps, so an existing case does not have to gain an `fvSolution` key to keep running.
 
 **Who owns what.** PGF owns the rate `lambdaDot`; YADE owns the integrated `lambda` (`State::lambda_`, advanced every DEM step in `NewtonIntegrator`) and sends it back through the particle-data buffer. PGF's `lambda` field is therefore derived output — nothing in the solver computes with it. The buffer stride is a compile-time constant on both sides with no MPI-level negotiation, so **Foam-Yade and PGF must be rebuilt together** whenever the coupling layout changes.
 

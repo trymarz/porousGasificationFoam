@@ -24,10 +24,6 @@ exactDifferentialLambdaDot::exactDifferentialLambdaDot
     dlambdaOverDYmiUniform_(true),
     dlambdaOverDYmiUniformValue_(0.0),
     dlambdaOverDYmiPerSpecie_(),
-    splitMassBetweenLamAndPor_
-    (
-        dict.lookupOrDefault<scalar>("splitMassBetweenLamAndPor", 0.0)
-    ),
     TsForLambdaOld_
     (
         IOobject
@@ -63,7 +59,6 @@ exactDifferentialLambdaDot::exactDifferentialLambdaDot
     }
 
     Info<< "exactDifferentialLambdaDot: dlambdaOverDTs = " << dlambdaOverDTs_
-        << ", splitMassBetweenLamAndPor = " << splitMassBetweenLamAndPor_
         << nl;
 
     if (dlambdaOverDYmiUniform_)
@@ -115,8 +110,8 @@ void exactDifferentialLambdaDot::calculateTemperatureDriven()
 
     const dimensionedScalar dt("dt", dimTime, max(lambdaDeltaT_, VSMALL));
 
-    // [m/K]*[K/s] = [m/s]. dt must carry dimTime, not be a bare scalar, or the
-    // result is [m] and the assignment aborts on a dimension mismatch.
+    // [m/K]*[K/s] = [m/s]; dt carries dimTime so the result is a rate, not a
+    // length.
     lambdaDot_ = dlambdaOverDTs_*(TsField - TsForLambdaOld_)/dt;
 
     TsForLambdaOld_ = TsField;
@@ -130,10 +125,9 @@ void exactDifferentialLambdaDot::calculateChemistryDriven
     const word& specieName
 )
 {
-    // Accumulates onto the temperature term calculateTemperatureDriven() set.
-    // Linear in sRhoSi and independent of rho/lambda/cell volume, so field
-    // algebra suffices. sRhoSi < 0 while consuming, so a positive coefficient
-    // gives shrinkage.
+    // Adds to the temperature term calculateTemperatureDriven() set. The term
+    // is linear in sRhoSi and needs no cell-volume weighting. sRhoSi < 0 while
+    // mass is consumed, so a positive coefficient shrinks the particle.
     const dimensionedScalar dlambdaOverDYmi_i
     (
         "dlambdaOverDYmi(" + specieName + ')',
@@ -141,7 +135,7 @@ void exactDifferentialLambdaDot::calculateChemistryDriven
         dlambdaOverDYmi(specieName)
     );
 
-    lambdaDot_ += splitMassBetweenLamAndPor_*dlambdaOverDYmi_i*sRhoSi;
+    lambdaDot_ += dlambdaOverDYmi_i*sRhoSi;
 }
 
 } // namespace Foam

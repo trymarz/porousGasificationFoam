@@ -131,8 +131,9 @@ void volPyrolysis::solvePorosity()
 {
     if (active_)
     {
-        // porositySource_ is assembled in solveSpeciesMass(), which
-        // evolveRegion() calls just before this.
+        // Porosity is 1 - Vsolid/Vfvm, so chemistry changes it directly
+        // through Ym_i: the source is the full reaction rate.
+        porositySource_ = solidChemistry_->RRpor(T_)();
 
         volScalarField& por = porosity_;
 
@@ -701,11 +702,11 @@ void volPyrolysis::solveSpeciesMass()
             volScalarField& Ym_i = Ym_[i];
             volScalarField sRhoSi = solidChemistry_->RRs(i);
 
-            // Chemistry-driven lambdaDot term for this specie; a no-op
-            // under lambdaMode constant. Ym transport below still consumes
-            // the full, unmodified sRhoSi. The bare solidComponents name is
-            // passed, not Ys_[i].name() ("char", not "Ychar"), matching how a
-            // per-specie dlambdaOverDYmi subdict is keyed.
+            // Chemistry-driven lambdaDot term for this specie; a no-op under
+            // lambdaMode constant. lambdaDot only reads sRhoSi, which the Ym
+            // equation below uses unchanged. The name passed is the bare
+            // solidComponents one ("char", not "Ychar"), as a per-specie
+            // dlambdaOverDYmi subdict is keyed that way.
 #ifdef WITH_YADE
             if (demActive_)
             {
@@ -748,38 +749,14 @@ void volPyrolysis::solveSpeciesMass()
 
         deriveYiFromYm();
 
-        // (1 - massSplit) of the chemistry mass-loss rate opens pore space,
-        // as on main when massSplit is 0; the remaining massSplit fraction
-        // of that same rate instead drives lambdaDot's chemistry term above
-        // (scaled further by dlambdaOverDYmi into an actual shrinkage rate).
-        // The split itself is exact -- both lines read the one massSplit
-        // value -- but the resulting shrinkage magnitude is not:
-        // dlambdaOverDYmi is an independent calibration input, so nothing
-        // ties the particle-volume change it produces to the pore volume
-        // the split withholds; the two are related by the split fraction,
-        // not by a volume-conservation law. massSplit is 0.0 without DEM
-        // and under lambdaMode constant. The only place porositySource_ is
-        // assigned; solvePorosity() consumes it.
-        //
-        // lambda and porosity are orthogonal per-cell state: changing one
-        // does not itself change the other, even though both are driven by
-        // shares of the same split rate -- see exactDifferentialLambdaDot.H
-        // for the physical picture.
-        scalar massSplit = 0.0;
+        // lambdaDot is complete for this step once every specie has
+        // contributed.
 #ifdef WITH_YADE
         if (demActive_)
         {
             lambdaDotPtr_->correctBoundaryConditions();
-            massSplit = lamDotCalc_->chemistryMassSplit();
         }
 #endif
-
-        const volScalarField RRporF(solidChemistry_->RRpor(T_)());
-        forAll(porositySource_, cellI)
-        {
-            porositySource_[cellI] = (1.0 - massSplit)*RRporF[cellI];
-        }
-        porositySource_.correctBoundaryConditions();
 
         scalar totalYmMass = 0.0;
         for (label i = 0; i < Ym_.size(); ++i)
@@ -1472,9 +1449,10 @@ volPyrolysis::volPyrolysis
     }
     cellVolume_.correctBoundaryConditions();
 
-    // DEM-active state, from two signals because neither alone suffices: a
-    // WITH_YADE solver registers lambdaDot/lambda even with DEM off, and a
-    // non-YADE solver may still see a yadeProperties with active=true.
+    // DEM counts as active only when both signals agree: yadeProperties asks
+    // for it, and the lambdaDot/lambda fields exist. Either alone misleads --
+    // a WITH_YADE solver registers the fields even with DEM off, and a
+    // non-YADE solver can still read active=true.
     {
         IOdictionary yadeProperties
         (
@@ -1534,10 +1512,10 @@ volPyrolysis::volPyrolysis
                 << "yadeProperties requests DEM coupling (active=true) but "
                 << "the solver did not register the lambdaDot/lambda fields "
                 << "(built without WITH_YADE?); "
-                << "lambda/porosity split disabled" << endl;
+                << "lambdaDot calculation disabled" << endl;
         }
 
-        Info<< "volPyrolysis: DEM lambda/porosity split "
+        Info<< "volPyrolysis: DEM lambdaDot calculation "
             << (demActive_ ? "active" : "inactive") << endl;
     }
 }

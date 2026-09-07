@@ -50,16 +50,6 @@ public:
         const word& specieName
     )
     {}
-
-    //- Fraction of the chemistry mass change attributed to shrinkage rather
-    //  than to pore opening; volPyrolysis reduces porositySource_ by the same
-    //  fraction. Attribution only -- the shrinkage magnitude comes from
-    //  dlambdaOverDYmi, so no volume balance is enforced between the two
-    //  channels. Default 0 (all mass to porosity).
-    virtual scalar chemistryMassSplit() const
-    {
-        return 0.0;
-    }
 };
 
 } // namespace Foam
