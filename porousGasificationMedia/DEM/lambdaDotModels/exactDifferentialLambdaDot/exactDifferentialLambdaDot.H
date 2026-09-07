@@ -35,6 +35,25 @@ namespace Foam
 // volume-conservation law tying the particle-volume change to the pore
 // volume withheld -- only the rate split itself is exact.
 //
+// Physically, lambda and porosity are orthogonal state variables: each
+// responds to its own share of the split rate (both in turn driven by Ts
+// and Ym_i), and changing one does not itself change the other. Porosity
+// rising means the cell's void volume grows; lambda shrinking means the
+// imaginary DEM particle itself gets smaller -- two independent numbers,
+// not one derived from the other.
+//
+// An informal mental picture for telling them apart: porosity growth is
+// like pore space opening up throughout the particle's volume, while
+// lambda shrinkage is more like mass leaving from the particle's outer
+// surface, compacting solid toward its centre and pushing the void to the
+// outside. This sub-particle picture is descriptive only, not something
+// the code represents: the well-stirred-reactor approximation this solver
+// uses keeps lambda and porosity as one scalar each per FVM cell, with no
+// radial structure inside the particle, so nothing here actually
+// distinguishes "pores throughout the particle" from "mass removed from
+// its surface" -- both pictures collapse to the same two independent
+// per-cell rates.
+//
 // calculateTemperatureDriven() sets the temperature term once per step;
 // calculateChemistryDriven() accumulates the chemistry term per specie.
 class exactDifferentialLambdaDot

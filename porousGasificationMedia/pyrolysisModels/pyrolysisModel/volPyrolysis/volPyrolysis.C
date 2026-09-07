@@ -760,6 +760,11 @@ void volPyrolysis::solveSpeciesMass()
         // not by a volume-conservation law. massSplit is 0.0 without DEM
         // and under lambdaMode constant. The only place porositySource_ is
         // assigned; solvePorosity() consumes it.
+        //
+        // lambda and porosity are orthogonal per-cell state: changing one
+        // does not itself change the other, even though both are driven by
+        // shares of the same split rate -- see exactDifferentialLambdaDot.H
+        // for the physical picture.
         scalar massSplit = 0.0;
 #ifdef WITH_YADE
         if (demActive_)
