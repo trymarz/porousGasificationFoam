@@ -17,6 +17,12 @@ LambdaDotCalculationModel::LambdaDotCalculationModel
 {}
 
 
+void LambdaDotCalculationModel::beginStep()
+{
+    lambdaDot_ = dimensionedScalar("zero", lambdaDot_.dimensions(), 0.0);
+}
+
+
 autoPtr<LambdaDotCalculationModel> LambdaDotCalculationModel::New
 (
     const dictionary& dict,

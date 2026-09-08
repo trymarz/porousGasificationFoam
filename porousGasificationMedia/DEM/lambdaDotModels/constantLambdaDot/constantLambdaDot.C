@@ -28,7 +28,7 @@ constantLambdaDot::constantLambdaDot
 void constantLambdaDot::calculateTemperatureDriven()
 {
     // Uniform lambdaDot from constant/lambdaDict.
-    lambdaDot_ = lambdaValue_;
+    lambdaDot_ += lambdaValue_;
 }
 
 } // namespace Foam

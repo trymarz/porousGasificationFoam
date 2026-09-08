@@ -688,11 +688,12 @@ void volPyrolysis::solveSpeciesMass()
 
         surfaceScalarField phiUs = mesh_.Sf() & fvc::interpolate(Us_);
 
-        // Temperature-driven lambdaDot term; the chemistry-driven part
-        // accumulates per specie below.
+        // Reset lambdaDot_, then add its temperature-driven term; the
+        // chemistry-driven part accumulates per specie below.
 #ifdef WITH_YADE
         if (demActive_)
         {
+            lamDotCalc_->beginStep();
             lamDotCalc_->calculateTemperatureDriven();
         }
 #endif

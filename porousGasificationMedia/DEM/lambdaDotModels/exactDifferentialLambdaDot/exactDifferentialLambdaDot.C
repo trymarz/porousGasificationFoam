@@ -103,8 +103,8 @@ void exactDifferentialLambdaDot::calculateTemperatureDriven()
         lambdaDeltaT_ = mesh_.time().deltaTValue();
         haveTsForLambdaOld_ = true;
 
-        // No completed increment to difference yet.
-        lambdaDot_ = dimensionedScalar("0", dimLength/dimTime, 0.0);
+        // No completed increment to difference yet; beginStep() already
+        // zeroed lambdaDot_, so there is nothing to add.
         return;
     }
 
@@ -112,7 +112,7 @@ void exactDifferentialLambdaDot::calculateTemperatureDriven()
 
     // [m/K]*[K/s] = [m/s]; dt carries dimTime so the result is a rate, not a
     // length.
-    lambdaDot_ = dlambdaOverDTs_*(TsField - TsForLambdaOld_)/dt;
+    lambdaDot_ += dlambdaOverDTs_*(TsField - TsForLambdaOld_)/dt;
 
     TsForLambdaOld_ = TsField;
     lambdaDeltaT_ = mesh_.time().deltaTValue();

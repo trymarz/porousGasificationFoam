@@ -33,8 +33,9 @@ namespace Foam
 // only -- the solver stores one lambda and one porosity per cell, with no
 // structure inside it.
 //
-// calculateTemperatureDriven() sets the temperature term once per step;
-// calculateChemistryDriven() adds each specie's chemistry term.
+// beginStep() (base class) zeroes lambdaDot_; calculateTemperatureDriven()
+// then adds the temperature term; calculateChemistryDriven() adds each
+// specie's chemistry term.
 class exactDifferentialLambdaDot
 :
     public LambdaDotCalculationModel
