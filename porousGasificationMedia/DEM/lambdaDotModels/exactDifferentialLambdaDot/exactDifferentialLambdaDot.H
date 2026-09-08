@@ -55,10 +55,9 @@ private:
     //  solidComponents name. A specie absent from the subdict reads 0.0.
     dictionary dlambdaOverDYmiPerSpecie_;
 
-    //- Ts and deltaT from the last completed step, which dTs/dt is
-    //  differenced over; the flag is false until the first call fills them.
+    //- Ts sampled at this point of the previous step, which dTs/dt is
+    //  differenced against; the flag is false until the first call fills it.
     volScalarField TsForLambdaOld_;
-    scalar lambdaDeltaT_;
     bool haveTsForLambdaOld_;
 
     //- Resolve dlambdaOverDYmi [m^4/kg] for one specie.

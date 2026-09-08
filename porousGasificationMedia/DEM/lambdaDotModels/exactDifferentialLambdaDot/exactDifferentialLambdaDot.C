@@ -38,7 +38,6 @@ exactDifferentialLambdaDot::exactDifferentialLambdaDot
         mesh,
         dimensionedScalar("TsOld", dimTemperature, 0.0)
     ),
-    lambdaDeltaT_(0.0),
     haveTsForLambdaOld_(false)
 {
     // Two accepted spellings, told apart by findDict() returning nullptr for
@@ -94,13 +93,18 @@ void exactDifferentialLambdaDot::calculateTemperatureDriven()
     const volScalarField& TsField =
         mesh_.lookupObject<volScalarField>("Ts");
 
-    // Runs before Ts is solved for this step, so oldTime() is not usable; the
-    // rate is differenced over the last completed step instead:
+    // Ts is already solved for this step: volPyrolysis::preSolveEnergy() runs
+    // before solveSpeciesMass(), so TsField is Ts^n. The previous value is
+    // kept here rather than read from Ts.oldTime(), which is only refreshed
+    // where the energy path takes fvm::ddt on Ts -- the equilibrium branch
+    // never does.
+    //
+    // Both samples are taken at the same point of the step, so consecutive
+    // ones are exactly one step apart:
     //     dTsdt = (Ts^n - Ts^(n-1))/deltaT^n
     if (!haveTsForLambdaOld_ || TsForLambdaOld_.size() != TsField.size())
     {
         TsForLambdaOld_ = TsField;
-        lambdaDeltaT_ = mesh_.time().deltaTValue();
         haveTsForLambdaOld_ = true;
 
         // No completed increment to difference yet; beginStep() already
@@ -108,14 +112,22 @@ void exactDifferentialLambdaDot::calculateTemperatureDriven()
         return;
     }
 
-    const dimensionedScalar dt("dt", dimTime, max(lambdaDeltaT_, VSMALL));
+    // deltaT of the step just taken: runTime++ advanced the clock by it before
+    // this step's Ts was solved, so it is the interval the increment accrued
+    // over. Identical to the previous step's deltaT whenever the time step is
+    // fixed, which a DEM-coupled run requires anyway.
+    const dimensionedScalar dt
+    (
+        "dt",
+        dimTime,
+        max(mesh_.time().deltaTValue(), VSMALL)
+    );
 
     // [m/K]*[K/s] = [m/s]; dt carries dimTime so the result is a rate, not a
     // length.
     lambdaDot_ += dlambdaOverDTs_*(TsField - TsForLambdaOld_)/dt;
 
     TsForLambdaOld_ = TsField;
-    lambdaDeltaT_ = mesh_.time().deltaTValue();
 }
 
 
