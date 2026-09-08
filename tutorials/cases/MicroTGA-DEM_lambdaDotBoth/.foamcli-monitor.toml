@@ -1,9 +1,1 @@
-[heatmap]
-fields = ["porosityF", "Ts", "T", "p", "Ychar", "Ywood"]
-
-[probes]
-labels = ["bottom", "middle", "top"]
-
-[monitor]
-refresh_interval = 3.0
-panels = ["progress", "probes", "heatmap"]
+../MicroTGA-DEM_lambdaDot_common/.foamcli-monitor.toml

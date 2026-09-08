@@ -1,0 +1,45 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  8
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "system";
+    object      topoSetDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// solidBed cellZone: the same box setFieldsDict uses to seed porosityF, now
+// exposed as a cellZone so the lambdaDot/lambda volFieldValue functionObjects
+// in controlDict can reduce over it.
+actions
+(
+    {
+        name    solidBed;
+        type    cellSet;
+        action  new;
+        source  boxToCell;
+        sourceInfo
+        {
+            box (-0.0051 -0.0051 -0.0101) (0.0051 0.0051 0.0101);
+        }
+    }
+    {
+        name    solidBed;
+        type    cellZoneSet;
+        action  new;
+        source  setToCellZone;
+        sourceInfo
+        {
+            set solidBed;
+        }
+    }
+);
+
+// ************************************************************************* //

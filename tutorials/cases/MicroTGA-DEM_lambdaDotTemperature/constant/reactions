@@ -1,11 +1,1 @@
-species
-(
-    targas
-    gas
-    N2
-    H2O
-);
-
-reactions
-(
-);
+../../MicroTGA-DEM_lambdaDot_common/constant/reactions
