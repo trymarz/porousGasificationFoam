@@ -33,6 +33,20 @@ declare -A BUILD_TARGETS=( # default values
 # Set to 1 via --yade to compile the solver with Yade/DEM coupling support
 WITH_YADE=0
 
+# Targets whose Make/options carries an ifeq ($(WITH_YADE),1) block, so their
+# compiled ABI differs between the two variants: the solver, and the pyrolysis
+# library (volPyrolysis holds a WITH_YADE-only LambdaDotCalculationModel).
+# They get WITH_YADE=1 on the wmake line and each carry a build-variant stamp.
+declare -a YADE_SENSITIVE_TARGETS=(pyrolysisModels porousGasificationFoam)
+
+yade_sensitive_target() {
+  local t
+  for t in "${YADE_SENSITIVE_TARGETS[@]}"; do
+    [ "$t" = "$1" ] && return 0
+  done
+  return 1
+}
+
 # --purge: on clean, also delete installed binaries. Off by default.
 PURGE=0
 
@@ -209,35 +223,40 @@ check_yade_environment() {
 
 # wmake recompiles on timestamps and cannot see WITH_YADE change, so building
 # the other mode over existing objects would mix both ABIs. The mode is stamped
-# in Make/$WM_OPTIONS/ (removed by `wclean`); a mismatch is refused.
+# in each YADE-sensitive target's Make/$WM_OPTIONS/ (removed by `wclean`); a
+# mismatch is refused.
 variant_stamp_path() {
-  printf '%s/Make/%s/.pgf-build-mode' "${TARGET_DIRS[porousGasificationFoam]}" "$WM_OPTIONS"
+  printf '%s/Make/%s/.pgf-build-mode' "${TARGET_DIRS[$1]}" "$WM_OPTIONS"
 }
 
 check_build_variant() {
   [ "$MODE" = "build" ] || return 0
-  [ "${BUILD_TARGETS[porousGasificationFoam]:-0}" -eq 1 ] || return 0
 
-  local stamp requested recorded
-  stamp="$(variant_stamp_path)"
+  local target stamp requested recorded
   requested="WITH_YADE=$WITH_YADE"
 
-  if [ -f "$stamp" ]; then
-    recorded="$(cat "$stamp")"
-    if [ "$recorded" != "$requested" ]; then
-      clog ERROR "Build variant mismatch for porousGasificationFoam."
-      clog ERROR "  already built: $recorded"
-      clog ERROR "  requested:     $requested"
-      clog ERROR "wmake keys recompilation on source timestamps, not on WITH_YADE,"
-      clog ERROR "so an in-place rebuild would link objects from both variants."
-      clog ERROR "Clean first:  $PGF_ROOT/build.sh clean --all --purge"
-      clog ERROR "(--purge also drops the installed binary, so a failed rebuild"
-      clog ERROR " cannot leave the other variant's solver on your PATH.)"
-      return 1
-    fi
-  fi
+  for target in "${YADE_SENSITIVE_TARGETS[@]}"; do
+    [ "${BUILD_TARGETS[$target]:-0}" -eq 1 ] || continue
 
-  mkdir -p "${stamp%/*}" && printf '%s\n' "$requested" >"$stamp"
+    stamp="$(variant_stamp_path "$target")"
+
+    if [ -f "$stamp" ]; then
+      recorded="$(cat "$stamp")"
+      if [ "$recorded" != "$requested" ]; then
+        clog ERROR "Build variant mismatch for $target."
+        clog ERROR "  already built: $recorded"
+        clog ERROR "  requested:     $requested"
+        clog ERROR "wmake keys recompilation on source timestamps, not on WITH_YADE,"
+        clog ERROR "so an in-place rebuild would link objects from both variants."
+        clog ERROR "Clean first:  $PGF_ROOT/build.sh clean --all --purge"
+        clog ERROR "(--purge also drops the installed binary, so a failed rebuild"
+        clog ERROR " cannot leave the other variant's solver on your PATH.)"
+        return 1
+      fi
+    fi
+
+    mkdir -p "${stamp%/*}" && printf '%s\n' "$requested" >"$stamp"
+  done
 }
 
 # ============================================================
@@ -304,7 +323,7 @@ execute_target() {
 
   if [ "$MODE" = "build" ]; then
     cmd="${BUILD_COMMANDS[$target]}"
-    if [ "$target" = "porousGasificationFoam" ] && [ "$WITH_YADE" -eq 1 ]; then
+    if yade_sensitive_target "$target" && [ "$WITH_YADE" -eq 1 ]; then
       cmd="WITH_YADE=1 ${cmd}"
       clog INFO "Building $target (WITH_YADE=1)..."
     else
@@ -387,7 +406,7 @@ dry_run() {
       local cmd
       if [ "$MODE" = "build" ]; then
         cmd="${BUILD_COMMANDS[$target]}"
-        if [ "$target" = "porousGasificationFoam" ] && [ "$WITH_YADE" -eq 1 ]; then
+        if yade_sensitive_target "$target" && [ "$WITH_YADE" -eq 1 ]; then
           cmd="WITH_YADE=1 ${cmd}"
         fi
       else

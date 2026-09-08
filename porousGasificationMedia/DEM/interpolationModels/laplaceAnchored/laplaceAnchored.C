@@ -1,17 +1,9 @@
-
-// Laplacian interpolation model with soft anchors for known DEM velocity cells and zero-velocity background cells.
-
 /*
- * Anchored Laplacian solid velocity interpolation model.
- *
- * This model interpolates the DEM-based solid velocity field into cells without
- * particles by solving a Laplacian smoothing equation with source anchors.
- * Occupied cells are strongly anchored to their DEM velocity, non-solid cells
- * are strongly anchored to zero velocity, and solid cells without particles are
- * weakly anchored while receiving velocity information from neighboring solid
- * cells through the Laplacian term. After the solve, occupied cells are reset
- * exactly to UsDEM and non-solid cells are reset to zero.
- 
+ * Anchored Laplacian interpolation. Occupied cells are strongly anchored to
+ * their raw DEM value, non-solid cells to backgroundValue_ (for lambda, 0 is
+ * not a neutral particle size), and empty solid cells only weakly, so the
+ * Laplacian carries the value in from solid neighbours. Occupied and
+ * non-solid cells are reset exactly to their anchor after the solve.
  */
 
 #include "laplaceAnchored.H"
@@ -22,81 +14,116 @@
 namespace Foam
 {
 
-    // initialize the base interpolation model and read anchor/corrector parameters from the dictionary. constant/lambdaDict
+// Per-field anchor-coefficient key names in lambdaDict.
+template<class Type>
+struct laplaceAnchoredKeys;
 
-laplaceAnchored::laplaceAnchored
+template<>
+struct laplaceAnchoredKeys<vector>
+{
+    static word demCoeff() { return "demVelocityAnchorCoeff"; }
+    static word backgroundCoeff() { return "backgroundUsAnchorCoeff"; }
+    static word nCorrectors() { return "nUsInterpolationCorrectors"; }
+};
+
+template<>
+struct laplaceAnchoredKeys<scalar>
+{
+    static word demCoeff() { return "demLambdaAnchorCoeff"; }
+    static word backgroundCoeff() { return "backgroundLambdaAnchorCoeff"; }
+    static word nCorrectors() { return "nLambdaInterpolationCorrectors"; }
+};
+
+
+template<class Type>
+LaplaceAnchoredInterpolation<Type>::LaplaceAnchoredInterpolation
 (
     const dictionary& dict,
     const fvMesh& mesh,
-    volVectorField& UsDEM,
-    volVectorField& Us,
+    GeometricField<Type, fvPatchField, volMesh>& fieldDEM,
+    GeometricField<Type, fvPatchField, volMesh>& field,
     const volScalarField& nParticles,
-    const volScalarField& porosityF
+    const volScalarField& porosityF,
+    const Type& backgroundValue
 )
 :
-    UsInterpolationModel
+    InterpolationModel<Type>
     (
         dict,
         mesh,
-        UsDEM,
-        Us,
+        fieldDEM,
+        field,
         nParticles,
-        porosityF
+        porosityF,
+        backgroundValue
     ),
 
-    // Coefficient for strongly forcing occupied cells to remain close to DEM velocity values.
-    // constraint strength that keeps cells with sphere centers close to their raw UsDEM value. Larger value: occupied cells follow UsDEM more strictly. Smaller value: occupied-cell velocity is smoothed more by neighbors.
-        //Larger demVelocityAnchorCoeff strengthens the influence of DEM cells.
-    demVelocityAnchorCoeff_
+    // Constraint holding occupied cells to their raw DEM value; larger
+    // follows it more strictly, smaller lets neighbours smooth it more.
+    demAnchorCoeff_
     (
-        dict.lookupOrDefault<scalar>("demVelocityAnchorCoeff", 1e6)
+        dict.lookupOrDefault<scalar>
+        (
+            laplaceAnchoredKeys<Type>::demCoeff(), 1e6
+        )
     ),
 
-    // Small background coefficient for weakly anchoring interpolation in solid cells without particles.
-    // small regularization for empty solid cells so the interpolation equation remains well posed. Larger value: empty solid cells are weakly pulled toward zero. Smaller value: interpolation spreads more freely from DEM cells.
-    backgroundUsAnchorCoeff_
+    // Regularization keeping empty solid cells well posed. Their anchor
+    // source is the raw DEM field, zero where no particle sits, so this pulls
+    // toward zero -- not toward backgroundValue_, which only non-solid cells
+    // hold. At the 1e-12 default the Laplacian dominates.
+    backgroundAnchorCoeff_
     (
-        dict.lookupOrDefault<scalar>("backgroundUsAnchorCoeff", 1e-12)
+        dict.lookupOrDefault<scalar>
+        (
+            laplaceAnchoredKeys<Type>::backgroundCoeff(), 1e-12
+        )
     ),
 
     // Number of times the anchored Laplacian equation is solved.
-    nUsInterpolationCorrectors_
+    nInterpolationCorrectors_
     (
-        dict.lookupOrDefault<label>("nUsInterpolationCorrectors", 1)
+        dict.lookupOrDefault<label>
+        (
+            laplaceAnchoredKeys<Type>::nCorrectors(), 1
+        )
     )
 {}
 
 
-// Interpolate DEM solid velocity using a Laplacian equation with soft source anchors.
-void laplaceAnchored::interpolate()
+template<class Type>
+void LaplaceAnchoredInterpolation<Type>::interpolate()
 {
-    // Mask field marking cells where solid velocity interpolation is allowed.
+    typedef GeometricField<Type, fvPatchField, volMesh> FieldType;
+
+    // Mask marking the cells interpolation is allowed to fill.
     volScalarField solidMask
     (
         IOobject
         (
-            "solidVelocityInterpolationMask",
-            mesh_.time().timeName(),
-            mesh_,
+            "solidInterpolationMask",
+            this->mesh_.time().timeName(),
+            this->mesh_,
             IOobject::NO_READ,
             IOobject::NO_WRITE
         ),
-        mesh_,
+        this->mesh_,
         dimensionedScalar("zero", dimless, 0.0)
     );
 
-    // Anchor-strength field controlling how strongly each cell is forced toward its source velocity.
+    // How hard each cell is pulled toward its source value. 1/m^2, so
+    // anchor*field matches laplacian(field).
     volScalarField anchor
     (
         IOobject
         (
-            "solidVelocityInterpolationAnchor",
-            mesh_.time().timeName(),
-            mesh_,
+            "solidInterpolationAnchor",
+            this->mesh_.time().timeName(),
+            this->mesh_,
             IOobject::NO_READ,
             IOobject::NO_WRITE
         ),
-        mesh_,
+        this->mesh_,
         dimensionedScalar
         (
             "zero",
@@ -105,122 +132,117 @@ void laplaceAnchored::interpolate()
         )
     );
 
-    // Start from the DEM velocity field before applying interpolation.
-    Us_ = UsDEM_;
+    // Start from the raw DEM values.
+    this->field_ = this->fieldDEM_;
 
-
-    // Classify each cell as  occupied, solid, or gas ( background) and assign its anchor strength.
-    forAll(Us_, cellI)
+    // Classify each cell as occupied, solid-but-empty, or background, and
+    // set its anchor strength.
+    forAll(this->field_, cellI)
     {
-        // A cell is occupied when it contains at least one DEM particle.
-        const bool occupied = nParticles_[cellI] > 0.5;
+        const bool occupied = this->nParticles_[cellI] > 0.5;
 
-        // A cell is treated as solid if porosity is below the cutoff or if it contains particles.
         const bool solid =
-            (porosityF_[cellI] < solidPorosityCutoff_) || occupied;
+            (this->porosityF_[cellI] < this->solidPorosityCutoff_)
+         || occupied;
 
-            // Estimate a local length scale squared from the cell volume to scale the anchor coefficient.
-            // scale the anchor strength with cell size so the interpolation behavior stays more consistent when the mesh resolution changes.
+        // Cell length scale squared, keeping the anchor strength comparable
+        // across mesh resolutions.
         const scalar length2 =
-            max(pow(mesh_.V()[cellI], 2.0/3.0), VSMALL);
+            max(pow(this->mesh_.V()[cellI], 2.0/3.0), VSMALL);
 
-
-        // force non-solid cells to zero velocity.
         if (solid)
         {
             solidMask[cellI] = 1.0;
         }
         else
         {
-            Us_[cellI] = vector::zero;
+            this->field_[cellI] = this->backgroundValue_;
         }
 
-        scalar coeff = backgroundUsAnchorCoeff_;
+        scalar coeff = backgroundAnchorCoeff_;
 
         if (!solid || occupied)
         {
-            coeff = demVelocityAnchorCoeff_;
+            coeff = demAnchorCoeff_;
         }
 
         anchor[cellI] = coeff/length2;
     }
 
-    // Source velocity field toward which the anchor term pulls the solution.
-    volVectorField sourceUs
+    // Source field the anchor term pulls the solution toward.
+    FieldType source
     (
         IOobject
         (
-            "UsDEMInterpolationSource",
-            mesh_.time().timeName(),
-            mesh_,
+            "DEMInterpolationSource",
+            this->mesh_.time().timeName(),
+            this->mesh_,
             IOobject::NO_READ,
             IOobject::NO_WRITE
         ),
-        Us_
+        this->field_
     );
 
-    // Face diffusivity mask: allows Laplacian smoothing only inside the solid region.
+    // Face diffusivity mask: smooth only inside the solid region.
     surfaceScalarField gamma
     (
         IOobject
         (
-            "solidVelocityInterpolationGamma",
-            mesh_.time().timeName(),
-            mesh_,
+            "solidInterpolationGamma",
+            this->mesh_.time().timeName(),
+            this->mesh_,
             IOobject::NO_READ,
             IOobject::NO_WRITE
         ),
         fvc::interpolate(solidMask)
     );
 
-    // Disable interpolation across faces connected to non-solid cells.
+    // Disable smoothing across faces touching a non-solid cell.
     forAll(gamma, faceI)
     {
         if
         (
-            solidMask[mesh_.owner()[faceI]] < 0.5
-         || solidMask[mesh_.neighbour()[faceI]] < 0.5
+            solidMask[this->mesh_.owner()[faceI]] < 0.5
+         || solidMask[this->mesh_.neighbour()[faceI]] < 0.5
         )
         {
             gamma[faceI] = 0.0;
         }
     }
 
-    // Solve the anchored Laplacian equation for the requested number of corrector iterations.
+    const dictionary controls(this->solverControls(this->field_.name()));
 
-    for (label corr = 0; corr < nUsInterpolationCorrectors_; ++corr)
+    for (label corr = 0; corr < nInterpolationCorrectors_; ++corr)
     {
-
-        // Build the interpolation equation: Laplacian smoothing plus anchor forcing.
-
-        fvVectorMatrix UsEqn
+        fvMatrix<Type> fieldEqn
         (
-          - fvm::laplacian(gamma, Us_)
-          + fvm::Sp(anchor, Us_)
+          - fvm::laplacian(gamma, this->field_)
+          + fvm::Sp(anchor, this->field_)
          ==
-            anchor * sourceUs
+            anchor*source
         );
 
-        UsEqn.relax();
-        UsEqn.solve("UsDEMInterpolation");
+        fieldEqn.relax();
+        fieldEqn.solve(controls);
     }
 
-    // Enforce exact final values: occupied cells keep DEM velocity and non-solid cells remain zero.
-
-    forAll(Us_, cellI)
+    // Enforce the anchors exactly.
+    forAll(this->field_, cellI)
     {
-        if (nParticles_[cellI] > 0.5)
+        if (this->nParticles_[cellI] > 0.5)
         {
-            Us_[cellI] = UsDEM_[cellI];
+            this->field_[cellI] = this->fieldDEM_[cellI];
         }
-        else if (porosityF_[cellI] >= solidPorosityCutoff_)
+        else if (this->porosityF_[cellI] >= this->solidPorosityCutoff_)
         {
-            Us_[cellI] = vector::zero;
+            this->field_[cellI] = this->backgroundValue_;
         }
     }
 
-
-    Us_.correctBoundaryConditions();
+    this->field_.correctBoundaryConditions();
 }
 
 } // namespace Foam
+
+template class Foam::LaplaceAnchoredInterpolation<Foam::vector>;
+template class Foam::LaplaceAnchoredInterpolation<Foam::scalar>;

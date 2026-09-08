@@ -11,7 +11,7 @@ class constantLambdaDot
     public LambdaDotCalculationModel
 {
 private:
-    scalar lambdaValue_;
+    dimensionedScalar lambdaValue_;
 
 public:
     constantLambdaDot
@@ -23,7 +23,7 @@ public:
 
     virtual ~constantLambdaDot() = default;
 
-    virtual void calculate() override;
+    virtual void calculateTemperatureDriven() override;
 };
 
 } // namespace Foam

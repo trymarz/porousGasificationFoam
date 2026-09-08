@@ -9,6 +9,12 @@
 namespace Foam
 {
 
+// Strategy interface for the DEM particle length-scale rate lambdaDot [m/s].
+// Owned by volPyrolysis, selected via lambdaMode in constant/lambdaDict, and
+// driven in solveSpeciesMass(): beginStep() once per step, then
+// calculateTemperatureDriven() once, then calculateChemistryDriven() per
+// solid specie. PGF owns only the rate; YADE integrates lambda itself
+// (State::lambda_) and no model here reads it.
 class LambdaDotCalculationModel
 {
 protected:
@@ -32,8 +38,25 @@ public:
         volScalarField& lambdaDot
     );
 
-    // Calculate lambdaDot for the current coupling call.
-    virtual void calculate() = 0;
+    //- Zeroes lambdaDot_. Call once per step, before
+    //  calculateTemperatureDriven() and calculateChemistryDriven(), which
+    //  both add onto it with +=. Not virtual: the reset is the same for
+    //  every model, so no calculate*Driven() override needs to double as it.
+    void beginStep();
+
+    //- Adds the temperature-driven contribution to lambdaDot_. Called once
+    //  per step, before the species loop.
+    virtual void calculateTemperatureDriven() = 0;
+
+    //- Adds this specie's mass-rate sRhoSi [kg/m^3/s] contribution to
+    //  lambdaDot_. specieName is the bare solidComponents name ("char", not
+    //  "Ychar"), keying the per-specie coefficient. Default no-op.
+    virtual void calculateChemistryDriven
+    (
+        const volScalarField& sRhoSi,
+        const word& specieName
+    )
+    {}
 };
 
 } // namespace Foam

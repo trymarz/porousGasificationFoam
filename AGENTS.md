@@ -61,7 +61,8 @@ When you need a load-bearing fact, go to the README rather than re-deriving it f
 |---|---|
 | Per-time-step flow / which source file implements each step | "Part II — Physics and Implementation → Per-Time-Step Tour" (for equations and details, follow the tour's pointers into source comments — not the README) |
 | Branch naming, PR titles, PR body, doc-strategy rule | "Development Workflow" |
-| Per-case input dictionaries (`chemistryProperties`, `solidThermophysicalProperties`, `radiationProperties`, `pyrolysisProperties`, `heatTransferProperties`, `specieTransferProperties`, `porosityProperties`) | "Input File Reference" |
+| Per-case input dictionaries (`chemistryProperties`, `solidThermophysicalProperties`, `radiationProperties`, `pyrolysisProperties`, `lambdaDict`, `heatTransferProperties`, `specieTransferProperties`, `porosityProperties`) | "Input File Reference" |
+| DEM `lambdaDict` keys, and which side owns `lambdaDot` vs `lambda` | "Input File Reference → `constant/lambdaDict`" |
 | Required `0/` fields and their meaning | "Required Initial Fields" |
 | Practical pitfalls (true vs bulk density, JANAF substitution, radiation calibration, time-step coupling) | "Tips for Preparing New Simulations" |
 | Build targets and dependencies | "Build System" |
