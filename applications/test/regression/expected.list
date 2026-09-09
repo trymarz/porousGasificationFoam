@@ -1,0 +1,46 @@
+# Expected outcome of each fast-tier case, for the pre-push gate.
+#
+# The regression suite (Allrun) reports what a case *did*, and it is right to
+# call anything short of PASS not-green. This file is a different question,
+# asked only by the pre-push hook: "is this outcome already true on main, or did
+# the push cause it?" The hook blocks on the second and reports the first.
+#
+# It exists because the fast tier is not green on main, so a gate that demanded
+# green could only ever be bypassed. It is NOT a place to silence a failure you
+# caused. Every entry carries a reason and a way out; an entry with neither is a
+# bug in this file.
+#
+# Format, one case per non-comment line:
+#
+#     <case path from cases.list>   <expected status>   <reason>
+#
+# <expected status> is one of:
+#   PASS   the default for any case not listed here — no entry needed
+#   FAIL   compares out of tolerance, for the stated reason
+#
+# CRASH is deliberately not an expected status. The teardown abort is
+# intermittent (README -> "Known caveat"), so no case can be pinned to it. The
+# hook handles it by re-comparing the output the crashed run already wrote: if
+# the numbers are right, the abort is reported and not blocked on; if they are
+# wrong, it blocks.
+#
+# The hook also blocks when a case listed here PASSes. That is not pedantry —
+# it means either the underlying problem is fixed or something else drifted, and
+# in both cases this file is now lying. Delete the line and say why in the
+# commit.
+
+# ---------------------------------------------------------------------------
+# Stale baselines: captured at 4073e55 (2026-08-04, PR #31), never recaptured.
+#
+# main has taken five solver commits since, several of them in volPyrolysis.C's
+# solid-transport and porosity code: 6322db3 (#35), 2d683ba (#37), 1969061
+# (#36), b2f170a (#38), 23aecda. The solver was changed on purpose and these
+# references were not regenerated, so they describe a solver that no longer
+# exists.
+#
+# Way out: decide the current numbers are right, recapture all three, and state
+# why in the commit (README -> "Capturing the baseline"). That is a physics
+# call, not a tooling one, which is why it has not been made here.
+tutorials/cases/charOnlyMoveCases/serial              FAIL   stale baseline (4073e55); volAverage(Ts) differs by up to 6.8e-02 relative
+tutorials/cases/charOnlyMoveCases/solidInlet          FAIL   stale baseline (4073e55); reference volAverage(Ts) is 0 K on every row, which is not a physical solid temperature
+tutorials/cases/charOnlyMoveCases/solidInlet_tinyDt   FAIL   stale baseline (4073e55); same degenerate reference as solidInlet
