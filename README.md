@@ -1,3 +1,20 @@
+/*---------------------------------------------------------------------------*\
+  =========                 |
+  \\      /  F ield         | porousGasificationFoam
+   \\    /   O peration     | 
+    \\  /    A nd           | Advanced multiphase solver for generalized
+     \\/     M anipulation  | thermochemical conversion in porous media
+-------------------------------------------------------------------------------
+ 
+  [Mass]   ∂(ερ_f)/∂t + ∇·(ρ_f U) = S_m,f|  [S-Mass] ∂((1-ε)ρ_s)/∂t = S_m,s
+  [Mom.]   ∂(ερ_f U)/∂t+∇·(ρ_f UU)=-∇p+S |  [Spec.]  ∂(ερ_f Y_i)/∂t+∇·=S_Y,i
+  [Energy] ∂(ερ_f h)/∂t+∇·(ρ_f Uh)=S_h,f |  [S-Egy]  ∂((1-ε)ρ_s h_s)/∂t=S_h,s
+ 
+-------------------------------------------------------------------------------
+   ► Arbitrary Chemistry Mechanisms      ► Local Thermal Non-Equilibrium
+   ► Dynamic Porosity & Permeability     ► Compressible Species Transport
+   ► Interphase Heat & Mass Exchange     ► Generalized Source Terms (S_Φ)
+\*---------------------------------------------------------------------------*/
 # porousGasificationFoam
 
 *porousGasificationFoam* (PGF) is an OpenFOAM solver for **thermochemical conversion in porous media**. A solid phase, represented as a porosity field, is coupled to a gas flowing through the void space. Mass, momentum, and energy are exchanged through the porosity. All chemistry — gas-phase, heterogeneous (gas–solid), and solid decomposition — is defined per case. With no reactions defined, both phases stay inert. The solid can be stationary or move under gravity and other external forces, shrink, or disappear entirely as conversion proceeds.
