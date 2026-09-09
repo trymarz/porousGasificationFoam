@@ -123,7 +123,6 @@ int main(int argc, char *argv[])
             yadeCoupling->setParticleAction(runTime.deltaT().value());
 #endif
             lambdaDotUpdater->updateParticleFields();
-            lambdaDotUpdater->writeParticlesData();
 #if defined(YADE_COUPLING_PGF)
             yadeCoupling->clearParticleExchangeBuffers();
 #else
