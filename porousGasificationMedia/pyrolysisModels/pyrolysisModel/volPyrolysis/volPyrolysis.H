@@ -39,6 +39,7 @@ SourceFiles
 #include "HGSSolidThermo.H"
 #include "porousThermoSolidChemistryModel.H"
 #include "surfaceFields.H"
+#include "solidFluxLimiter.H"
 
 #ifdef WITH_YADE
     // liblambdaDotModel links YADE, so it is referenced only here.
@@ -79,135 +80,13 @@ private:
         //  not on whereIs_, which is refreshed a stage later.
         void deriveYiFromYm();
 
-        //- Solid volumetric face flux [m3/s] asked for by Us
-        //  Zero unless advectSolidFields_ is set, and unlimited: this is
-        //  what Us asks for. limitSolidVolFlux() scales it into phiSolid_,
-        //  which is the flux the transport stages ride.
-        tmp<surfaceScalarField> solidVolFlux() const;
-
-        //- Assemble the budgets the flux limit is built from
-        //  Per specie, the transport and chemistry terms of the equation
-        //  being limited (phiYm, RRsolid) and their sum (phiYmTotal); then
-        //  the solid volume that mass flux carries (phiSolidVol), the solid
-        //  volume fraction each cell holds (alphaS) and the rate chemistry
-        //  changes it at (RRpor). Refreshes the Ym_ patches first: a
-        //  fixedYm value is read from the cell behind it and is one stage
-        //  stale until corrected.
-        void solidFluxBudgets
-        (
-            PtrList<surfaceScalarField>& phiYm,
-            PtrList<volScalarField>& RRsolid,
-            tmp<surfaceScalarField>& tPhiYmTotal,
-            tmp<surfaceScalarField>& tPhiSolidVol,
-            tmp<volScalarField>& tAlphaS,
-            tmp<volScalarField>& tRRpor
-        );
-
-        //- Share of the outgoing flux each cell can supply, per cell
-        //  A face may not carry out more of a specie than its donor holds,
-        //  which makes Ym_i >= 0 and porosity <= 1 structural rather than
-        //  clipped. Exact, per specie, from the transport scheme's own face
-        //  fluxes. With credit set, what arrives over the step may leave
-        //  again within it.
-        void solidDonorLimit
-        (
-            const PtrList<surfaceScalarField>& phiYm,
-            const PtrList<volScalarField>& RRsolid,
-            const surfaceScalarField& lambda,
-            const bool credit,
-            scalarField& lambdaDonor
-        ) const;
-
-        //- Share of the incoming flux each cell has room for, per cell
-        //  A face may not deliver more solid volume than fits in its
-        //  receiver, so porosity >= minPorosity_ and the flux into a
-        //  filling cell falls to zero - this is the repulsion. With credit
-        //  set, what leaves over the step counts as room within it.
-        void solidReceiverLimit
-        (
-            const surfaceScalarField& phiSolidVol,
-            const volScalarField& alphaS,
-            const volScalarField& RRpor,
-            const surfaceScalarField& lambda,
-            const bool credit,
-            scalarField& lambdaReceiver
-        ) const;
-
-        //- Give each face the tighter of its two ends' factors
-        //  One factor per face, so both sides move the same solid and the
-        //  scaling neither creates nor destroys mass: what cannot move
-        //  stays in the donor and the bed jams. lambda slices allLambda,
-        //  which is the list the coupled-face sync operates on.
-        void applySolidFaceLimit
-        (
-            const surfaceScalarField& phiYmTotal,
-            const scalarField& lambdaDonor,
-            const scalarField& lambdaReceiver,
-            scalarField& allLambda,
-            surfaceScalarField& lambda
-        ) const;
-
-        //- Report the limiter's activity and what the sweeps left over
-        //  A limiter that acts is Us asking the bed for something it cannot
-        //  do, so it reports when it acts and is quiet when it does not.
-        //  The residual is read off the state the limited flux will
-        //  produce, since the sweep count is capped and convergence is not
-        //  guaranteed.
-        void reportSolidFluxLimiter
-        (
-            const PtrList<surfaceScalarField>& phiYm,
-            const PtrList<volScalarField>& RRsolid,
-            const surfaceScalarField& phiSolidVol,
-            const volScalarField& alphaS,
-            const volScalarField& RRpor,
-            const surfaceScalarField& lambda
-        ) const;
-
         //- Scale the shared solid flux to what the cells can supply and take
-        //  Two-sided saturation limit on the one flux every solid field
-        //  rides, applied before any of them is transported: the donor
-        //  content and receiver room limits above, swept
-        //  nSolidFluxLimiterCorrectors_ times in Zalesak/FCT form. The
-        //  fail-fast guards are the backstop for what the sweeps do not
+        //  Delegates to solidFluxLimiter_, which owns the two-sided
+        //  saturation limit, and stores what it returns in phiSolid_ - the
+        //  one flux every solid field rides. The fail-fast guards
+        //  (solidStateGuards.H) are the backstop for what its sweeps do not
         //  reach.
         void limitSolidVolFlux();
-
-        //- Face flux leaving and entering each cell, summed per cell
-        //  Both sums positive, direction taken from the scaled flux itself
-        //  rather than from Us. Local: every face of a cell is visible to
-        //  the rank owning it, a coupled patch face included.
-        void accumulateFaceFlux
-        (
-            const surfaceScalarField& phi,
-            const surfaceScalarField& lambda,
-            scalarField& sumOut,
-            scalarField& sumIn
-        ) const;
-
-        //- Index of the first cell whose value is not finite or lies
-        //  outside [lower, upper]; -1 when the field is valid everywhere.
-        //  Cells where the optional mask is not positive are skipped - a
-        //  solid temperature is not a defect in a cell holding no solid.
-        //  Local: an invalid state on any rank aborts the whole job.
-        label firstInvalidCell
-        (
-            const volScalarField& fld,
-            const scalar lower,
-            const scalar upper,
-            const scalarField* mask = nullptr
-        ) const;
-
-        //- Abort on an impossible solid state, reporting where it is and
-        //  whatever the calling stage knows is relevant. The solid
-        //  transport is explicit and unbounded, so a value outside its
-        //  physical range is a defect to diagnose, not a number to clip.
-        void reportInvalidSolidState
-        (
-            const word& stage,
-            const volScalarField& fld,
-            const label cellI,
-            const string& context
-        ) const;
 
 
 protected:
@@ -307,12 +186,6 @@ protected:
     //  room.
     Switch emptyFlippedCells_;
 
-    //- Switch for Eulerian advection of the solid fields by Us
-    //  When false the solid volumetric flux is held at zero, so the solid
-    //  specie masses and the solid enthalpy are only updated by chemistry
-    //  - and so, through the mass, is the recovered porosity.
-    Switch advectSolidFields_;
-
     //- Switch for taking a nearly-empty cell's solid temperature from the gas
     //  Above critPorosity_ a cell holds too little solid for
     //  Ts = solidH/(totalYm*Cp) to say anything: the ratio is a frozen
@@ -338,18 +211,6 @@ protected:
     //  a cell whose solid inventory is vanishing. Upper end of the guard
     //  window; solidStateTolerance_ times it is the allowance below zero.
     scalar maxSolidTemperature_;
-
-    //- Sweeps of the solid flux limiter [-]
-    //  Each sweep re-reads the budgets the previous one left, so a jam can
-    //  travel back up the bed within one time step instead of one cell per
-    //  step. Zero leaves the flux Us asks for untouched.
-    label nSolidFluxLimiterCorrectors_;
-
-    //- Lowest porosity the solid flux limiter will pack a cell to [-]
-    //  Zero admits a cell of pure solid. A case with a packing limit of its
-    //  own raises it, and the flux into a cell then stops at that fraction
-    //  instead.
-    scalar minPorosity_;
 
     //- Criterion for bed motion porosity model
     scalar critPorosity_;
@@ -422,10 +283,15 @@ protected:
         const volVectorField& Us_;
 
         //- The solid volumetric face flux the transport stages ride [m3/s]
-        //  solidVolFlux() scaled by limitSolidVolFlux(). One field, shared
-        //  by the specie masses and the solid enthalpy, so a face moves the
-        //  same solid in every equation that sees it.
+        //  What solidFluxLimiter_ returns, stored by limitSolidVolFlux().
+        //  One field, shared by the specie masses and the solid enthalpy,
+        //  so a face moves the same solid in every equation that sees it.
+        //  Owned here rather than by the limiter: solveSpeciesMass() and
+        //  preSolveEnergy() both read it outside the limiter's scope.
         surfaceScalarField phiSolid_;
+
+        //- Reference to the solid flux limiter
+        autoPtr<SolidFluxLimiter> solidFluxLimiter_;
 
     // DEM (YADE) coupling — lambdaDot
 
