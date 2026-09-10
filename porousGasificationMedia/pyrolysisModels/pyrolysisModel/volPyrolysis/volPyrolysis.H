@@ -40,6 +40,7 @@ SourceFiles
 #include "porousThermoSolidChemistryModel.H"
 #include "surfaceFields.H"
 #include "solidFluxLimiter.H"
+#include "solidStateChecker.H"
 
 #ifdef WITH_YADE
     // liblambdaDotModel links YADE, so it is referenced only here.
@@ -83,9 +84,8 @@ private:
         //- Scale the shared solid flux to what the cells can supply and take
         //  Delegates to solidFluxLimiter_, which owns the two-sided
         //  saturation limit, and stores what it returns in phiSolid_ - the
-        //  one flux every solid field rides. The fail-fast guards
-        //  (solidStateGuards.H) are the backstop for what its sweeps do not
-        //  reach.
+        //  one flux every solid field rides. The fail-fast guards are the
+        //  backstop for what its sweeps do not reach.
         void limitSolidVolFlux();
 
 
@@ -195,23 +195,6 @@ protected:
     //  charged to no budget. Unset, the ratio stands as computed.
     Switch gasTemperatureBelowCriticalPorosity_;
 
-    //- Switch for the fail-fast guards on the solid state
-    //  When set, an impossible porosity, Ym, solid enthalpy or solid
-    //  temperature aborts at the equation that produced it rather than
-    //  propagating into a downstream exception that says nothing.
-    Switch failOnInvalidSolidState_;
-
-    //- Relative slack admitted by the fail-fast guards [-]
-    //  Sized to absorb round-off on the explicit updates only; an
-    //  excursion larger than this is a genuine overshoot.
-    scalar solidStateTolerance_;
-
-    //- Bound on a physically credible solid temperature [K]
-    //  Ts is a ratio, solidH_/(totalYm*Cp), and says nothing credible about
-    //  a cell whose solid inventory is vanishing. Upper end of the guard
-    //  window; solidStateTolerance_ times it is the allowance below zero.
-    scalar maxSolidTemperature_;
-
     //- Criterion for bed motion porosity model
     scalar critPorosity_;
 
@@ -292,6 +275,9 @@ protected:
 
         //- Reference to the solid flux limiter
         autoPtr<SolidFluxLimiter> solidFluxLimiter_;
+
+        //- Reference to the fail-fast guards on the solid state
+        autoPtr<SolidStateChecker> solidStateChecker_;
 
     // DEM (YADE) coupling — lambdaDot
 

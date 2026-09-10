@@ -40,8 +40,6 @@ License
 #include "processorCyclicPolyPatch.H"
 #include "upwind.H"
 
-#include "solidStateGuards.H"
-
 #include "BCs/fixedSolidH/fixedSolidHFvPatchScalarField.H"
 #include "BCs/fixedYm/fixedYmFvPatchScalarField.H"
 
@@ -182,39 +180,28 @@ void volPyrolysis::recoverPorosity()
 
         por.primitiveFieldRef() = voidFraction.primitiveField();
 
-        if (failOnInvalidSolidState_)
+        // Before the "< 1e-4 -> 0" clip below, which would absorb an
+        // undershoot without trace.
+        const label badCell = solidStateChecker_->firstInvalidPorosity(por);
+
+        if (badCell != -1)
         {
-            // Before the "< 1e-4 -> 0" clip below, which would absorb an
-            // undershoot without trace. por > 1 is negative solid mass;
-            // por < 0 is a cell packed past solid by the transport.
-            const label badCell = firstInvalidSolidCell
+            OStringStream context;
+            context
+                << "    Us           = " << Us_[badCell] << nl
+                << "    div(phiUs)   = "
+                << fvc::div(phiUs)()[badCell] << nl
+                << "    sum(Ym)      = " << totalYm[badCell] << nl
+                << "    rho          = " << rho_[badCell] << nl
+                << "    whereIs      = " << whereIs_[badCell];
+
+            solidStateChecker_->abort
             (
+                "the porosity recovery in recoverPorosity()",
                 por,
-                -solidStateTolerance_,
-                1.0 + solidStateTolerance_
+                badCell,
+                context.str()
             );
-
-            if (badCell != -1)
-            {
-                OStringStream context;
-                context
-                    << "    Us           = " << Us_[badCell] << nl
-                    << "    div(phiUs)   = "
-                    << fvc::div(phiUs)()[badCell] << nl
-                    << "    sum(Ym)      = " << totalYm[badCell] << nl
-                    << "    rho          = " << rho_[badCell] << nl
-                    << "    whereIs      = " << whereIs_[badCell];
-
-                reportInvalidSolidState
-                (
-                    mesh_,
-                    time_,
-                    "the porosity recovery in recoverPorosity()",
-                    por,
-                    badCell,
-                    context.str()
-                );
-            }
         }
 
         Info<< "porosity recovered from solid mass. Chemistry source (not"
@@ -833,58 +820,9 @@ void volPyrolysis::recoverPorosity()
             Info << "porosity 0 in " << nZeroPorosity << " cells" << endl;
         }
 
-        // The invariant the recovery establishes, re-checked per cell after
-        // everything above that writes porosity_ directly: the bed-motion
-        // model, the "< 1e-4 -> 0" clip, and the flip to por = 1. A
-        // field-wide min/max cannot see two fields disagreeing while
-        // neither is out of range, so the worst cell is reported.
-        {
-            scalar maxResidual = 0.0;
-            label worstCell = -1;
-
-            forAll(porosity_, cellI)
-            {
-                scalar cellYm = 0.0;
-                forAll(Ym_, i)
-                {
-                    cellYm += Ym_[i][cellI];
-                }
-
-                const scalar residual = mag
-                (
-                    1.0 - porosity_[cellI] - cellYm/max(rho_[cellI], SMALL)
-                );
-
-                if (residual > maxResidual)
-                {
-                    maxResidual = residual;
-                    worstCell = cellI;
-                }
-            }
-
-            const scalar globalResidual =
-                returnReduce(maxResidual, maxOp<scalar>());
-
-            Info<< "solid state consistency: max|1 - porosity"
-                << " - sum(Ym_i/rho_i)| = " << globalResidual << endl;
-
-            if
-            (
-                globalResidual > solidStateTolerance_
-             && worstCell != -1
-             && maxResidual == globalResidual
-            )
-            {
-                WarningInFunction
-                    << "porosity and solid mass disagree by " << maxResidual
-                    << " in cell " << worstCell << " at "
-                    << mesh_.C()[worstCell] << ": porosity = "
-                    << porosity_[worstCell] << ", whereIs = "
-                    << whereIs_[worstCell]
-                    << ". A porosity written after the recovery cannot be"
-                    << " reconciled with the mass the cell holds." << endl;
-            }
-        }
+        // Here, after everything above that writes porosity_ directly: the
+        // bed-motion model, the "< 1e-4 -> 0" clip, and the flip to por = 1.
+        solidStateChecker_->checkConsistency(porosity_, Ym_, rho_, whereIs_);
 
         surfF_= surfF_*0;
         porosity_.correctBoundaryConditions();
@@ -994,39 +932,26 @@ void volPyrolysis::solveSpeciesMass()
             YmEqn.relax();
             YmEqn.solve("Ys");
 
-            if (failOnInvalidSolidState_)
+            const label badCell =
+                solidStateChecker_->firstInvalidExtensive(Ym_i);
+
+            if (badCell != -1)
             {
-                // Ym is extensive, so the admissible undershoot scales with
-                // the amount of solid actually present in the field.
-                const scalar YmScale = max(gMax(Ym_i), SMALL);
+                OStringStream context;
+                context
+                    << "    specie       = " << Ys_[i].name() << nl
+                    << "    Us           = " << Us_[badCell] << nl
+                    << "    div(phiUs Ym)= " << divYmFlux[badCell] << nl
+                    << "    RRs          = " << sRhoSi[badCell] << nl
+                    << "    porosity     = " << porosity_[badCell];
 
-                const label badCell = firstInvalidSolidCell
+                solidStateChecker_->abort
                 (
+                    "the solid specie mass equation in solveSpeciesMass()",
                     Ym_i,
-                    -solidStateTolerance_*YmScale,
-                    GREAT
+                    badCell,
+                    context.str()
                 );
-
-                if (badCell != -1)
-                {
-                    OStringStream context;
-                    context
-                        << "    specie       = " << Ys_[i].name() << nl
-                        << "    Us           = " << Us_[badCell] << nl
-                        << "    div(phiUs Ym)= " << divYmFlux[badCell] << nl
-                        << "    RRs          = " << sRhoSi[badCell] << nl
-                        << "    porosity     = " << porosity_[badCell];
-
-                    reportInvalidSolidState
-                    (
-                        mesh_,
-                        time_,
-                        "the solid specie mass equation in solveSpeciesMass()",
-                        Ym_i,
-                        badCell,
-                        context.str()
-                    );
-                }
             }
 
             // Mass fabricated by the clip, charged to the budget below so a
@@ -1110,24 +1035,11 @@ void volPyrolysis::preSolveEnergy()
                 totalYm += Ym_[i];
             }
 
-            // The smallest solid mass distinguishable from zero: rho_ is the
-            // skeletal density, so a cell below solidStateTolerance_ of a
-            // packed cell holds nothing. Floored by SMALL too, since rho_ is
-            // itself zero where the cell has never held solid.
-            const volScalarField YmFloor
+            // What the two Ts guards below are judged on.
+            const volScalarField solidPresent
             (
-                max
-                (
-                    solidStateTolerance_*rho_,
-                    dimensionedScalar("YmFloorMin", dimDensity, SMALL)
-                )
+                solidStateChecker_->solidPresent(totalYm, rho_)
             );
-
-            // Positive only where the cell holds solid, and what the two Ts
-            // guards below are judged on: a solid temperature means nothing
-            // without solid to carry it, and the test has to be a mass scale
-            // or a cell holding 1e-18 kg/m3 of dust reads as a defect.
-            const volScalarField solidPresent(totalYm - YmFloor);
 
             // The heat capacity of the solid the cell actually holds. No
             // whereIs_ factor: solidH_ carries none either, and masking one
@@ -1143,41 +1055,31 @@ void volPyrolysis::preSolveEnergy()
 
             T_ = solidH_()/rhoCp;
 
-            if (failOnInvalidSolidState_)
-            {
-                // A temperature tolerance, not a mass one: at the emptying
-                // tail of a bed the capacity decays towards zero while the
-                // solver's error does not, so Ts comes back a few 1e-6 K
-                // negative. Judged against the scale the guard declares.
-                const label badCell = firstInvalidSolidCell
+            const label badTsCell =
+                solidStateChecker_->firstInvalidTemperature
                 (
                     T_,
-                   -solidStateTolerance_*maxSolidTemperature_,
-                    maxSolidTemperature_,
-                    &solidPresent.primitiveField()
+                    solidPresent.primitiveField()
                 );
 
-                if (badCell != -1)
-                {
-                    OStringStream context;
-                    context
-                        << "    solidH       = "
-                        << solidH_()[badCell] << nl
-                        << "    sum(Ym)      = " << totalYm[badCell] << nl
-                        << "    rhoCp        = " << rhoCp[badCell] << nl
-                        << "    porosity     = " << porosity_[badCell] << nl
-                        << "    whereIs      = " << whereIs_[badCell];
+            if (badTsCell != -1)
+            {
+                OStringStream context;
+                context
+                    << "    solidH       = "
+                    << solidH_()[badTsCell] << nl
+                    << "    sum(Ym)      = " << totalYm[badTsCell] << nl
+                    << "    rhoCp        = " << rhoCp[badTsCell] << nl
+                    << "    porosity     = " << porosity_[badTsCell] << nl
+                    << "    whereIs      = " << whereIs_[badTsCell];
 
-                    reportInvalidSolidState
-                    (
-                        mesh_,
-                        time_,
-                        "Ts = solidH/rhoCp at the head of preSolveEnergy()",
-                        T_,
-                        badCell,
-                        context.str()
-                    );
-                }
+                solidStateChecker_->abort
+                (
+                    "Ts = solidH/rhoCp at the head of preSolveEnergy()",
+                    T_,
+                    badTsCell,
+                    context.str()
+                );
             }
 
             T_.correctBoundaryConditions();
@@ -1241,40 +1143,34 @@ void volPyrolysis::preSolveEnergy()
             TEqn.relax();
             TEqn.solve();
 
-            if (failOnInvalidSolidState_)
-            {
-                const label badCell = firstInvalidSolidCell
+            const label badTEqnCell =
+                solidStateChecker_->firstInvalidTemperature
                 (
                     T_,
-                   -solidStateTolerance_*maxSolidTemperature_,
-                    maxSolidTemperature_,
-                    &solidPresent.primitiveField()
+                    solidPresent.primitiveField()
                 );
 
-                if (badCell != -1)
-                {
-                    OStringStream context;
-                    context
-                        << "    rhoCp        = " << rhoCp[badCell] << nl
-                        << "    chemistrySh  = "
-                        << chemistrySh_[badCell] << nl
-                        << "    heatTransfer = "
-                        << heatTransfField[badCell] << nl
-                        << "    heatUpGas    = " << heatUpGas_[badCell] << nl
-                        << "    radiationSh  = "
-                        << radiationSh_[badCell] << nl
-                        << "    porosity     = " << porosity_[badCell];
+            if (badTEqnCell != -1)
+            {
+                OStringStream context;
+                context
+                    << "    rhoCp        = " << rhoCp[badTEqnCell] << nl
+                    << "    chemistrySh  = "
+                    << chemistrySh_[badTEqnCell] << nl
+                    << "    heatTransfer = "
+                    << heatTransfField[badTEqnCell] << nl
+                    << "    heatUpGas    = " << heatUpGas_[badTEqnCell] << nl
+                    << "    radiationSh  = "
+                    << radiationSh_[badTEqnCell] << nl
+                    << "    porosity     = " << porosity_[badTEqnCell];
 
-                    reportInvalidSolidState
-                    (
-                        mesh_,
-                        time_,
-                        "the solid energy equation in preSolveEnergy()",
-                        T_,
-                        badCell,
-                        context.str()
-                    );
-                }
+                solidStateChecker_->abort
+                (
+                    "the solid energy equation in preSolveEnergy()",
+                    T_,
+                    badTEqnCell,
+                    context.str()
+                );
             }
 
             volScalarField patchedSolidH = (rhoCp*T_);
@@ -1326,38 +1222,28 @@ void volPyrolysis::preSolveEnergy()
             sHEqn.relax();
             sHEqn.solve();
 
-            if (failOnInvalidSolidState_)
+            const volScalarField& sH = solidH_();
+
+            const label badSolidHCell =
+                solidStateChecker_->firstInvalidExtensive(sH);
+
+            if (badSolidHCell != -1)
             {
-                const volScalarField& sH = solidH_();
-                const scalar sHScale = max(gMax(sH), SMALL);
+                OStringStream context;
+                context
+                    << "    Us           = " << Us_[badSolidHCell] << nl
+                    << "    Ts           = " << T_[badSolidHCell] << nl
+                    << "    rhoCp        = " << rhoCp[badSolidHCell] << nl
+                    << "    sum(Ym)      = " << totalYm[badSolidHCell] << nl
+                    << "    porosity     = " << porosity_[badSolidHCell];
 
-                const label badCell = firstInvalidSolidCell
+                solidStateChecker_->abort
                 (
+                    "the solid enthalpy advection in preSolveEnergy()",
                     sH,
-                    -solidStateTolerance_*sHScale,
-                    GREAT
+                    badSolidHCell,
+                    context.str()
                 );
-
-                if (badCell != -1)
-                {
-                    OStringStream context;
-                    context
-                        << "    Us           = " << Us_[badCell] << nl
-                        << "    Ts           = " << T_[badCell] << nl
-                        << "    rhoCp        = " << rhoCp[badCell] << nl
-                        << "    sum(Ym)      = " << totalYm[badCell] << nl
-                        << "    porosity     = " << porosity_[badCell];
-
-                    reportInvalidSolidState
-                    (
-                        mesh_,
-                        time_,
-                        "the solid enthalpy advection in preSolveEnergy()",
-                        sH,
-                        badCell,
-                        context.str()
-                    );
-                }
             }
 
             solidH_().max(0);
@@ -1419,34 +1305,27 @@ void volPyrolysis::postSolveEnergy()
                 T_ = solidH_()/rhoCp;
             }
 
-            if (failOnInvalidSolidState_)
+            const label badCell =
+                solidStateChecker_->firstInvalidTemperature(T_);
+
+            if (badCell != -1)
             {
-                // A cell holding no solid holds no solid enthalpy, so the
-                // lower bound has to admit zero here.
-                const label badCell =
-                    firstInvalidSolidCell(T_, 0.0, maxSolidTemperature_);
+                OStringStream context;
+                context
+                    << "    solidH       = "
+                    << solidH_()[badCell] << nl
+                    << "    sum(Ym)      = " << totalYm[badCell] << nl
+                    << "    rhoCp        = " << rhoCp[badCell] << nl
+                    << "    porosity     = " << porosity_[badCell] << nl
+                    << "    whereIs      = " << whereIs_[badCell];
 
-                if (badCell != -1)
-                {
-                    OStringStream context;
-                    context
-                        << "    solidH       = "
-                        << solidH_()[badCell] << nl
-                        << "    sum(Ym)      = " << totalYm[badCell] << nl
-                        << "    rhoCp        = " << rhoCp[badCell] << nl
-                        << "    porosity     = " << porosity_[badCell] << nl
-                        << "    whereIs      = " << whereIs_[badCell];
-
-                    reportInvalidSolidState
-                    (
-                        mesh_,
-                        time_,
-                        "the Ts recovery in postSolveEnergy()",
-                        T_,
-                        badCell,
-                        context.str()
-                    );
-                }
+                solidStateChecker_->abort
+                (
+                    "the Ts recovery in postSolveEnergy()",
+                    T_,
+                    badCell,
+                    context.str()
+                );
             }
 
             T_.correctBoundaryConditions();
@@ -1577,9 +1456,6 @@ volPyrolysis::volPyrolysis
     collapseMovesSolidMass_(false),
     emptyFlippedCells_(false),
     gasTemperatureBelowCriticalPorosity_(false),
-    failOnInvalidSolidState_(true),
-    solidStateTolerance_(1e-8),
-    maxSolidTemperature_(1e5),
     critPorosity_(0.9999),
     poroProtectSolidInflowFluxTolerance_(1e-12),
     totRepMass_(0.),
@@ -1766,6 +1642,7 @@ volPyrolysis::volPyrolysis
         dimensionedScalar("zero", dimVolume/dimTime, 0.0)
     ),
     solidFluxLimiter_(nullptr),
+    solidStateChecker_(nullptr),
     demActive_(false),
     lambdaDotPtr_(nullptr),
     lostSolidMass_(dimensionedScalar("zero", dimMass, 0.0)),
@@ -1795,12 +1672,6 @@ volPyrolysis::volPyrolysis
         coeffs().lookupOrDefault("emptyFlippedCells",false);
     gasTemperatureBelowCriticalPorosity_ =
         coeffs().lookupOrDefault("gasTemperatureBelowCriticalPorosity",false);
-    failOnInvalidSolidState_ =
-        coeffs().lookupOrDefault("failOnInvalidSolidState",true);
-    solidStateTolerance_ =
-        coeffs().lookupOrDefault<scalar>("solidStateTolerance",1e-8);
-    maxSolidTemperature_ =
-        coeffs().lookupOrDefault<scalar>("maxSolidTemperature",1e5);
     critPorosity_ = coeffs().lookupOrDefault("criticalPorosity",0.9999);
     poroProtectSolidInflowFluxTolerance_ =
         coeffs().lookupOrDefault
@@ -1824,9 +1695,8 @@ volPyrolysis::volPyrolysis
     Info << "emptyFlippedCells        " << emptyFlippedCells_  << endl;
     Info << "gasTemperatureBelowCriticalPorosity  "
          << gasTemperatureBelowCriticalPorosity_ << endl;
-    Info << "failOnInvalidSolidState  " << failOnInvalidSolidState_ << endl;
-    Info << "solidStateTolerance      " << solidStateTolerance_ << endl;
-    Info << "maxSolidTemperature      " << maxSolidTemperature_ << endl;
+    // Constructed here because it carries the last three banner lines.
+    solidStateChecker_.reset(new SolidStateChecker(coeffs(), mesh_, time_));
 
     // Reads its own keys from the same dict and logs them, so the settings
     // it owns are reported where the rest of them are. Ym_ is filled below;

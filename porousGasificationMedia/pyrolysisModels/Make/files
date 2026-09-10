@@ -6,5 +6,6 @@ pyrolysisModel/heterogeneousPyrolysisModel/heterogeneousPyrolysisModel.C
 pyrolysisModel/heterogeneousPyrolysisModel/heterogeneousPyrolysisModelNew.C
 pyrolysisModel/volPyrolysis/volPyrolysis.C
 pyrolysisModel/volPyrolysis/solidFluxLimiter/solidFluxLimiter.C
+pyrolysisModel/volPyrolysis/solidStateChecker/solidStateChecker.C
 
 LIB = $(FOAM_USER_LIBBIN)/libHGSheterogeneousPyrolysisModels
