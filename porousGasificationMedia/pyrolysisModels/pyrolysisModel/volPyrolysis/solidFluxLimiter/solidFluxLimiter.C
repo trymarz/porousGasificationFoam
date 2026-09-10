@@ -144,11 +144,6 @@ void SolidFluxLimiter::solidFluxBudgets
 
     forAll(Ym_, i)
     {
-        // A fixedYm patch value is Yi*rho*(1 - porosityF) read from the
-        // cell behind it, and the porosity it reads was recovered at the
-        // end of the previous step, so the patch is stale until corrected.
-        // Limiting a stale zero leaves that face unlimited while the
-        // corrected value asks for solid the cell does not have.
         Ym_[i].correctBoundaryConditions();
 
         phiYm.set(i, fvc::flux(phiSolid, Ym_[i], "div(phiSolid)").ptr());
@@ -166,9 +161,6 @@ void SolidFluxLimiter::solidFluxBudgets
         phiYmTotal += phiYm[i];
     }
 
-    // Read from the mass, not from porosity_: the mass is what the limiter
-    // moves, and recoverPorosity() writes porosity_ from this same
-    // expression - through a "< 1e-4 -> 0" clip that is a second writer.
     tAlphaS = totalYm/max(rho_, rhoSolidFloor);
 
     // Chemistry fills and empties cells too. RRpor = -sum_i RRs_i/rho_i is
@@ -321,11 +313,9 @@ void SolidFluxLimiter::applySolidFaceLimit
 
         forAll(lambdaP, i)
         {
-            // Only this side of the patch is reachable here. A coupled
-            // patch takes the other side's factor from the sync below; a
-            // real boundary has no other side, so an inlet is held by the
-            // receiving cell's room and an outlet by what the draining
-            // cell holds.
+            // Only this side is reachable here; a coupled patch takes the
+            // other side's factor from the sync below. A real boundary:
+            // inlet held by the receiver's room, outlet by the donor.
             lambdaP[i] = min
             (
                 lambdaP[i],
@@ -533,11 +523,9 @@ tmp<surfaceScalarField> SolidFluxLimiter::limit()
 
     surfaceScalarField& phiSolid = tPhiSolid.ref();
 
-    // The budgets are written in the terms of the equation they limit,
-    // Ym_i^new = Ym_i + dt*(RRs_i - div(phiYm_i)), so phiYm carries the
-    // transport scheme's own face fluxes. Scaling phiSolid scales every
-    // one of them by the same factor: the scheme reads the flux only for
-    // the upwind direction, which a non-negative scale leaves alone.
+    // Budgets are written in the equation's own terms, Ym_i^new = Ym_i +
+    // dt*(RRs_i - div(phiYm_i)), so scaling phiSolid scales every phiYm
+    // by the same factor (the scheme reads only the upwind direction).
     PtrList<surfaceScalarField> phiYm;
     PtrList<volScalarField> RRsolid;
     tmp<surfaceScalarField> tPhiYmTotal;
@@ -585,11 +573,9 @@ tmp<surfaceScalarField> SolidFluxLimiter::limit()
 
     for (label sweep = 0; sweep < nSolidFluxLimiterCorrectors_; ++sweep)
     {
-        // All but the last sweep credit a cell with the flux crossing its
-        // faces the other way - what arrives may also leave, what leaves
-        // makes room - which lets a jam travel back up the bed inside one
-        // step. The last sweep drops the credit, and its bound is the one
-        // that holds for the flux finally applied.
+        // All but the last sweep credit a cell with flux crossing back the
+        // other way, letting a jam travel up the bed within one step. The
+        // last sweep drops the credit; its bound is the one applied.
         const bool credit = (sweep < nSolidFluxLimiterCorrectors_ - 1);
 
         solidDonorLimit(phiYm, RRsolid, lambda, credit, lambdaDonor);

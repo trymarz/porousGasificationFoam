@@ -76,16 +76,11 @@ private:
         void readReactingOneDimControls();
 
         //- Derive mass fractions Ys_ from mass concentrations Ym_
-        //  Ys_i = Ym_i/sum_j(Ym_j) wherever the cell holds solid mass, and
-        //  the first specie alone where it holds none. Keyed on the mass,
-        //  not on whereIs_, which is refreshed a stage later.
         void deriveYiFromYm();
 
         //- Scale the shared solid flux to what the cells can supply and take
-        //  Delegates to solidFluxLimiter_, which owns the two-sided
-        //  saturation limit, and stores what it returns in phiSolid_ - the
-        //  one flux every solid field rides. The fail-fast guards are the
-        //  backstop for what its sweeps do not reach.
+        //  Delegates to solidFluxLimiter_ (two-sided saturation limit) and
+        //  stores the result in phiSolid_, the flux every solid field rides.
         void limitSolidVolFlux();
 
 
@@ -158,41 +153,18 @@ protected:
     Switch replenishSwitch_;
 
     //- Switch for bed motion that moves the solid rather than the porosity
-    //  Bed motion shifts a column of solid down a vertical route and leaves
-    //  the cell at the top of it empty. Unset, it does that by writing
-    //  porosity: the void scales by the cell-volume ratio down the route and
-    //  is set to 1 at the top, over the mass those cells still hold. Since
-    //  recoverPorosity() derives the porosity from the mass, every one of
-    //  those writes is contradicted within the step and discarded at the
-    //  next recovery, so the bed moves nothing - and the solid enthalpy is
-    //  not moved at all, so what mass does arrive arrives cold.
-    //  Set, the mass is what moves: Ym_ carries the same cell-volume ratio
-    //  the porosity write applies to the solid volume, solidH_ travels with
-    //  it, and the top of the route is emptied for real, so por = 1 is what
-    //  1 - por = sum_i Ym_i/rho_i gives. With replenishSwitch_ unset the
-    //  solid at the foot of the route has nowhere to go and is charged to
-    //  cumulativeCollapseMass_.
+    //  Set, bed motion moves Ym_/solidH_ down the route by the same
+    //  cell-volume ratio it applies to porosity; unset, only porosity moves.
     Switch collapseMovesSolidMass_;
 
     //- Switch for emptying a flipped cell rather than leaving its solid
-    //  A cell above critPorosity_ with Us pointing into the solid is a flip
-    //  candidate - the trailing edge of a bed being dragged away. Unset, it
-    //  is left alone and drains through the ordinary transport. Set, it is
-    //  emptied for real, specie masses and solid enthalpy removed, so the
-    //  porosity recovery derives por = 1 from a genuinely empty cell; that
-    //  mass is destroyed rather than moved and charged to
-    //  cumulativeFlipMass_. Writing por = 1 over mass still present is not
-    //  an option: the solid flux limiter reads that link to size a cell's
-    //  room.
+    //  A flip candidate: above critPorosity_ with Us pointing inward. Set,
+    //  it is emptied for real; mass destroyed, charged to cumulativeFlipMass_.
     Switch emptyFlippedCells_;
 
     //- Switch for taking a nearly-empty cell's solid temperature from the gas
-    //  Above critPorosity_ a cell holds too little solid for
-    //  Ts = solidH/(totalYm*Cp) to say anything: the ratio is a frozen
-    //  numerator over a vanishing denominator. Set, such a cell reports the
-    //  gas temperature, and preSolveEnergy()'s solidH = rhoCp*Ts then drops
-    //  the enthalpy it was holding - energy destroyed rather than moved, and
-    //  charged to no budget. Unset, the ratio stands as computed.
+    //  Above critPorosity_, Ts = solidH/(totalYm*Cp) is a frozen numerator
+    //  over a vanishing denominator. Set, energy lost this way is uncharged.
     Switch gasTemperatureBelowCriticalPorosity_;
 
     //- Criterion for bed motion porosity model
@@ -230,9 +202,8 @@ protected:
         volScalarField chemistrySh_;
 
         //- Porosity growth from chemistry [1/s], diagnostic only
-        //  -sum_i RRs_i/rho_i, the time derivative of the solid volume
-        //  fraction chemistry removes. Reported, never applied: the
-        //  porosity is recovered from Ym_, which RRs_i has already moved.
+        //  -sum_i RRs_i/rho_i, the rate chemistry removes solid volume at.
+        //  Reported, never applied: porosity is recovered from Ym_ instead.
         volScalarField porositySource_;
 
         //- Masks for equations
@@ -266,11 +237,8 @@ protected:
         const volVectorField& Us_;
 
         //- The solid volumetric face flux the transport stages ride [m3/s]
-        //  What solidFluxLimiter_ returns, stored by limitSolidVolFlux().
-        //  One field, shared by the specie masses and the solid enthalpy,
-        //  so a face moves the same solid in every equation that sees it.
-        //  Owned here rather than by the limiter: solveSpeciesMass() and
-        //  preSolveEnergy() both read it outside the limiter's scope.
+        //  Set by limitSolidVolFlux() from solidFluxLimiter_. Owned here,
+        //  not by the limiter: solveSpeciesMass()/preSolveEnergy() read it too.
         surfaceScalarField phiSolid_;
 
         //- Reference to the solid flux limiter
@@ -316,9 +284,8 @@ protected:
         scalar timeChem_;
 
         //- Total Ym mass integral at construction, for the conservation
-        //  diagnostic [kg]. Accumulated over the species in the
-        //  constructor, so on restart it holds the restart inventory and
-        //  conservation is checked from the restart onward.
+        //  diagnostic [kg]. On restart this holds the restart inventory,
+        //  so conservation is checked from the restart onward.
         scalar initialTotalYmMass_;
 
         //- Cumulative solid mass advected out through boundaries [kg]
@@ -332,21 +299,13 @@ protected:
         scalar cumulativeYmClip_;
 
         //- Cumulative solid mass destroyed by emptying flipped cells [kg]
-        //  Nonzero only under emptyFlippedCells_. Reported with the mass
-        //  budget so a conserved-looking total cannot hide the solid this
-        //  removes.
+        //  Nonzero only under emptyFlippedCells_; reported with the mass
+        //  budget so it isn't hidden in a conserved-looking total.
         scalar cumulativeFlipMass_;
 
         //- Cumulative solid mass shed at the foot of a bed-motion route [kg]
-        //  Nonzero only under collapseMovesSolidMass_. The cell the collapse
-        //  was called for is overwritten by the one above it, so what it
-        //  held leaves the domain; every other cell on the route is read
-        //  into its neighbour before being overwritten, so on a route that
-        //  lies within one processor this is the whole of what the shift
-        //  loses. A route spanning processors also creates mass - see the
-        //  cross-processor branch in recoverPorosity() - so there the budget
-        //  does not close on this figure alone. Reported with the mass
-        //  budget, so neither can hide in a conserved-looking total.
+        //  Nonzero only under collapseMovesSolidMass_. A route spanning
+        //  processors can also create mass not charged here - see recoverPorosity().
         scalar cumulativeCollapseMass_;
 
 
@@ -373,9 +332,8 @@ protected:
             void postSolveEnergy();
 
             //- Recover the porosity from the transported solid mass
-            //  1 - porosity = sum_i Ym_i/rho_i, exactly. Also refreshes the
-            //  whereIs_ masks and runs the bed-motion model. Last stage of
-            //  evolveRegion(): it divides by the rho_ postSolveEnergy() sets.
+            //  1 - porosity = sum_i Ym_i/rho_i, exactly. Last stage of
+            //  evolveRegion(): divides by the rho_ postSolveEnergy() sets.
             void recoverPorosity();
 
 public:
