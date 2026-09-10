@@ -163,14 +163,14 @@ void SolidFluxLimiter::solidFluxBudgets
 
     tAlphaS = totalYm/max(rho_, rhoSolidFloor);
 
-    // Chemistry fills and empties cells too. RRpor = -sum_i RRs_i/rho_i is
-    // d(porosity)/dt, so -RRpor is d(alphaS)/dt and a cell that chemistry
-    // is densifying has that much less room for what the flux brings.
+    // RRpor = -sum_i RRs_i/rho_i = d(porosity)/dt, so -RRpor is
+    // d(alphaS)/dt: chemistry densifying a cell leaves it that much
+    // less room for incoming flux.
     tRRpor = chemistry_.RRpor(T_);
 
-    // The volume an arriving mass occupies is set by where it came from, so
-    // the specific volume is taken upwind of the flux: exact where the
-    // species share a density, second order in the composition step.
+    // Arriving mass takes the specific volume of where it came from,
+    // so it's interpolated upwind of the flux (exact if species share
+    // a density, second-order otherwise).
     tPhiSolidVol =
         phiYmTotal
        *upwind<scalar>(mesh_, phiSolid).interpolate
@@ -203,8 +203,8 @@ void SolidFluxLimiter::solidDonorLimit
 
         forAll(lambdaDonor, cellI)
         {
-            // Mass of specie i the cell can part with over this step:
-            // what it holds, less what chemistry takes from it.
+            // Mass of specie i this cell can give up: what it holds,
+            // minus what chemistry removes.
             const scalar canLeave = max
             (
                 0.0,
@@ -212,8 +212,8 @@ void SolidFluxLimiter::solidDonorLimit
               + (credit ? sumIn[cellI] : 0.0)
             );
 
-            // Nothing leaving means nothing to scale. A factor of zero
-            // here would report a limit on faces carrying no solid at all.
+            // Skip cells with no outflow: a zero factor here would
+            // wrongly "limit" faces carrying no solid at all.
             if (sumOut[cellI] > SMALL)
             {
                 lambdaDonor[cellI] = min
@@ -248,8 +248,8 @@ void SolidFluxLimiter::solidReceiverLimit
 
     forAll(lambdaReceiver, cellI)
     {
-        // Solid volume the cell still has room for over this step, after
-        // chemistry has taken its share of it.
+        // Solid volume this cell still has room for, after chemistry
+        // has taken its own share of it.
         const scalar room = max
         (
             0.0,
@@ -313,9 +313,9 @@ void SolidFluxLimiter::applySolidFaceLimit
 
         forAll(lambdaP, i)
         {
-            // Only this side is reachable here; a coupled patch takes the
-            // other side's factor from the sync below. A real boundary:
-            // inlet held by the receiver's room, outlet by the donor.
+            // Only this side is visible here; a coupled patch gets the
+            // other side's factor from the sync below. On a real
+            // boundary: inflow held by room, outflow by mass.
             lambdaP[i] = min
             (
                 lambdaP[i],
@@ -326,8 +326,8 @@ void SolidFluxLimiter::applySolidFaceLimit
         }
     }
 
-    // lambda slices allLambda, patch faces included, so the two sides of a
-    // coupled face meet here and both keep the tighter factor.
+    // lambda slices allLambda (patch faces included), so both sides
+    // of a coupled face meet here and keep the tighter factor.
     syncTools::syncFaceList(mesh_, allLambda, minEqOp<scalar>());
 }
 
@@ -367,8 +367,8 @@ void SolidFluxLimiter::reportSolidFluxLimiter
 
     forAll(lambdaBf, patchI)
     {
-        // A coupled face is one face seen from two sides, so each side
-        // carries half of it and the totals come out per physical face.
+        // A coupled face is counted from both sides, so weight by
+        // half to total per physical face.
         const scalar weight =
             mesh_.boundary()[patchI].coupled() ? 0.5 : 1.0;
 
@@ -389,9 +389,9 @@ void SolidFluxLimiter::reportSolidFluxLimiter
         }
     }
 
-    // What the sweeps did not reach, read off the state the limited flux
-    // will produce rather than off the inequality the factors were built
-    // from. The sweep count is capped, so this is the honest answer.
+    // Measured from the state the limited flux will actually produce,
+    // not from the inequalities it was built from - sweeps are capped,
+    // so convergence isn't guaranteed.
     scalar maxUndershoot = 0.0;
     scalar YmScale = SMALL;
 
@@ -523,9 +523,9 @@ tmp<surfaceScalarField> SolidFluxLimiter::limit()
 
     surfaceScalarField& phiSolid = tPhiSolid.ref();
 
-    // Budgets are written in the equation's own terms, Ym_i^new = Ym_i +
-    // dt*(RRs_i - div(phiYm_i)), so scaling phiSolid scales every phiYm
-    // by the same factor (the scheme reads only the upwind direction).
+    // Budgets follow the update Ym_i^new = Ym_i + dt*(RRs_i -
+    // div(phiYm_i)), so scaling phiSolid scales every phiYm by the
+    // same factor (the scheme only reads the upwind direction).
     PtrList<surfaceScalarField> phiYm;
     PtrList<volScalarField> RRsolid;
     tmp<surfaceScalarField> tPhiYmTotal;
@@ -573,9 +573,9 @@ tmp<surfaceScalarField> SolidFluxLimiter::limit()
 
     for (label sweep = 0; sweep < nSolidFluxLimiterCorrectors_; ++sweep)
     {
-        // All but the last sweep credit a cell with flux crossing back the
-        // other way, letting a jam travel up the bed within one step. The
-        // last sweep drops the credit; its bound is the one applied.
+        // Every sweep but the last credits flux crossing back the
+        // other way, letting a jam travel up the bed in one step. The
+        // final, uncredited sweep sets the bound that's applied.
         const bool credit = (sweep < nSolidFluxLimiterCorrectors_ - 1);
 
         solidDonorLimit(phiYm, RRsolid, lambda, credit, lambdaDonor);

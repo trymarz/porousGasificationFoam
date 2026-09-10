@@ -27,29 +27,23 @@ Class
 Description
     Fail-fast guards on the solid state.
 
-    The solid transport equations are explicit and unbounded, so a value
-    outside its physical range is a defect to diagnose at the equation that
-    produced it, not a number to clip and carry forward into a downstream
-    exception that says nothing about where it came from.
+    The solid transport equations are explicit and unbounded, so an
+    out-of-range value is diagnosed at the equation that produced it,
+    not clipped and left to fail downstream with no trace of its origin.
 
-    Every stage that updates a solid field checks it the same way: scan for
-    the first cell outside the bounds that field's meaning admits, and abort
-    from there reporting whatever the stage knows is relevant. The bounds are
-    named here rather than spelled at each call site, so a stage asks for the
-    check its field needs and nothing else.
+    Each stage scans its field for the first cell outside the bounds
+    that field's meaning admits, and aborts there. Bounds live here, not
+    at each call site, so a stage just asks for the check it needs.
 
-    A scan returns -1 when failOnInvalidSolidState_ is unset, which is how the
-    guards are switched off - no call site carries a test of its own. Scans
-    are rank-local: an invalid state on any rank aborts the whole job.
+    A scan returns -1 when failOnInvalidSolidState_ is off - that's the
+    one kill switch, no call site tests it itself. Scans are rank-local:
+    an invalid cell on any rank aborts the whole job.
 
-    Also owns the two pieces of state that were only ever guard state - the
-    solid-presence mask the two Ts guards are judged on, and the porosity /
-    solid-mass consistency invariant, which reports whether or not the
-    fail-fast guards are on.
+    Also owns the solid-presence mask the Ts guards use, and the
+    porosity/solid-mass consistency check.
 
-    Owned by volPyrolysis by plain composition, in the manner of
-    SolidFluxLimiter: only one checking policy exists, so there is no runtime
-    selection table.
+    Owned directly by volPyrolysis (like SolidFluxLimiter) - no runtime
+    selection, since only one checking policy exists.
 
 SourceFiles
     solidStateChecker.C
@@ -86,19 +80,19 @@ class SolidStateChecker
         //- Run time, for the time and the deltaT an abort reports
         const Time& time_;
 
-        //- Switch for the fail-fast guards on the solid state
-        //  When set, an impossible porosity, Ym, solid enthalpy or solid
+        //- Master switch for the fail-fast guards
+        //  When on, an impossible porosity, Ym, solid enthalpy or
         //  temperature aborts at the equation that produced it.
         Switch failOnInvalidSolidState_;
 
-        //- Relative slack admitted by the fail-fast guards [-]
-        //  Sized to absorb round-off on the explicit updates only; an
-        //  excursion larger than this is a genuine overshoot.
+        //- Relative slack allowed by the guards [-]
+        //  Sized for round-off on explicit updates only; anything past
+        //  this is a real overshoot.
         scalar solidStateTolerance_;
 
         //- Bound on a physically credible solid temperature [K]
-        //  Ts is a ratio, solidH/(totalYm*Cp), and says nothing credible
-        //  about a cell whose solid inventory is vanishing.
+        //  Ts = solidH/(totalYm*Cp) is meaningless once totalYm is
+        //  near zero.
         scalar maxSolidTemperature_;
 
 
@@ -110,9 +104,8 @@ class SolidStateChecker
         //- Disallow default bitwise assignment
         void operator=(const SolidStateChecker&);
 
-        //- Index of the first cell not finite or outside [lower, upper]
-        //  -1 when the field is valid everywhere. Cells where the optional
-        //  mask is not positive are skipped. Rank-local, as the guards are.
+        //- First cell that's non-finite or outside [lower, upper], else -1
+        //  Skips cells where the optional mask isn't positive. Rank-local.
         label firstInvalidCell
         (
             const volScalarField& fld,
@@ -141,32 +134,31 @@ public:
 
     // Member Functions
 
-        //- First cell whose recovered porosity is impossible, else -1
-        //  Bounds -tol to 1 + tol: por > 1 is negative solid mass, por < 0 a
-        //  cell packed past solid by the transport.
+        //- First cell with an impossible recovered porosity, else -1
+        //  Bounds [-tol, 1+tol]: >1 means negative solid mass, <0 means
+        //  packed past pure solid.
         label firstInvalidPorosity(const volScalarField& por) const;
 
-        //- First cell whose extensive solid field is impossible, else -1
-        //  Ym and the solid enthalpy. Extensive, so the admissible
-        //  undershoot scales with the amount present in the field.
+        //- First cell with an impossible Ym or solid enthalpy, else -1
+        //  Extensive fields, so the allowed undershoot scales with the
+        //  amount present.
         label firstInvalidExtensive(const volScalarField& fld) const;
 
-        //- First cell whose solid temperature is impossible, else -1
-        //  A temperature slack below zero, not a mass one, and judged only
-        //  where the mask is positive.
+        //- First cell with an impossible solid temperature, else -1
+        //  Checked only where the mask is positive.
         label firstInvalidTemperature
         (
             const volScalarField& T,
             const scalarField& mask
         ) const;
 
-        //- First cell whose recovered solid temperature is impossible, else -1
-        //  Unmasked, and zero is the lower bound: a cell holding no solid
-        //  holds no solid enthalpy either.
+        //- First cell with an impossible recovered solid temperature,
+        //  else -1. Unmasked; lower bound is 0, since no solid means
+        //  no solid enthalpy either.
         label firstInvalidTemperature(const volScalarField& T) const;
 
-        //- Abort on an impossible solid state, reporting where it is and
-        //  whatever the calling stage knows is relevant. Never returns.
+        //- Aborts on an impossible solid state, reporting where and
+        //  whatever context the caller provides. Never returns.
         void abort
         (
             const word& stage,
@@ -176,17 +168,17 @@ public:
         ) const;
 
         //- Positive only where the cell holds solid; the Ts guards' mask
-        //  A solid temperature means nothing without solid to carry it, and
-        //  the test is a mass scale or 1e-18 kg/m3 of dust reads as a defect.
+        //  A solid temperature is meaningless without solid to carry it -
+        //  testing exact zero would flag trace dust as a defect.
         tmp<volScalarField> solidPresent
         (
             const volScalarField& totalYm,
             const volScalarField& rho
         ) const;
 
-        //- Report the worst cell violating 1 - porosity = sum_i Ym_i/rho_i
-        //  A field-wide min/max cannot see two fields disagreeing while
-        //  neither is out of range. Always prints; warns past the tolerance.
+        //- Reports the worst cell violating 1 - porosity = sum_i Ym_i/rho_i
+        //  Catches two in-range fields disagreeing with each other, which
+        //  a plain min/max can't. Always prints; warns past tolerance.
         void checkConsistency
         (
             const volScalarField& porosity,

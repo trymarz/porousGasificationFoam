@@ -205,9 +205,9 @@ tmp<volScalarField> SolidStateChecker::solidPresent
     const volScalarField& rho
 ) const
 {
-    // The smallest solid mass distinguishable from zero: rho is the skeletal
-    // density, so a cell below solidStateTolerance_ of a packed cell holds
-    // nothing. Floored by SMALL too, since rho is itself zero where empty.
+    // Smallest solid mass distinguishable from zero: a fraction
+    // solidStateTolerance_ of what a packed cell would hold. Floored
+    // by SMALL too, since rho is itself zero where empty.
     const volScalarField YmFloor
     (
         max
@@ -258,8 +258,7 @@ void SolidStateChecker::checkConsistency
     Info<< "solid state consistency: max|1 - porosity"
         << " - sum(Ym_i/rho_i)| = " << globalResidual << endl;
 
-    // The last two conditions leave the report to the rank that owns the
-    // worst cell.
+    // Last two conditions: only the rank owning the worst cell reports it.
     if
     (
         globalResidual > solidStateTolerance_
