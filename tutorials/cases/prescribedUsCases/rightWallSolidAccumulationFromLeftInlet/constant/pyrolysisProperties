@@ -29,9 +29,10 @@ pyrolysisCoeffs
     criticalPorosity 0.9999;
     replenish        false;
 
-    // Deliberately permit exact solid occupation so the receiver limiter and
-    // zero-void gas safeguards are exercised.
-    minPorosity      0;
+    // Solid arrives at porosity 0.5 and piles against the right wall, so the
+    // first half of the run is inlet-driven filling and the receiver cap only
+    // binds once the wall cells have packed down to 0.1.
+    minPorosity      0.1;
     solidStateTolerance 1e-10;
     nSolidFluxLimiterCorrectors 8;
 }
