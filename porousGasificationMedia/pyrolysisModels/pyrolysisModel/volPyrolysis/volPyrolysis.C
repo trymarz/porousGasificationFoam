@@ -38,6 +38,7 @@ License
 #include "DynamicList.H"
 #include "processorPolyPatch.H"
 #include "processorCyclicPolyPatch.H"
+#include "upwind.H"
 
 #include "BCs/fixedSolidH/fixedSolidHFvPatchScalarField.H"
 #include "BCs/fixedYm/fixedYmFvPatchScalarField.H"
@@ -93,74 +94,128 @@ bool volPyrolysis::read(const dictionary& dict)
 
 void volPyrolysis::deriveYiFromYm()
 {
-    // Reconstruct the mass fractions Ys_ (consumed by chemistry and thermo)
-    // from the transported mass concentrations Ym_ [kg/m3]. Only touch solid
-    // cells; gas-only cells keep whatever Ys_ they already hold.
-    forAll(whereIs_, cellI)
+    // rho_ = 1/sum_i(Ys_i/rho_i) is a density only where sum_i Ys_i = 1;
+    // a fixedYm patch beside an empty cell injects at that density.
+    forAll(Ym_[0], cellI)
     {
-        if (whereIs_[cellI] == 1)
+        scalar Ysum = 0.0;
+        forAll(Ys_, i)
         {
-            scalar Ysum = 0.0;
+            Ysum += Ym_[i][cellI];
+        }
+
+        if (Ysum > SMALL)
+        {
             forAll(Ys_, i)
             {
-                Ysum += Ym_[i][cellI];
+                Ys_[i][cellI] = Ym_[i][cellI] / Ysum;
             }
-
-            if (Ysum > SMALL)
+        }
+        else
+        {
+            // The cell carries no mass, so nothing it holds depends on the
+            // choice - only a fixedYm patch beside it reads this density.
+            forAll(Ys_, i)
             {
-                forAll(Ys_, i)
-                {
-                    Ys_[i][cellI] = Ym_[i][cellI] / Ysum;
-                }
+                Ys_[i][cellI] = 0.0;
             }
-            else
-            {
-                // All solid consumed — assign a default composition to
-                // prevent a division-by-zero NaN downstream.
-                forAll(Ys_, i)
-                {
-                    Ys_[i][cellI] = 0.0;
-                }
-                Ys_[0][cellI] = 1.0;
-            }
+            Ys_[0][cellI] = 1.0;
         }
     }
 }
 
-void volPyrolysis::solvePorosity()
+void volPyrolysis::limitSolidVolFlux()
+{
+    phiSolid_ = solidFluxLimiter_->limit();
+}
+
+void volPyrolysis::guardPorosity
+(
+    const word& stage,
+    const volScalarField& por,
+    const surfaceScalarField& phiUs
+) const
+{
+    const label badCell = solidStateChecker_->firstInvalidPorosity
+    (
+        por,
+        solidFluxLimiter_->minPorosity()
+    );
+
+    if (badCell == -1)
+    {
+        return;
+    }
+
+    // Read from Ym_ here rather than taken as an argument, so a caller
+    // after the bed motion reports the mass it actually left behind.
+    scalar sumYm = 0.0;
+    forAll(Ym_, i)
+    {
+        sumYm += Ym_[i][badCell];
+    }
+
+    OStringStream context;
+    context
+        << "    minPorosity  = " << solidFluxLimiter_->minPorosity() << nl
+        << "    Us           = " << Us_[badCell] << nl
+        << "    div(phiUs)   = " << fvc::div(phiUs)()[badCell] << nl
+        << "    sum(Ym)      = " << sumYm << nl
+        << "    rho          = " << rho_[badCell] << nl
+        << "    whereIs      = " << whereIs_[badCell];
+
+    solidStateChecker_->abort(stage, por, badCell, context.str());
+}
+
+void volPyrolysis::recoverPorosity()
 {
     if (active_)
     {
-        // Porosity is 1 - Vsolid/Vfvm, so chemistry changes it directly
-        // through Ym_i: the source is the full reaction rate.
         porositySource_ = solidChemistry_->RRpor(T_)();
 
         volScalarField& por = porosity_;
 
-        surfaceScalarField phiUs = mesh_.Sf() & fvc::interpolate(Us_,"Us");
+        const surfaceScalarField& phiUs = phiSolid_;
 
-        // Us_ advects solid, so flux must scale with solid fraction
-        // (1-por), not por. From d(1-por)/dt + div(phiUs*(1-por)) =
-        // -porositySource_, negating and expanding div(phiUs*(1-por))
-        // gives d(por)/dt = porositySource_ + div(phiUs) - div(phiUs,por).
-        fvScalarMatrix porosityEqn
+        volScalarField totalYm = 0*Ym_[0];
+
+        forAll(Ym_, i)
+        {
+            totalYm += Ym_[i];
+        }
+
+        // por is not transported: 1 - por = sum_i Ym_i/rho_i = totalYm/rho_,
+        // an identity from multiComponentSolidMixture's 1/rho_ = sum Ys_i/rho_i.
+        // Internal field only: a fixedValue porosity patch keeps its value.
+        const dimensionedScalar rhoSolidFloor
         (
-            fvm::ddt(por)
-         ==
-            porositySource_
-          + fvc::div(phiUs)
-          - fvc::div(phiUs, por, "div(phiSolid)")
+            "rhoSolidFloor",
+            dimDensity,
+            SMALL
         );
 
-        porosityEqn.solve("porosity");
+        const volScalarField voidFraction
+        (
+            1.0 - totalYm/max(rho_, rhoSolidFloor)
+        );
 
-        Info<< "porosity equation solved. Sources min/max   = " << gMin(porositySource_)
+        por.primitiveFieldRef() = voidFraction.primitiveField();
+
+        // On the mass the transport just produced, before the bed-motion
+        // machinery below writes porosity_ again.
+        guardPorosity
+        (
+            "the porosity recovery in recoverPorosity()",
+            por,
+            phiUs
+        );
+
+        Info<< "porosity recovered from solid mass. Chemistry source (not"
+            << " applied) min/max   = " << gMin(porositySource_)
             << ", " << gMax(porositySource_);
 
         Info<< "; values min Y = " << gMin(por)
             <<" max Y = " << gMax(por) << endl;
-
-        scalar minTs = 0;
 
         FIFOStack<label> candidateStack = {};
 
@@ -178,11 +233,6 @@ void volPyrolysis::solvePorosity()
                     }
                 }
             }
-            if (porosity_[cellI] < 0.0001)
-            {
-                porosity_[cellI] = 0.0;
-                Info << "porosity 0 in cell " << cellI << endl;
-            }
             if (porosity_[cellI] < 1.0)
             {
                 whereIs_[cellI] = 1.0;
@@ -197,13 +247,6 @@ void volPyrolysis::solvePorosity()
 
         // Do not erase a nearly empty cell while solid mass is still
         // entering it through the advective transport equation.
-        volScalarField totalYm = 0*Ym_[0];
-
-        forAll(Ym_, i)
-        {
-            totalYm += Ym_[i];
-        }
-
         volScalarField divPhiYm
         (
             fvc::div(phiUs, totalYm, "div(phiSolid)")
@@ -370,6 +413,7 @@ void volPyrolysis::solvePorosity()
                 // and distributes them to execution on local processors
                 List<List<label>> realRoutes = {};
                 scalar replenishedMass = 0;
+                scalar collapsedMass = 0;
                 if (Pstream::master())
                 {
 
@@ -407,6 +451,13 @@ void volPyrolysis::solvePorosity()
                 porosityArch_.correctBoundaryConditions();
                 T_.correctBoundaryConditions();
                 rho_.correctBoundaryConditions();
+                if (collapseMovesSolidMass_)
+                {
+                    // The solid enthalpy travels with the mass across a
+                    // processor boundary too, so its neighbour values have
+                    // to be current before any route is walked.
+                    solidH_().correctBoundaryConditions();
+                }
                 for (label i = 0; i < Ys_.size(); ++i)
                 {
                     Ym_[i].correctBoundaryConditions();
@@ -418,6 +469,26 @@ void volPyrolysis::solvePorosity()
                     label maxLocalGlobalI = globalIndex[Pstream::myProcNo()][globalIndex[Pstream::myProcNo()].size()-1];
                     bool currentI = false;
                     bool previousI = false;
+                    if
+                    (
+                        collapseMovesSolidMass_
+                     && (minLocalGlobalI <= realRoutes[routeI][0])
+                     && (realRoutes[routeI][0] <= maxLocalGlobalI)
+                     && (realRoutes[routeI].size() > 1 || !replenishSwitch_)
+                    )
+                    {
+                        // The route's foot is where the collapse was called;
+                        // what it holds leaves the domain (or stays, if the
+                        // route is length one and replenishing). Charged here.
+                        const label footCell =
+                            realRoutes[routeI][0] - minLocalGlobalI;
+
+                        forAll(Ym_, i)
+                        {
+                            collapsedMass +=
+                                Ym_[i][footCell]*cellVolume_[footCell];
+                        }
+                    }
                     for (label stepI = 0; stepI < realRoutes[routeI].size(); stepI++)
                     {
                         if ( (minLocalGlobalI <= realRoutes[routeI][stepI]) and (realRoutes[routeI][stepI] <= maxLocalGlobalI))
@@ -450,9 +521,25 @@ void volPyrolysis::solvePorosity()
                             rho_[realRoutes[routeI][stepI-1] - minLocalGlobalI] = rho_[realRoutes[routeI][stepI] - minLocalGlobalI];
                             // Transfer only the transported Ym_; Ys_ is
                             // re-derived once after the whole route loop.
-                            for (label i = 0; i < Ys_.size(); ++i)
+                            // Ym_ (mass per unit volume) takes the same
+                            // ratio; solidH_ travels with it too.
+                            if (collapseMovesSolidMass_)
                             {
-                                Ym_[i][realRoutes[routeI][stepI-1] - minLocalGlobalI] = Ym_[i][realRoutes[routeI][stepI] - minLocalGlobalI];
+                                for (label i = 0; i < Ys_.size(); ++i)
+                                {
+                                    Ym_[i][realRoutes[routeI][stepI-1] - minLocalGlobalI] =
+                                        Ym_[i][realRoutes[routeI][stepI] - minLocalGlobalI]*cellVolumeRatio;
+                                }
+
+                                solidH_()[realRoutes[routeI][stepI-1] - minLocalGlobalI] =
+                                    solidH_()[realRoutes[routeI][stepI] - minLocalGlobalI]*cellVolumeRatio;
+                            }
+                            else
+                            {
+                                for (label i = 0; i < Ys_.size(); ++i)
+                                {
+                                    Ym_[i][realRoutes[routeI][stepI-1] - minLocalGlobalI] = Ym_[i][realRoutes[routeI][stepI] - minLocalGlobalI];
+                                }
                             }
                             
                             //scalar neededMass = porosity_[realRoutes[routeI][stepI-1] - minLocalGlobalI]*(1. - porosity_[realRoutes[routeI][stepI] - minLocalGlobalI])
@@ -558,9 +645,22 @@ void volPyrolysis::solvePorosity()
                                          rho_[realRoutes[routeI][stepI-1] - minLocalGlobalI] = rho_.boundaryField()[patchID].patchNeighbourField()()[faceID];
                                          // Transfer only the transported Ym_;
                                          // Ys_ is re-derived after the loop.
-                                         for (label i = 0; i < Ys_.size(); ++i)
+                                         // Ratio and enthalpy as in the
+                                         // on-processor branch above.
+                                         if (collapseMovesSolidMass_)
                                          {
-                                             Ym_[i][realRoutes[routeI][stepI-1] - minLocalGlobalI] = Ym_[i].boundaryField()[patchID].patchNeighbourField()()[faceID];
+                                             for (label i = 0; i < Ys_.size(); ++i)
+                                             {
+                                                 Ym_[i][realRoutes[routeI][stepI-1] - minLocalGlobalI] = Ym_[i].boundaryField()[patchID].patchNeighbourField()()[faceID]*cellVolumeRatio;
+                                             }
+                                             solidH_()[realRoutes[routeI][stepI-1] - minLocalGlobalI] = solidH_().boundaryField()[patchID].patchNeighbourField()()[faceID]*cellVolumeRatio;
+                                         }
+                                         else
+                                         {
+                                             for (label i = 0; i < Ys_.size(); ++i)
+                                             {
+                                                 Ym_[i][realRoutes[routeI][stepI-1] - minLocalGlobalI] = Ym_[i].boundaryField()[patchID].patchNeighbourField()()[faceID];
+                                             }
                                          }
                                      }
                                  }
@@ -577,6 +677,22 @@ void volPyrolysis::solvePorosity()
                         //this lines are to stop replenishing
                         if (not replenishSwitch_)
                         {
+                            // Nothing falls in from above the route's top, so
+                            // under collapseMovesSolidMass_ the mass fields
+                            // are zeroed too; not charged (copied out above).
+                            if (collapseMovesSolidMass_)
+                            {
+                                const label topCell = realRoutes[routeI][realRoutes[routeI].size() - 1] - minLocalGlobalI;
+
+                                forAll(Ym_, i)
+                                {
+                                    Ym_[i][topCell] = 0.0;
+                                }
+
+                                solidH_()[topCell] = 0.0;
+                                T_[topCell] = 0.0;
+                            }
+
                             porosity_[realRoutes[routeI][realRoutes[routeI].size() - 1] - minLocalGlobalI] = 1.;
                             porosityArch_[realRoutes[routeI][realRoutes[routeI].size() - 1] - minLocalGlobalI] = 1.;
                         }
@@ -592,6 +708,8 @@ void volPyrolysis::solvePorosity()
                 }
 
                 reduce(replenishedMass, sumOp<scalar>());
+                reduce(collapsedMass, sumOp<scalar>());
+                cumulativeCollapseMass_ += collapsedMass;
                 if (Pstream::master())
                 {
                     totRepMass_ += replenishedMass;
@@ -603,25 +721,44 @@ void volPyrolysis::solvePorosity()
                 deriveYiFromYm();
             }
         }
-        else
+        else if (emptyFlippedCells_)
         {
-            // this is to set porosity 0 and other fields on flipped fileds
-            // it will be an alternative to the motion procedure at some point
+            // Emptying a cell removes its solid outright rather than just
+            // rewriting porosity; the mass is destroyed (no destination) and
+            // charged to cumulativeFlipMass_. T_ zeroed to match solidH_.
+            const scalarField& V = mesh_.V();
+            scalar flippedMass = 0.0;
+
             List<label> flipStackList = labelList(flipStack);
             forAll(flipStackList,entI)
             {
-                porosity_[flipStackList[entI]] = 1.0;
-                T_[flipStackList[entI]] = minTs;
+                const label cellI = flipStackList[entI];
+
+                forAll(Ym_, i)
+                {
+                    flippedMass += Ym_[i][cellI]*V[cellI];
+                    Ym_[i][cellI] = 0.0;
+                }
+
+                solidH_()[cellI] = 0.0;
+                T_[cellI] = 0.0;
+                porosity_[cellI] = 1.0;
+            }
+
+            reduce(flippedMass, sumOp<scalar>());
+            cumulativeFlipMass_ += flippedMass;
+
+            if (nFlips > 0)
+            {
+                // Ym_ has changed, so the mass fractions the mixture density
+                // is built from have to follow it - the same refresh the
+                // bedCollapse branch does after relocating mass.
+                deriveYiFromYm();
             }
         }
 
         forAll(porosity_,cellI)
         {
-            if (porosity_[cellI] < 0.0001)
-            {
-                porosity_[cellI] = 0.0;
-                Info << "porosity 0 in cell " << cellI << endl;
-            }
             if (porosity_[cellI] < 1.0)
             {
                 whereIs_[cellI] = 1.0;
@@ -633,6 +770,16 @@ void volPyrolysis::solvePorosity()
                 whereIsNot_[cellI] = 1.0;
             }
         }
+
+        // Here, after everything above that writes porosity_ directly: the
+        // bed-motion model and the flip to por = 1.
+        guardPorosity
+        (
+            "the bed motion in recoverPorosity()",
+            por,
+            phiUs
+        );
+        solidStateChecker_->checkConsistency(porosity_, Ym_, rho_, whereIs_);
 
         surfF_= surfF_*0;
         porosity_.correctBoundaryConditions();
@@ -686,7 +833,9 @@ void volPyrolysis::solveSpeciesMass()
     if (active_)
     {
 
-        surfaceScalarField phiUs = mesh_.Sf() & fvc::interpolate(Us_);
+        // The already-limited flux, not what Us asked for: settled once per
+        // step so every solid field rides the same value at each face.
+        const surfaceScalarField& phiUs = phiSolid_;
 
         // Reset lambdaDot_, then add its temperature-driven term; the
         // chemistry-driven part accumulates per specie below.
@@ -739,6 +888,31 @@ void volPyrolysis::solveSpeciesMass()
             YmEqn.relax();
             YmEqn.solve("Ys");
 
+            const label badCell =
+                solidStateChecker_->firstInvalidExtensive(Ym_i);
+
+            if (badCell != -1)
+            {
+                OStringStream context;
+                context
+                    << "    specie       = " << Ys_[i].name() << nl
+                    << "    Us           = " << Us_[badCell] << nl
+                    << "    div(phiUs Ym)= " << divYmFlux[badCell] << nl
+                    << "    RRs          = " << sRhoSi[badCell] << nl
+                    << "    porosity     = " << porosity_[badCell];
+
+                solidStateChecker_->abort
+                (
+                    "the solid specie mass equation in solveSpeciesMass()",
+                    Ym_i,
+                    badCell,
+                    context.str()
+                );
+            }
+
+            cumulativeYmClip_ +=
+                gSum(max(-Ym_i.field(), 0.0)*mesh_.V());
+
             Ym_i.max(0.0);                       // mass concentration >= 0
 
             Info<< "solid " << Ys_[i].name()
@@ -766,7 +940,11 @@ void volPyrolysis::solveSpeciesMass()
         }
 
         Info<< "solid mass budget: sum(Ym_i * V) = " << totalYmMass
-            << ", initial = " << initialTotalYmMass_ << endl;
+            << ", initial = " << initialTotalYmMass_
+            << ", fabricated by clip = " << cumulativeYmClip_
+            << ", destroyed by flip = " << cumulativeFlipMass_
+            << ", destroyed by collapse = " << cumulativeCollapseMass_
+            << endl;
 
 
         for (label i = 0; i < Ys_.size(); ++i)
@@ -797,21 +975,64 @@ void volPyrolysis::preSolveEnergy()
         else
         {
 
+            forAll(Ym_, i)
+            {
+                Ym_[i].correctBoundaryConditions();
+            }
+
             volScalarField totalYm = 0*Ym_[0];
             for (label i = 0; i < Ys_.size(); ++i)
             {
                 totalYm += Ym_[i];
             }
+
+            // What the two Ts guards below are judged on.
+            const volScalarField solidPresent
+            (
+                solidStateChecker_->solidPresent(totalYm, rho_)
+            );
+
+            // The heat capacity of the solid the cell actually holds. No
+            // whereIs_ factor: solidH_ carries none either, and masking one
+            // and not the other is a temperature of any size at all.
             volScalarField rhoCp
             (
                 max
                 (
-                    whereIs_*totalYm * solidThermo_.Cp(),
+                    totalYm * solidThermo_.Cp(),
                     dimensionedScalar("minRhoCp",dimEnergy/dimTemperature/dimVolume,SMALL)
                 )
             );
 
             T_ = solidH_()/rhoCp;
+
+            const label badTsCell =
+                solidStateChecker_->firstInvalidTemperature
+                (
+                    T_,
+                    solidPresent.primitiveField()
+                );
+
+            if (badTsCell != -1)
+            {
+                OStringStream context;
+                context
+                    << "    solidH       = "
+                    << solidH_()[badTsCell] << nl
+                    << "    sum(Ym)      = " << totalYm[badTsCell] << nl
+                    << "    rhoCp        = " << rhoCp[badTsCell] << nl
+                    << "    porosity     = " << porosity_[badTsCell] << nl
+                    << "    whereIs      = " << whereIs_[badTsCell];
+
+                solidStateChecker_->abort
+                (
+                    "Ts = solidH/rhoCp at the head of preSolveEnergy()",
+                    T_,
+                    badTsCell,
+                    context.str()
+                );
+            }
+
             T_.correctBoundaryConditions();
 
             whereIs_.correctBoundaryConditions();
@@ -873,21 +1094,95 @@ void volPyrolysis::preSolveEnergy()
             TEqn.relax();
             TEqn.solve();
 
+            const label badTEqnCell =
+                solidStateChecker_->firstInvalidTemperature
+                (
+                    T_,
+                    solidPresent.primitiveField()
+                );
+
+            if (badTEqnCell != -1)
+            {
+                OStringStream context;
+                context
+                    << "    rhoCp        = " << rhoCp[badTEqnCell] << nl
+                    << "    chemistrySh  = "
+                    << chemistrySh_[badTEqnCell] << nl
+                    << "    heatTransfer = "
+                    << heatTransfField[badTEqnCell] << nl
+                    << "    heatUpGas    = " << heatUpGas_[badTEqnCell] << nl
+                    << "    radiationSh  = "
+                    << radiationSh_[badTEqnCell] << nl
+                    << "    porosity     = " << porosity_[badTEqnCell];
+
+                solidStateChecker_->abort
+                (
+                    "the solid energy equation in preSolveEnergy()",
+                    T_,
+                    badTEqnCell,
+                    context.str()
+                );
+            }
+
             volScalarField patchedSolidH = (rhoCp*T_);
             solidH_().ref() = patchedSolidH;
             solidH_().correctBoundaryConditions();
 
-            surfaceScalarField solidFlux =  mesh_.Sf() & fvc::interpolate(Us_);
-           
+            const surfaceScalarField& solidFlux = phiSolid_;
+
+            // Enthalpy rides the solid MASS flux, not phiSolid: div(phiSolid)
+            // is nonlinear, so it would give solidH and Ym different face
+            // values. phiYm here matches solveSpeciesMass()'s own flux.
+            surfaceScalarField phiYm
+            (
+                fvc::flux(solidFlux, Ym_[0], "div(phiSolid)")
+            );
+            for (label i = 1; i < Ym_.size(); ++i)
+            {
+                phiYm += fvc::flux(solidFlux, Ym_[i], "div(phiSolid)");
+            }
+
+            // hs upwinds on the mass flux: a receiver ends up holding the
+            // convex combination (solidH + m_in*hs_donor)/(totalYm + m_in).
+            // Cp*T_, not solidH/totalYm, to match rhoCp's own floor.
+            volScalarField hs(solidThermo_.Cp()*T_);
+
             dimensionedScalar ovDt = pow(time_.deltaT(),-1);
             fvScalarMatrix sHEqn
             (
                 fvm::Sp(ovDt,solidH_()) - ovDt*solidH_()
-              + fvc::div( solidFlux, solidH_(),"div(phiSolid)")
+              + fvc::surfaceIntegrate
+                (
+                    phiYm*upwind<scalar>(mesh_, phiYm).interpolate(hs)
+                )
             );
 
             sHEqn.relax();
             sHEqn.solve();
+
+            const volScalarField& sH = solidH_();
+
+            const label badSolidHCell =
+                solidStateChecker_->firstInvalidExtensive(sH);
+
+            if (badSolidHCell != -1)
+            {
+                OStringStream context;
+                context
+                    << "    Us           = " << Us_[badSolidHCell] << nl
+                    << "    Ts           = " << T_[badSolidHCell] << nl
+                    << "    rhoCp        = " << rhoCp[badSolidHCell] << nl
+                    << "    sum(Ym)      = " << totalYm[badSolidHCell] << nl
+                    << "    porosity     = " << porosity_[badSolidHCell];
+
+                solidStateChecker_->abort
+                (
+                    "the solid enthalpy advection in preSolveEnergy()",
+                    sH,
+                    badSolidHCell,
+                    context.str()
+                );
+            }
 
             solidH_().max(0);
             solidH_().correctBoundaryConditions();
@@ -926,9 +1221,47 @@ void volPyrolysis::postSolveEnergy()
                     dimensionedScalar("minRhoCp",dimEnergy/dimTemperature/dimVolume,SMALL)
                 )
             );
-            volScalarField weight = critPorosity_ - porosity_;
-            T_ = whereIs_*(solidH_()/rhoCp*pos(weight) + gasThermo_.T()*neg(weight));
-            
+            // Same ratio preSolveEnergy() reads back as T_.oldTime(), so the
+            // two must agree. No whereIs_ factor: it lags a stage, and
+            // zeroing T_ there while keeping enthalpy would start at 0 K.
+            if (gasTemperatureBelowCriticalPorosity_)
+            {
+                // Emptier than critPorosity_, the cell follows the gas. pos0
+                // and neg, not pos and neg: pos(0)=neg(0)=0 would otherwise
+                // leave a cell exactly at critPorosity_ with Ts = 0.
+                const volScalarField weight(critPorosity_ - porosity_);
+
+                T_ = solidH_()/rhoCp*pos0(weight)
+                   + gasThermo_.T()*neg(weight);
+            }
+            else
+            {
+                T_ = solidH_()/rhoCp;
+            }
+
+            const label badCell =
+                solidStateChecker_->firstInvalidTemperature(T_);
+
+            if (badCell != -1)
+            {
+                OStringStream context;
+                context
+                    << "    solidH       = "
+                    << solidH_()[badCell] << nl
+                    << "    sum(Ym)      = " << totalYm[badCell] << nl
+                    << "    rhoCp        = " << rhoCp[badCell] << nl
+                    << "    porosity     = " << porosity_[badCell] << nl
+                    << "    whereIs      = " << whereIs_[badCell];
+
+                solidStateChecker_->abort
+                (
+                    "the Ts recovery in postSolveEnergy()",
+                    T_,
+                    badCell,
+                    context.str()
+                );
+            }
+
             T_.correctBoundaryConditions();
 
             scalar minTemp = GREAT;
@@ -1054,6 +1387,9 @@ volPyrolysis::volPyrolysis
     subintegrateSwitch_(false),
     bedCollapseSwitch_(false),
     replenishSwitch_(false),
+    collapseMovesSolidMass_(false),
+    emptyFlippedCells_(false),
+    gasTemperatureBelowCriticalPorosity_(false),
     critPorosity_(0.9999),
     poroProtectSolidInflowFluxTolerance_(1e-12),
     totRepMass_(0.),
@@ -1226,6 +1562,21 @@ volPyrolysis::volPyrolysis
     (
         mesh_.lookupObject<volVectorField>("Us")
     ),
+    phiSolid_
+    (
+        IOobject
+        (
+            "phiSolid",
+            time_.timeName(),
+            mesh_,
+            IOobject::NO_READ,
+            IOobject::NO_WRITE
+        ),
+        mesh_,
+        dimensionedScalar("zero", dimVolume/dimTime, 0.0)
+    ),
+    solidFluxLimiter_(nullptr),
+    solidStateChecker_(nullptr),
     demActive_(false),
     lambdaDotPtr_(nullptr),
     lostSolidMass_(dimensionedScalar("zero", dimMass, 0.0)),
@@ -1233,9 +1584,11 @@ volPyrolysis::volPyrolysis
     totalGasMassFlux_(dimensionedScalar("zero", dimMass/dimTime, 0.0)),
     totalHeatRR_(dimensionedScalar("zero", dimEnergy/dimTime, 0.0)),
     timeChem_(1.0),
-    initialTotalYmMass_(0.0),  // -1 = not yet computed; lazily initialized
+    initialTotalYmMass_(0.0),
     cumulativeYmOutflow_(0.0),
-    cumulativeYmClip_(0.0)
+    cumulativeYmClip_(0.0),
+    cumulativeFlipMass_(0.0),
+    cumulativeCollapseMass_(0.0)
 {
 
     mesh.setFluxRequired(T_.name());
@@ -1247,6 +1600,12 @@ volPyrolysis::volPyrolysis
     subintegrateSwitch_ = coeffs().lookupOrDefault("subintegrateHeatTransfer",false);
     bedCollapseSwitch_ = coeffs().lookupOrDefault("bedCollapse",false);
     replenishSwitch_ = coeffs().lookupOrDefault("replenish",false);
+    collapseMovesSolidMass_ =
+        coeffs().lookupOrDefault("collapseMovesSolidMass",false);
+    emptyFlippedCells_ =
+        coeffs().lookupOrDefault("emptyFlippedCells",false);
+    gasTemperatureBelowCriticalPorosity_ =
+        coeffs().lookupOrDefault("gasTemperatureBelowCriticalPorosity",false);
     critPorosity_ = coeffs().lookupOrDefault("criticalPorosity",0.9999);
     poroProtectSolidInflowFluxTolerance_ =
         coeffs().lookupOrDefault
@@ -1258,7 +1617,7 @@ volPyrolysis::volPyrolysis
     Info << endl;
     Info << "subintegrateHeatTransfer " << subintegrateSwitch_ << endl;
     Info << "bedCollapse              " << bedCollapseSwitch_    << endl;
-    if (bedCollapseSwitch_) 
+    if (bedCollapseSwitch_ || gasTemperatureBelowCriticalPorosity_)
     {
         Info << "criticalPorosity         " << critPorosity_  << endl;
     }
@@ -1266,6 +1625,30 @@ volPyrolysis::volPyrolysis
          << poroProtectSolidInflowFluxTolerance_
          << " [kg/m3/s]" << endl;
     Info << "replenish                " << replenishSwitch_    << endl;
+    Info << "collapseMovesSolidMass   " << collapseMovesSolidMass_ << endl;
+    Info << "emptyFlippedCells        " << emptyFlippedCells_  << endl;
+    Info << "gasTemperatureBelowCriticalPorosity  "
+         << gasTemperatureBelowCriticalPorosity_ << endl;
+    // Constructed here because it carries the last three banner lines.
+    solidStateChecker_.reset(new SolidStateChecker(coeffs(), mesh_, time_));
+
+    // Reads its own keys and logs them where the rest are reported. Binds
+    // Ym_ by reference, so it reads no entries until limit() is first called.
+    solidFluxLimiter_.reset
+    (
+        new SolidFluxLimiter
+        (
+            coeffs(),
+            mesh_,
+            Us_,
+            Ym_,
+            rho_,
+            T_,
+            solidChemistry_(),
+            active_
+        )
+    );
+
     Info << endl;
 
     forAll(Ys_, fieldI)
@@ -1390,6 +1773,11 @@ volPyrolysis::volPyrolysis
 
     whereIs_ = neg(porosity_ - 1);
     whereIsNot_ = pos0(porosity_ - 1);
+
+    // porosity_ is assigned in recoverPorosity(), not solved; storeOldTimes()
+    // is a no-op on the first call, so seed oldTime() here or the gas-side
+    // fvm::ddt(porosityF, rho) loses a step of d(porosity)/dt.
+    porosity_.oldTime();
 
     forAll(rho_,cellI)
     {
@@ -1654,10 +2042,15 @@ void volPyrolysis::evolveRegion()
     chemistrySh_ = solidChemistry_->Sh()(); // eqZx2uHGn004
     heatUpGas_ = heatUpGasCalc()();
 
+    // Settle how much solid each face may carry before any solid field is
+    // transported. Needs the chemistry rates, so it follows their solve.
+    limitSolidVolFlux();
+
     preSolveEnergy(); 
     solveSpeciesMass(); 
-    solvePorosity();    
     postSolveEnergy();
+
+    recoverPorosity();
 
     calculateMassTransfer();
     info();
@@ -1791,7 +2184,19 @@ Foam::tmp<Foam::volScalarField> volPyrolysis::heatTransfer()
     {
         if (subintegrateSwitch_)
         {
-            volScalarField rhoCpG(gasThermo_.rho() * gasThermo_.Cp() * porosity_);
+            // Keep the subintegrated gas/solid exchange defined in a fully
+            // solid cell. The physical gas capacity vanishes there, while
+            // the finite floor prevents an ill-conditioned analytic update.
+            volScalarField rhoCpG
+            (
+                gasThermo_.rho()
+              * gasThermo_.Cp()
+              * max
+                (
+                    porosity_,
+                    dimensionedScalar("gasPorosityFloor", dimless, 1e-4)
+                )
+            );
             volScalarField Tgas = gasThermo_.T();
             volScalarField rhoCpS
                 (

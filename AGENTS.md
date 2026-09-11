@@ -8,7 +8,7 @@ This file may lag the codebase. Before acting on any specific claim below, sanit
 
 Also flag if the *Last verified* date below predates significant recent commits in the affected area; in that case, propose a refresh rather than acting on stale guidance.
 
-*Last verified: 2026-05-21*
+*Last verified: 2026-09-10*
 
 ## Documentation split
 
@@ -29,6 +29,7 @@ In practice this means:
 - When reading code to answer a physics question, quote the relevant comment block rather than re-deriving from the README. The code (and its comments) is authoritative.
 - If you see Part II restating something the code already comments on, replace it with a pointer to the source location — don't keep the duplication "just in case".
 - The migration from README-as-source-of-truth to code-as-source-of-truth is opportunistic: add comments to files as you touch them on other work, not in dedicated cleanup PRs.
+- **A comment is at most 3 lines.** If a comment wants to be longer, that is evidence of a non-modular implementation, not of a documentation need — extract a named function or collaborator instead of writing more prose. Long banner-and-brief walls defeat their own purpose: readers skim past them. Applies to `//-` briefs and to narrative inside function bodies. A file-banner `Description` block is exempt from the 3-line cap — it is the one-time algorithm/design spec for the whole file — but is not a licence to restate what the briefs below it already say; if it does, trim the restated parts rather than counting lines.
 
 The full human-facing version of this rule is in README → Development Workflow → Documentation.
 
@@ -47,9 +48,16 @@ The full human-facing version of this rule is in README → Development Workflow
 - **Before suggesting a change in behaviour, locate the code that implements it.** A correction based on what you *think* the code does will be wrong often enough that the cost of checking pays for itself.
 - **Before modifying a tutorial case, check whether it is listed in `applications/test/regression/cases.list`.** Numerical changes will invalidate the committed baseline. Surface this to the user before proceeding so the baseline can be regenerated intentionally.
 
+## Plans and interactive testing
+
+- Substantial work is tracked in the central plans store under `/plans/github.com/trymarz/porousGasificationFoam/`; read the relevant `active/` plan before acting and use it as the execution record.
+- For host-run OpenFOAM campaigns, guide the user through bounded checkpoints rather than silently running the campaign. Explain the purpose and expected evidence before each checkpoint, have the user run it, then interpret the output against the current source and plan.
+- Keep disposable case output, logs, state directories, and post-processing data outside the checkout, normally below a user-selected test root such as `$PGF_TEST_ROOT`.
+- Distinguish build success, solver completion, numerical comparison, and physical or diagnostic correctness. Do not call a test green from a tally alone; inspect per-case outcomes, relevant log diagnostics, and the actual fields or metrics under test.
+
 ## When to act vs ask
 
-- **Falls-positive rule.** When in doubt whether something is in scope or what the user prefers, surface it. False questions are cheap; unsanctioned changes are expensive.
+- **False-positive rule.** When in doubt whether something is in scope or what the user prefers, surface it. False questions are cheap; unsanctioned changes are expensive.
 - **Do not expand scope.** No incidental refactors, no "while I'm here" cleanups, no new abstractions for hypothetical future needs. Bug fixes do not need surrounding cleanup.
 - **Be explicit about what kind of verification you did.** This is a numerical solver: "type-checks and lints pass" is not the same as "the run produces correct results", and a successful build is not a successful regression. State what was actually exercised — not what the change *should* do, but what was observed.
 

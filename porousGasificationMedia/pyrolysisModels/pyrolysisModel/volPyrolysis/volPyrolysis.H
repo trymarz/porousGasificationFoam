@@ -38,6 +38,9 @@ SourceFiles
 #include "heterogeneousPyrolysisModel.H"
 #include "HGSSolidThermo.H"
 #include "porousThermoSolidChemistryModel.H"
+#include "surfaceFields.H"
+#include "solidFluxLimiter.H"
+#include "solidStateChecker.H"
 
 #ifdef WITH_YADE
     // liblambdaDotModel links YADE, so it is referenced only here.
@@ -73,10 +76,22 @@ private:
         void readReactingOneDimControls();
 
         //- Derive mass fractions Ys_ from mass concentrations Ym_
-        //  Ys_i = Ym_i / sum_j(Ym_j) in every solid cell (whereIs_ == 1).
-        //  If a cell holds no solid mass, the first specie is assigned
-        //  unity and the rest zero to avoid a division-by-zero NaN.
         void deriveYiFromYm();
+
+        //- Scale the shared solid flux to what the cells can supply and take
+        //  Delegates to solidFluxLimiter_ (two-sided saturation limit) and
+        //  stores the result in phiSolid_, the flux every solid field rides.
+        void limitSolidVolFlux();
+
+        //- Abort if any cell's porosity left [minPorosity, 1]
+        //  Below the floor a cell has no gas volume, and every gas equation
+        //  divides by it. Called each time recoverPorosity() writes porosity_.
+        void guardPorosity
+        (
+            const word& stage,
+            const volScalarField& por,
+            const surfaceScalarField& phiUs
+        ) const;
 
 
 protected:
@@ -147,6 +162,21 @@ protected:
     //- Switch for bed replenishment
     Switch replenishSwitch_;
 
+    //- Switch for bed motion that moves the solid rather than the porosity
+    //  Set, bed motion moves Ym_/solidH_ down the route by the same
+    //  cell-volume ratio it applies to porosity; unset, only porosity moves.
+    Switch collapseMovesSolidMass_;
+
+    //- Switch for emptying a flipped cell rather than leaving its solid
+    //  A flip candidate: above critPorosity_ with Us pointing inward. Set,
+    //  it is emptied for real; mass destroyed, charged to cumulativeFlipMass_.
+    Switch emptyFlippedCells_;
+
+    //- Switch for taking a nearly-empty cell's solid temperature from the gas
+    //  Above critPorosity_, Ts = solidH/(totalYm*Cp) is a frozen numerator
+    //  over a vanishing denominator. Set, energy lost this way is uncharged.
+    Switch gasTemperatureBelowCriticalPorosity_;
+
     //- Criterion for bed motion porosity model
     scalar critPorosity_;
 
@@ -181,7 +211,9 @@ protected:
         //- Heat release [J/s/m3]
         volScalarField chemistrySh_;
 
-        //- Porosity growth [1/s]
+        //- Porosity growth from chemistry [1/s], diagnostic only
+        //  -sum_i RRs_i/rho_i, the rate chemistry removes solid volume at.
+        //  Reported, never applied: porosity is recovered from Ym_ instead.
         volScalarField porositySource_;
 
         //- Masks for equations
@@ -213,6 +245,17 @@ protected:
         //  Laplace-smoothed UsDEM aggregate; without DEM it is read from
         //  0/Us. The solid mass flux and porosity advection consume it.
         const volVectorField& Us_;
+
+        //- The solid volumetric face flux the transport stages ride [m3/s]
+        //  Set by limitSolidVolFlux() from solidFluxLimiter_. Owned here,
+        //  not by the limiter: solveSpeciesMass()/preSolveEnergy() read it too.
+        surfaceScalarField phiSolid_;
+
+        //- Reference to the solid flux limiter
+        autoPtr<SolidFluxLimiter> solidFluxLimiter_;
+
+        //- Reference to the fail-fast guards on the solid state
+        autoPtr<SolidStateChecker> solidStateChecker_;
 
     // DEM (YADE) coupling — lambdaDot
 
@@ -250,10 +293,9 @@ protected:
         //- scalar chemistryTime
         scalar timeChem_;
 
-        //- Total Ym mass integral at t=0, for conservation diagnostic [kg]
-        //  Lazily initialized on the first solveSpeciesMass() call
-        //  (-1 = not yet computed); on restart it resets to the restart
-        //  state, so conservation is checked from restart onward.
+        //- Total Ym mass integral at construction, for the conservation
+        //  diagnostic [kg]. On restart this holds the restart inventory,
+        //  so conservation is checked from the restart onward.
         scalar initialTotalYmMass_;
 
         //- Cumulative solid mass advected out through boundaries [kg]
@@ -262,11 +304,19 @@ protected:
         scalar cumulativeYmOutflow_;
 
         //- Cumulative mass created by the max(0) clip on Ym [kg]
-        //  The clip fabricates mass when a numerical undershoot drives
-        //  Ym negative; the run aborts once the total exceeds a small
-        //  fraction of the initial solid inventory (see
-        //  solveSpeciesMass()).
+        //  Reported with the mass budget, so the budget cannot look closed
+        //  while the clip is quietly paying for it.
         scalar cumulativeYmClip_;
+
+        //- Cumulative solid mass destroyed by emptying flipped cells [kg]
+        //  Nonzero only under emptyFlippedCells_; reported with the mass
+        //  budget so it isn't hidden in a conserved-looking total.
+        scalar cumulativeFlipMass_;
+
+        //- Cumulative solid mass shed at the foot of a bed-motion route [kg]
+        //  Nonzero only under collapseMovesSolidMass_. A route spanning
+        //  processors can also create mass not charged here - see recoverPorosity().
+        scalar cumulativeCollapseMass_;
 
 
     // Protected member functions
@@ -291,8 +341,10 @@ protected:
             //- Solve energy
             void postSolveEnergy();
 
-            //- Evolve porosity field
-            void solvePorosity();
+            //- Recover the porosity from the transported solid mass
+            //  1 - porosity = sum_i Ym_i/rho_i, exactly. Last stage of
+            //  evolveRegion(): divides by the rho_ postSolveEnergy() sets.
+            void recoverPorosity();
 
 public:
 

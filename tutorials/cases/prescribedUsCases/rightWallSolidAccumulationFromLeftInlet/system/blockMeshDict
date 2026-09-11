@@ -1,0 +1,82 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  v2406
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      blockMeshDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// One-dimensional 0.02 m channel with 200 cells along x. Fresh solid enters
+// from the left and accumulates at the impermeable right wall; all transverse
+// faces are empty.
+
+convertToMeters 1;
+
+vertices
+(
+    (0     0     0    )
+    (0.02  0     0    )
+    (0.02  0.001 0    )
+    (0     0.001 0    )
+    (0     0     0.001)
+    (0.02  0     0.001)
+    (0.02  0.001 0.001)
+    (0     0.001 0.001)
+);
+
+blocks
+(
+    hex (0 1 2 3 4 5 6 7) (200 1 1) simpleGrading (1 1 1)
+);
+
+edges
+(
+);
+
+boundary
+(
+    left
+    {
+        type wall;
+        faces ( (0 3 7 4) );
+    }
+    right
+    {
+        type wall;
+        faces ( (1 5 6 2) );
+    }
+    bottom
+    {
+        type empty;
+        faces ( (0 4 5 1) );
+    }
+    top
+    {
+        type empty;
+        faces ( (3 2 6 7) );
+    }
+    front
+    {
+        type empty;
+        faces ( (0 1 2 3) );
+    }
+    back
+    {
+        type empty;
+        faces ( (4 5 6 7) );
+    }
+);
+
+mergePatchPairs
+(
+);
+
+// ************************************************************************* //

@@ -1,0 +1,93 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  v2406
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      solidThermophysicalProperties;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+thermoType solidMixtureThermo<constHeterogeneous>;
+
+// Four inert components with deliberately different skeletal densities. The
+// prescribed Us advects their mixed mass concentrations with one shared solid
+// volume flux, so density weighting is exercised independently of chemistry.
+solidComponents ( char ash wood mineral );
+
+charCoeffs
+{
+    transport
+    {
+        K           0.156;
+    }
+    thermodynamics
+    {
+        Cp          1054;
+        Hf          -2.12e4;
+    }
+    density
+    {
+        rho         1050;
+    }
+}
+
+ashCoeffs
+{
+    transport
+    {
+        K           0.25;
+    }
+    thermodynamics
+    {
+        Cp          850;
+        Hf          -1.0e4;
+    }
+    density
+    {
+        rho         2500;
+    }
+}
+
+woodCoeffs
+{
+    transport
+    {
+        K           0.08;
+    }
+    thermodynamics
+    {
+        Cp          1600;
+        Hf          -3.0e4;
+    }
+    density
+    {
+        rho         650;
+    }
+}
+
+mineralCoeffs
+{
+    transport
+    {
+        K           1.2;
+    }
+    thermodynamics
+    {
+        Cp          700;
+        Hf          -5.0e3;
+    }
+    density
+    {
+        rho         3000;
+    }
+}
+
+// ************************************************************************* //

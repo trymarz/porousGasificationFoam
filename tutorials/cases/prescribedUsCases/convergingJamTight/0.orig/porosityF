@@ -1,0 +1,36 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  v2406
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       volScalarField;
+    location    "0";
+    object      porosityF;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// 0.999 = thin background solid everywhere (no fully-empty cell, so rhoCp > 0
+// in the solid energy solve); setFields plants a denser blob (0.99).
+dimensions      [0 0 0 0 0 0 0];
+
+internalField   uniform 0.999;
+
+boundaryField
+{
+    "(left|right|bottom|top)"
+    {
+        type            zeroGradient;
+    }
+    "(front|back)"
+    {
+        type            empty;
+    }
+}
+
+// ************************************************************************* //

@@ -1,0 +1,109 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     |                                                 |
+|   \\  /    A nd           |                                                 |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+//
+// Regression-test function objects for the prescribed-Us transport cases.
+//
+// Two families of reduction, over the two fields the solid state is made of.
+//
+// Ycharm [kg/m3] is the solid-species mass concentration, advected by Us in
+// volPyrolysis::solveSpeciesMass() as div(phiUs, Ym). That operator is
+// conservative, so these reductions cleanly capture the transport under test:
+//
+//   volIntegrate(Ycharm)  total solid mass [kg] — a pure-transport run has no
+//                         chemistry source, so drift here reflects the scheme's
+//                         (non)conservation and boundary flux.
+//   min(Ycharm)           bounded-ness: an overshooting scheme drives this < 0.
+//   max(Ycharm)           blob peak — sensitive to where the mass goes.
+//
+// porosityF is the void fraction. volPyrolysis::recoverPorosity() derives it
+// from the mass as 1 - sum_i(Ym_i/rho_i) rather than transporting it, so it
+// carries no error of its own and cannot contradict Ycharm. What these
+// reductions assert is the bed structure that transport produces:
+//
+//   volAverage(porosityF) mean void — the domain-wide solid budget read from
+//                         the void side.
+//   min(porosityF)        densest cell: how hard a compressive Us packs the bed.
+//                         In this case the compressive Us saturates the bed, so
+//                         volPyrolysis::solidReceiverLimit() pins this at
+//                         minPorosity from before the first write. A flat value
+//                         equal to the packing limit IS the assertion that the
+//                         receiver half of the flux limiter ran.
+//   max(porosityF)        loosest cell. A void fraction above 1 is a cell
+//                         holding a negative volume of solid, so this is the
+//                         reduction that catches an unbounded porosity.
+//
+// applications/test/regression/tools/compareScalars.py diffs every emitted
+// .dat against the committed reference/ baseline.
+
+regressionBase
+{
+    type            volFieldValue;
+    libs            (fieldFunctionObjects);
+    regionType      all;
+    postOperation   none;
+    weightField     none;
+    writeFields     false;
+    writePrecision  10;
+    writeToFile     true;
+    log             false;
+    enabled         false;         // template; children override
+    executeControl  timeStep;
+    executeInterval 1;
+    writeControl    writeTime;
+    writeInterval   -1;
+}
+
+regressionYcharmIntegral
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (Ycharm);
+    operation       volIntegrate;
+}
+
+regressionYcharmMin
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (Ycharm);
+    operation       min;
+}
+
+regressionYcharmMax
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (Ycharm);
+    operation       max;
+}
+
+regressionPorosityAverage
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (porosityF);
+    operation       volAverage;
+}
+
+regressionPorosityMin
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (porosityF);
+    operation       min;
+}
+
+regressionPorosityMax
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (porosityF);
+    operation       max;
+}
+
+// ************************************************************************* //

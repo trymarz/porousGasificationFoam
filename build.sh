@@ -134,6 +134,10 @@ parse_arguments() {
     --dry-run)
       DRY_RUN=1
       ;;
+    --fingerprint)
+      source_fingerprint
+      exit 0
+      ;;
     --help)
       echo "Usage: $0 [build|clean] [OPTIONS]"
       echo "Options: --reset-all, --all, --libs-only, --apps-only, --yade, --purge"
@@ -144,6 +148,9 @@ parse_arguments() {
       echo "  --purge  On clean, also delete the libraries and executables the"
       echo "           cleaned targets declare in their own Make/files. Without"
       echo "           it, clean matches wclean and removes build state only."
+      echo "  --fingerprint  Print the source content hash a build stamps into"
+      echo "           \$FOAM_USER_APPBIN, and exit. The regression runner"
+      echo "           compares it to refuse a solver built from other sources."
       echo ""
       echo "Builds happen in this checkout ($PGF_ROOT); output goes to"
       echo "\$FOAM_USER_LIBBIN and \$FOAM_USER_APPBIN."
@@ -357,12 +364,38 @@ build_all_targets() {
   done
 
   if [ ${#failed[@]} -eq 0 ]; then
+    [ "$MODE" = "build" ] && stamp_source_revision
     clog SUCCESS "$MODE complete!"
     return 0
   else
     clog ERROR "Failed: ${failed[*]}"
     return 1
   fi
+}
+
+# Content hash of every source file the targets compile. Not a git revision:
+# the binary has to match the tree it was built from, committed or not, and a
+# plain commit must not invalidate a build whose sources never changed.
+source_fingerprint() {
+  local dir
+  for dir in "${TARGET_DIRS[@]}"; do
+    [ -d "$dir" ] || continue
+    find "$dir" \( -name '*.C' -o -name '*.H' -o -name 'files' -o -name 'options' \) \
+        -type f -print0
+  done | LC_ALL=C sort -z | xargs -0 sha1sum 2>/dev/null | sha1sum | cut -d' ' -f1
+}
+
+# Record which sources produced the installed binaries. $FOAM_USER_APPBIN is
+# shared by every worktree of every project, so the solver on $PATH need not be
+# the one built from the sources beside it; runCase.sh refuses to run when this
+# stamp does not match the suite's own tree.
+stamp_source_revision() {
+  local fp
+  [ -n "${FOAM_USER_APPBIN:-}" ] || return 0
+  fp="$(source_fingerprint)" || return 0
+  mkdir -p "$FOAM_USER_APPBIN" || return 0
+  printf '%s\n' "$fp" >"$FOAM_USER_APPBIN/.pgf-source-fingerprint"
+  clog INFO "Stamped $FOAM_USER_APPBIN with source fingerprint ${fp:0:10}"
 }
 
 dry_run() {
