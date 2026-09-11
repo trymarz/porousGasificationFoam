@@ -203,6 +203,56 @@ reg_event case_started \
     --field "rtol=$RTOL" \
     --field "atol=$ATOL"
 
+# -- which solver is this, and is it this checkout's? --------------------------
+
+# $FOAM_USER_APPBIN is shared by every worktree, so $PATH alone decides which
+# build runs and nothing used to check it matched the source. Print what was
+# resolved, then refuse a binary built from different sources.
+REPO_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
+SOLVER_BIN="$(command -v porousGasificationFoam 2>/dev/null || true)"
+SOLVER_FP=""
+SOLVER_MTIME=""
+SOURCE_FP="$("$REPO_ROOT/build.sh" --fingerprint 2>/dev/null || true)"
+
+if [ -n "$SOLVER_BIN" ]; then
+    SOLVER_MTIME="$(date -r "$SOLVER_BIN" '+%Y-%m-%d %H:%M:%S' 2>/dev/null || true)"
+    if [ -f "$(dirname "$SOLVER_BIN")/.pgf-source-fingerprint" ]; then
+        SOLVER_FP="$(cat "$(dirname "$SOLVER_BIN")/.pgf-source-fingerprint")"
+    fi
+fi
+
+echo "[runCase] solver      ${SOLVER_BIN:-<none on PATH>}"
+echo "[runCase] built       ${SOLVER_MTIME:-unknown}, sources ${SOLVER_FP:-<unstamped>}"
+echo "[runCase] this tree   ${SOURCE_FP:-<unknown>}"
+echo "[runCase] userDir     ${WM_PROJECT_USER_DIR:-<unset>}"
+
+RESULT_FIELDS+=(
+    --artifact "solver_bin=$SOLVER_BIN"
+    --artifact "solver_fingerprint=$SOLVER_FP"
+    --artifact "solver_mtime=$SOLVER_MTIME"
+    --artifact "source_fingerprint=$SOURCE_FP"
+    --artifact "user_dir=${WM_PROJECT_USER_DIR:-}"
+)
+
+# Only when the tree's own fingerprint could be computed: a checkout this
+# script cannot read is an unrelated problem, and must not be reported as a
+# stale binary.
+if [ "$SKIP_RUN" = false ] && [ "${PGF_ALLOW_BINARY_MISMATCH:-0}" != "1" ] &&
+   [ -n "$SOURCE_FP" ]; then
+    if [ -z "$SOLVER_BIN" ]; then
+        echo "[runCase] no porousGasificationFoam on PATH" >&2
+        finish 2 "no porousGasificationFoam on PATH"
+    fi
+    if [ "$SOLVER_FP" != "$SOURCE_FP" ]; then
+        echo "[runCase] the solver on PATH was not built from these sources." >&2
+        echo "[runCase]   $SOLVER_BIN" >&2
+        echo "[runCase]   built from ${SOLVER_FP:-an unstamped tree}, this tree is $SOURCE_FP" >&2
+        echo "[runCase]   Rebuild with $REPO_ROOT/build.sh build, or set" >&2
+        echo "[runCase]   PGF_ALLOW_BINARY_MISMATCH=1 to test another build on purpose." >&2
+        finish 2 "solver built from ${SOLVER_FP:-an unstamped tree}, this tree is $SOURCE_FP"
+    fi
+fi
+
 # -- clean + run --------------------------------------------------------------
 
 if [ "$SKIP_RUN" = false ]; then
