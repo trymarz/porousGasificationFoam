@@ -71,7 +71,7 @@ tmp<surfaceScalarField> SolidFluxLimiter::solidVolFlux() const
 void SolidFluxLimiter::accumulateFaceFlux
 (
     const surfaceScalarField& phi,
-    const surfaceScalarField& lambda,
+    const surfaceScalarField& fluxScale,
     scalarField& sumOut,
     scalarField& sumIn
 ) const
@@ -84,7 +84,7 @@ void SolidFluxLimiter::accumulateFaceFlux
 
     forAll(phi, faceI)
     {
-        const scalar faceFlux = lambda[faceI]*phi[faceI];
+        const scalar faceFlux = fluxScale[faceI]*phi[faceI];
 
         if (faceFlux > 0.0)
         {
@@ -101,12 +101,12 @@ void SolidFluxLimiter::accumulateFaceFlux
     forAll(phi.boundaryField(), patchI)
     {
         const fvsPatchScalarField& phiP = phi.boundaryField()[patchI];
-        const fvsPatchScalarField& lambdaP = lambda.boundaryField()[patchI];
+        const fvsPatchScalarField& fluxScaleP = fluxScale.boundaryField()[patchI];
         const labelUList& faceCells = mesh_.boundary()[patchI].faceCells();
 
         forAll(phiP, i)
         {
-            const scalar faceFlux = lambdaP[i]*phiP[i];
+            const scalar faceFlux = fluxScaleP[i]*phiP[i];
 
             if (faceFlux > 0.0)
             {
@@ -184,9 +184,9 @@ void SolidFluxLimiter::solidDonorLimit
 (
     const PtrList<surfaceScalarField>& phiYm,
     const PtrList<volScalarField>& RRsolid,
-    const surfaceScalarField& lambda,
+    const surfaceScalarField& fluxScale,
     const bool credit,
-    scalarField& lambdaDonor
+    scalarField& donorScale
 ) const
 {
     const scalarField& V = mesh_.V();
@@ -195,13 +195,13 @@ void SolidFluxLimiter::solidDonorLimit
     scalarField sumOut(mesh_.nCells(), Zero);
     scalarField sumIn(mesh_.nCells(), Zero);
 
-    lambdaDonor = 1.0;
+    donorScale = 1.0;
 
     forAll(Ym_, i)
     {
-        accumulateFaceFlux(phiYm[i], lambda, sumOut, sumIn);
+        accumulateFaceFlux(phiYm[i], fluxScale, sumOut, sumIn);
 
-        forAll(lambdaDonor, cellI)
+        forAll(donorScale, cellI)
         {
             // Mass of specie i this cell can give up: what it holds,
             // minus what chemistry removes.
@@ -216,9 +216,9 @@ void SolidFluxLimiter::solidDonorLimit
             // wrongly "limit" faces carrying no solid at all.
             if (sumOut[cellI] > SMALL)
             {
-                lambdaDonor[cellI] = min
+                donorScale[cellI] = min
                 (
-                    lambdaDonor[cellI],
+                    donorScale[cellI],
                     min(1.0, canLeave/sumOut[cellI])
                 );
             }
@@ -232,9 +232,9 @@ void SolidFluxLimiter::solidReceiverLimit
     const surfaceScalarField& phiSolidVol,
     const volScalarField& alphaS,
     const volScalarField& RRpor,
-    const surfaceScalarField& lambda,
+    const surfaceScalarField& fluxScale,
     const bool credit,
-    scalarField& lambdaReceiver
+    scalarField& receiverScale
 ) const
 {
     const scalarField& V = mesh_.V();
@@ -244,9 +244,9 @@ void SolidFluxLimiter::solidReceiverLimit
     scalarField sumOut(mesh_.nCells(), Zero);
     scalarField sumIn(mesh_.nCells(), Zero);
 
-    accumulateFaceFlux(phiSolidVol, lambda, sumOut, sumIn);
+    accumulateFaceFlux(phiSolidVol, fluxScale, sumOut, sumIn);
 
-    forAll(lambdaReceiver, cellI)
+    forAll(receiverScale, cellI)
     {
         // Solid volume this cell still has room for, after chemistry
         // has taken its own share of it.
@@ -257,7 +257,7 @@ void SolidFluxLimiter::solidReceiverLimit
           + (credit ? sumOut[cellI] : 0.0)
         );
 
-        lambdaReceiver[cellI] =
+        receiverScale[cellI] =
             sumIn[cellI] > SMALL
           ? min(1.0, room/sumIn[cellI])
           : 1.0;
@@ -268,67 +268,67 @@ void SolidFluxLimiter::solidReceiverLimit
 void SolidFluxLimiter::applySolidFaceLimit
 (
     const surfaceScalarField& phiYmTotal,
-    const scalarField& lambdaDonor,
-    const scalarField& lambdaReceiver,
-    scalarField& allLambda,
-    surfaceScalarField& lambda
+    const scalarField& donorScale,
+    const scalarField& receiverScale,
+    scalarField& allFluxScale,
+    surfaceScalarField& fluxScale
 ) const
 {
     const labelUList& owner = mesh_.owner();
     const labelUList& neighbour = mesh_.neighbour();
 
-    scalarField& lambdaIn = lambda;
-    surfaceScalarField::Boundary& lambdaBf = lambda.boundaryFieldRef();
+    scalarField& fluxScaleIn = fluxScale;
+    surfaceScalarField::Boundary& fluxScaleBf = fluxScale.boundaryFieldRef();
 
-    forAll(lambdaIn, faceI)
+    forAll(fluxScaleIn, faceI)
     {
         const label own = owner[faceI];
         const label nei = neighbour[faceI];
 
         if (phiYmTotal[faceI] > 0.0)
         {
-            lambdaIn[faceI] = min
+            fluxScaleIn[faceI] = min
             (
-                lambdaIn[faceI],
-                min(lambdaDonor[own], lambdaReceiver[nei])
+                fluxScaleIn[faceI],
+                min(donorScale[own], receiverScale[nei])
             );
         }
         else
         {
-            lambdaIn[faceI] = min
+            fluxScaleIn[faceI] = min
             (
-                lambdaIn[faceI],
-                min(lambdaDonor[nei], lambdaReceiver[own])
+                fluxScaleIn[faceI],
+                min(donorScale[nei], receiverScale[own])
             );
         }
     }
 
-    forAll(lambdaBf, patchI)
+    forAll(fluxScaleBf, patchI)
     {
-        fvsPatchScalarField& lambdaP = lambdaBf[patchI];
+        fvsPatchScalarField& fluxScaleP = fluxScaleBf[patchI];
         const fvsPatchScalarField& phiP =
             phiYmTotal.boundaryField()[patchI];
         const labelUList& faceCells =
             mesh_.boundary()[patchI].faceCells();
 
-        forAll(lambdaP, i)
+        forAll(fluxScaleP, i)
         {
             // Only this side is visible here; a coupled patch gets the
             // other side's factor from the sync below. On a real
             // boundary: inflow held by room, outflow by mass.
-            lambdaP[i] = min
+            fluxScaleP[i] = min
             (
-                lambdaP[i],
+                fluxScaleP[i],
                 phiP[i] > 0.0
-              ? lambdaDonor[faceCells[i]]
-              : lambdaReceiver[faceCells[i]]
+              ? donorScale[faceCells[i]]
+              : receiverScale[faceCells[i]]
             );
         }
     }
 
-    // lambda slices allLambda (patch faces included), so both sides
+    // fluxScale slices allFluxScale (patch faces included), so both sides
     // of a coupled face meet here and keep the tighter factor.
-    syncTools::syncFaceList(mesh_, allLambda, minEqOp<scalar>());
+    syncTools::syncFaceList(mesh_, allFluxScale, minEqOp<scalar>());
 }
 
 
@@ -339,52 +339,52 @@ void SolidFluxLimiter::reportSolidFluxLimiter
     const surfaceScalarField& phiSolidVol,
     const volScalarField& alphaS,
     const volScalarField& RRpor,
-    const surfaceScalarField& lambda
+    const surfaceScalarField& fluxScale
 ) const
 {
     const scalarField& V = mesh_.V();
     const scalar deltaT = time_.deltaTValue();
     const scalar alphaSMax = 1.0 - minPorosity_;
 
-    const scalarField& lambdaIn = lambda;
-    const surfaceScalarField::Boundary& lambdaBf = lambda.boundaryField();
+    const scalarField& fluxScaleIn = fluxScale;
+    const surfaceScalarField::Boundary& fluxScaleBf = fluxScale.boundaryField();
 
     scalar nLimited = 0.0;
     scalar withheld = 0.0;
-    scalar minLambda = 1.0;
+    scalar minFluxScale = 1.0;
 
-    forAll(lambdaIn, faceI)
+    forAll(fluxScaleIn, faceI)
     {
-        minLambda = min(minLambda, lambdaIn[faceI]);
+        minFluxScale = min(minFluxScale, fluxScaleIn[faceI]);
 
-        if (lambdaIn[faceI] < 1.0 - SMALL)
+        if (fluxScaleIn[faceI] < 1.0 - SMALL)
         {
             nLimited += 1.0;
             withheld +=
-                (1.0 - lambdaIn[faceI])*mag(phiSolidVol[faceI])*deltaT;
+                (1.0 - fluxScaleIn[faceI])*mag(phiSolidVol[faceI])*deltaT;
         }
     }
 
-    forAll(lambdaBf, patchI)
+    forAll(fluxScaleBf, patchI)
     {
         // A coupled face is counted from both sides, so weight by
         // half to total per physical face.
         const scalar weight =
             mesh_.boundary()[patchI].coupled() ? 0.5 : 1.0;
 
-        const fvsPatchScalarField& lambdaP = lambdaBf[patchI];
+        const fvsPatchScalarField& fluxScaleP = fluxScaleBf[patchI];
         const fvsPatchScalarField& phiVolP =
             phiSolidVol.boundaryField()[patchI];
 
-        forAll(lambdaP, i)
+        forAll(fluxScaleP, i)
         {
-            minLambda = min(minLambda, lambdaP[i]);
+            minFluxScale = min(minFluxScale, fluxScaleP[i]);
 
-            if (lambdaP[i] < 1.0 - SMALL)
+            if (fluxScaleP[i] < 1.0 - SMALL)
             {
                 nLimited += weight;
                 withheld +=
-                    weight*(1.0 - lambdaP[i])*mag(phiVolP[i])*deltaT;
+                    weight*(1.0 - fluxScaleP[i])*mag(phiVolP[i])*deltaT;
             }
         }
     }
@@ -402,7 +402,7 @@ void SolidFluxLimiter::reportSolidFluxLimiter
     {
         YmScale = max(YmScale, gMax(Ym_[i]));
 
-        accumulateFaceFlux(phiYm[i], lambda, sumOut, sumIn);
+        accumulateFaceFlux(phiYm[i], fluxScale, sumOut, sumIn);
 
         forAll(Ym_[i], cellI)
         {
@@ -418,7 +418,7 @@ void SolidFluxLimiter::reportSolidFluxLimiter
         }
     }
 
-    accumulateFaceFlux(phiSolidVol, lambda, sumOut, sumIn);
+    accumulateFaceFlux(phiSolidVol, fluxScale, sumOut, sumIn);
 
     scalar maxOvershoot = 0.0;
 
@@ -437,7 +437,7 @@ void SolidFluxLimiter::reportSolidFluxLimiter
 
     nLimited = returnReduce(nLimited, sumOp<scalar>());
     withheld = returnReduce(withheld, sumOp<scalar>());
-    minLambda = returnReduce(minLambda, minOp<scalar>());
+    minFluxScale = returnReduce(minFluxScale, minOp<scalar>());
     maxOvershoot = returnReduce(maxOvershoot, maxOp<scalar>());
     maxUndershoot = returnReduce(maxUndershoot, maxOp<scalar>());
 
@@ -445,7 +445,7 @@ void SolidFluxLimiter::reportSolidFluxLimiter
     {
         Info<< "solid flux limiter: faces limited = "
             << label(nLimited + 0.5)
-            << ", min scale factor = " << minLambda
+            << ", min scale factor = " << minFluxScale
             << ", solid volume withheld = " << withheld << " m3";
 
         if
@@ -549,9 +549,9 @@ tmp<surfaceScalarField> SolidFluxLimiter::limit()
     const volScalarField& alphaS = tAlphaS();
     const volScalarField& RRpor = tRRpor();
 
-    scalarField allLambda(mesh_.nFaces(), 1.0);
+    scalarField allFluxScale(mesh_.nFaces(), 1.0);
 
-    slicedSurfaceScalarField lambda
+    slicedSurfaceScalarField fluxScale
     (
         IOobject
         (
@@ -564,12 +564,12 @@ tmp<surfaceScalarField> SolidFluxLimiter::limit()
         ),
         mesh_,
         dimless,
-        allLambda,
+        allFluxScale,
         false               // slice the couples, so syncFaceList sees them
     );
 
-    scalarField lambdaDonor(mesh_.nCells(), 1.0);
-    scalarField lambdaReceiver(mesh_.nCells(), 1.0);
+    scalarField donorScale(mesh_.nCells(), 1.0);
+    scalarField receiverScale(mesh_.nCells(), 1.0);
 
     for (label sweep = 0; sweep < nSolidFluxLimiterCorrectors_; ++sweep)
     {
@@ -578,25 +578,25 @@ tmp<surfaceScalarField> SolidFluxLimiter::limit()
         // final, uncredited sweep sets the bound that's applied.
         const bool credit = (sweep < nSolidFluxLimiterCorrectors_ - 1);
 
-        solidDonorLimit(phiYm, RRsolid, lambda, credit, lambdaDonor);
+        solidDonorLimit(phiYm, RRsolid, fluxScale, credit, donorScale);
 
         solidReceiverLimit
         (
             phiSolidVol,
             alphaS,
             RRpor,
-            lambda,
+            fluxScale,
             credit,
-            lambdaReceiver
+            receiverScale
         );
 
         applySolidFaceLimit
         (
             phiYmTotal,
-            lambdaDonor,
-            lambdaReceiver,
-            allLambda,
-            lambda
+            donorScale,
+            receiverScale,
+            allFluxScale,
+            fluxScale
         );
     }
 
@@ -607,10 +607,10 @@ tmp<surfaceScalarField> SolidFluxLimiter::limit()
         phiSolidVol,
         alphaS,
         RRpor,
-        lambda
+        fluxScale
     );
 
-    phiSolid *= lambda;
+    phiSolid *= fluxScale;
 
     return tPhiSolid;
 }

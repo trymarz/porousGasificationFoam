@@ -128,7 +128,7 @@ class SolidFluxLimiter
         void accumulateFaceFlux
         (
             const surfaceScalarField& phi,
-            const surfaceScalarField& lambda,
+            const surfaceScalarField& fluxScale,
             scalarField& sumOut,
             scalarField& sumIn
         ) const;
@@ -153,9 +153,9 @@ class SolidFluxLimiter
         (
             const PtrList<surfaceScalarField>& phiYm,
             const PtrList<volScalarField>& RRsolid,
-            const surfaceScalarField& lambda,
+            const surfaceScalarField& fluxScale,
             const bool credit,
-            scalarField& lambdaDonor
+            scalarField& donorScale
         ) const;
 
         //- Per-cell cap on incoming flux: can't receive more solid
@@ -166,21 +166,21 @@ class SolidFluxLimiter
             const surfaceScalarField& phiSolidVol,
             const volScalarField& alphaS,
             const volScalarField& RRpor,
-            const surfaceScalarField& lambda,
+            const surfaceScalarField& fluxScale,
             const bool credit,
-            scalarField& lambdaReceiver
+            scalarField& receiverScale
         ) const;
 
         //- Sets each face's scale factor to the tighter of its two ends
         //  Keeps mass conserved: what can't move stays with the donor.
-        //  lambda slices allLambda, which the coupled-patch sync uses.
+        //  fluxScale slices allFluxScale, which the coupled-patch sync uses.
         void applySolidFaceLimit
         (
             const surfaceScalarField& phiYmTotal,
-            const scalarField& lambdaDonor,
-            const scalarField& lambdaReceiver,
-            scalarField& allLambda,
-            surfaceScalarField& lambda
+            const scalarField& donorScale,
+            const scalarField& receiverScale,
+            scalarField& allFluxScale,
+            surfaceScalarField& fluxScale
         ) const;
 
         //- Logs what the sweeps limited and what residual they left
@@ -193,7 +193,7 @@ class SolidFluxLimiter
             const surfaceScalarField& phiSolidVol,
             const volScalarField& alphaS,
             const volScalarField& RRpor,
-            const surfaceScalarField& lambda
+            const surfaceScalarField& fluxScale
         ) const;
 
 
