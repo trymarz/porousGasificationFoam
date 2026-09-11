@@ -18,7 +18,7 @@ if (solveEnergy)
 
         fvScalarMatrix EEqn
         (
-            fvm::ddt(max(porosityF, gasPorosityFloor) * rho, he)
+            fvm::ddt(porosityF * rho, he)
           + fvm::div(phi, he)
           + fvc::ddt(porosityF * rho, K)
           + fvc::div(phi, K)
@@ -26,11 +26,7 @@ if (solveEnergy)
                 he.name() == "e"
               ? fvc::div
                 (
-                    fvc::absolute
-                    (
-                        phi/fvc::interpolate(max(porosityF, gasPorosityFloor) * rho),
-                        U
-                    ),
+                    fvc::absolute(phi/fvc::interpolate(porosityF * rho), U),
                     p,
                     "div(phiv,p)"
                 )

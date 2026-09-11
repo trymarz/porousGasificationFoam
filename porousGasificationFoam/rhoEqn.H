@@ -35,7 +35,7 @@ Srho = pyrolysisZone.Srho();
 {
     fvScalarMatrix rhoEqn
     (
-        fvm::ddt(max(porosityF, gasPorosityFloor), rho)
+        fvm::ddt(porosityF, rho)
       + fvc::div(phi)
       ==
         Srho * (1.0 - porosityF)
