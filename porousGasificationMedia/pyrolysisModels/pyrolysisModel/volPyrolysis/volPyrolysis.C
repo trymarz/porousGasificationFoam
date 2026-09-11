@@ -129,6 +129,44 @@ void volPyrolysis::limitSolidVolFlux()
     phiSolid_ = solidFluxLimiter_->limit();
 }
 
+void volPyrolysis::guardPorosity
+(
+    const word& stage,
+    const volScalarField& por,
+    const surfaceScalarField& phiUs
+) const
+{
+    const label badCell = solidStateChecker_->firstInvalidPorosity
+    (
+        por,
+        solidFluxLimiter_->minPorosity()
+    );
+
+    if (badCell == -1)
+    {
+        return;
+    }
+
+    // Read from Ym_ here rather than taken as an argument, so a caller
+    // after the bed motion reports the mass it actually left behind.
+    scalar sumYm = 0.0;
+    forAll(Ym_, i)
+    {
+        sumYm += Ym_[i][badCell];
+    }
+
+    OStringStream context;
+    context
+        << "    minPorosity  = " << solidFluxLimiter_->minPorosity() << nl
+        << "    Us           = " << Us_[badCell] << nl
+        << "    div(phiUs)   = " << fvc::div(phiUs)()[badCell] << nl
+        << "    sum(Ym)      = " << sumYm << nl
+        << "    rho          = " << rho_[badCell] << nl
+        << "    whereIs      = " << whereIs_[badCell];
+
+    solidStateChecker_->abort(stage, por, badCell, context.str());
+}
+
 void volPyrolysis::recoverPorosity()
 {
     if (active_)
@@ -163,29 +201,14 @@ void volPyrolysis::recoverPorosity()
 
         por.primitiveFieldRef() = voidFraction.primitiveField();
 
-        // Before the "< 1e-4 -> 0" clip below, which would absorb an
-        // undershoot without trace.
-        const label badCell = solidStateChecker_->firstInvalidPorosity(por);
-
-        if (badCell != -1)
-        {
-            OStringStream context;
-            context
-                << "    Us           = " << Us_[badCell] << nl
-                << "    div(phiUs)   = "
-                << fvc::div(phiUs)()[badCell] << nl
-                << "    sum(Ym)      = " << totalYm[badCell] << nl
-                << "    rho          = " << rho_[badCell] << nl
-                << "    whereIs      = " << whereIs_[badCell];
-
-            solidStateChecker_->abort
-            (
-                "the porosity recovery in recoverPorosity()",
-                por,
-                badCell,
-                context.str()
-            );
-        }
+        // On the mass the transport just produced, before the bed-motion
+        // machinery below writes porosity_ again.
+        guardPorosity
+        (
+            "the porosity recovery in recoverPorosity()",
+            por,
+            phiUs
+        );
 
         Info<< "porosity recovered from solid mass. Chemistry source (not"
             << " applied) min/max   = " << gMin(porositySource_)
@@ -209,11 +232,6 @@ void volPyrolysis::recoverPorosity()
                         candidateStack.push(cellI);
                     }
                 }
-            }
-            if (porosity_[cellI] < 0.0001)
-            {
-                porosity_[cellI] = 0.0;
-                Info << "porosity 0 in cell " << cellI << endl;
             }
             if (porosity_[cellI] < 1.0)
             {
@@ -739,15 +757,8 @@ void volPyrolysis::recoverPorosity()
             }
         }
 
-        label nZeroPorosity = 0;
-
         forAll(porosity_,cellI)
         {
-            if (porosity_[cellI] < 0.0001)
-            {
-                porosity_[cellI] = 0.0;
-                ++nZeroPorosity;
-            }
             if (porosity_[cellI] < 1.0)
             {
                 whereIs_[cellI] = 1.0;
@@ -760,13 +771,14 @@ void volPyrolysis::recoverPorosity()
             }
         }
 
-        if (nZeroPorosity)
-        {
-            Info << "porosity 0 in " << nZeroPorosity << " cells" << endl;
-        }
-
         // Here, after everything above that writes porosity_ directly: the
-        // bed-motion model, the "< 1e-4 -> 0" clip, and the flip to por = 1.
+        // bed-motion model and the flip to por = 1.
+        guardPorosity
+        (
+            "the bed motion in recoverPorosity()",
+            por,
+            phiUs
+        );
         solidStateChecker_->checkConsistency(porosity_, Ym_, rho_, whereIs_);
 
         surfF_= surfF_*0;

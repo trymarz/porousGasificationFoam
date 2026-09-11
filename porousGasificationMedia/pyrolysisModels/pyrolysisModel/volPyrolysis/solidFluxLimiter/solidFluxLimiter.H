@@ -101,8 +101,8 @@ class SolidFluxLimiter
         label nSolidFluxLimiterCorrectors_;
 
         //- Lowest porosity a cell may be packed to [-]
-        //  Zero allows pure solid; raise it to stop inflow at that
-        //  fraction.
+        //  Must be positive: the gas equations cannot solve a cell with no
+        //  gas volume. Raise it to stop inflow at a looser packing.
         scalar minPorosity_;
 
         //- Relative slack allowed when judging the sweep residual [-]
@@ -225,6 +225,14 @@ public:
         //  Us's flux, scaled to what each cell can supply/receive. The
         //  owning model's fail-fast guards catch whatever the sweeps miss.
         tmp<surfaceScalarField> limit();
+
+        //- Lowest porosity a cell may be packed to [-]
+        //  The cap this limiter enforces, and the floor the owning model's
+        //  guard holds the recovered porosity to.
+        scalar minPorosity() const
+        {
+            return minPorosity_;
+        }
 };
 
 

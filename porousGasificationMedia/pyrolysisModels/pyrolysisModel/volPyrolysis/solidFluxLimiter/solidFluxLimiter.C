@@ -491,12 +491,25 @@ SolidFluxLimiter::SolidFluxLimiter
     (
         coeffs.lookupOrDefault<label>("nSolidFluxLimiterCorrectors", 3)
     ),
-    minPorosity_(coeffs.lookupOrDefault<scalar>("minPorosity", 0.0)),
+    minPorosity_(coeffs.lookupOrDefault<scalar>("minPorosity", 1e-4)),
     solidStateTolerance_
     (
         coeffs.lookupOrDefault<scalar>("solidStateTolerance", 1e-8)
     )
 {
+    if (minPorosity_ <= 0.0)
+    {
+        FatalIOErrorInFunction(coeffs)
+            << "minPorosity must be positive, but is " << minPorosity_
+            << "." << nl
+            << "Every gas equation multiplies porosityF straight into its"
+            << " ddt coefficient, so a cell packed to zero gas volume leaves"
+            << " that matrix with a zero diagonal and the solve divides by"
+            << " zero. Pick the smallest gas fraction the case is meant to"
+            << " reach, not zero."
+            << exit(FatalIOError);
+    }
+
     Info << "advectSolidFields        " << advectSolidFields_  << endl;
     Info << "nSolidFluxLimiterCorrectors " << nSolidFluxLimiterCorrectors_
          << endl;

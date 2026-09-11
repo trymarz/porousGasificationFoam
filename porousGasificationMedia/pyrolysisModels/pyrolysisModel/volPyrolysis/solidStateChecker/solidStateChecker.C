@@ -105,7 +105,8 @@ SolidStateChecker::~SolidStateChecker()
 
 label SolidStateChecker::firstInvalidPorosity
 (
-    const volScalarField& por
+    const volScalarField& por,
+    const scalar minPorosity
 ) const
 {
     if (!failOnInvalidSolidState_)
@@ -116,7 +117,7 @@ label SolidStateChecker::firstInvalidPorosity
     return firstInvalidCell
     (
         por,
-        -solidStateTolerance_,
+        minPorosity - solidStateTolerance_,
         1.0 + solidStateTolerance_
     );
 }

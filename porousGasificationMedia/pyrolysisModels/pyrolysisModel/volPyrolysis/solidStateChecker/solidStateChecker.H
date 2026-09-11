@@ -135,9 +135,13 @@ public:
     // Member Functions
 
         //- First cell with an impossible recovered porosity, else -1
-        //  Bounds [-tol, 1+tol]: >1 means negative solid mass, <0 means
-        //  packed past pure solid.
-        label firstInvalidPorosity(const volScalarField& por) const;
+        //  Bounds [minPorosity-tol, 1+tol]: >1 means negative solid mass,
+        //  below the floor means no gas volume left for the gas solve.
+        label firstInvalidPorosity
+        (
+            const volScalarField& por,
+            const scalar minPorosity
+        ) const;
 
         //- First cell with an impossible Ym or solid enthalpy, else -1
         //  Extensive fields, so the allowed undershoot scales with the
