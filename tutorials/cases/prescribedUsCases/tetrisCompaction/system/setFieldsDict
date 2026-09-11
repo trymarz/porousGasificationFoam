@@ -19,6 +19,10 @@ FoamFile
 // downward. The bottom wall has zero solid velocity, so each incoming figure
 // is pressed onto the compacting bed below it.
 
+// The interior falls at 0.1 m/s while the top* patches inject at 0.01 m/s and
+// the coded porosityF patch sequences pieces on a 0.1 s per 0.001 m cell, i.e.
+// 0.01 m/s. Deliberate: at 0.01 the top row fills faster than the limiter can
+// hold it, because inflow across an inlet patch is not limited at all.
 defaultFieldValues
 (
     volScalarFieldValue porosityF  1

@@ -161,6 +161,9 @@ class SolidFluxLimiter
         //- Per-cell cap on incoming flux: can't receive more solid
         //  volume than its porosity has room for (>= minPorosity_).
         //  Credit adds the cell's own outflow back as extra room.
+        //  Gap: only internal and coupled faces are scaled, so solid
+        //  arriving across an inlet patch can still push a cell past
+        //  minPorosity_ - the owning model's guard catches it there.
         void solidReceiverLimit
         (
             const surfaceScalarField& phiSolidVol,
