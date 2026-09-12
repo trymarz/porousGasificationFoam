@@ -37,11 +37,12 @@ stoichiometricReactions false;
 showRelativeReactionRates false;
 solidChemistryTimeStepControl false;
 
-// The kf0 leak in the solid Jacobian is fixed, but the negative-Y guard that
-// used to accompany it is deliberately not on this branch, so a negative gas
-// concentration still sends 1/addAvKf to infinity here. Left off until the
-// species blow-up that produces those negatives is root-caused.
-diffusionLimitedReactions false;
+// On: without the mass-transfer ceiling, char oxidation runs on the previous
+// timestep's frozen O2 field and burns char against oxygen the cell does not
+// have (issue #92, Finding B). A negative gas concentration reaching the
+// diffusion block now aborts explicitly in omega()/jacobian() rather than
+// sending 1/addAvKf to infinity.
+diffusionLimitedReactions true;
 
 odeCoeffs
 {
