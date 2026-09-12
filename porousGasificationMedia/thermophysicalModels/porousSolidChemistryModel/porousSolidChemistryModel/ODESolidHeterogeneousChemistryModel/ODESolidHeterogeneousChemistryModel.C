@@ -595,13 +595,27 @@ Foam::scalarField  Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidT
 
             scalar totalSubstrates = substrates + solidSubstrates;
 
+            // A reaction with one solid LHS reactant and no gas LHS reactant
+            // has totalSubstrates == slhsSto()[0], so the normalisation below
+            // would cancel its coefficient to 1 whatever the dict says.
+            const bool isSingleSolidLhsReaction =
+                (R.slhs().size() == 1) and (R.glhs().size() == 0);
+
+            // For that shape the coefficient is honoured as a rate weight
+            // instead: every term, heat included, is scaled by it, so the
+            // reaction stays mass- and energy-consistent per unit substrate.
+            const scalar assemblyDivisor =
+                isSingleSolidLhsReaction ? 1.0 : totalSubstrates;
+            const scalar heatScale =
+                isSingleSolidLhsReaction ? totalSubstrates : 1.0;
+
             if ((totalSubstrates > 0) and (mag(totalSubstrates - (products + solidProducts)) < SMALL))
             {
                 forAll(R.slhs(), s)
                 {
                     label si = R.slhs()[s];
-                    om[si] -= omegai*R.slhsSto()[s]/totalSubstrates;
-                    massStream -= omegai*R.slhsSto()[s]/totalSubstrates;
+                    om[si] -= omegai*R.slhsSto()[s]/assemblyDivisor;
+                    massStream -= omegai*R.slhsSto()[s]/assemblyDivisor;
                     if (updateC0)
                     {
                         Ys0_[si][cellI] = this->solidThermo().rho()[cellI] *Ys_[si][cellI] * V_[cellI];
@@ -612,7 +626,7 @@ Foam::scalarField  Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidT
                 forAll(R.srhs(), s)
                 {
                     label si = R.srhs()[s];
-                    om[si] += omegai*R.srhsSto()[s]/totalSubstrates;
+                    om[si] += omegai*R.srhsSto()[s]/assemblyDivisor;
                     if (updateC0)
                     {
                         Ys0_[si][cellI] = this->solidThermo().rho()[cellI] *Ys_[si][cellI] * V_[cellI];
@@ -622,18 +636,18 @@ Foam::scalarField  Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidT
                 forAll(R.grhs(), g)
                 {
                     label gi = R.grhs()[g];
-                    om[gi + nSolids_] +=  omegai*R.grhsSto()[g]/totalSubstrates;
+                    om[gi + nSolids_] +=  omegai*R.grhsSto()[g]/assemblyDivisor;
                 }
 
                 forAll(R.glhs(), g)
                 {
                     label gi = gasDictionaryBack_[R.glhs()[g]];
-                    om[gi + nSolids_] -= omegai*R.glhsSto()[g]/totalSubstrates;
-                    massStream -= omegai*R.glhsSto()[g]/totalSubstrates;
+                    om[gi + nSolids_] -= omegai*R.glhsSto()[g]/assemblyDivisor;
+                    massStream -= omegai*R.glhsSto()[g]/assemblyDivisor;
                 }
                 if (not solidReactionEnergyFromEnthalpy_)
                 {
-                    om[nEqns()] -= omegai*R.heatReact();
+                    om[nEqns()] -= omegai*R.heatReact()*heatScale;
                 }
             }
             else
@@ -1022,7 +1036,14 @@ void Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, Gas
                 solidProducts += R.srhsSto()[s];
                 stCoeffs[R.srhs()[s]] = R.srhsSto()[s];
             }
+
+            // Same normalisation as omega()'s non-stoichiometric assembly, so
+            // the single-solid-LHS shape is exempted here too — otherwise the
+            // analytic Jacobian would contradict the residual it linearises.
+            if ((Ns != 1) or (Ng != 0))
+            {
                 stCoeffs = stCoeffs/(substrates+solidSubstrates);
+            }
         }
 
         scalar kf0 = R.kf(T, 0.0, c2);
