@@ -1,0 +1,32 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  8
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "system";
+    object      decomposeParDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// 2 ranks, manual decomposition: rank 0 gets z=0→0.088 (cells 0–43,
+// containing all 270 spheres up to z=0.076), rank 1 gets z=0.088→0.096
+// (cells 44–47, empty — zero spheres).  This puts the MPI boundary 12 mm
+// above the highest sphere, eliminating the boundary-coupling flicker.
+
+numberOfSubdomains 2;
+
+method            manual;
+
+manualCoeffs
+{
+    dataFile        "cellDecomposition";
+}
+
+// ************************************************************************* //

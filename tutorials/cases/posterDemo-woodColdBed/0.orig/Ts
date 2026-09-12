@@ -1,0 +1,48 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  8
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       volScalarField;
+    location    "0";
+    object      Ts;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+dimensions      [0 0 0 1 0 0 0];
+
+// Mild start (450 K); the bed warms from the bottom via hot inlet gas at
+// 900 K.  There is NO setFields override — the bed stays at this uniform
+// mild temperature initially, and the hot gas heats it from below,
+// creating a bottom→top Ts gradient that drives a visible shrinkage
+// gradient (bottom spheres shrink first).
+internalField   uniform 450;
+
+boundaryField
+{
+    inlet
+    {
+        type            fixedValue;
+        value           uniform 900;
+    }
+    outlet
+    {
+        type            zeroGradient;
+    }
+    sideWalls
+    {
+        type            zeroGradient;
+    }
+    frontAndBack
+    {
+        type            empty;
+    }
+}
+
+// ************************************************************************* //

@@ -1,0 +1,106 @@
+# foamcli monitor config for posterDemo 2.5D two-layer coupling case
+# Run:  foamcli monitor .   (from case directory)
+#
+# Keyboard controls:
+#   p/n  → cycle heatmap fields
+#   f    → full-screen heatmap
+#   r    → refresh
+#   q    → quit (solver keeps running)
+
+[heatmap]
+# Model-critical scalar fields, in display order:
+#   1. Ts         — solid temperature (drives lambdaDot / sphere shrinkage)
+#   2. T          — gas temperature
+#   3. porosityF  — bed porosity (solid volume fraction)
+#   4. Ywood      — wood mass fraction (pyrolysis reactant)
+#   5. Ychar      — char mass fraction (pyrolysis product)
+#   6. lambdaDot  — per-cell shrink factor (PGF → YADE coupling)
+#   7. nParticles — number of YADE spheres per cell
+#   8. targas     — gas-phase tar species
+#   9. rho        — gas density
+fields = ["Ts", "T", "porosityF", "Ywood", "Ychar", "lambdaDot", "nParticles", "targas", "rho"]
+
+[probes]
+# Centerline probes (y=0.009 is mid-plane of 2.5D domain)
+# Bottom → top through the bed
+labels = ["bed-bottom", "bed-mid", "bed-top", "freeboard-1", "freeboard-2", "freeboard-3", "outlet"]
+
+[monitor]
+# Refresh every 2 seconds (default)
+refresh_interval = 2.0
+
+# Show all four panels
+panels = ["progress", "probes", "residuals", "heatmap"]
+
+[slice]
+# Cut through the midplane of our 1-cell-thick 2.5D domain
+axis = "y"
+position = 0.009
+
+# ── foamcli render configuration ────────────────────────────────────
+#
+# Quick-start examples (run from this case directory):
+#   foamcli render . --all                   # latest time, all sections below
+#   foamcli render . --all --watch           # live updates while solving
+#   foamcli render . --all --timeseries      # every available time step
+#   foamcli render . --all --timeseries --stride 5 --dpi 100  # every 5th step, fast
+#
+# Single-field examples:
+#   foamcli render . -f Ywood --slice y=0.009 -t 0.02 -o out.png
+#   foamcli render . --yade --yade-property radius --yade-dir spheres --slice y=0.009 -t 0.08 -o out.png
+
+[render]
+# Global defaults (override per-invocation with --dpi/--cmap)
+dpi = 200
+cmap = "inferno"
+
+# ── Monitoring slices (quick checks, 8 fields, dpi=100 for speed) ──
+[[render.slice]]
+axis = "y"
+position = 0.009
+fields = ["T", "Ts", "porosityF", "Ywood", "Ychar", "lambdaDot", "nParticles", "targas"]
+output = "render/monitor/slice_{field}.png"
+
+# ── Poster slices (publication quality, 4 coupling fields) ──
+# Use --dpi 300 --cmap inferno for final poster PNGs.
+[[render.slice]]
+axis = "y"
+position = 0.009
+fields = ["Ywood", "Ychar", "porosityF", "lambdaDot"]
+output = "render/poster/slice_{field}.png"
+
+# ── Timeseries slices (batch, low-dpi, for animation/checking) ──
+[[render.slice]]
+axis = "y"
+position = 0.009
+fields = ["Ywood", "Ychar", "porosityF", "lambdaDot", "T", "Ts"]
+output = "render/timeseries/{field}/{field}.png"
+
+# ── YADE particle slices ──
+# VTP files live under spheres/ (spheres-rank{0,1}-*.vtp), not VTK/ or case root.
+# Two views for the poster: lambdaDot (shrink signal PGF→YADE, Step 1) and
+# radius (actual sphere size, Step 2 — chemistry-driven shrinkage proof).
+#
+# --all mode uses [render.yade] (lambdaDot). The radius view uses an explicit
+# CLI command because --all only reads one [render.yade] block:
+#
+#   foamcli render . --yade --yade-property radius --yade-dir spheres \
+#       --slice y=0.009 -t 0.02 -o render/poster/t0.02/yade_radius.png \
+#       --dpi 300 --cmap viridis
+#
+# For poster snapshots at 3 times, all YADE renders use explicit -t -o:
+#
+#   foamcli render . --yade --yade-property lambdaDot --yade-dir spheres \
+#       --slice y=0.009 -t 0.02 -o render/poster/t0.02/yade_lambdaDot.png \
+#       --dpi 300 --cmap inferno
+#   foamcli render . --yade --yade-property radius --yade-dir spheres \
+#       --slice y=0.009 -t 0.02 -o render/poster/t0.02/yade_radius.png \
+#       --dpi 300 --cmap viridis
+[render.yade]
+enabled = true
+property = "lambdaDot"
+axis = "y"
+position = 0.009
+tolerance = 0.009
+vtp_dir = "spheres"
+output = "render/poster/yade_lambdaDot.png"

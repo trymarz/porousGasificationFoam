@@ -1,0 +1,77 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  8
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "system";
+    object      setFieldsDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// ── Three-layer packed bed for GRC poster showcase (cold-start variant) ─
+// The bed is initialised with three z-layers of different porosity and a
+// uniform *mild* temperature (450 K, from 0.orig).  Hot inlet gas (900 K)
+// at the bottom heats the bed from below, creating a bottom→top Ts
+// gradient.  Chemistry fires at the bottom first → bottom spheres shrink
+// first → visible vertical shrinkage gradient for the poster.
+//
+// Layer 1  bottom  z = 0.000 → 0.032  — loose packing  (porosityF 0.55)
+// Layer 2  middle  z = 0.032 → 0.064  — medium packing (porosityF 0.40)
+// Layer 3  top     z = 0.064 → 0.096  — densest packing (porosityF 0.30)
+//
+// No Ts/T overrides — the bed starts cold (450 K) from 0.orig; the hot
+// inlet does the heating.  YADE packs hexagonal spheres in three y-layers
+// (see MPI_lambda.py).  Boxes span the full y-width (0.018 m).
+
+defaultFieldValues
+(
+    volScalarFieldValue porosityF  1.0
+    volScalarFieldValue porosityF0 1.0
+    volScalarFieldValue Ywood      1.0
+    volScalarFieldValue Ychar      0.0
+);
+
+regions
+(
+    // Layer 1 — bottom: loose packing (no Ts/T override — bed starts at 450 K from 0.orig)
+    boxToCell
+    {
+        box (0 0 0) (0.04 0.018 0.032);
+        fieldValues
+        (
+            volScalarFieldValue porosityF  0.55
+            volScalarFieldValue porosityF0 0.55
+        );
+    }
+
+    // Layer 2 — middle: medium packing
+    boxToCell
+    {
+        box (0 0 0.032) (0.04 0.018 0.064);
+        fieldValues
+        (
+            volScalarFieldValue porosityF  0.40
+            volScalarFieldValue porosityF0 0.40
+        );
+    }
+
+    // Layer 3 — top: densest packing
+    boxToCell
+    {
+        box (0 0 0.064) (0.04 0.018 0.096);
+        fieldValues
+        (
+            volScalarFieldValue porosityF  0.30
+            volScalarFieldValue porosityF0 0.30
+        );
+    }
+);
+
+// ************************************************************************* //

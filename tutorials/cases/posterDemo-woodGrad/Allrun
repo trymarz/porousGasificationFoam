@@ -1,0 +1,31 @@
+#!/bin/sh
+cd "${0%/*}" || exit
+. ${WM_PROJECT_DIR:?}/bin/tools/RunFunctions
+
+# Requires a Yade-enabled solver build:  ./build.sh build --yade
+# (a plain porousGasificationFoam binary will NOT run this case correctly —
+#  Yade is the MPI parent and spawns the OpenFOAM ranks itself).
+
+rm -rf 0
+cp -r 0.orig 0
+
+runApplication blockMesh
+runApplication setFields
+runApplication setExprFields
+runApplication decomposePar
+
+mkdir -p spheres
+
+# Pre-compaction: settle the bed under gravity in a standalone single-process
+# (non-MPI) Yade run, so the coupled run starts at rest instead of free-falling
+# from the grid pack. compact.py writes compact_positions.txt, which
+# MPI_lambda.py loads if present (otherwise it falls back to the grid pack).
+echo "=== Pre-compacting bed (Yade only, no coupling) ==="
+yade compact.py 2>&1 | tee log.compact
+[ -f compact_positions.txt ] || { echo "ERROR: compact_positions.txt not generated!" >&2; exit 1; }
+
+echo "=== Starting coupled CFD-DEM ==="
+mpirun --allow-run-as-root -n 2 yade MPI_lambda.py 2>&1 | tee log.yade
+
+echo "=== Post-run: extracting poster data ==="
+./poster-extract.sh

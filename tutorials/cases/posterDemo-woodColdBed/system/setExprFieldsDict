@@ -1,0 +1,48 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  8
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "system";
+    object      setExprFieldsDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// Uniform all-wood start: Ychar=0, Ywood=1 everywhere in the bed.
+//
+// No initial char gradient is imposed.  Chemistry alone creates the
+// top→bottom coupling gradient: hot gas enters at the top (z=0.096),
+// converts fresh wood to char + targas at the top first, then the
+// reaction front progresses downward over the 2 s demo.  This avoids the
+// previous artefact where an imposed Ychar gradient fought transport
+// (numerical advection/diffusion smeared the ramp the wrong way) and
+// started the bottom with only 20 % wood, throttling pyrolysis there.
+//
+// The three-layer porosity from setFieldsDict still applies; only the
+// solid-species fields are set here to a uniform fresh-wood state.
+
+expressions
+(
+    Ychar
+    {
+        field        Ychar;
+        expression   "0.0";
+        condition    "pos().z() < 0.096";
+    }
+
+    Ywood
+    {
+        field        Ywood;
+        expression   "1.0";
+        condition    "pos().z() < 0.096";
+    }
+);
+
+// ************************************************************************* //

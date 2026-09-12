@@ -1,0 +1,28 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  8
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.1;
+    format      ascii;
+    class       dictionary;
+    object      heatTransferProperties;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// Gas <-> solid convective heat transfer: q = h * SAV * (T - Ts).
+heatTransferModel constCONV;
+
+Parameters
+{
+    h    300;    // convective coefficient   [W/m^2/K]  (increased from 50 for faster
+                  //                             gas→solid heating so the cold bed
+                  //                             reaches pyrolysis temperature within 2 s)
+    SAV  468;    // surface-area-to-volume   [1/m]
+}
+
+// ************************************************************************* //

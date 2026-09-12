@@ -1,0 +1,19 @@
+/*---------------------------------------------------------------------------*\
+  Minimal 2-species gas mixture for the poster DEM-coupling demo.
+
+  N2  — inert carrier gas
+  targas — lumped pyrolysis product (single gas species replacing the full
+           multi-species tar/CO/CO2/H2/H2O/CH4 set from updraftDemo)
+
+  Homogeneous (gas-phase) chemistry is disabled; targas is produced purely
+  by the single heterogeneous solidReaction in chemistryProperties.
+\*---------------------------------------------------------------------------*/
+
+species
+(
+    N2 targas
+);
+
+reactions
+{
+}

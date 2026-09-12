@@ -1,0 +1,61 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  8
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      solidThermophysicalProperties;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+thermoType solidMixtureThermo<constHeterogeneous>;
+
+// Two solid components only: dry wood (reactant) and char (product). No
+// moisture (hum) and no ash — keeps the demo chemistry minimal.
+solidComponents
+(
+    wood char
+);
+
+woodCoeffs
+{
+    transport
+    {
+        K           0.341;  // Park2010, Asako2002
+    }
+    thermodynamics
+    {
+        Cp          1800;   // Park2010 at T = 300 K
+        Hf          -1.04e6;
+    }
+    density
+    {
+        rho         1050;
+    }
+};
+
+charCoeffs
+{
+    transport
+    {
+        K           0.156;  // Park2010, Asako2002
+    }
+    thermodynamics
+    {
+        Cp          1054;   // Park2010 at T = 300 K
+        Hf          -2.12e4;
+    }
+    density
+    {
+        rho         1050;
+    }
+};
+
+// ************************************************************************* //

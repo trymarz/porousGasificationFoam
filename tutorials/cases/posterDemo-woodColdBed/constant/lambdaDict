@@ -1,0 +1,38 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  8
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      lambdaDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// UNCONFIGURED -- this case produces no particle shrinkage as it stands.
+//
+// On showcase/poster-demo the shrink rate came from an inline Ychar branch in
+// lambdaDotModel::update(). That branch is not on main: PR #43 replaced it
+// with a selectable model, chosen by `lambdaMode` here. With no lambdaMode
+// key, LambdaDotCalculationModel::New falls back to `constant`, and
+// constantLambdaDot then reads `lambdaValue` with a default of 0.0 -- so
+// lambdaDot is identically zero and the particles never shrink. The fallback
+// is silent; nothing in the log says the case is misconfigured.
+//
+// The equivalent of the old Ychar branch is
+//
+//     lambdaMode        exactDifferential;
+//     dlambdaOverDYmi   { char <m^4/kg>; wood <m^4/kg>; }
+//
+// but the coefficients are a physical choice this case has never made. Left
+// unset deliberately, pending that decision -- see the rebase plan.
+
+lambdaDot       constant 1.0;   // dead entry, read by nothing on main
+
+// ************************************************************************* //
