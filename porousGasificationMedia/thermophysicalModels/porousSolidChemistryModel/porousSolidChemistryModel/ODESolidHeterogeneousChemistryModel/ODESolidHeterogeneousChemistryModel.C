@@ -713,7 +713,21 @@ scalar Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, G
         scalar avKf = 1./kf;
         forAll(R.glhs(),i)
         {
-            scalar addAvKf = (ST_[cellI]*gasPhaseGases_[R.glhs()[i]].internalField()[cellI]*rhoG_[cellI]);
+            // A negative gas concentration here is an invalid state, not a
+            // small number: it flips the mass-transfer resistance's sign and
+            // 1/addAvKf then raises kf instead of bounding it. Abort loudly.
+            scalar gasConc = gasPhaseGases_[R.glhs()[i]].internalField()[cellI];
+
+            if (gasConc < 0)
+            {
+                FatalErrorIn("omega")
+                    << "Negative gas-phase concentration (" << gasConc
+                    << ") feeding the diffusion-limited rate at cell " << cellI
+                    << ", gas specie index " << R.glhs()[i]
+                    << ", reaction:\n" << R << exit(FatalError);
+            }
+
+            scalar addAvKf = (ST_[cellI]*gasConc*rhoG_[cellI]);
 
             if (addAvKf != 0)
             {
@@ -1114,13 +1128,29 @@ void Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, Gas
 
                 for (label rSi=Ns; rSi < Ns + Ng; rSi++)
                 {
-                    addAvKf = (ST_[cellI]*gasPhaseGases_[R.glhs()[rSi-Ns]].internalField()[cellI])*rhoG_[cellI];
+                    // Same invalid state as in omega()'s diffusion block: a
+                    // negative concentration inverts the resistance instead of
+                    // bounding the rate. Abort loudly rather than clamp.
+                    scalar gasConc =
+                        gasPhaseGases_[R.glhs()[rSi-Ns]].internalField()[cellI];
+
+                    if (gasConc < 0)
+                    {
+                        FatalErrorIn("jacobian")
+                            << "Negative gas-phase concentration (" << gasConc
+                            << ") feeding the diffusion-limited rate at cell "
+                            << cellI << ", gas specie index "
+                            << R.glhs()[rSi-Ns]
+                            << ", reaction:\n" << R << exit(FatalError);
+                    }
+
+                    addAvKf = (ST_[cellI]*gasConc)*rhoG_[cellI];
 
                     if (addAvKf != 0)
                     {
                         avKf += 1./addAvKf;
                         chosenKf = ST_[cellI] * rhoG_[cellI];
-                        chosenKf0 = (ST_[cellI] * gasPhaseGases_[R.glhs()[rSi - Ns]].internalField()[cellI] * rhoG_[cellI]);
+                        chosenKf0 = (ST_[cellI] * gasConc * rhoG_[cellI]);
                     }
                     else
                     {
