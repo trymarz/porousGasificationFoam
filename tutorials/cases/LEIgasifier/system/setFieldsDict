@@ -36,6 +36,15 @@ regions
     // Porosity 0.40 — representative for wood chips/pellets in a packed bed.
     // Bulk bed at 400 K, matching Ibrahim (2025) Fig. 5.6's solid-phase IC
     // rather than the fully cold start this case started from.
+    //
+    // The pore gas is O2-free. A packed bed's voids hold product gas, not air;
+    // leaving 0.orig's air IC in place puts 23 wt% O2 in every pore including
+    // the 1200 K char strip's, which is a premixed char/air charge at ignition
+    // temperature. That IC, not the air supply, produced the 66402 kg/m^3/s CO
+    // source on step one: R6's rate is k(Ts)*Ychar*Y_O2*rho_char*(1-porosity),
+    // first order in Y_O2 with no mass-transfer ceiling while
+    // diffusionLimitedReactions is off. With O2 = 0 here, char burns only as
+    // fast as the nozzles deliver oxygen.
     boxToCell
     {
         box (-0.21 -0.1 0.20) (0.21 0.1 1.01);
@@ -49,6 +58,8 @@ regions
             volScalarFieldValue porosityF0     0.40
             volScalarFieldValue Ts             400
             volScalarFieldValue T              400
+            volScalarFieldValue O2             0.0
+            volScalarFieldValue N2             1.0
         );
     }
 
