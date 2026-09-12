@@ -1764,6 +1764,20 @@ Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasTherm
             }
         }
 
+        // A heat capacity above VSMALL can still be small enough that the
+        // division overflows. Abort at the line that produced it rather than
+        // let a non-finite Ts reach SolidStateChecker three calls later.
+        if (!std::isfinite(dTi))
+        {
+            FatalErrorIn("calculateSourceTerms")
+                << "Non-finite solid temperature update at cell " << celli
+                << ": dTi=" << dTi << " from newhi=" << newhi
+                << ", newCp=" << newCp << ", solidRho=" << solidRho
+                << ", solidHeatCapacity=" << solidHeatCapacity
+                << ", dt=" << dt_ << ", Ti=" << Ti
+                << ", porosity=" << porosityF_[celli] << exit(FatalError);
+        }
+
         Ti += dTi;
 
         timeLeft -= dt_;
