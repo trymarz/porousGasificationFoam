@@ -38,6 +38,11 @@ boundaryField
         type            calculated;
         value           uniform 0;
     }
+    nozzle
+    {
+        type            calculated;
+        value           uniform 0;
+    }
     sides
     {
         type            empty;

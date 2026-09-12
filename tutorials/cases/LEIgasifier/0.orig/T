@@ -27,10 +27,16 @@ boundaryField
     }
     inlet
     {
-        // Hot air enters at 1100 K. Not the ignition source — that is the
-        // 1200 K char strip set at the throat in system/setFieldsDict.
+        // No longer an air supply, so it imposes no temperature either.
+        type            zeroGradient;
+    }
+    nozzle
+    {
+        // Ibrahim (2025): 1000 K air; 600 K was found insufficient. Not the
+        // ignition source — that is the 1200 K char strip set at the throat
+        // in system/setFieldsDict.
         type            fixedValue;
-        value           uniform 1100;
+        value           uniform 1000;
     }
     wall
     {

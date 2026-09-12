@@ -29,6 +29,14 @@ boundaryField
     {
         type            zeroGradient;
     }
+    nozzle
+    {
+        // Catch-all for the gas species with no file of their own (H2O, CO,
+        // H2, CO2, CH4, tar). The nozzle carries dry air, so none of them
+        // enter through it.
+        type            fixedValue;
+        value           uniform 0;
+    }
     wall
     {
         type            zeroGradient;

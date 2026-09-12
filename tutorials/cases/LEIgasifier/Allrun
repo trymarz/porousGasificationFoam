@@ -15,7 +15,8 @@
 #       ./Allrun
 #   or step by step:
 #       uv run --project ../../../utilities/py_utils python system/make_mesh.py
-#       cp -r 0.orig 0 && blockMesh && setFields && decomposePar
+#       cp -r 0.orig 0 && blockMesh
+#       topoSet && createPatch -overwrite && setFields && decomposePar
 #       mpirun -n 2 yade MPI_lambda.py
 #
 #   mpirun -n 2 starts TWO Yade ranks. FoamCoupling then spawns TWO OpenFOAM
@@ -24,7 +25,8 @@
 #
 # CFD-ONLY RUN (no DEM, faster for debugging chemistry / flow)
 #   1. Set  active false  in constant/yadeProperties
-#   2. cp -r 0.orig 0 && blockMesh && setFields && decomposePar
+#   2. cp -r 0.orig 0 && blockMesh
+#      topoSet && createPatch -overwrite && setFields && decomposePar
 #   3. mpirun -n 2 porousGasificationFoam -parallel
 #
 # CLEAN
@@ -43,9 +45,12 @@ PY_UTILS="$CASE_DIR/../../../utilities/py_utils"
 # 1. Generate blockMeshDict from the classy_blocks mesh script.
 uv run --project "$PY_UTILS" python "$CASE_DIR/system/make_mesh.py"
 
-# 2. Build the mesh and initialise fields.
+# 2. Build the mesh, carve the air-nozzle patch out of the throat's side
+#    walls, and initialise fields.
 cp -r 0.orig 0
 blockMesh
+topoSet
+createPatch -overwrite
 setFields
 
 # 3. Decompose for 2-rank parallel OpenFOAM run (split in X direction).
