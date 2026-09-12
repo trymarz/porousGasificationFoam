@@ -19,7 +19,8 @@ specieTransferModel constST;
 
 Parameters
 {
-    h       30;     // mass transfer coefficient — calibrate against Striugas et al.
+    h       0.017;  // mass transfer coefficient; matches tutorials/cases/gasifier,
+                    // same char-oxidation kinetics family (A=5.61e9, Ta=1.96e4)
     SAV     468;    // specific surface area [m^-1]; standard PGF starting value
 }
 
