@@ -133,6 +133,20 @@ fluidCoupling.SetOpenFoamSolver("porousGasificationFoam", numProcOF)
 fluidCoupling.setIdList(sphereIDs)
 
 # ── particle shrinkage ────────────────────────────────────────────
+# BROKEN ON main -- this file still speaks the pre-PR43 coupling contract and
+# a coupled run here is not valid. It reads state.lambdaDot as a dimensionless
+# shrink factor in [0, 1] and sets the radius itself, which was true while
+# lambdaDot was declared dimless and volPyrolysis computed 1 - Ychar inline.
+# On main lambdaDot is a rate in [m/s], YADE's NewtonIntegrator integrates
+# State::lambda_ from it, and no script maps a radius. Feeding a rate of order
+# -1e-3 into the interpolation below collapses every sphere to
+# CHAR_CORE_RADIUS on the first exchange.
+#
+# Porting this is its own task, not a dict change. The template is
+# tutorials/cases/MicroTGA-DEM_lambdaDot_common/MPI_lambda.py, with
+# `lambdaMode exactDifferential` and a dlambdaOverDYmi in constant/lambdaDict.
+# Until then the case is CFD-only: set yadeProperties.active false.
+#
 # Spheres shrink linearly toward CHAR_CORE_RADIUS as the solid pyrolyses.
 # lambdaDot = 1.0 − Ychar (wood-remaining fraction, [0, 1]):
 #   lambdaDot = 1.00  →  Ychar = 0.00  →  r = r₀ = 0.003 m
