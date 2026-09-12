@@ -1,0 +1,9 @@
+[heatmap]
+fields = ["porosityF", "Ts", "T", "Ywood", "Ychar", "Yash", "Yhum"]
+
+[probes]
+labels = ["z=0.10", "z=0.25", "z=0.31", "z=0.37", "z=0.50", "z=0.75", "z=0.90"]
+
+[monitor]
+refresh_interval = 3.0
+panels = ["progress", "probes", "heatmap"]
