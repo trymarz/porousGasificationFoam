@@ -1,0 +1,27 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  8
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      specieTransferProperties;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+specieTransferModel constST;
+
+Parameters
+{
+    h       0.017;  // mass transfer coefficient; matches tutorials/cases/gasifier,
+                    // same char-oxidation kinetics family (A=5.61e9, Ta=1.96e4)
+    SAV     468;    // specific surface area [m^-1]; standard PGF starting value
+}
+
+// ************************************************************************* //

@@ -1,0 +1,57 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  8
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       volVectorField;
+    location    "0";
+    object      U;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+dimensions      [0 1 -1 0 0 0 0];
+
+internalField   uniform (0 0 0);
+
+boundaryField
+{
+    outlet
+    {
+        type            inletOutlet;
+        inletValue      uniform (0 0 0);
+        value           uniform (0 0 0);
+    }
+    inlet
+    {
+        // Fuel-loading boundary, not an air supply: air now enters through the
+        // throat nozzles, as it does in an Imbert downdraft gasifier.
+        type            fixedValue;
+        value           uniform (0 0 0);
+    }
+    nozzle
+    {
+        // 2.66 m/s inward on every nozzle face whatever its orientation — two
+        // are vertical (throat) and two slanted (block 3's first row). Sized
+        // for ER = 0.30 against the solid throughput Us implies.
+        type            surfaceNormalFixedValue;
+        refValue        uniform -2.66;
+        value           uniform (0 0 0);
+    }
+    wall
+    {
+        type            noSlip;
+    }
+    sides
+    {
+        type            empty;
+    }
+}
+
+
+// ************************************************************************* //

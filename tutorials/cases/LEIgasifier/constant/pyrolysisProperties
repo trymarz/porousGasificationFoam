@@ -1,0 +1,36 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  8
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      pyrolysisProperties;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+active          true;
+
+heterogeneousPyrolysisModel  volPyrolysis;
+
+pyrolysisCoeffs
+{
+    subintegrateHeatTransfer true;
+    bedCollapse false;   // Track B: DEM handles solid motion
+    criticalPorosity 0.99;
+    replenish false;   // enable once chemistry is stable
+    // Packing limit for the solid flux limiter's receiver cap, and the bound
+    // below which solidStateChecker aborts. Loose, because the bed's constant
+    // downward Us would otherwise pack a throat cell solid.
+    minPorosity 0.1;
+}
+
+infoOutput      true;
+
+// ************************************************************************* //
