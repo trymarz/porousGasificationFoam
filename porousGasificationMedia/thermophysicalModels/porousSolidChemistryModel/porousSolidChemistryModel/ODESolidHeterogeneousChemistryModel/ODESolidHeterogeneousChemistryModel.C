@@ -1022,8 +1022,15 @@ void Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, Gas
         }
         kf0 *= (1.-porosityF_[cellI]);
 
+        // The diffusion correction below overwrites kf0 with 1/avKf, so keep
+        // the kinetic rate and restore it each sweep -- otherwise the
+        // corrected value leaks into the next rSj iteration.
+        const scalar kf0Kinetic = kf0;
+
         for (label rSj=0; rSj < Ns + Ng; rSj++)
         {
+            kf0 = kf0Kinetic;
+
             label sj;
             if (rSj < Ns)
             {
