@@ -53,6 +53,17 @@ solvers
 //        agglomerator    faceAreaPair;
 //        mergeLevels     1;
     }
+    // Solid enthalpy, solved by volPyrolysis so the solid carries its energy
+    // with its mass. Postdates showcase/poster-demo, so these cases had no
+    // entry and aborted on the first step; values match the canonical cases.
+    solidH
+    {
+        solver           PCG;
+        preconditioner   DIC;
+        tolerance        1e-6;
+        relTol           0;
+    }
+
     "(U|h|Yi|Ys|porosity)"
     {
         solver          PBiCG;
