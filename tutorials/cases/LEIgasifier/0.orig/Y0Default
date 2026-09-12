@@ -34,6 +34,10 @@ boundaryField
     {
         type            zeroGradient;
     }
+    nozzle
+    {
+        type            zeroGradient;
+    }
     sides
     {
         type            empty;

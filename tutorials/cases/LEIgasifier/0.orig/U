@@ -29,8 +29,19 @@ boundaryField
     }
     inlet
     {
+        // Fuel-loading boundary, not an air supply: air now enters through the
+        // throat nozzles, as it does in an Imbert downdraft gasifier.
         type            fixedValue;
-        value           uniform (0 0 -0.01);
+        value           uniform (0 0 0);
+    }
+    nozzle
+    {
+        // 2.66 m/s inward on every nozzle face whatever its orientation — two
+        // are vertical (throat) and two slanted (block 3's first row). Sized
+        // for ER = 0.30 against the solid throughput Us implies.
+        type            surfaceNormalFixedValue;
+        refValue        uniform -2.66;
+        value           uniform (0 0 0);
     }
     wall
     {

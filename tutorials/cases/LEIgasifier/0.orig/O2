@@ -27,6 +27,11 @@ boundaryField
     }
     inlet
     {
+        // Fuel-loading boundary; the nozzles carry the air now.
+        type            zeroGradient;
+    }
+    nozzle
+    {
         type            fixedValue;
         value           uniform 0.233;
     }

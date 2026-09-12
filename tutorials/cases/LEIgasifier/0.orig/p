@@ -30,6 +30,10 @@ boundaryField
     {
         type            zeroGradient;
     }
+    nozzle
+    {
+        type            zeroGradient;
+    }
     wall
     {
         type            zeroGradient;
