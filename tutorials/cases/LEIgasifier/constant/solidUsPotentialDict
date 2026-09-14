@@ -60,7 +60,7 @@ FoamFile
 inletMassFlux   1.75782e-3;   // kg/s, solid mass entering at z = 1.00
 
 zones
-(
+{
     pyrolysis
     {
         zMin            0.42;
@@ -79,6 +79,6 @@ zones
         zMax            0.20;
         sinkMassRate    1.866e-6;     // kg/s
     }
-);
+}
 
 // ************************************************************************* //
