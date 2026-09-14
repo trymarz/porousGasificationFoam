@@ -1222,18 +1222,38 @@ void volPyrolysis::postSolveEnergy()
             {
                 totalYm += Ym_[i];
             }
-            solidThermo_.correct(); 
-            volScalarField rhoCp
+            solidThermo_.correct();
+
+            const dimensionedScalar minRhoCp
+            (
+                "minRhoCp",
+                dimEnergy/dimTemperature/dimVolume,
+                SMALL
+            );
+
+            volScalarField rhoCp(max(totalYm*solidThermo_.Cp(), minRhoCp));
+
+            // The mass solveSpeciesMass() has just converted to gas. Ym_
+            // carries the loss, solidH_ does not: it was built in
+            // preSolveEnergy() on what the cell held before the reaction.
+            const volScalarField preReactionYm
             (
                 max
                 (
-                    totalYm * solidThermo_.Cp(),
-                    dimensionedScalar("minRhoCp",dimEnergy/dimTemperature/dimVolume,SMALL)
+                    totalYm - time_.deltaT()*solidChemistry_->RRs()(),
+                    dimensionedScalar("zero", dimDensity, 0.0)
                 )
             );
-            // Same ratio preSolveEnergy() reads back as T_.oldTime(), so the
-            // two must agree. No whereIs_ factor: it lags a stage, and
-            // zeroing T_ there while keeping enthalpy would start at 0 K.
+
+            const volScalarField rhoCpPreReaction
+            (
+                max(preReactionYm*solidThermo_.Cp(), minRhoCp)
+            );
+
+            // Divided by the mass that carried the enthalpy, not by what
+            // survived: gas-bound solid takes its sensible enthalpy with it,
+            // so losing mass must not raise Ts. No whereIs_ factor: it lags a
+            // stage, and zeroing T_ there while keeping enthalpy starts at 0 K.
             if (gasTemperatureBelowCriticalPorosity_)
             {
                 // Emptier than critPorosity_, the cell follows the gas. pos0
@@ -1241,12 +1261,12 @@ void volPyrolysis::postSolveEnergy()
                 // leave a cell exactly at critPorosity_ with Ts = 0.
                 const volScalarField weight(critPorosity_ - porosity_);
 
-                T_ = solidH_()/rhoCp*pos0(weight)
+                T_ = solidH_()/rhoCpPreReaction*pos0(weight)
                    + gasThermo_.T()*neg(weight);
             }
             else
             {
-                T_ = solidH_()/rhoCp;
+                T_ = solidH_()/rhoCpPreReaction;
             }
 
             const label badCell =
@@ -1259,6 +1279,7 @@ void volPyrolysis::postSolveEnergy()
                     << "    solidH       = "
                     << solidH_()[badCell] << nl
                     << "    sum(Ym)      = " << totalYm[badCell] << nl
+                    << "    sum(Ym) pre  = " << preReactionYm[badCell] << nl
                     << "    rhoCp        = " << rhoCp[badCell] << nl
                     << "    porosity     = " << porosity_[badCell] << nl
                     << "    whereIs      = " << whereIs_[badCell];
@@ -1271,6 +1292,11 @@ void volPyrolysis::postSolveEnergy()
                     context.str()
                 );
             }
+
+            // Restated on the mass that remains, so preSolveEnergy() reads
+            // back this Ts next step instead of re-inflating it.
+            solidH_().ref() = rhoCp*T_;
+            solidH_().correctBoundaryConditions();
 
             T_.correctBoundaryConditions();
 
