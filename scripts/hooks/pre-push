@@ -1,0 +1,209 @@
+#!/bin/bash
+# Pre-push gate for porousGasificationFoam.
+#
+# Install with scripts/install-hooks.sh. Skip once with `git push --no-verify`.
+#
+# What this is for
+# ----------------
+# The fast regression tier is not green on main, for two reasons that have
+# nothing to do with any given push:
+#
+#   * three cases compare out of tolerance against baselines captured at
+#     4073e55 and never regenerated (see expected.list);
+#   * an intermittent teardown heap-corruption abort makes a varying subset of
+#     cases die on SIGABRT *after* writing correct output (README -> "Known
+#     caveat: teardown abort surfaces as CRASH").
+#
+# A gate that demanded a green tier would therefore be red on every push, and a
+# gate that is always red teaches people to type --no-verify. So this hook does
+# not ask "is the tier green?". It asks "did this push make something worse?"
+#
+#   PASS                        -> fine
+#   CRASH, numbers still right  -> reported, not blocked (re-compared below)
+#   CRASH, numbers wrong        -> BLOCK
+#   FAIL, listed in expected    -> reported, not blocked
+#   FAIL, not listed            -> BLOCK
+#   PASS but listed as FAIL     -> BLOCK (expected.list is now lying)
+#   ERROR                       -> BLOCK (infrastructure; nothing was compared)
+#
+# The suite itself is untouched and stays as strict as it is: Allrun still
+# reports a CRASH as a CRASH and still exits non-zero. This hook is one of the
+# external observers Allrun's --state-dir interface was built for; it reads
+# per-case result.json and never parses human log output.
+#
+# Nothing here papers over a failure with `|| true`. Every non-blocking outcome
+# is one this file names, with a reason, and prints on every run.
+
+set -u
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+REG_DIR="$REPO_ROOT/applications/test/regression"
+ALLRUN="$REG_DIR/Allrun"
+RUN_CASE="$REG_DIR/tools/runCase.sh"
+EXPECTED="$REG_DIR/expected.list"
+JOBS="${PGF_HOOK_JOBS:-4}"
+
+# If the solver isn't on PATH, OpenFOAM isn't sourced — skip gracefully rather
+# than blocking a docs-only push made from a plain shell.
+if ! command -v porousGasificationFoam >/dev/null 2>&1; then
+    echo "[pre-push] porousGasificationFoam not on PATH — skipping regression tests."
+    echo "[pre-push] Source your OpenFOAM environment first if you want tests to run."
+    exit 0
+fi
+
+if [ ! -x "$ALLRUN" ]; then
+    echo "[pre-push] $ALLRUN missing or not executable — cannot gate this push." >&2
+    exit 1
+fi
+
+STATE_DIR="$(mktemp -d "${TMPDIR:-/tmp}/pgf-prepush.XXXXXX")"
+cleanup() { rm -rf "$STATE_DIR"; }
+trap cleanup EXIT
+
+echo "[pre-push] Running the fast regression tier (--jobs $JOBS)..."
+"$ALLRUN" --tag fast --jobs "$JOBS" --state-dir "$STATE_DIR" >"$STATE_DIR/suite.log" 2>&1
+suiteRc=$?
+
+if [ ! -f "$STATE_DIR/result.json" ]; then
+    echo "[pre-push] The suite produced no result.json (exit $suiteRc) — cannot judge this push." >&2
+    echo "[pre-push] Full log:" >&2
+    cat "$STATE_DIR/suite.log" >&2
+    exit 1
+fi
+
+# ---------------------------------------------------------------------------
+# Re-compare every crashed case.
+#
+# A CRASH result stops at phase "run", so the suite never got to compare. The
+# output the case wrote before aborting is still on disk, and runCase.sh
+# --no-run compares exactly that. This is the one step that distinguishes "died
+# on the way out with correct numbers" from "died and the numbers are wrong",
+# and it is why a crash is not automatically fatal here.
+# ---------------------------------------------------------------------------
+crashRecheck="$STATE_DIR/crash-recheck.tsv"
+: >"$crashRecheck"
+
+while IFS= read -r caseId; do
+    [ -n "$caseId" ] || continue
+    echo "[pre-push]   re-comparing crashed case: $caseId"
+    if "$RUN_CASE" "$REPO_ROOT/$caseId" --no-run >"$STATE_DIR/recheck.log" 2>&1; then
+        printf '%s\tOK\n' "$caseId" >>"$crashRecheck"
+    else
+        printf '%s\tBAD\n' "$caseId" >>"$crashRecheck"
+    fi
+done < <(
+    python3 - "$STATE_DIR/result.json" <<'PY'
+import json, sys
+with open(sys.argv[1]) as fh:
+    doc = json.load(fh)
+for case in doc.get("cases", []):
+    if case.get("status") == "CRASH":
+        print(case.get("case_id", ""))
+PY
+)
+
+# ---------------------------------------------------------------------------
+# Verdict.
+# ---------------------------------------------------------------------------
+python3 - "$STATE_DIR/result.json" "$EXPECTED" "$crashRecheck" <<'PY'
+import json, sys
+
+result_path, expected_path, recheck_path = sys.argv[1:4]
+
+with open(result_path) as fh:
+    doc = json.load(fh)
+
+# expected.list: "<case path>  <status>  <reason>"; unlisted cases expect PASS.
+expected = {}
+try:
+    with open(expected_path) as fh:
+        for lineno, raw in enumerate(fh, 1):
+            line = raw.split("#", 1)[0].strip()
+            if not line:
+                continue
+            parts = line.split(None, 2)
+            if len(parts) < 3:
+                sys.stderr.write(
+                    f"[pre-push] {expected_path}:{lineno}: needs "
+                    f"'<case> <status> <reason>' — refusing to guess.\n")
+                sys.exit(1)
+            case, status, reason = parts[0], parts[1].upper(), parts[2]
+            if status not in ("PASS", "FAIL"):
+                sys.stderr.write(
+                    f"[pre-push] {expected_path}:{lineno}: status must be "
+                    f"PASS or FAIL, got {status!r}.\n")
+                sys.exit(1)
+            expected[case] = (status, reason)
+except FileNotFoundError:
+    pass  # no expectations recorded: every case is simply expected to pass
+
+recheck = {}
+with open(recheck_path) as fh:
+    for line in fh:
+        if "\t" in line:
+            case, verdict = line.rstrip("\n").split("\t", 1)
+            recheck[case] = verdict
+
+blocking, tolerated = [], []
+
+for case in doc.get("cases", []):
+    cid = case.get("case_id", "?")
+    status = case.get("status", "ERROR")
+    want, reason = expected.get(cid, ("PASS", ""))
+
+    if status == "PASS":
+        if want == "FAIL":
+            blocking.append(
+                (cid, "PASSes, but expected.list still records it as FAIL "
+                      f"({reason}) — remove the line and say why"))
+        continue
+
+    if status == "CRASH":
+        signal = case.get("signal_name", "?")
+        if recheck.get(cid) == "OK":
+            tolerated.append(
+                (cid, f"aborted on {signal} after writing correct output "
+                      "(teardown defect, README -> Known caveat)"))
+        else:
+            blocking.append(
+                (cid, f"aborted on {signal} AND its output does not match the "
+                      "baseline"))
+        continue
+
+    if status == "FAIL":
+        if want == "FAIL":
+            tolerated.append((cid, f"expected failure: {reason}"))
+        else:
+            blocking.append((cid, case.get("message", "compared out of tolerance")))
+        continue
+
+    blocking.append((cid, f"{status}: {case.get('message', 'no detail')}"))
+
+counts = doc.get("counts", {})
+summary = "  ".join(f"{k}={v}" for k, v in sorted(counts.items()))
+print(f"[pre-push] tier: {summary}")
+
+if tolerated:
+    print("[pre-push] known, not caused by this push:")
+    for cid, why in tolerated:
+        print(f"[pre-push]   - {cid}: {why}")
+
+if blocking:
+    print("[pre-push] REGRESSIONS — push blocked:", file=sys.stderr)
+    for cid, why in blocking:
+        print(f"[pre-push]   ! {cid}: {why}", file=sys.stderr)
+    print("[pre-push] Fix these, or run 'git push --no-verify' if you are "
+          "certain they are unrelated.", file=sys.stderr)
+    sys.exit(1)
+
+print("[pre-push] No regression against expected.list — push allowed.")
+PY
+verdict=$?
+
+if [ "$verdict" -ne 0 ]; then
+    echo "[pre-push] Full suite log: $STATE_DIR/suite.log (kept until this shell exits)" >&2
+    trap - EXIT
+    exit 1
+fi
+
+exit 0
