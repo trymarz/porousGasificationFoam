@@ -21,6 +21,15 @@ solvers
     {
         solver          diagonal;
     }
+    // solidUsPotential utility only -- solves once for the solid mass-flux
+    // potential, not touched by porousGasificationFoam at run time.
+    Phi
+    {
+        solver           PCG;
+        preconditioner   DIC;
+        tolerance        1e-12;
+        relTol           0;
+    }
     p
     {
         solver           PCG;
