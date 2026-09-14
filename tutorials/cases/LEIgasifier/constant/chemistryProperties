@@ -72,27 +72,13 @@ solidReactions
     hum = H2O
     (5.13e6 1.0589e4 300 2.256e6 1)
 
-    // R24a — Wood pyrolysis: char fraction (0.74 wt%)
-    // From Ibrahim (2025) Eq. R24: CH1.5417O0.6225 → products
-    // A=1.38e10 1/s, Ta=1.9e4 K  (Park et al. via Ibrahim)
+    // R24 — Wood pyrolysis, merged single reaction (was R24a+b+c, split by
+    // product fraction only — same kinetics, coefficient 1 instead of three
+    // fractional ones, which also sidesteps issue #92 Finding A's
+    // totalSubstrates degeneracy for this reaction).
     irreversibleSolidArrheniusHeterogeneousReaction
-    0.0074 wood = 0.0074 char
+    wood = 0.0074 char + 0.2063 CO + 0.3387 CO2 + 0.0288 H2 + 0.0567 H2O + 0.0171 CH4 + 0.3420 tar
     (1.38e10 1.9e4 300 3.85e5 1)
-
-    // R24b — Wood pyrolysis: CO + CO2 + H2 fraction (57.4 wt%)
-    irreversibleSolidArrheniusHeterogeneousReaction
-    0.5738 wood = 0.2063 CO + 0.3387 CO2 + 0.0288 H2
-    (1.38e10 1.9e4 300 3.85e5 1)
-
-    // R24c — Wood pyrolysis: H2O + CH4 + tar fraction (41.6 wt%)
-    irreversibleSolidArrheniusHeterogeneousReaction
-    0.4158 wood = 0.0567 H2O + 0.0171 CH4 + 0.3420 tar
-    (1.38e10 1.9e4 300 3.85e5 1)
-
-    // R6 — Char partial oxidation → CO  (Ibrahim 2025, Table 5.4)
-    irreversibleSolidArrheniusHeterogeneousReaction
-    char + 1.33 O2 = 2.33 CO
-    (5.61e9 1.96e4 300 -3.95e6 1 1)
 
     // R7 — Char full oxidation → CO2  (Ibrahim 2025, Table 5.4)
     irreversibleSolidArrheniusHeterogeneousReaction
@@ -104,15 +90,8 @@ solidReactions
     char + 3.66 CO2 = 4.66 CO
     (3.616e4 9308.39 300 3.07e6 1 1)
 
-    // R4 — Water-gas: char + H2O → CO + H2  (Ibrahim 2025, Table 5.4)
-    irreversibleSolidArrheniusHeterogeneousReaction
-    char + 1.5 H2O = 2.33 CO + 0.17 H2
-    (1.517e7 1.46e4 300 4.38e6 1 1)
-
-    // R5 — Hydrogasification: char + H2 → CH4  (Ibrahim 2025, Table 5.4)
-    irreversibleSolidArrheniusHeterogeneousReaction
-    char + 0.33 H2 = 1.33 CH4
-    (4.189 2.31e3 300 -4.66e6 1 1)
+    // R6 (partial oxidation → CO), R4 (water-gas) and R5 (hydrogasification)
+    // dropped — see lei-gasifier-continuity-us-field-2026-09-14.md Decision 2.
 );
 
 // ************************************************************************* //
