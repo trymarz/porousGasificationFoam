@@ -75,9 +75,14 @@ solidReactions
     // R24 — Wood pyrolysis, merged single reaction (was R24a+b+c, split by
     // product fraction only — same kinetics, coefficient 1 instead of three
     // fractional ones, which also sidesteps issue #92 Finding A's
-    // totalSubstrates degeneracy for this reaction).
+    // totalSubstrates degeneracy for this reaction). Product coefficients
+    // rescaled by 1/0.997 from the raw literature split (0.74/57.4/41.6 wt%,
+    // which itself only sums to 99.70%): the solver's omega() enforces
+    // mass conservation to floating-point precision and aborts on a
+    // mismatch, which the original three fragments only dodged by each
+    // balancing against its own sub-coefficient.
     irreversibleSolidArrheniusHeterogeneousReaction
-    wood = 0.0074 char + 0.2063 CO + 0.3387 CO2 + 0.0288 H2 + 0.0567 H2O + 0.0171 CH4 + 0.3420 tar
+    wood = 0.0074 char + 0.2069 CO + 0.3397 CO2 + 0.0289 H2 + 0.0569 H2O + 0.0172 CH4 + 0.3430 tar
     (1.38e10 1.9e4 300 3.85e5 1)
 
     // R7 — Char full oxidation → CO2  (Ibrahim 2025, Table 5.4)
