@@ -1,0 +1,99 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  8
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "system";
+    object      setFieldsDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// Default: gas-only (freeboard and any unset region), ambient.
+defaultFieldValues
+(
+    volScalarFieldValue Ts             300
+    volScalarFieldValue T              300
+    volScalarFieldValue porosityF      1.0
+    volScalarFieldValue porosityF0     1.0
+    volScalarFieldValue Ywood          0.0
+    volScalarFieldValue Ychar          0.0
+    volScalarFieldValue Yhum           0.0
+    volScalarFieldValue Yash           0.0
+);
+
+// Regions apply in order; a later one overrides an earlier one cell by cell.
+regions
+(
+    // Fresh moist biomass fills the entire bed above the freeboard.
+    // Moisture content 18.5 wt% (Jayah et al., as in Ibrahim 2025).
+    // Porosity 0.40 — representative for wood chips/pellets in a packed bed.
+    // Bulk bed at 400 K, matching Ibrahim (2025) Fig. 5.6's solid-phase IC
+    // rather than the fully cold start this case started from.
+    //
+    // The pore gas is O2-free. A packed bed's voids hold product gas, not air;
+    // leaving 0.orig's air IC in place puts 23 wt% O2 in every pore including
+    // the 1200 K char strip's, which is a premixed char/air charge at ignition
+    // temperature. That IC, not the air supply, produced the 66402 kg/m^3/s CO
+    // source on step one: R6's rate is k(Ts)*Ychar*Y_O2*rho_char*(1-porosity),
+    // first order in Y_O2 with no mass-transfer ceiling while
+    // diffusionLimitedReactions is off. With O2 = 0 here, char burns only as
+    // fast as the nozzles deliver oxygen.
+    boxToCell
+    {
+        box (-0.21 -0.1 0.20) (0.21 0.1 1.01);
+        fieldValues
+        (
+            volScalarFieldValue Ywood          0.815
+            volScalarFieldValue Yhum           0.185
+            volScalarFieldValue Ychar          0.0
+            volScalarFieldValue Yash           0.0
+            volScalarFieldValue porosityF      0.40
+            volScalarFieldValue porosityF0     0.40
+            volScalarFieldValue Ts             400
+            volScalarFieldValue T              400
+            volScalarFieldValue O2             0.0
+            volScalarFieldValue N2             1.0
+        );
+    }
+
+    // Ignition strip: two cell rows at the throat (dz = 0.02 m), full width,
+    // at 1200 K — Ibrahim (2025) Fig. 5.6's pre-heated oxidation zone, biased
+    // towards the incoming fuel and air. This, not the inlet, is the real
+    // ignition source.
+    //
+    // The strip is char, not wood. A real 1200 K zone in a packed bed holds no
+    // wood: the R24 kinetics give wood a ~0.4 ms half-life there, so
+    // co-locating Ywood = 0.815 with Ts = 1200 K releases pyrolysis gas about
+    // 1e7x faster than the domain can vent it. Char's reactions (R6/R7
+    // oxidation, R3 Boudouard, R4 water-gas) are gas-solid and supply-limited
+    // instead of Ts-driven, so the strip cannot run away the same way.
+    //
+    // porosityF is deliberately absent here: the strip keeps the bed's 0.40,
+    // and Ychar = 1.0 at that porosity satisfies 1 - porosity = sum(Ym_i/rho_i)
+    // exactly, because rho_char = rho_wood = 1050 kg/m^3.
+    //
+    // Both phases are set: h*SAV = 2e5 W/m^3/K equilibrates gas to solid in
+    // ~1 ms, so a cold gas IC would only add a stiff transient at t = 0.
+    boxToCell
+    {
+        box (-0.21 -0.1 0.30) (0.21 0.1 0.34);
+        fieldValues
+        (
+            volScalarFieldValue Ywood          0.0
+            volScalarFieldValue Yhum           0.0
+            volScalarFieldValue Ychar          1.0
+            volScalarFieldValue Yash           0.0
+            volScalarFieldValue Ts             1200
+            volScalarFieldValue T              1200
+        );
+    }
+);
+
+// ************************************************************************* //
