@@ -1,4 +1,4 @@
-"""Yade DEM + porousGasificationFoam coupling script for LEIgasifier tutorial.
+"""Yade DEM + porousGasificationFoam coupling script for LEIgasifierPrescribedUs tutorial.
 
 Spheres represent biomass/char particles in the active reaction zone
 (throat + combustion zone, z=0.21→0.41 m).  OpenFOAM computes lambdaDot
@@ -223,6 +223,6 @@ mp.ERASE_REMOTE_MASTER  = True
 mp.REALLOC_FREQUENCY    = 12
 mp.fluidBodies          = sphereIDs
 mp.mpirun(NSTEPS, np=numProcOF)
-mp.mprint("LEIgasifier run finished")
+mp.mprint("LEIgasifierPrescribedUs run finished")
 
 exit()

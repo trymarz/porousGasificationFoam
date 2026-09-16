@@ -25,7 +25,7 @@ Application
     solidUsPotential
 
 Description
-    Static-IC utility for tutorials/cases/LEIgasifier. Solves a Poisson
+    Static-IC utility for tutorials/cases/LEIgasifierPrescribedUs. Solves a Poisson
     equation for a solid mass-flux potential Phi,
 
         fvm::laplacian(1, Phi) == S
