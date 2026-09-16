@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# LEIgasifier — Allrun
+# LEIgasifierPrescribedUs — Allrun
 # ====================
 # 2D downdraft gasifier tutorial: fresh moist biomass bed ignited by hot air.
 # Runs a coupled Yade DEM + porousGasificationFoam simulation.
