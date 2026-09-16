@@ -1,0 +1,60 @@
+#!/bin/sh
+#
+# LEIgasifierDEM — Allrun
+# ====================
+# 2D downdraft gasifier tutorial, twin-domain: full-domain sphere packing
+# under gravity produces a real DEM-derived Us field (contrast with
+# LEIgasifierPrescribedUs's static potential-flow Us). Issue #104.
+#
+# PREREQUISITES
+#   - porousGasificationFoam compiled and on PATH (OpenFOAM 8 environment sourced)
+#   - Yade built with FoamCoupling support, `yade` on PATH
+#   - uv + classy-blocks available via utilities/py_utils (for mesh generation)
+#
+# COUPLED RUN (default)
+#   From the case directory:
+#       ./Allrun
+#   or step by step:
+#       uv run --project ../../../utilities/py_utils python system/make_mesh.py
+#       cp -r 0.orig 0 && blockMesh
+#       topoSet && createPatch -overwrite && setFields && decomposePar
+#       YADE_NSTEPS=25 mpirun -n 2 yade MPI_lambda.py
+#
+#   mpirun -n 2 starts TWO Yade ranks. FoamCoupling then spawns TWO OpenFOAM
+#   ranks internally (via MPI_Comm_spawn). Do NOT launch porousGasificationFoam
+#   directly — the inter-communicator requires Yade to be the MPI parent.
+#
+# CLEAN
+#   ./Allclean
+#
+# OUTPUT
+#   Time directories written every deltaT=4e-3 s (fixed, no adjustTimeStep)
+#   to the case root; endTime=0.1 s is a first smoke run (25 steps), not a
+#   converged result -- see system/controlDict for how deltaT was picked.
+#   DEM sphere positions/radii: spheres/spheres_*.vtp  (open spheres/spheres.pvd in ParaView)
+#   Time-step coupling log:     dtInfo.txt
+
+set -e   # abort on first error
+
+CASE_DIR="$(dirname "$(realpath "$0")")"
+PY_UTILS="$CASE_DIR/../../../utilities/py_utils"
+
+# 1. Generate blockMeshDict from the classy_blocks mesh script.
+uv run --project "$PY_UTILS" python "$CASE_DIR/system/make_mesh.py"
+
+# 2. Build the mesh, carve the air-nozzle patch out of the throat's side
+#    walls, and initialise fields.
+cp -r 0.orig 0
+blockMesh
+topoSet
+createPatch -overwrite
+setFields
+
+# 3. Decompose for 2-rank parallel OpenFOAM run (split in X direction).
+decomposePar
+
+# 4. Coupled Yade + OpenFOAM run. endTime/deltaT in system/controlDict is
+#    0.1/4e-3 = 25 -- YADE_NSTEPS must match exactly (fixed-deltaT coupling,
+#    no early-exit handshake between the two sides).
+export YADE_NSTEPS=25
+mpirun -n 2 yade MPI_lambda.py

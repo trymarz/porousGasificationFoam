@@ -1,0 +1,30 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  8
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      lambdaDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// Per-FVM-cell continuum lambdaDot (issue #104 decision: no per-particle
+// chemistry). Same model and coefficients as
+// tutorials/cases/MicroTGA-DEM_lambdaDotBoth/constant/lambdaDict -- carried
+// over untuned for this geometry/chemistry, not re-derived from mass
+// conservation (dr/dt = -(1/(4*pi*r^2*rho))*(dm/dt), nonlinear in r). Known
+// limitation: revisit once real radius trajectories are observed on a run.
+lambdaMode exactDifferential;
+
+// [m/K]
+dlambdaOverDTs 1e-6;
+
+// [m^4/kg], one value for every specie.
+dlambdaOverDYmi 2.5e-6;

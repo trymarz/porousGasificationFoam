@@ -1,0 +1,146 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  8
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "system";
+    object      controlDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+application     porousGasificationFoam;
+
+startFrom       latestTime;
+
+startTime       0;
+
+stopAt          endTime;
+
+// Fixed-deltaT coupling (issue #104 decision): no early-exit handshake
+// exists between OpenFOAM and Yade, so YADE_NSTEPS on the Yade side must
+// equal endTime/deltaT here exactly (see Allrun) or one side hangs.
+// deltaT=4e-3 s is just below the smallest steady, post-startup-ramp
+// adaptive step observed running LEIgasifierPrescribedUs CFD-only
+// (yadeProperties.active false) in /scratch: adjustTimeStep climbed
+// 1e-7 -> ~4.4e-3 over the first ~1 s (that ramp is a startup artifact,
+// not a real floor) then held in [4.13e-3, 5.07e-3] through t=30.6 s,
+// where an unrelated chemistry-ODE FPE crash ended the probe (matches the
+// known main-branch fast-tier chemistry instability -- not a DEM issue).
+// endTime=0.1 s (25 steps) is a first smoke run only, to confirm the
+// coupling wires up and observe early porosity-limit behaviour -- not a
+// converged result.
+endTime         0.1;
+
+deltaT          4e-3;
+
+maxDeltaT       4e-3;
+
+writeControl    adjustableRunTime;
+
+writeInterval   0.25;
+
+purgeWrite      0;
+
+writeFormat     ascii;
+
+writePrecision  8;
+
+writeCompression off;
+
+timeFormat      general;
+
+timePrecision   6;
+
+runTimeModifiable yes;
+
+adjustTimeStep no;
+
+maxCo      1;
+
+maxDi      5000;
+
+functions
+{
+    // Bed height tracking (volume-averaged porosity over domain)
+    porosityAve
+    {
+        type            volFieldValue;
+        libs            ("libfieldFunctionObjects.so");
+        writeControl    adjustableRunTime;
+        writeInterval   0.25;
+        operation       volAverage;
+        regionType      all;
+        writeFields     false;
+        fields          (porosityF);
+    }
+
+    // Total solid mass proxy (volume integral of solid mass-fraction fields)
+    solidMass
+    {
+        type            volFieldValue;
+        libs            ("libfieldFunctionObjects.so");
+        writeControl    adjustableRunTime;
+        writeInterval   0.25;
+        operation       volIntegrate;
+        regionType      all;
+        writeFields     false;
+        fields          (Ywood Ychar Yash Yhum);
+    }
+
+    // Centerline probes (z-axis at x=0)
+    centerlineProbes
+    {
+        type            probes;
+        libs            ("libsampling.so");
+        writeControl    adjustableRunTime;
+        writeInterval   0.25;
+        fields          (T Ts porosityF Ywood Ychar Yash Yhum U);
+        // y = -0.016 is the mid-thickness of the 2D mesh
+        // (extruded over y in [-0.024, -0.008]); x=0 is the centerline.
+        probeLocations
+        (
+            (0.0 -0.016 0.10)
+            (0.0 -0.016 0.25)
+            (0.0 -0.016 0.31)
+            (0.0 -0.016 0.37)
+            (0.0 -0.016 0.50)
+            (0.0 -0.016 0.75)
+            (0.0 -0.016 0.90)
+        );
+    }
+
+    // Cut plane for 2D contour extraction
+    samplePlane
+    {
+        type            surfaces;
+        libs            ("libsampling.so");
+        writeControl    adjustableRunTime;
+        writeInterval   0.25;
+        surfaceFormat   vtk;
+        fields          (T Ts porosityF Ywood Ychar Yash Yhum U p);
+        surfaces
+        (
+            midPlane
+            {
+                type        plane;
+                planeType   pointAndNormal;
+                pointAndNormalDict
+                {
+                    point   (0 -0.016 0.5);
+                    normal  (0 1 0);
+                }
+                interpolate true;
+            }
+        );
+    }
+
+}
+
+// ************************************************************************* //
