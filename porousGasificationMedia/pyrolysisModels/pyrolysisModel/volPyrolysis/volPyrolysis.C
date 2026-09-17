@@ -1046,6 +1046,11 @@ void volPyrolysis::preSolveEnergy()
             // SMALL floor while the T^4 radiative sink stays full strength.
             volScalarField radiationShField = whereIs_*radiationSh_*pos(critPorosity_ - porosity_);
 
+            // Same collapsing-rhoCp gap as radiationShField, for the reaction
+            // heat term: chemistrySh_ is set from RRs_/RRg_ (nonzero whenever
+            // whereIs_ != 0) but carries no critPorosity_ gate of its own.
+            volScalarField chemistryShField = whereIs_*chemistrySh_*pos(critPorosity_ - porosity_);
+
             // Simplistic immersed boundary for heat transport in solid phase.
             fvScalarMatrix TLap
             (
@@ -1090,7 +1095,7 @@ void volPyrolysis::preSolveEnergy()
                 fvm::ddt(rhoCp,T_)
               - TLap                                                  
             ==
-                chemistrySh_ // eqZx2uHGn004, eqZx2uHGn017
+                chemistryShField // eqZx2uHGn004, eqZx2uHGn017
               - heatTransfField // eqZx2uHGn005
               - heatUpGas_
               + radiationShField
@@ -1112,7 +1117,7 @@ void volPyrolysis::preSolveEnergy()
                 context
                     << "    rhoCp        = " << rhoCp[badTEqnCell] << nl
                     << "    chemistrySh  = "
-                    << chemistrySh_[badTEqnCell] << nl
+                    << chemistryShField[badTEqnCell] << nl
                     << "    heatTransfer = "
                     << heatTransfField[badTEqnCell] << nl
                     << "    heatUpGas    = " << heatUpGas_[badTEqnCell] << nl
