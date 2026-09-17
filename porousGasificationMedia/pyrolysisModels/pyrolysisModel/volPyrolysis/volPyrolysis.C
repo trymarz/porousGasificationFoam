@@ -1004,7 +1004,12 @@ void volPyrolysis::preSolveEnergy()
                 )
             );
 
-            T_ = solidH_()/rhoCp;
+            // solidH_/rhoCp is exactly scale-invariant in the mass, so a cell
+            // holding only upwind-diffused trace echoes its donor's Ts at full
+            // strength. Solid to whereIs_ but not to the checker: follow the gas.
+            const volScalarField traceOnly(whereIs_*(1 - pos(solidPresent)));
+
+            T_ = solidH_()/rhoCp*(1 - traceOnly) + gasThermo_.T()*traceOnly;
 
             const label badTsCell =
                 solidStateChecker_->firstInvalidTemperature
@@ -1268,6 +1273,17 @@ void volPyrolysis::postSolveEnergy()
             {
                 T_ = solidH_()/rhoCpPreReaction;
             }
+
+            // The same trace-only cells preSolveEnergy() pins, pinned again
+            // after transport: solidH_ is restated from T_ below, so an echo
+            // left here is what the next step's recovery would read back.
+            const volScalarField traceOnly
+            (
+                whereIs_
+               *(1 - pos(solidStateChecker_->solidPresent(totalYm, rho_)))
+            );
+
+            T_ = T_*(1 - traceOnly) + gasThermo_.T()*traceOnly;
 
             const label badCell =
                 solidStateChecker_->firstInvalidTemperature(T_);
