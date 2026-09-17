@@ -18,7 +18,7 @@
 #       uv run --project ../../../utilities/py_utils python system/make_mesh.py
 #       cp -r 0.orig 0 && blockMesh
 #       topoSet && createPatch -overwrite && setFields && decomposePar
-#       YADE_NSTEPS=25 mpirun -n 2 yade MPI_lambda.py
+#       YADE_NSTEPS=20000 mpirun -n 2 yade MPI_lambda.py
 #
 #   mpirun -n 2 starts TWO Yade ranks. FoamCoupling then spawns TWO OpenFOAM
 #   ranks internally (via MPI_Comm_spawn). Do NOT launch porousGasificationFoam
@@ -29,8 +29,9 @@
 #
 # OUTPUT
 #   Time directories written every deltaT=4e-3 s (fixed, no adjustTimeStep)
-#   to the case root; endTime=0.1 s is a first smoke run (25 steps), not a
-#   converged result -- see system/controlDict for how deltaT was picked.
+#   to the case root; endTime=0.1 s is a first smoke run (25 OpenFOAM steps,
+#   20000 Yade substeps), not a converged result -- see system/controlDict
+#   for how deltaT was picked.
 #   DEM sphere positions/radii: spheres/spheres_*.vtp  (open spheres/spheres.pvd in ParaView)
 #   Time-step coupling log:     dtInfo.txt
 
@@ -53,8 +54,14 @@ setFields
 # 3. Decompose for 2-rank parallel OpenFOAM run (split in X direction).
 decomposePar
 
-# 4. Coupled Yade + OpenFOAM run. endTime/deltaT in system/controlDict is
-#    0.1/4e-3 = 25 -- YADE_NSTEPS must match exactly (fixed-deltaT coupling,
-#    no early-exit handshake between the two sides).
-export YADE_NSTEPS=25
+# 4. Coupled Yade + OpenFOAM run. YADE_NSTEPS counts Yade's own DEM substeps
+#    (O.dt = yadeDtFixed = 5e-6 s in MPI_lambda.py), NOT OpenFOAM steps --
+#    the first smoke run got this wrong (YADE_NSTEPS=25, i.e. endTime/foamDt)
+#    and produced a real hang: Yade finished its 25 tiny substeps, exited,
+#    and porousGasificationFoam was left stuck mid-run waiting on the next
+#    coupling exchange (no early-exit handshake between the two sides). The
+#    coupling log confirmed the real substep ratio: dtInfo.txt's first row
+#    gave foamDt/yadeDt = 4e-3/5e-6 = 800, so covering endTime=0.1 s needs
+#    endTime/yadeDtFixed = 20000 Yade substeps, not endTime/foamDeltaT = 25.
+export YADE_NSTEPS=20000
 mpirun -n 2 yade MPI_lambda.py

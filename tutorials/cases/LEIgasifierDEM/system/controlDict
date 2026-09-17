@@ -25,7 +25,12 @@ stopAt          endTime;
 
 // Fixed-deltaT coupling (issue #104 decision): no early-exit handshake
 // exists between OpenFOAM and Yade, so YADE_NSTEPS on the Yade side must
-// equal endTime/deltaT here exactly (see Allrun) or one side hangs.
+// cover this endTime exactly (see Allrun) or one side hangs. YADE_NSTEPS
+// counts Yade's own DEM substeps (O.dt=5e-6s), not OpenFOAM steps -- it is
+// endTime/yadeDtFixed = 20000, confirmed against dtInfo.txt's measured
+// foamDt/yadeDt=800 ratio, not endTime/deltaT=25 (that wrong guess hung
+// the first smoke run: Yade exited after 25 substeps, OpenFOAM was left
+// waiting mid-run for the next coupling exchange that never came).
 // deltaT=4e-3 s is just below the smallest steady, post-startup-ramp
 // adaptive step observed running LEIgasifierPrescribedUs CFD-only
 // (yadeProperties.active false) in /scratch: adjustTimeStep climbed
