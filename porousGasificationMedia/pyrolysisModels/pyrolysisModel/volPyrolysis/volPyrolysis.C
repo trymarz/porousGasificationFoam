@@ -1041,6 +1041,11 @@ void volPyrolysis::preSolveEnergy()
 
             volScalarField heatTransfField = whereIs_*heatTransfer()()*pos(critPorosity_ - porosity_);
 
+            // radiationSh_ has no critPorosity_ gate of its own (unlike
+            // heatTransfField): as a cell empties, rhoCp collapses toward its
+            // SMALL floor while the T^4 radiative sink stays full strength.
+            volScalarField radiationShField = whereIs_*radiationSh_*pos(critPorosity_ - porosity_);
+
             // Simplistic immersed boundary for heat transport in solid phase.
             fvScalarMatrix TLap
             (
@@ -1088,7 +1093,7 @@ void volPyrolysis::preSolveEnergy()
                 chemistrySh_ // eqZx2uHGn004, eqZx2uHGn017
               - heatTransfField // eqZx2uHGn005
               - heatUpGas_
-              + radiationSh_
+              + radiationShField
             );
 
             TEqn.relax();
@@ -1112,7 +1117,7 @@ void volPyrolysis::preSolveEnergy()
                     << heatTransfField[badTEqnCell] << nl
                     << "    heatUpGas    = " << heatUpGas_[badTEqnCell] << nl
                     << "    radiationSh  = "
-                    << radiationSh_[badTEqnCell] << nl
+                    << radiationShField[badTEqnCell] << nl
                     << "    porosity     = " << porosity_[badTEqnCell];
 
                 solidStateChecker_->abort
