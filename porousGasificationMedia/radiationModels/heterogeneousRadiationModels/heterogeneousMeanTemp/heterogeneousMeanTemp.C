@@ -61,7 +61,7 @@ Foam::radiationModels::heterogeneousMeanTemp::heterogeneousMeanTemp
     const volScalarField& solidSourceActive
 )
 :
-    heterogeneousRadiationModel(typeName, T),
+    heterogeneousRadiationModel(typeName, T, Ts),
     G_
     (
         IOobject
