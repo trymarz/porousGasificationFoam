@@ -1,0 +1,159 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     |                                                 |
+|   \\  /    A nd           |                                                 |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+
+// Reaction heat produced in a cell the solid energy equation refuses to pay
+// for. Since f3c4528 selects reacting cells on solidSourceActive_, a cell that
+// crosses criticalPorosity stops reacting, so this is zero by construction.
+chemistryHeatOutsideGate
+{
+    type            exprField;
+    libs            (fieldFunctionObjects);
+    field           chemistryHeatOutsideGate;
+    dimensions      [1 -1 -3 0 0 0 0];
+    expression      "solidChemistrySh*(1 - solidSourceActive)";
+    action          new;
+    store           true;
+    autowrite       true;
+    executeControl  timeStep;
+    executeInterval 1;
+    writeControl    writeTime;
+}
+
+// The mass half of the same statement: no solid converted to gas outside the
+// gate either. Gating the heat without the mass is the hole f3c4528 closed.
+gasSourceOutsideGate
+{
+    type            exprField;
+    libs            (fieldFunctionObjects);
+    field           gasSourceOutsideGate;
+    dimensions      [1 -3 -1 0 0 0 0];
+    expression      "Srho*(1 - solidSourceActive)";
+    action          new;
+    store           true;
+    autowrite       true;
+    executeControl  timeStep;
+    executeInterval 1;
+    writeControl    writeTime;
+}
+
+// The solid's stored sensible energy. Reported, not asserted - see the
+// regressionSolidSensible note in cases.list.
+solidSensible
+{
+    type            exprField;
+    libs            (fieldFunctionObjects);
+    field           solidSensible;
+    dimensions      [1 -1 -2 0 0 0 0];
+    expression      "Ywoodm*1000*Ts";
+    action          new;
+    store           true;
+    autowrite       true;
+    executeControl  timeStep;
+    executeInterval 1;
+    writeControl    writeTime;
+}
+
+regressionBase
+{
+    type            volFieldValue;
+    libs            (fieldFunctionObjects);
+    regionType      all;
+    postOperation   none;
+    weightField     none;
+    writeFields     false;
+    writePrecision  10;
+    writeToFile     true;
+    log             false;
+    enabled         false;
+    executeControl  timeStep;
+    executeInterval 1;
+    writeControl    writeTime;
+    writeInterval   -1;
+}
+
+// The two assertions. Both are columns of exact zeros: movement means a cell
+// reacted, or shed mass, with its energy equation refusing the heat.
+regressionChemistryHeatOutsideGate
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (chemistryHeatOutsideGate);
+    operation       volIntegrate;
+}
+
+regressionGasSourceOutsideGate
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (gasSourceOutsideGate);
+    operation       volIntegrate;
+}
+
+// The crossing itself. max(porosityF) rises past criticalPorosity and then
+// sits flat: the cell that crossed stops converting mass, so its porosity
+// cannot move again. A column that kept climbing would mean the gate leaked.
+regressionPorosityMax
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (porosityF);
+    operation       max;
+}
+
+// Liveness. The zeros above mean nothing unless the chemistry is running hard
+// somewhere, and these say it is: solid mass falls by three orders while the
+// reaction heat stays in the megawatts per cubic metre.
+regressionSolidMass
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (Ywoodm);
+    operation       volIntegrate;
+}
+
+regressionChemistryHeat
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (solidChemistrySh);
+    operation       volIntegrate;
+}
+
+// Reported, never asserted as a conservation result: the solid's sensible
+// energy against the gas mass it produced. The residual between them is
+// issue #105's unmatched handover and is expected to be large.
+regressionSolidSensible
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (solidSensible);
+    operation       volIntegrate;
+}
+
+regressionTsMax
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (Ts);
+    operation       max;
+}
+
+// Issue #105 made visible. This is a closed box whose only chemistry is
+// endothermic and whose only interphase term, heatUpGas, is negative - a
+// sink for the gas. The gas nevertheless climbs from 800 K past 1700 K,
+// because the enthalpy of the mass the solid sheds is not accounted for on
+// arrival. Recorded so the gap has a number; it is not an assertion.
+regressionGasTempMax
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (T);
+    operation       max;
+}
+
+// ************************************************************************* //
