@@ -2444,9 +2444,12 @@ Foam::tmp<Foam::volScalarField> volPyrolysis::heatUpGasCalc() const
         {}
         else // eqZx2uHGn018
         {
+            // Gated at the producer, so both consumers keep seeing one field.
+            // The pair already conserved; what the gate adds is a bound, the
+            // same one its three siblings in TEqn have.
             volScalarField tempSh = hSh_();
             tempSh = gasThermo_.Cp() * (T_ - gasThermo_.T()) * Srho();
-            hSh_ = tempSh * whereIs_ * (1 - porosity_);
+            hSh_ = tempSh * solidSourceActive_ * (1 - porosity_);
         }
     }
 
