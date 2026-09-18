@@ -227,6 +227,11 @@ protected:
 
         volScalarField heatUpGas_;
 
+        //- Interphase exchange as the solid TEqn consumed it, stored so the
+        //  gas EEqn adds back the same joules rather than a fresh evaluation
+        //  against a temperature the solid solve has since moved.
+        volScalarField heatTransferSh_;
+
         //- Reference to heat transport model
         autoPtr<heatTransferModel> HTmodel_;
 
@@ -442,8 +447,11 @@ public:
                 const label i
             ) const;
 
+            //- Compute the interphase exchange from the current state
+            virtual Foam::tmp<Foam::volScalarField> heatTransferCalc() const;
+
             //- Return enthalpy source - Eulerian phase only
-            virtual Foam::tmp<Foam::volScalarField> heatTransfer();
+            virtual Foam::tmp<Foam::volScalarField> heatTransfer() const;
 
             //- Return CONV
             virtual Foam::tmp<Foam::volScalarField> CONV() const;

@@ -1046,9 +1046,11 @@ void volPyrolysis::preSolveEnergy()
 
             const volScalarField sourceActive(solidSourceActive());
 
-            // heatTransfer() gates itself, so that the gas side consumes the
-            // same field; gating again here would be a no-op, not a safeguard.
-            volScalarField heatTransfField = heatTransfer()();
+            // Evaluated once and stored, so the gas EEqn adds back the same
+            // joules after TEqn has moved T_. heatTransferCalc() gates
+            // itself; gating again here would be a no-op, not a safeguard.
+            heatTransferSh_ = heatTransferCalc()();
+            const volScalarField& heatTransfField = heatTransferSh_;
 
             // radiationSh_ carries no critPorosity_ gate of its own: as a cell
             // empties, rhoCp collapses toward its SMALL floor while the T^4
@@ -1561,6 +1563,19 @@ volPyrolysis::volPyrolysis
             mesh_,
             IOobject::NO_READ,
             IOobject::AUTO_WRITE
+        ),
+        mesh_,
+        dimensionedScalar("zero", dimEnergy/dimTime/dimVolume, 0.0)
+    ),
+    heatTransferSh_
+    (
+        IOobject
+        (
+            "pyrolysisSh",
+            time_.timeName(),
+            mesh_,
+            IOobject::NO_READ,
+            IOobject::NO_WRITE
         ),
         mesh_,
         dimensionedScalar("zero", dimEnergy/dimTime/dimVolume, 0.0)
@@ -2245,7 +2260,7 @@ Foam::tmp<Foam::volScalarField> volPyrolysis::Srho(const label i) const
     }
 }
 
-Foam::tmp<Foam::volScalarField> volPyrolysis::heatTransfer()
+Foam::tmp<Foam::volScalarField> volPyrolysis::heatTransferCalc() const
 {
 // eqZx2uHGn005
     Foam::tmp<Foam::volScalarField> Sh_ = Foam::tmp<Foam::volScalarField>
@@ -2414,6 +2429,11 @@ Foam::tmp<Foam::volScalarField> volPyrolysis::heatUpGasCalc() const
 Foam::tmp<Foam::volScalarField> volPyrolysis::heatUpGas() const
 {
     return heatUpGas_;
+}
+
+Foam::tmp<Foam::volScalarField> volPyrolysis::heatTransfer() const
+{
+    return heatTransferSh_;
 }
 
 Foam::tmp<Foam::volScalarField> volPyrolysis::solidChemistrySh() const

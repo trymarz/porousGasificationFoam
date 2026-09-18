@@ -197,11 +197,11 @@ Foam::tmp<Foam::volScalarField> heterogeneousPyrolysisModel::Srho(const label) c
 }
 
 
-Foam::tmp<Foam::volScalarField> heterogeneousPyrolysisModel::heatTransfer()
+Foam::tmp<Foam::volScalarField> heterogeneousPyrolysisModel::heatTransfer() const
 {
     notImplemented
     (
-        "tmp<DimensionedField<scalar, volMesh> > heterogeneousPyrolysisModel::heatTransfer()"
+        "tmp<DimensionedField<scalar, volMesh> > heterogeneousPyrolysisModel::heatTransfer() const"
     )
 
     return nullptr;

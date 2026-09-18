@@ -262,7 +262,7 @@ public:
             ) const = 0;
 
             //- Return enthalpy source - Eulerian phase only
-            virtual Foam::tmp<Foam::volScalarField> heatTransfer();
+            virtual Foam::tmp<Foam::volScalarField> heatTransfer() const;
 
             //- Return enthalpy needed to heat up gas
             virtual Foam::tmp<Foam::volScalarField> heatUpGas() const;
