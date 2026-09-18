@@ -52,6 +52,17 @@ tutorials/cases/canonical/conservation/interphaseHeatTransferPlain fast
 # 1e+07 W/m^3 while the sum stays at roundoff.
 tutorials/cases/canonical/conservation/radiationReservoir           fast
 
+# chemistryGateCrossing reacts one cell across criticalPorosity mid-run. Its
+# two assertions are regressionChemistryHeatOutsideGate and
+# regressionGasSourceOutsideGate, both columns of exact zeros: no reaction heat
+# and no converted mass in a cell whose energy equation refuses the heat.
+# regressionPorosityMax is a diagnostic, not an assertion - the crossing moves
+# it by only 1e-6 relative, inside rtol. regressionGasTempMax records issue
+# #105: a closed box with an endothermic reaction and a negative heatUpGas
+# whose gas still climbs from 800 K to 1700 K. That number is reported, not
+# asserted as conservation.
+tutorials/cases/canonical/conservation/chemistryGateCrossing        fast
+
 # Prescribed-Us solid-transport suite — Ycharm advection under analytic Us
 # fields (asserts the transported Ycharm and the porosityF recovered from it,
 # max(porosityF) included so an unbounded void fraction fails the tier).
