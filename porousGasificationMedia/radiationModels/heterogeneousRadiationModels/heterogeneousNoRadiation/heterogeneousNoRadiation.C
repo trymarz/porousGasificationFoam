@@ -53,9 +53,9 @@ Foam::radiationModels::heterogeneousNoRadiation::heterogeneousNoRadiation
 (
     const volScalarField& T,
     const volScalarField& porosityF,
-    const volScalarField& surfF,
+    const volScalarField& cellOnBedBorder,
     const volScalarField& Ts,
-    const volScalarField& solidSourceActive
+    const volScalarField& solidSourceTermsAdmissible
 )
 :
     heterogeneousRadiationModel(T)

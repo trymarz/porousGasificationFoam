@@ -95,7 +95,7 @@ heterogeneousPyrolysisModel::heterogeneousPyrolysisModel
     const fvMesh& mesh,
     HGSSolidThermo& solidThermo,
     psiReactionThermo& gasThermo,
-    volScalarField& whereIs,
+    volScalarField& porosity,
     volScalarField& radiation
 )
 :

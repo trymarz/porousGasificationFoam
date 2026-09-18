@@ -119,11 +119,11 @@ public:
             ( 
                 const volScalarField& T,
                 const volScalarField& porosityF,
-                const volScalarField& surfF,
+                const volScalarField& cellOnBedBorder,
                 const volScalarField& Ts,
-                const volScalarField& solidSourceActive
+                const volScalarField& solidSourceTermsAdmissible
             ),
-            (T,porosityF,surfF,Ts,solidSourceActive)
+            (T,porosityF,cellOnBedBorder,Ts,solidSourceTermsAdmissible)
         );
 
     // Constructors
@@ -153,9 +153,9 @@ public:
         (
             const volScalarField& T,
             const volScalarField& porosityF,
-            const volScalarField& surfF,
+            const volScalarField& cellOnBedBorder,
             const volScalarField& Ts,
-            const volScalarField& solidSourceActive
+            const volScalarField& solidSourceTermsAdmissible
         );
 
 

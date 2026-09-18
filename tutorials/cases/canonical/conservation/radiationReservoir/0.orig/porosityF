@@ -18,7 +18,7 @@ FoamFile
 dimensions      [0 0 0 0 0 0 0];
 
 // Three cells well below criticalPorosity (0.9999) and one just above it.
-// The fourth is still solid to whereIs - 0.99991 < 1 - 1e-8 - so the old
+// The fourth is still solid to radiatingCellHasSolid - 0.99991 < 1 - 1e-8 - so the old
 // ungated producer emitted from it while TEqn booked nothing.
 internalField   nonuniform List<scalar> 4 (0.5 0.5 0.5 0.99991);
 

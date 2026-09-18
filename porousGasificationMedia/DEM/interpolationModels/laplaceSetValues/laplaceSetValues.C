@@ -23,8 +23,8 @@ template<>
 struct laplaceSetValuesKeys<vector>
 {
     static word nCorrectors() { return "nLaplaceSetValuesCorrectors"; }
-    static word whereIsName() { return "solidVelocityInterpolationWhereIs"; }
-    static IOobject::writeOption whereIsWriteOpt()
+    static word solidOccupancyName() { return "solidVelocityInterpolationOccupancy"; }
+    static IOobject::writeOption solidOccupancyWriteOpt()
     {
         return IOobject::AUTO_WRITE;
     }
@@ -34,8 +34,8 @@ template<>
 struct laplaceSetValuesKeys<scalar>
 {
     static word nCorrectors() { return "nLaplaceSetValuesLambdaCorrectors"; }
-    static word whereIsName() { return "solidLambdaInterpolationWhereIs"; }
-    static IOobject::writeOption whereIsWriteOpt()
+    static word solidOccupancyName() { return "solidLambdaInterpolationOccupancy"; }
+    static IOobject::writeOption solidOccupancyWriteOpt()
     {
         return IOobject::NO_WRITE;
     }
@@ -81,22 +81,22 @@ void LaplaceSetValuesInterpolation<Type>::interpolate()
     this->field_ = this->fieldDEM_;
 
     // Mask of the solid region (porosityF below criticalPorosity).
-    volScalarField whereIs
+    volScalarField solidOccupiesCell
     (
         IOobject
         (
-            laplaceSetValuesKeys<Type>::whereIsName(),
+            laplaceSetValuesKeys<Type>::solidOccupancyName(),
             this->mesh_.time().timeName(),
             this->mesh_,
             IOobject::NO_READ,
-            laplaceSetValuesKeys<Type>::whereIsWriteOpt()
+            laplaceSetValuesKeys<Type>::solidOccupancyWriteOpt()
         ),
         pos(-(this->porosityF_ - scalar(this->solidPorosityCutoff_)))
     );
 
     // Interpolated to faces so interface faces can be detected: a face with
     // 0 < value < 1 has one solid and one non-solid side.
-    surfaceScalarField whereIsPatch = fvc::interpolate(whereIs);
+    surfaceScalarField solidOccupancyAtFaces = fvc::interpolate(solidOccupiesCell);
 
     // Diffusivity of the interpolation Laplacian. Only the matrix structure
     // affects the converged solution, not this magnitude.
@@ -131,25 +131,25 @@ void LaplaceSetValuesInterpolation<Type>::interpolate()
         // Disconnect solid-region interface faces. Only upper() is zeroed:
         // upper()/lower() share storage on this symmetric matrix, so zeroing
         // both would flip it asymmetric.
-        forAll(whereIsPatch, faceI)
+        forAll(solidOccupancyAtFaces, faceI)
         {
-            if ((whereIsPatch[faceI] > 0) && (whereIsPatch[faceI] < 1))
+            if ((solidOccupancyAtFaces[faceI] > 0) && (solidOccupancyAtFaces[faceI] < 1))
             {
                 fieldLap.upper()[faceI] = 0.0;
             }
         }
 
         // Same treatment on processor boundaries, for parallel runs.
-        forAll(whereIsPatch.boundaryField(), patchI)
+        forAll(solidOccupancyAtFaces.boundaryField(), patchI)
         {
             if (isA<processorPolyPatch>(this->mesh_.boundaryMesh()[patchI]))
             {
-                forAll(whereIsPatch.boundaryField()[patchI], faceI)
+                forAll(solidOccupancyAtFaces.boundaryField()[patchI], faceI)
                 {
                     if
                     (
-                        (whereIsPatch.boundaryField()[patchI][faceI] > 0)
-                     && (whereIsPatch.boundaryField()[patchI][faceI] < 1)
+                        (solidOccupancyAtFaces.boundaryField()[patchI][faceI] > 0)
+                     && (solidOccupancyAtFaces.boundaryField()[patchI][faceI] < 1)
                     )
                     {
                         fieldLap.boundaryCoeffs()[patchI][faceI] =
@@ -183,7 +183,7 @@ void LaplaceSetValuesInterpolation<Type>::interpolate()
                 valueList.append(this->fieldDEM_[cellI]);
             }
             // Cells outside the solid region hold the background value.
-            else if (whereIs[cellI] < 0.5)
+            else if (solidOccupiesCell[cellI] < 0.5)
             {
                 cellList.append(cellI);
                 valueList.append(this->backgroundValue_);
@@ -248,24 +248,24 @@ void LaplaceSetValuesInterpolation<Type>::interpolate()
             fvm::laplacian(coeffD, this->field_)
         );
 
-        forAll(whereIsPatch, faceI)
+        forAll(solidOccupancyAtFaces, faceI)
         {
-            if ((whereIsPatch[faceI] > 0) && (whereIsPatch[faceI] < 1))
+            if ((solidOccupancyAtFaces[faceI] > 0) && (solidOccupancyAtFaces[faceI] < 1))
             {
                 fieldLap.upper()[faceI] = 0.0;
             }
         }
 
-        forAll(whereIsPatch.boundaryField(), patchI)
+        forAll(solidOccupancyAtFaces.boundaryField(), patchI)
         {
             if (isA<processorPolyPatch>(this->mesh_.boundaryMesh()[patchI]))
             {
-                forAll(whereIsPatch.boundaryField()[patchI], faceI)
+                forAll(solidOccupancyAtFaces.boundaryField()[patchI], faceI)
                 {
                     if
                     (
-                        (whereIsPatch.boundaryField()[patchI][faceI] > 0)
-                     && (whereIsPatch.boundaryField()[patchI][faceI] < 1)
+                        (solidOccupancyAtFaces.boundaryField()[patchI][faceI] > 0)
+                     && (solidOccupancyAtFaces.boundaryField()[patchI][faceI] < 1)
                     )
                     {
                         fieldLap.boundaryCoeffs()[patchI][faceI] =

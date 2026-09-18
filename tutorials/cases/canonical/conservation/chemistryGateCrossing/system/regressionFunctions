@@ -15,7 +15,7 @@ chemistryHeatOutsideGate
     libs            (fieldFunctionObjects);
     field           chemistryHeatOutsideGate;
     dimensions      [1 -1 -3 0 0 0 0];
-    expression      "solidChemistrySh*(1 - solidSourceActive)";
+    expression      "solidChemistrySh*(1 - solidSourceTermsAdmissible)";
     action          new;
     store           true;
     autowrite       true;
@@ -32,7 +32,7 @@ gasSourceOutsideGate
     libs            (fieldFunctionObjects);
     field           gasSourceOutsideGate;
     dimensions      [1 -3 -1 0 0 0 0];
-    expression      "Srho*(1 - solidSourceActive)";
+    expression      "Srho*(1 - solidSourceTermsAdmissible)";
     action          new;
     store           true;
     autowrite       true;

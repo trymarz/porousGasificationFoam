@@ -198,7 +198,7 @@ protected:
         //- InitialPorosity
         volScalarField porosity0_;
 
-        volScalarField voidFraction_;
+        volScalarField gasVolumeFractionAtStepStart_;
 
         //- Dadiation
         volScalarField& radiation_;
@@ -217,16 +217,16 @@ protected:
         volScalarField porositySource_;
 
         //- Masks for equations
-        volScalarField whereIs_;
+        volScalarField solidOccupiesCell_;
 
-        volScalarField whereIsNot_;
+        volScalarField solidAbsentFromCell_;
 
-        volScalarField whereWas_;
+        volScalarField solidOccupiedCellLastStep_;
 
         //- Cells holding enough solid for a volumetric source to be meaningful
         //  Stored rather than recomputed so the radiation model can hold a
         //  reference to it. Refreshed wherever porosity_ is written.
-        volScalarField solidSourceActive_;
+        volScalarField solidSourceTermsAdmissible_;
 
         volScalarField cellVolume_;
 
@@ -247,7 +247,7 @@ protected:
         volTensorField anisotropyK_;
 
         //- border cells inside solid body
-        volScalarField surfF_;
+        volScalarField cellOnBedBorder_;
 
         //- Solid-phase velocity. Read-only reference to the single "Us"
         //  field registered by the solver (createFields.H). With DEM
@@ -340,8 +340,8 @@ protected:
         //- Mass check
         void calculateMassTransfer();
 
-        //- Rebuild solidSourceActive_ from the porosity just written
-        void updateSolidSourceActive();
+        //- Rebuild solidSourceTermsAdmissible_ from the porosity just written
+        void updateSolidSourceTermsAdmissible();
 
         // Equations
 
@@ -374,7 +374,7 @@ public:
             const fvMesh& mesh,
             HGSSolidThermo& solidThermo,
             psiReactionThermo& gasThermo,
-            volScalarField& whereIs,
+            volScalarField& porosity,
             volScalarField& radiation
         );
 
@@ -409,7 +409,7 @@ public:
                 virtual const volScalarField& surf() const;
 
                 //- Return the solid-source gate
-                virtual const volScalarField& solidSourceActive() const;
+                virtual const volScalarField& solidSourceTermsAdmissible() const;
 
         // Parametrs from main region
 

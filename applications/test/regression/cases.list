@@ -64,7 +64,8 @@ tutorials/cases/canonical/conservation/radiationReservoir           fast
 tutorials/cases/canonical/conservation/chemistryGateCrossing        fast
 
 # gatedBandSources starts every cell above criticalPorosity, so
-# solidSourceActive is 0 from t = 0 while whereIs is still 1. Five columns of
+# solidSourceTermsAdmissible is 0 from t = 0 while solidOccupiesCell is still
+# 1. Five columns of
 # exact zeros - radiationSh, solidChemistrySh, heatTransfer, heatUpGas and
 # Srho - say no solid source and no interphase term reaches an energy
 # equation there. The liveness columns are what make them mean something:
