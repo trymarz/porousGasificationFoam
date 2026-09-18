@@ -25,7 +25,7 @@ regressionBase
 }
 
 // The assertions. Every cell is above criticalPorosity from t = 0, so
-// solidSourceActive is 0 everywhere and none of these terms may be anything
+// solidSourceTermsAdmissible is 0 everywhere and none of these terms may be anything
 // but zero - in the solid TEqn or in the gas EEqn. All four are columns of
 // exact zeros; movement in any of them is a source escaping its bound.
 regressionRadiationSh

@@ -17,9 +17,10 @@ FoamFile
 
 dimensions      [0 0 0 0 0 0 0];
 
-// Above criticalPorosity (0.9999) in every cell, so solidSourceActive is 0
-// from t = 0, and below 1 - 1e-8, so whereIs is still 1 everywhere. The bed
-// exists; nothing it does is allowed to reach an energy equation.
+// Above criticalPorosity (0.9999) in every cell, so
+// solidSourceTermsAdmissible is 0 from t = 0, while solidOccupiesCell and
+// radiatingCellHasSolid both stay 1 - 0.99995 is below 1 and below 1 - 1e-8.
+// The bed exists; nothing it does is allowed to reach an energy equation.
 internalField   uniform 0.99995;
 
 boundaryField
