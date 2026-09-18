@@ -1,0 +1,33 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  v2406
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       volScalarField;
+    location    "0";
+    object      Ts;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+dimensions      [0 0 0 1 0 0 0];
+
+// 900 K above the gas on purpose. At h*SAV = 2000 W/m3/K an ungated
+// interphase term would move 1.8e+06 W/m3; the assertion is that it moves
+// exactly nothing.
+internalField   uniform 1200;
+
+boundaryField
+{
+    wall
+    {
+        type            zeroGradient;
+    }
+}
+
+// ************************************************************************* //
