@@ -57,7 +57,8 @@ Foam::radiationModels::heterogeneousP1::heterogeneousP1
     const volScalarField& T,
     const volScalarField& porosityF,
     const volScalarField& surfF,
-    const volScalarField& Ts
+    const volScalarField& Ts,
+    const volScalarField& solidSourceActive
 )
 :
     heterogeneousRadiationModel(typeName, T),
@@ -147,6 +148,7 @@ Foam::radiationModels::heterogeneousP1::heterogeneousP1
     (
         surfF
     ),
+    solidSourceActive_(solidSourceActive),
     surfF_
     (
         IOobject
@@ -314,7 +316,9 @@ void Foam::radiationModels::heterogeneousP1::calculate()
     Info << "Radiation active volume to porous media volume ratio: "
          << totalSurf/max(totalVol,SMALL) << endl;
 
-    // Construct diffusion
+    // Construct diffusion. Deliberately ungated: gamma sets where radiation
+    // goes, not who pays for it, so the reservoir balances below whatever it
+    // is. Whether a gated cell should still attenuate is a separate question.
     const volScalarField gamma
     (
         IOobject
@@ -328,15 +332,21 @@ void Foam::radiationModels::heterogeneousP1::calculate()
         1.0/(3.0*(a_ + as_*whereIs_ + borderAs_*surfF_ ) + sigmaEff)  // eqZx2uHGn010
     );
 
+    // The solid's share of the radiation reservoir, gated by what TEqn will
+    // accept: emission, absorption and the booked source all carry the same
+    // factor, so a cell the solid equation refuses neither emits nor absorbs.
+    const volScalarField solidAs(as_ * whereIs_ * solidSourceActive_);
+    const volScalarField borderAsEff(borderAs_ * surfF_ * solidSourceActive_);
+
     // eqZx2uHGn013
-    volScalarField solidRadiation = (as_ * whereIs_ + borderAs_ * surfF_) * physicoChemical::sigma * pow4(Ts_);
+    volScalarField solidRadiation = (solidAs + borderAsEff) * physicoChemical::sigma * pow4(Ts_);
 
     // Solve G transport equation
     // eqZx2uHGn009
     solve
     (
         fvm::laplacian(gamma, G_)
-        - fvm::Sp((a_ + as_ * whereIs_ + borderAs_ * surfF_ ), G_)
+        - fvm::Sp((a_ + solidAs + borderAsEff), G_)
        ==
         - 4.0 * (a_ * physicoChemical::sigma * pow4(T_) + solidRadiation)
     );
@@ -344,13 +354,8 @@ void Foam::radiationModels::heterogeneousP1::calculate()
     // eqZx2uHGn012
     forAll(G_,cellI)
     {
-        if (surfF_[cellI] == 0)
-        {
-            solidSh_[cellI] = (G_[cellI] * as_[cellI] - 4.0 * solidRadiation[cellI]) * whereIs_[cellI];
-        }
-        else
-        {
-            solidSh_[cellI] = (G_[cellI] * (as_[cellI] + surfF_[cellI] * borderAs_[cellI]) - 4.0 * solidRadiation[cellI]) * whereIs_[cellI];        }
+        solidSh_[cellI] =
+            (G_[cellI] * (solidAs[cellI] + borderAsEff[cellI]) - 4.0 * solidRadiation[cellI]);
     }
 
     volScalarField::Boundary& qrBf = qr_.boundaryFieldRef();

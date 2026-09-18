@@ -88,6 +88,9 @@ class heterogeneousP1
         //- porosity field
         const volScalarField& surfFI_;
 
+        //- Cells the solid energy equation will pay for a source in
+        const volScalarField& solidSourceActive_;
+
         //- porosity field
         volScalarField surfF_;
 
@@ -115,7 +118,8 @@ public:
             const volScalarField& T,
             const volScalarField& porosityF,
             const volScalarField& surfF,
-            const volScalarField& Ts
+            const volScalarField& Ts,
+            const volScalarField& solidSourceActive
         );
 
         //- Disallow default bitwise copy construction

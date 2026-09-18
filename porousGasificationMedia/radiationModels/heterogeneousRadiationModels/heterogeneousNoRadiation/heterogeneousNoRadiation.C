@@ -54,7 +54,8 @@ Foam::radiationModels::heterogeneousNoRadiation::heterogeneousNoRadiation
     const volScalarField& T,
     const volScalarField& porosityF,
     const volScalarField& surfF,
-    const volScalarField& Ts
+    const volScalarField& Ts,
+    const volScalarField& solidSourceActive
 )
 :
     heterogeneousRadiationModel(T)
