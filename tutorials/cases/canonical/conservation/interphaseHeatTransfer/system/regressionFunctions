@@ -1,0 +1,90 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     |                                                 |
+|   \\  /    A nd           |                                                 |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+
+// Running time-integral of the gas-side evaluation of heatTransfer(): the
+// field EEqn.H writes, averaged over [0, t], so time()*heatTransferMean is
+// the joules per volume the gas has been given.
+heatTransferAverage
+{
+    type            fieldAverage;
+    libs            (fieldFunctionObjects);
+    executeControl  timeStep;
+    executeInterval 1;
+    writeControl    writeTime;
+    fields
+    (
+        heatTransfer
+        {
+            mean        on;
+            prime2Mean  off;
+            base        time;
+        }
+    );
+}
+
+// The interphase energy residual.  TEqn's only source here is the solid-side
+// evaluation, so rhoCp*(Ts - 800) is exactly minus the joules the solid paid;
+// adding what the gas received must give zero unless the two differ.
+conservationResidual
+{
+    type            exprField;
+    libs            (fieldFunctionObjects);
+    field           heatTransferResidual;
+    dimensions      [1 -1 -2 0 0 0 0];
+    expression      "Ywoodm*1000*(Ts - 800) + time()*heatTransferMean";
+    action          new;
+    store           true;
+    autowrite       true;
+    executeControl  timeStep;
+    executeInterval 1;
+    writeControl    writeTime;
+}
+
+regressionBase
+{
+    type            volFieldValue;
+    libs            (fieldFunctionObjects);
+    regionType      all;
+    postOperation   none;
+    weightField     none;
+    writeFields     false;
+    writePrecision  10;
+    writeToFile     true;
+    log             false;
+    enabled         false;
+    executeControl  timeStep;
+    executeInterval 1;
+    writeControl    writeTime;
+    writeInterval   -1;
+}
+
+regressionHeatTransferResidual
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (heatTransferResidual);
+    operation       volIntegrate;
+}
+
+regressionHeatTransferExchanged
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (heatTransferMean);
+    operation       volIntegrate;
+}
+
+regressionTsAverage
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (Ts);
+    operation       volAverage;
+}
+
+// ************************************************************************* //
