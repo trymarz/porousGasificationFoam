@@ -1,0 +1,44 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  v2406
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      radiationProperties;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+radiation       on;
+
+heterogeneousRadiationModel  heterogeneousP1;
+
+solverFreq 1;
+
+heterogeneousAbsorptionEmissionModel heterogeneousConstantAbsorptionEmission;
+
+// The whole point of this fixture: a nonzero bulk absorption as, which no
+// other committed case sets.  a and E are zero so the gas neither emits nor
+// absorbs and the solid is the reservoir's only participant; borderAs and
+// borderL are zero so the bed-border path stays out of the balance too.
+heterogeneousConstantAbsorptionEmissionCoeffs
+{
+    a               a  [ 0 -1  0 0 0 0 0 ] 0;
+    as              as [ 0 -1  0 0 0 0 0 ] 100;
+    borderAs        borderAs [ 0 -1  0 0 0 0 0 ] 0;
+    E               E  [ 1 -1 -3 0 0 0 0 ] 0.0;
+    borderL         borderL  [ 0 1 0 0 0 0 0 ] 0;
+}
+
+scatterModel    constantScatter;
+
+sigma           sigma [ 0 -1 0 0 0 0 0 ] 0;
+C               C [ 0 0 0 0 0 0 0 ] 0;
+
+// ************************************************************************* //
