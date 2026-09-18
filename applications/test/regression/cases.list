@@ -63,6 +63,16 @@ tutorials/cases/canonical/conservation/radiationReservoir           fast
 # asserted as conservation.
 tutorials/cases/canonical/conservation/chemistryGateCrossing        fast
 
+# gatedBandSources starts every cell above criticalPorosity, so
+# solidSourceActive is 0 from t = 0 while whereIs is still 1. Five columns of
+# exact zeros - radiationSh, solidChemistrySh, heatTransfer, heatUpGas and
+# Srho - say no solid source and no interphase term reaches an energy
+# equation there. The liveness columns are what make them mean something:
+# volAverage(G) sits at 1e+05 while the solid books nothing from it, and the
+# solid holds 900 K above the gas for the whole run without exchanging a
+# joule, which at h*SAV = 2000 W/m3/K is 1.8e+06 W/m3 refused.
+tutorials/cases/canonical/conservation/gatedBandSources             fast
+
 # Prescribed-Us solid-transport suite — Ycharm advection under analytic Us
 # fields (asserts the transported Ycharm and the porosityF recovered from it,
 # max(porosityF) included so an unbounded void fraction fails the tier).
