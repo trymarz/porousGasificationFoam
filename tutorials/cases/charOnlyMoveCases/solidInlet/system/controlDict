@@ -65,7 +65,7 @@ functions
         writePrecision  10;
         writeControl    timeStep;
         writeInterval   1;
-        fields          (porosityF Ycharm Ts whereIs);
+        fields          (porosityF Ycharm Ts solidOccupiesCell);
         probeLocations
         (
             (0.0005 0.005 0.0005)   // inlet-mid

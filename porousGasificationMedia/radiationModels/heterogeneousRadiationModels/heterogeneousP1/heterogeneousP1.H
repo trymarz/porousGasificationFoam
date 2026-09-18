@@ -85,20 +85,22 @@ class heterogeneousP1
         //- porosity field
         const volScalarField& porosityF_;
 
-        //- porosity field
-        const volScalarField& surfFI_;
+        //- Bed border flag from the pyrolysis model, 1 on a border cell
+        const volScalarField& cellOnBedBorder_;
 
         //- Cells the solid energy equation will pay for a source in
-        const volScalarField& solidSourceActive_;
+        const volScalarField& solidSourceTermsAdmissible_;
 
-        //- porosity field
-        volScalarField surfF_;
+        //- Radiating border area per unit cell volume [1/m]
+        volScalarField bedBorderSurfaceAreaDensity_;
 
-	    //- field where porosity is
-	    volScalarField whereIs_;
+	    //- 1 where the cell holds solid to radiate: porosityF < 1 - 1e-8.
+	    //  A different threshold from volPyrolysis's solidOccupiesCell_,
+	    //  which tests porosityF < 1.
+	    volScalarField radiatingCellHasSolid_;
 
-	    //- field where is no porosity
-	    volScalarField whereIsNot_;
+	    //- Complement of radiatingCellHasSolid_
+	    volScalarField radiatingCellHasNoSolid_;
 
         //- enthalpy source term for solid
 	    volScalarField solidSh_;
@@ -117,9 +119,9 @@ public:
         (
             const volScalarField& T,
             const volScalarField& porosityF,
-            const volScalarField& surfF,
+            const volScalarField& cellOnBedBorder,
             const volScalarField& Ts,
-            const volScalarField& solidSourceActive
+            const volScalarField& solidSourceTermsAdmissible
         );
 
         //- Disallow default bitwise copy construction

@@ -200,7 +200,7 @@ void SolidStateChecker::abort
 }
 
 
-tmp<volScalarField> SolidStateChecker::solidPresent
+tmp<volScalarField> SolidStateChecker::solidMassAbovePresenceFloor
 (
     const volScalarField& totalYm,
     const volScalarField& rho
@@ -227,7 +227,7 @@ void SolidStateChecker::checkConsistency
     const volScalarField& porosity,
     const PtrList<volScalarField>& Ym,
     const volScalarField& rho,
-    const volScalarField& whereIs
+    const volScalarField& solidOccupiesCell
 ) const
 {
     scalar maxResidual = 0.0;
@@ -271,8 +271,8 @@ void SolidStateChecker::checkConsistency
             << "porosity and solid mass disagree by " << maxResidual
             << " in cell " << worstCell << " at "
             << mesh_.C()[worstCell] << ": porosity = "
-            << porosity[worstCell] << ", whereIs = "
-            << whereIs[worstCell]
+            << porosity[worstCell] << ", solidOccupiesCell = "
+            << solidOccupiesCell[worstCell]
             << ". A porosity written after the recovery cannot be"
             << " reconciled with the mass the cell holds." << endl;
     }

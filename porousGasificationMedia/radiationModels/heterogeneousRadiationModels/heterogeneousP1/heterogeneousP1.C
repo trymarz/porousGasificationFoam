@@ -56,9 +56,9 @@ Foam::radiationModels::heterogeneousP1::heterogeneousP1
 (
     const volScalarField& T,
     const volScalarField& porosityF,
-    const volScalarField& surfF,
+    const volScalarField& cellOnBedBorder,
     const volScalarField& Ts,
-    const volScalarField& solidSourceActive
+    const volScalarField& solidSourceTermsAdmissible
 )
 :
     heterogeneousRadiationModel(typeName, T, Ts),
@@ -144,16 +144,16 @@ Foam::radiationModels::heterogeneousP1::heterogeneousP1
         dimensionedScalar("borderL", dimLength, 0.0)
     ),
     porosityF_(porosityF),
-    surfFI_
+    cellOnBedBorder_
     (
-        surfF
+        cellOnBedBorder
     ),
-    solidSourceActive_(solidSourceActive),
-    surfF_
+    solidSourceTermsAdmissible_(solidSourceTermsAdmissible),
+    bedBorderSurfaceAreaDensity_
     (
         IOobject
         (
-            "surfF",
+            "bedBorderSurfaceAreaDensity",
             mesh_.time().timeName(),
             mesh_,
             IOobject::NO_READ,
@@ -162,11 +162,11 @@ Foam::radiationModels::heterogeneousP1::heterogeneousP1
         mesh_,
         dimensionedScalar("zero", dimless, 0.0)
     ),
-    whereIs_
+    radiatingCellHasSolid_
     (
         IOobject
         (
-            "whereIs",
+            "radiatingCellHasSolid",
             mesh_.time().timeName(),
             mesh_,
             IOobject::NO_READ,
@@ -175,11 +175,11 @@ Foam::radiationModels::heterogeneousP1::heterogeneousP1
         mesh_,
         dimensionedScalar("one", dimless, 1.0)
     ),
-    whereIsNot_
+    radiatingCellHasNoSolid_
     (
         IOobject
         (
-            "whereIsNot",
+            "radiatingCellHasNoSolid",
             mesh_.time().timeName(),
             mesh_,
             IOobject::NO_READ,
@@ -206,13 +206,13 @@ Foam::radiationModels::heterogeneousP1::heterogeneousP1
     {
         if (porosityF_[cellI] > (1.0 - pow(10.0, -8.0)))
         {
-            whereIs_[cellI] = 0.0;
-            whereIsNot_[cellI] = 1.0;
+            radiatingCellHasSolid_[cellI] = 0.0;
+            radiatingCellHasNoSolid_[cellI] = 1.0;
         }
         else
         {
-            whereIs_[cellI] = 1.0;
-            whereIsNot_[cellI] = 0.0;
+            radiatingCellHasSolid_[cellI] = 1.0;
+            radiatingCellHasNoSolid_[cellI] = 0.0;
         }
     }
 }
@@ -247,12 +247,12 @@ void Foam::radiationModels::heterogeneousP1::calculate()
     borderL_  = heterogeneousAbsorptionEmission_->borderL();
     const volScalarField sigmaEff(scatter_->sigmaEff());
 
-    volScalarField surfV = surfF_ * 0;
+    volScalarField surfV = bedBorderSurfaceAreaDensity_ * 0;
 
     if (((mesh_.geometricD()).x() + (mesh_.geometricD()).y() + (mesh_.geometricD()).z()) == 3)
     {
-        surfV.ref() = borderL_ * pow(mesh_.V(), 2. / 3.) * surfFI_.internalField() * dimensionedScalar("tmp",dimensionSet(0, -3, 0, 0, 0),1.);
-        surfF_.ref() = borderL_ / pow(mesh_.V(), 1. / 3.) * surfFI_.internalField();
+        surfV.ref() = borderL_ * pow(mesh_.V(), 2. / 3.) * cellOnBedBorder_.internalField() * dimensionedScalar("tmp",dimensionSet(0, -3, 0, 0, 0),1.);
+        bedBorderSurfaceAreaDensity_.ref() = borderL_ / pow(mesh_.V(), 1. / 3.) * cellOnBedBorder_.internalField();
     }
     else if (((mesh_.geometricD()).x() + (mesh_.geometricD()).y() + (mesh_.geometricD()).z()) == 1)
     {
@@ -260,16 +260,16 @@ void Foam::radiationModels::heterogeneousP1::calculate()
         f.x() = -min((mesh_.geometricD()).x(), 0);
         f.y() = -min((mesh_.geometricD()).y(), 0);
         f.z() = -min((mesh_.geometricD()).z(), 0);
-        forAll(surfFI_,cellI)
+        forAll(cellOnBedBorder_,cellI)
         {
-            if(surfFI_[cellI] > 0)
+            if(cellOnBedBorder_[cellI] > 0)
             {
                 scalar cSurf = 0;
                 forAll(mesh_.cells()[cellI],faceI)
                 {
                     cSurf += mag(( f & (mesh_.Sf()[mesh_.cells()[cellI][faceI]]) ));
                 }
-                surfF_[cellI] = borderL_.value() / pow(cSurf / 2., 1. / 2.);
+                bedBorderSurfaceAreaDensity_[cellI] = borderL_.value() / pow(cSurf / 2., 1. / 2.);
             }
         }
     }
@@ -279,16 +279,16 @@ void Foam::radiationModels::heterogeneousP1::calculate()
         f.x() = max((mesh_.geometricD()).x(), 0);
         f.y() = max((mesh_.geometricD()).y(), 0);
         f.z() = max((mesh_.geometricD()).z(), 0);
-        forAll(surfFI_,cellI)
+        forAll(cellOnBedBorder_,cellI)
         {
-            if(surfFI_[cellI] > 0)
+            if(cellOnBedBorder_[cellI] > 0)
             {
                 scalar cSurf = 0;
                 forAll(mesh_.cells()[cellI],faceI)
                 {
                     cSurf += mag(( f & (mesh_.Sf()[mesh_.cells()[cellI][faceI]]) ));
                 }
-                surfF_[cellI] = borderL_.value() / (2 * mesh_.V()[cellI] / cSurf);
+                bedBorderSurfaceAreaDensity_[cellI] = borderL_.value() / (2 * mesh_.V()[cellI] / cSurf);
             }
         }
     }
@@ -300,13 +300,13 @@ void Foam::radiationModels::heterogeneousP1::calculate()
     {
         if (porosityF_[cellI] > (1.0 - pow(10.0, -8.0)))
         {
-            whereIs_[cellI] = 0.0;
-            whereIsNot_[cellI] = 1.0;
+            radiatingCellHasSolid_[cellI] = 0.0;
+            radiatingCellHasNoSolid_[cellI] = 1.0;
         }
         else
         {
-            whereIs_[cellI] = 1.0;
-            whereIsNot_[cellI] = 0.0;
+            radiatingCellHasSolid_[cellI] = 1.0;
+            radiatingCellHasNoSolid_[cellI] = 0.0;
             totalVol += mesh_.V()[cellI];
         }
     }
@@ -329,14 +329,14 @@ void Foam::radiationModels::heterogeneousP1::calculate()
             IOobject::NO_READ,
             IOobject::NO_WRITE
         ),
-        1.0/(3.0*(a_ + as_*whereIs_ + borderAs_*surfF_ ) + sigmaEff)  // eqZx2uHGn010
+        1.0/(3.0*(a_ + as_*radiatingCellHasSolid_ + borderAs_*bedBorderSurfaceAreaDensity_ ) + sigmaEff)  // eqZx2uHGn010
     );
 
     // The solid's share of the radiation reservoir, gated by what TEqn will
     // accept: emission, absorption and the booked source all carry the same
     // factor, so a cell the solid equation refuses neither emits nor absorbs.
-    const volScalarField solidAs(as_ * whereIs_ * solidSourceActive_);
-    const volScalarField borderAsEff(borderAs_ * surfF_ * solidSourceActive_);
+    const volScalarField solidAs(as_ * radiatingCellHasSolid_ * solidSourceTermsAdmissible_);
+    const volScalarField borderAsEff(borderAs_ * bedBorderSurfaceAreaDensity_ * solidSourceTermsAdmissible_);
 
     // eqZx2uHGn013
     volScalarField solidRadiation = (solidAs + borderAsEff) * physicoChemical::sigma * pow4(Ts_);
