@@ -1668,6 +1668,22 @@ volPyrolysis::volPyrolysis
     gasTemperatureBelowCriticalPorosity_ =
         coeffs().lookupOrDefault("gasTemperatureBelowCriticalPorosity",false);
     critPorosity_ = coeffs().lookupOrDefault("criticalPorosity",0.9999);
+
+    if (critPorosity_ > 1.0)
+    {
+        FatalIOErrorInFunction(coeffs())
+            << "criticalPorosity must not exceed 1, but is " << critPorosity_
+            << "." << nl
+            << "It is a porosity, so above 1 it describes no cell: the solid"
+            << " source gate pos(criticalPorosity - porosity) then stays open"
+            << " in completely empty cells, where rhoCp sits at its SMALL"
+            << " floor and any source term produces an unbounded temperature"
+            << " step, and the bed-motion test porosity > criticalPorosity"
+            << " never fires. Pick the gas fraction above which a cell holds"
+            << " too little solid to exchange heat, e.g. the default 0.9999."
+            << exit(FatalIOError);
+    }
+
     poroProtectSolidInflowFluxTolerance_ =
         coeffs().lookupOrDefault
         (
