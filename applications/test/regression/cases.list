@@ -41,6 +41,17 @@ tutorials/cases/canonical/equilibrium          fast
 tutorials/cases/canonical/conservation/interphaseHeatTransfer      fast
 tutorials/cases/canonical/conservation/interphaseHeatTransferPlain fast
 
+# radiationReservoir is the only case in the suite with a nonzero bulk
+# absorption as, and the only one where the solid's radiative coefficients are
+# not identically zero. Its regressionRadiationBookResidual and
+# regressionRadiationWallFlux baselines are both columns of exact zeros: the
+# walls are zeroGradient on G, so the reservoir is closed and the joules the
+# solid TEqn books have to sum to zero on their own. Movement in either is a
+# broken radiation book, never something to recapture. The two Booked columns
+# are there so the zeros mean something - they say the term is running at
+# 1e+07 W/m^3 while the sum stays at roundoff.
+tutorials/cases/canonical/conservation/radiationReservoir           fast
+
 # Prescribed-Us solid-transport suite — Ycharm advection under analytic Us
 # fields (asserts the transported Ycharm and the porosityF recovered from it,
 # max(porosityF) included so an unbounded void fraction fails the tier).
