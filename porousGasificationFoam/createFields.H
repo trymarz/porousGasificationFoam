@@ -194,6 +194,22 @@ volScalarField porosityF
         mesh
 );
 
+// Stage 0 (issue #105): a registered, stored-old-time stand-in for the
+// porosityF*rho weight shared by EEqn.H's and YEqn.H's fvm::ddt terms.
+volScalarField porosityRho
+(
+    IOobject
+    (
+        "porosityRho",
+        runTime.timeName(),
+        mesh,
+        IOobject::NO_READ,
+        IOobject::NO_WRITE
+    ),
+    porosityF * rho
+);
+porosityRho.oldTime();
+
 volScalarField radiationF
 (
         IOobject

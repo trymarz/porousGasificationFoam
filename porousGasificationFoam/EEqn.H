@@ -1,3 +1,22 @@
+/*---------------------------------------------------------------------------*\
+Description
+    Gas-phase sensible-enthalpy transport in the porous bed:
+
+        d(porosityF*rho*he)/dt + div(phi,he) + d(porosityF*rho*K)/dt
+      + div(phi,K) + div(phiv,p) - laplacian(alphaEff,he)
+      = Qdot*porosityF + heatTransfer + heatUpGas + radiation->Sh
+
+    porosityF is itself time-varying (the solid converts to gas), so the
+    accumulation term's product rule has a he*d(porosityF*rho)/dt piece
+    riding along with porosityF*rho*d(he)/dt. fvm::ddt(weight, he) only
+    assembles that correctly if "weight" is a real field whose oldTime()
+    holds the true previous-timestep porosityF*rho, not a copy of itself:
+    porosityF*rho built inline is a fresh temporary every call, so its
+    ddt silently drops (rho-rho_old)*porosityF_old + rho_old*(porosityF-
+    porosityF_old) each step. porosityRho (createFields.H) is the
+    registered, stored-old-time stand-in that avoids this; YEqn.H shares
+    the same weight and must stay consistent with it.
+\*---------------------------------------------------------------------------*/
 // eqZx2uHGn044
 
 if (solveEnergy)
@@ -18,7 +37,7 @@ if (solveEnergy)
 
         fvScalarMatrix EEqn
         (
-            fvm::ddt(porosityF * rho, he)
+            fvm::ddt(porosityRho, he)
           + fvm::div(phi, he)
           + fvc::ddt(porosityF * rho, K)
           + fvc::div(phi, K)
