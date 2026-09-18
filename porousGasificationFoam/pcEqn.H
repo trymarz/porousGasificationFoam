@@ -87,7 +87,7 @@ else
           - fvm::laplacian(rhorAtU, p)
          ==
             fvOptions(psi * porosityF, p, rho.name())
-          + Srho * (1.0 - porosityF)
+          + Srho
         );
 
         pEqn.solve();
