@@ -1,0 +1,41 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  v2406
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      solidThermophysicalProperties;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+thermoType solidMixtureThermo<constHeterogeneous>;
+
+solidComponents ( wood );
+
+woodCoeffs
+{
+    transport
+    {
+        // Near-zero on purpose: with the cells thermally isolated, each one's
+        // Ts is moved by its own radiative book and by nothing else.
+        K       1e-6;
+    }
+    thermodynamics
+    {
+        Cp      1000;
+        Hf      0;
+    }
+    density
+    {
+        rho     1000;
+    }
+}
+
+// ************************************************************************* //

@@ -56,11 +56,12 @@ Foam::radiationModels::heterogeneousMeanTemp::heterogeneousMeanTemp
 (
     const volScalarField& T,
     const volScalarField& porosityF,
-    const volScalarField& surfF,
-    const volScalarField& Ts
+    const volScalarField& cellOnBedBorder,
+    const volScalarField& Ts,
+    const volScalarField& solidSourceTermsAdmissible
 )
 :
-    heterogeneousRadiationModel(typeName, T),
+    heterogeneousRadiationModel(typeName, T, Ts),
     G_
     (
         IOobject
@@ -104,15 +105,16 @@ Foam::radiationModels::heterogeneousMeanTemp::heterogeneousMeanTemp
         dimensionedScalar("borderL", dimLength, 0.0)
     ),
     porosityF_(porosityF),
-    surfFI_
+    cellOnBedBorder_
     (
-        surfF
+        cellOnBedBorder
     ),
-    surfF_
+    solidSourceTermsAdmissible_(solidSourceTermsAdmissible),
+    bedBorderSurfaceAreaDensity_
     (
         IOobject
         (
-            "surfF_",
+            "bedBorderSurfaceAreaDensity",
             mesh_.time().timeName(),
             mesh_,
             IOobject::NO_READ,
@@ -164,12 +166,12 @@ void Foam::radiationModels::heterogeneousMeanTemp::calculate()
     borderL_  = heterogeneousAbsorptionEmission_->borderL();
     const volScalarField sigmaEff(scatter_->sigmaEff());
 
-    volScalarField surfV = surfF_*0;
+    volScalarField surfV = bedBorderSurfaceAreaDensity_*0;
 
     if ( ((mesh_.geometricD()).x() + (mesh_.geometricD()).y() + (mesh_.geometricD()).z() ) == 3)
     {
-        surfV.ref() = borderL_ * pow(mesh_.V(), 2. / 3.) * surfFI_.internalField() * dimensionedScalar("tmp",dimensionSet(0, -3, 0, 0, 0),1.);
-        surfF_.ref() = borderL_ / pow(mesh_.V(), 1. / 3.) * surfFI_.internalField();
+        surfV.ref() = borderL_ * pow(mesh_.V(), 2. / 3.) * cellOnBedBorder_.internalField() * dimensionedScalar("tmp",dimensionSet(0, -3, 0, 0, 0),1.);
+        bedBorderSurfaceAreaDensity_.ref() = borderL_ / pow(mesh_.V(), 1. / 3.) * cellOnBedBorder_.internalField();
     }
     else if ( ((mesh_.geometricD()).x() + (mesh_.geometricD()).y() + (mesh_.geometricD()).z() ) == 1)
     {
@@ -177,16 +179,16 @@ void Foam::radiationModels::heterogeneousMeanTemp::calculate()
         f.x() = -min((mesh_.geometricD()).x(), 0);
         f.y() = -min((mesh_.geometricD()).y(), 0);
         f.z() = -min((mesh_.geometricD()).z(), 0);
-        forAll(surfFI_,cellI)
+        forAll(cellOnBedBorder_,cellI)
         {
-            if(surfFI_[cellI] > 0)
+            if(cellOnBedBorder_[cellI] > 0)
             {
                 scalar cSurf = 0;
                 forAll(mesh_.cells()[cellI],faceI)
                 {
                     cSurf += mag(( f & (mesh_.Sf()[mesh_.cells()[cellI][faceI]]) ));
                 }
-                surfF_[cellI] = borderL_.value() / pow(cSurf / 2., 1. / 2.);
+                bedBorderSurfaceAreaDensity_[cellI] = borderL_.value() / pow(cSurf / 2., 1. / 2.);
             }
         }
     }
@@ -196,16 +198,16 @@ void Foam::radiationModels::heterogeneousMeanTemp::calculate()
         f.x() = max((mesh_.geometricD()).x(), 0);
         f.y() = max((mesh_.geometricD()).y(), 0);
         f.z() = max((mesh_.geometricD()).z(), 0);
-        forAll(surfFI_,cellI)
+        forAll(cellOnBedBorder_,cellI)
         {
-            if(surfFI_[cellI] > 0)
+            if(cellOnBedBorder_[cellI] > 0)
             {
                 scalar cSurf = 0;
                 forAll(mesh_.cells()[cellI],faceI)
                 {
                     cSurf += mag(( f & (mesh_.Sf()[mesh_.cells()[cellI][faceI]]) ));
                 }
-                surfF_[cellI] = borderL_.value() / (2 * mesh_.V()[cellI] / cSurf);
+                bedBorderSurfaceAreaDensity_[cellI] = borderL_.value() / (2 * mesh_.V()[cellI] / cSurf);
             }
         }
     }
@@ -259,9 +261,13 @@ void Foam::radiationModels::heterogeneousMeanTemp::calculate()
     forAll(G_,cellI)
     {
         G_[cellI] = radiationEnergy;
-        if (surfF_[cellI] != 0)
+        if (bedBorderSurfaceAreaDensity_[cellI] != 0)
         {
-            solidSh_[cellI] = 4.0 * (G_[cellI] * borderAs_[cellI] - solidRadiation[cellI]) * surfF_[cellI];
+            // Gated like every other solid source: TEqn refuses this term in
+            // a cell emptier than criticalPorosity, and G_ here is prescribed
+            // from a wall temperature, so there is no reservoir to unbalance.
+            solidSh_[cellI] = 4.0 * (G_[cellI] * borderAs_[cellI] - solidRadiation[cellI]) * bedBorderSurfaceAreaDensity_[cellI]
+                            * solidSourceTermsAdmissible_[cellI];
         }
     }
 }

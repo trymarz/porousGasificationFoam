@@ -71,8 +71,9 @@ public:
         (
             const volScalarField& T,
             const volScalarField& porosityF,
-            const volScalarField& surfF,
-            const volScalarField& Ts
+            const volScalarField& cellOnBedBorder,
+            const volScalarField& Ts,
+            const volScalarField& solidSourceTermsAdmissible
         );
 
 

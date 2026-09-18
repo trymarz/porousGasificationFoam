@@ -88,13 +88,12 @@ Foam::heterogeneousRadiationModel::heterogeneousRadiationModel
 
 Foam::heterogeneousRadiationModel::heterogeneousRadiationModel
 (
+    const word& type,
     const volScalarField& T,
-    const volScalarField& porosityF,
-    const List<label>& surfF,
     const volScalarField& Ts
 )
 :
-    radiationModel(type(), T),
+    radiationModel(type, T),
     Ts_(Ts),
     heterogeneousAbsorptionEmission_(nullptr)
 {

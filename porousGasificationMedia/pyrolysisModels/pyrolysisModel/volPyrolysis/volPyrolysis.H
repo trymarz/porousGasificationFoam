@@ -198,7 +198,7 @@ protected:
         //- InitialPorosity
         volScalarField porosity0_;
 
-        volScalarField voidFraction_;
+        volScalarField gasVolumeFractionAtStepStart_;
 
         //- Dadiation
         volScalarField& radiation_;
@@ -217,15 +217,25 @@ protected:
         volScalarField porositySource_;
 
         //- Masks for equations
-        volScalarField whereIs_;
+        volScalarField solidOccupiesCell_;
 
-        volScalarField whereIsNot_;
+        volScalarField solidAbsentFromCell_;
 
-        volScalarField whereWas_;
+        volScalarField solidOccupiedCellLastStep_;
+
+        //- Cells holding enough solid for a volumetric source to be meaningful
+        //  Stored rather than recomputed so the radiation model can hold a
+        //  reference to it. Refreshed wherever porosity_ is written.
+        volScalarField solidSourceTermsAdmissible_;
 
         volScalarField cellVolume_;
 
         volScalarField heatUpGas_;
+
+        //- Interphase exchange as the solid TEqn consumed it, stored so the
+        //  gas EEqn adds back the same joules rather than a fresh evaluation
+        //  against a temperature the solid solve has since moved.
+        volScalarField heatTransferSh_;
 
         //- Reference to heat transport model
         autoPtr<heatTransferModel> HTmodel_;
@@ -237,7 +247,7 @@ protected:
         volTensorField anisotropyK_;
 
         //- border cells inside solid body
-        volScalarField surfF_;
+        volScalarField cellOnBedBorder_;
 
         //- Solid-phase velocity. Read-only reference to the single "Us"
         //  field registered by the solver (createFields.H). With DEM
@@ -330,6 +340,9 @@ protected:
         //- Mass check
         void calculateMassTransfer();
 
+        //- Rebuild solidSourceTermsAdmissible_ from the porosity just written
+        void updateSolidSourceTermsAdmissible();
+
         // Equations
 
             //- Solve solid species mass conservation
@@ -361,7 +374,7 @@ public:
             const fvMesh& mesh,
             HGSSolidThermo& solidThermo,
             psiReactionThermo& gasThermo,
-            volScalarField& whereIs,
+            volScalarField& porosity,
             volScalarField& radiation
         );
 
@@ -394,6 +407,9 @@ public:
 
                 //- Return list of cells in surface layer inside solid
                 virtual const volScalarField& surf() const;
+
+                //- Return the solid-source gate
+                virtual const volScalarField& solidSourceTermsAdmissible() const;
 
         // Parametrs from main region
 
@@ -437,8 +453,11 @@ public:
                 const label i
             ) const;
 
+            //- Compute the interphase exchange from the current state
+            virtual Foam::tmp<Foam::volScalarField> heatTransferCalc() const;
+
             //- Return enthalpy source - Eulerian phase only
-            virtual Foam::tmp<Foam::volScalarField> heatTransfer();
+            virtual Foam::tmp<Foam::volScalarField> heatTransfer() const;
 
             //- Return CONV
             virtual Foam::tmp<Foam::volScalarField> CONV() const;

@@ -1,0 +1,112 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     |                                                 |
+|   \\  /    A nd           |                                                 |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+
+// What the solid energy equation actually books from radiation: radiationSh
+// as the producer emitted it, times the same gate TEqn multiplies it by.
+// Both fields are the solver's own, so nothing here restates a threshold.
+radiationBooked
+{
+    type            exprField;
+    libs            (fieldFunctionObjects);
+    field           radiationBooked;
+    dimensions      [1 -1 -3 0 0 0 0];
+    expression      "radiationSh*solidSourceTermsAdmissible";
+    action          new;
+    store           true;
+    autowrite       true;
+    executeControl  timeStep;
+    executeInterval 1;
+    writeControl    writeTime;
+}
+
+regressionBase
+{
+    type            volFieldValue;
+    libs            (fieldFunctionObjects);
+    regionType      all;
+    postOperation   none;
+    weightField     none;
+    writeFields     false;
+    writePrecision  10;
+    writeToFile     true;
+    log             false;
+    enabled         false;
+    executeControl  timeStep;
+    executeInterval 1;
+    writeControl    writeTime;
+    writeInterval   -1;
+}
+
+// The assertion.  Integrating the G equation over a closed domain leaves
+// emission minus absorption summed over every cell equal to the flux through
+// the boundary, which is zero here - so the joules the solid books must sum
+// to zero.  Movement in this column is a broken radiation book, never a
+// recapture.
+regressionRadiationBookResidual
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (radiationBooked);
+    operation       volIntegrate;
+}
+
+// The other half of that boundary term, measured rather than assumed: with
+// zeroGradient G the wall flux is identically zero, so the column above is
+// the whole reservoir and not a piece of it.
+regressionRadiationWallFlux
+{
+    type            surfaceFieldValue;
+    libs            (fieldFunctionObjects);
+    regionType      patch;
+    name            wall;
+    operation       areaIntegrate;
+    fields          (qr);
+    writeFields     false;
+    writePrecision  10;
+    writeToFile     true;
+    log             false;
+    executeControl  timeStep;
+    executeInterval 1;
+    writeControl    writeTime;
+}
+
+// A zero residual means nothing if the term is zero.  These two say the solid
+// is trading joules at full strength while the sum above stays at roundoff.
+regressionRadiationBookedMax
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (radiationBooked);
+    operation       max;
+}
+
+regressionRadiationBookedMin
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (radiationBooked);
+    operation       min;
+}
+
+regressionGAverage
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (G);
+    operation       volAverage;
+}
+
+regressionTsAverage
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (Ts);
+    operation       volAverage;
+}
+
+// ************************************************************************* //

@@ -141,10 +141,10 @@ public:
                 const fvMesh& mesh,
                 HGSSolidThermo& solidThermo,
                 psiReactionThermo& gasThermo,
-                volScalarField& whereIs,
+                volScalarField& porosity,
                 volScalarField& radiation
              ),
-             (modelType, mesh, solidThermo, gasThermo, whereIs, radiation)
+             (modelType, mesh, solidThermo, gasThermo, porosity, radiation)
         );
 
     // Constructors
@@ -163,7 +163,7 @@ public:
             const fvMesh& mesh,
             HGSSolidThermo& solidThermo,
             psiReactionThermo& gasThermo,
-            volScalarField& whereIs,
+            volScalarField& porosity,
             volScalarField& radiation
         );
 
@@ -175,7 +175,7 @@ public:
           const fvMesh& mesh,
           HGSSolidThermo& solidThermo,
           psiReactionThermo& gasThermo,
-          volScalarField& whereIs
+          volScalarField& porosity
         );
         
         static autoPtr<heterogeneousPyrolysisModel> New
@@ -183,7 +183,7 @@ public:
           const fvMesh& mesh,
           HGSSolidThermo& solidThermo,
           psiReactionThermo& gasThermo,
-          volScalarField& whereIs,
+          volScalarField& porosity,
           volScalarField& radiation
         );
 
@@ -213,6 +213,11 @@ public:
 
                 //- Return list of cells in surface layer inside solid
                 virtual const volScalarField& surf() const = 0;
+
+                //- Cells holding enough solid for a volumetric source to mean
+                //  anything. Emptier than that, rhoCp collapses to its SMALL
+                //  floor and a full-strength source gives an unbounded step.
+                virtual const volScalarField& solidSourceTermsAdmissible() const = 0;
 
 
         // Evolution
@@ -262,7 +267,7 @@ public:
             ) const = 0;
 
             //- Return enthalpy source - Eulerian phase only
-            virtual Foam::tmp<Foam::volScalarField> heatTransfer();
+            virtual Foam::tmp<Foam::volScalarField> heatTransfer() const;
 
             //- Return enthalpy needed to heat up gas
             virtual Foam::tmp<Foam::volScalarField> heatUpGas() const;

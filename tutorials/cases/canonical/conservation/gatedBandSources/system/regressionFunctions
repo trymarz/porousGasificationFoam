@@ -1,0 +1,113 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     |                                                 |
+|   \\  /    A nd           |                                                 |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+
+regressionBase
+{
+    type            volFieldValue;
+    libs            (fieldFunctionObjects);
+    regionType      all;
+    postOperation   none;
+    weightField     none;
+    writeFields     false;
+    writePrecision  10;
+    writeToFile     true;
+    log             false;
+    enabled         false;
+    executeControl  timeStep;
+    executeInterval 1;
+    writeControl    writeTime;
+    writeInterval   -1;
+}
+
+// The assertions. Every cell is above criticalPorosity from t = 0, so
+// solidSourceTermsAdmissible is 0 everywhere and none of these terms may be anything
+// but zero - in the solid TEqn or in the gas EEqn. All four are columns of
+// exact zeros; movement in any of them is a source escaping its bound.
+regressionRadiationSh
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (radiationSh);
+    operation       volIntegrate;
+}
+
+regressionChemistrySh
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (solidChemistrySh);
+    operation       volIntegrate;
+}
+
+// The gas side of the interphase pair. Since ad4738d this is the stored field
+// both consumers read, so a zero here is a zero in TEqn as well.
+regressionHeatTransfer
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (heatTransfer);
+    operation       volIntegrate;
+}
+
+regressionHeatUpGas
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (heatUpGas);
+    operation       volIntegrate;
+}
+
+regressionSrho
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (Srho);
+    operation       volIntegrate;
+}
+
+// Liveness. The temperatures are what make the zeros above mean something:
+// the solid sits 900 K above the gas for the whole run and neither moves,
+// which at h*SAV = 2000 W/m3/K is 1.8e+06 W/m3 of exchange refused. Both are
+// flat columns because with every source gated off nothing drives either
+// phase at all.
+regressionTsMax
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (Ts);
+    operation       max;
+}
+
+regressionGasTempMax
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (T);
+    operation       max;
+}
+
+// The radiation solver is running - G is far from zero - and still books the
+// solid nothing. Without this column the radiation zero could be radiation
+// simply being switched off.
+regressionGAverage
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (G);
+    operation       volAverage;
+}
+
+regressionPorosityMax
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (porosityF);
+    operation       max;
+}
+
+// ************************************************************************* //

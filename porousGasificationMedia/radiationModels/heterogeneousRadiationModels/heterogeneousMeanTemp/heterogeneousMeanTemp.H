@@ -76,11 +76,14 @@ class heterogeneousMeanTemp
             //- porosity field
             const volScalarField& porosityF_;
 
-            //- porosity field
-            const volScalarField& surfFI_;
+            //- Bed border flag from the pyrolysis model, 1 on a border cell
+            const volScalarField& cellOnBedBorder_;
 
-            //- porosity field
-            volScalarField surfF_;
+            //- Cells the solid energy equation will pay for a source in
+            const volScalarField& solidSourceTermsAdmissible_;
+
+            //- Radiating border area per unit cell volume [1/m]
+            volScalarField bedBorderSurfaceAreaDensity_;
 
             //- magnitude of G_ field gradient
             volScalarField solidSh_;
@@ -99,8 +102,9 @@ public:
         (
             const volScalarField& T,
             const volScalarField& porosityF,
-            const volScalarField& surfF,
-            const volScalarField& Ts
+            const volScalarField& cellOnBedBorder,
+            const volScalarField& Ts,
+            const volScalarField& solidSourceTermsAdmissible
         );
 
         //- Disallow default bitwise copy construction

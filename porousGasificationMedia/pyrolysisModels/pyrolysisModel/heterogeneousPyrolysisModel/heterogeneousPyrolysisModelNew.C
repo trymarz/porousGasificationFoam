@@ -41,7 +41,7 @@ autoPtr<heterogeneousPyrolysisModel> heterogeneousPyrolysisModel::New
     const fvMesh& mesh,
     HGSSolidThermo& solidThermo,
     psiReactionThermo& gasThermo,
-    volScalarField& whereIs,
+    volScalarField& porosity,
     volScalarField& radiation
 )
 {
@@ -76,7 +76,7 @@ autoPtr<heterogeneousPyrolysisModel> heterogeneousPyrolysisModel::New
             << exit(FatalError);
     }
 
-    return autoPtr<heterogeneousPyrolysisModel>(cstrIter()(modelType, mesh, solidThermo, gasThermo, whereIs, radiation));
+    return autoPtr<heterogeneousPyrolysisModel>(cstrIter()(modelType, mesh, solidThermo, gasThermo, porosity, radiation));
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 

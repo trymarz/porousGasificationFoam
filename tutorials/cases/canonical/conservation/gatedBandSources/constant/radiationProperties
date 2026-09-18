@@ -1,0 +1,46 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  v2406
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      radiationProperties;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+radiation       on;
+
+heterogeneousRadiationModel  heterogeneousP1;
+
+solverFreq 1;
+
+heterogeneousAbsorptionEmissionModel heterogeneousConstantAbsorptionEmission;
+
+// as is large and a is zero: the solid would trade heavily with the G field
+// if it were allowed to, and the gas books nothing from radiation either
+// way, so the gas temperature stays put and the zeros below are the gate's.
+heterogeneousConstantAbsorptionEmissionCoeffs
+{
+    a               a  [ 0 -1  0 0 0 0 0 ] 0;
+    as              as [ 0 -1  0 0 0 0 0 ] 100;
+    borderAs        borderAs [ 0 -1  0 0 0 0 0 ] 0;
+    E               E  [ 1 -1 -3 0 0 0 0 ] 0.0;
+    borderL         borderL  [ 0 1 0 0 0 0 0 ] 0;
+}
+
+scatterModel    constantScatter;
+
+// Nonzero so the diffusion coefficient stays finite with the solid gated
+// off: with every absorption coefficient zeroed, 1/(3*0 + sigmaEff) would
+// otherwise divide by zero and G would collapse to its initial value.
+sigma           sigma [ 0 -1 0 0 0 0 0 ] 1;
+C               C [ 0 0 0 0 0 0 0 ] 0;
+
+// ************************************************************************* //

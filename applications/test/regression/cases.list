@@ -34,6 +34,46 @@ tutorials/cases/canonical/meanTemp             fast
 tutorials/cases/canonical/noSubintegration     fast
 tutorials/cases/canonical/equilibrium          fast
 
+# Conservation fixtures — each asserts an energy integral, not a temperature.
+# The regressionHeatTransferResidual baseline is a column of exact zeros: it
+# asserts that the solid TEqn and the gas EEqn exchange the same joules, so
+# movement there is a conservation failure, never something to recapture.
+tutorials/cases/canonical/conservation/interphaseHeatTransfer      fast
+tutorials/cases/canonical/conservation/interphaseHeatTransferPlain fast
+
+# radiationReservoir is the only case in the suite with a nonzero bulk
+# absorption as, and the only one where the solid's radiative coefficients are
+# not identically zero. Its regressionRadiationBookResidual and
+# regressionRadiationWallFlux baselines are both columns of exact zeros: the
+# walls are zeroGradient on G, so the reservoir is closed and the joules the
+# solid TEqn books have to sum to zero on their own. Movement in either is a
+# broken radiation book, never something to recapture. The two Booked columns
+# are there so the zeros mean something - they say the term is running at
+# 1e+07 W/m^3 while the sum stays at roundoff.
+tutorials/cases/canonical/conservation/radiationReservoir           fast
+
+# chemistryGateCrossing reacts one cell across criticalPorosity mid-run. Its
+# two assertions are regressionChemistryHeatOutsideGate and
+# regressionGasSourceOutsideGate, both columns of exact zeros: no reaction heat
+# and no converted mass in a cell whose energy equation refuses the heat.
+# regressionPorosityMax is a diagnostic, not an assertion - the crossing moves
+# it by only 1e-6 relative, inside rtol. regressionGasTempMax records issue
+# #105: a closed box with an endothermic reaction and a negative heatUpGas
+# whose gas still climbs from 800 K to 1700 K. That number is reported, not
+# asserted as conservation.
+tutorials/cases/canonical/conservation/chemistryGateCrossing        fast
+
+# gatedBandSources starts every cell above criticalPorosity, so
+# solidSourceTermsAdmissible is 0 from t = 0 while solidOccupiesCell is still
+# 1. Five columns of
+# exact zeros - radiationSh, solidChemistrySh, heatTransfer, heatUpGas and
+# Srho - say no solid source and no interphase term reaches an energy
+# equation there. The liveness columns are what make them mean something:
+# volAverage(G) sits at 1e+05 while the solid books nothing from it, and the
+# solid holds 900 K above the gas for the whole run without exchanging a
+# joule, which at h*SAV = 2000 W/m3/K is 1.8e+06 W/m3 refused.
+tutorials/cases/canonical/conservation/gatedBandSources             fast
+
 # Prescribed-Us solid-transport suite — Ycharm advection under analytic Us
 # fields (asserts the transported Ycharm and the porosityF recovered from it,
 # max(porosityF) included so an unbounded void fraction fails the tier).
