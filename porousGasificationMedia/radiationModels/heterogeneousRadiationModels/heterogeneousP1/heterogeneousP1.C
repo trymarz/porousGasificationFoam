@@ -61,7 +61,7 @@ Foam::radiationModels::heterogeneousP1::heterogeneousP1
     const volScalarField& solidSourceActive
 )
 :
-    heterogeneousRadiationModel(typeName, T),
+    heterogeneousRadiationModel(typeName, T, Ts),
     G_
     (
         IOobject
