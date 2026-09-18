@@ -1046,11 +1046,13 @@ void volPyrolysis::preSolveEnergy()
 
             const volScalarField sourceActive(solidSourceActive());
 
-            volScalarField heatTransfField = sourceActive*heatTransfer()();
+            // heatTransfer() gates itself, so that the gas side consumes the
+            // same field; gating again here would be a no-op, not a safeguard.
+            volScalarField heatTransfField = heatTransfer()();
 
-            // radiationSh_ has no critPorosity_ gate of its own (unlike
-            // heatTransfField): as a cell empties, rhoCp collapses toward its
-            // SMALL floor while the T^4 radiative sink stays full strength.
+            // radiationSh_ carries no critPorosity_ gate of its own: as a cell
+            // empties, rhoCp collapses toward its SMALL floor while the T^4
+            // radiative sink stays full strength.
             volScalarField radiationShField = sourceActive*radiationSh_;
 
             // Same collapsing-rhoCp gap as radiationShField, for the reaction
@@ -2259,6 +2261,11 @@ Foam::tmp<Foam::volScalarField> volPyrolysis::heatTransfer()
     {}
     else
     {
+        // Gate the emitted exchange at the producer so the solid TEqn and the
+        // gas EEqn consume the same field: an ungated gas side would exchange
+        // heat with a solid whose own equation refuses it, creating energy.
+        const volScalarField sourceActive(solidSourceActive());
+
         if (subintegrateSwitch_)
         {
             // Keep the subintegrated gas/solid exchange defined in a fully
@@ -2309,7 +2316,7 @@ Foam::tmp<Foam::volScalarField> volPyrolysis::heatTransfer()
 
             forAll(Sh_(),cellI)
             {
-                Sh_.ref()[cellI] = deltaTemp[cellI] * rhoCpG[cellI] * whereIs_[cellI] / deltaTime;
+                Sh_.ref()[cellI] = deltaTemp[cellI] * rhoCpG[cellI] * sourceActive[cellI] / deltaTime;
             }
 
             volScalarField HT(CONV_*(T_-Tgas));
@@ -2322,7 +2329,7 @@ Foam::tmp<Foam::volScalarField> volPyrolysis::heatTransfer()
             // This works only for small CONV otherwise oscillations appear.
             volScalarField Tgas = gasThermo_.T();
             volScalarField HT(CONV_*(T_-Tgas));
-            Sh_ = HT * whereIs_;
+            Sh_ = HT * sourceActive;
         }
     }
     return Sh_;
