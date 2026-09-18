@@ -1,0 +1,29 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  v2406
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      heatTransferProperties;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+heatTransferModel constCONV;
+
+// h*SAV = 2000 W/m^3/K against a solid heat capacity of ~110 J/m^3/K: the
+// pair relaxes in about 0.05 s, so a 0.005 s step moves the solid enough
+// per step for a re-evaluated gas source to differ visibly from it.
+Parameters
+{
+    h   2.0;
+    SAV 1000;
+}
+
+// ************************************************************************* //
