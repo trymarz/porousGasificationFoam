@@ -2133,11 +2133,12 @@ void volPyrolysis::preEvolveRegion() {
     // Added for completeness
     heterogeneousPyrolysisModel::preEvolveRegion();
 
-    // Iterates over every cell and sets cells containing solid phase
-    // as reacting cell.
+    // Iterates over every cell and sets cells whose solid energy equation
+    // will accept the reaction heat as reacting. A cell emptier than
+    // criticalPorosity converts no mass, so none of its heat goes unbooked.
     forAll(T_, cellI)
     {
-        if ( active_ && whereIs_[cellI] != 0)
+        if ( active_ && solidSourceActive_[cellI] != 0)
         {
             solidChemistry_->setCellReacting(cellI, true);
         }
