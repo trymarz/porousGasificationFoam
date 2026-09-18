@@ -42,8 +42,8 @@
 
 regressionBase
 {
-    type            volFieldValue;
-    libs            (fieldFunctionObjects);
+    type            regressionFieldValue;
+    libs            (regressionFieldValue);
     regionType      all;
     postOperation   none;
     weightField     none;

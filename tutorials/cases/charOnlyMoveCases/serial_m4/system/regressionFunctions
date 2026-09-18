@@ -8,9 +8,9 @@
 //
 // Regression-test function objects for charOnlyMoveCases/serial_m4.
 //
-// Verbatim syntax verified against:
-//   gitlab.com/openfoam/core/openfoam/-/raw/master/tutorials/incompressible/
-//     pisoFoam/RAS/cavity/system/FOs/FOvolFieldValue
+// type/libs point at applications/test/regression/functionObjects/regressionFieldValue,
+// PGF's own minimal stand-in for stock volFieldValue (see that class's
+// header comment for why: issue #76 / libreactingMultiphaseSystem double-free).
 //
 // Each block emits one tab-separated row per solution write event to
 //   postProcessing/<name>/<startTime>/volFieldValue.dat
@@ -20,8 +20,8 @@
 
 regressionBase
 {
-    type            volFieldValue;
-    libs            (fieldFunctionObjects);
+    type            regressionFieldValue;
+    libs            (regressionFieldValue);
     regionType      all;
     postOperation   none;
     weightField     none;
