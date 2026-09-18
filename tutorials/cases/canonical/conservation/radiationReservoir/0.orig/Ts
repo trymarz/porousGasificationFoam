@@ -1,0 +1,34 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  v2406
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       volScalarField;
+    location    "0";
+    object      Ts;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+dimensions      [0 0 0 1 0 0 0];
+
+// Nonuniform so the three participating cells genuinely trade: the hot ones
+// lose and the cold one gains, while the sum over them stays zero.  The
+// gated fourth cell is the hottest of all, so an ungated producer would put
+// the largest emission of the four into G with nobody booking it.
+internalField   nonuniform List<scalar> 4 (1200 800 400 2000);
+
+boundaryField
+{
+    wall
+    {
+        type            zeroGradient;
+    }
+}
+
+// ************************************************************************* //
