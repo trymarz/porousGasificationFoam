@@ -34,6 +34,13 @@ tutorials/cases/canonical/meanTemp             fast
 tutorials/cases/canonical/noSubintegration     fast
 tutorials/cases/canonical/equilibrium          fast
 
+# Conservation fixtures — each asserts an energy integral, not a temperature.
+# The regressionHeatTransferResidual baseline is a column of exact zeros: it
+# asserts that the solid TEqn and the gas EEqn exchange the same joules, so
+# movement there is a conservation failure, never something to recapture.
+tutorials/cases/canonical/conservation/interphaseHeatTransfer      fast
+tutorials/cases/canonical/conservation/interphaseHeatTransferPlain fast
+
 # Prescribed-Us solid-transport suite — Ycharm advection under analytic Us
 # fields (asserts the transported Ycharm and the porosityF recovered from it,
 # max(porosityF) included so an unbounded void fraction fails the tier).
