@@ -15,7 +15,7 @@ PGF_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 # ============================================================
 
 declare -a LIBRARY_TARGETS=(DEM fieldPorosityModel radiationModels thermophysicalModels pyrolysisModels)
-declare -a APP_TARGETS=(porousGasificationFoam utilities)
+declare -a APP_TARGETS=(porousGasificationFoam utilities regressionFieldValue)
 declare -a ALL_TARGETS=("${LIBRARY_TARGETS[@]}" "${APP_TARGETS[@]}")
 declare -a ALL_TARGETS_FLAGS=("${ALL_TARGETS[@]/#/--}")
 declare -a ALL_TARGETS_NO_FLAGS=("${ALL_TARGETS[@]/#/--no-}")
@@ -28,6 +28,7 @@ declare -A BUILD_TARGETS=( # default values
   [pyrolysisModels]=1
   [porousGasificationFoam]=1
   [utilities]=1
+  [regressionFieldValue]=1
 )
 
 # Set to 1 via --yade to compile the solver with Yade/DEM coupling support
@@ -60,6 +61,7 @@ declare -A TARGET_DIRS=(
   [pyrolysisModels]="$PGF_ROOT/porousGasificationMedia/pyrolysisModels"
   [porousGasificationFoam]="$PGF_ROOT/porousGasificationFoam"
   [utilities]="$PGF_ROOT/utilities"
+  [regressionFieldValue]="$PGF_ROOT/applications/test/regression/functionObjects"
 )
 
 declare -A BUILD_COMMANDS=(
@@ -70,6 +72,7 @@ declare -A BUILD_COMMANDS=(
   [pyrolysisModels]="wmake -j libso"
   [porousGasificationFoam]="wmake -j"
   [utilities]="./Allwmake"
+  [regressionFieldValue]="./Allwmake"
 )
 
 declare -A CLEAN_COMMANDS=(
@@ -80,6 +83,7 @@ declare -A CLEAN_COMMANDS=(
   [pyrolysisModels]="wclean libso"
   [porousGasificationFoam]="wclean"
   [utilities]="./Allwclean"
+  [regressionFieldValue]="./Allwclean"
 )
 
 MODE="build"
@@ -116,11 +120,11 @@ parse_arguments() {
       set_targets APP_TARGETS 1
       ;;
     # Selective flags
-    --DEM | --fieldPorosityModel | --radiationModels | --thermophysicalModels | --pyrolysisModels | --porousGasificationFoam | --utilities)
+    --DEM | --fieldPorosityModel | --radiationModels | --thermophysicalModels | --pyrolysisModels | --porousGasificationFoam | --utilities | --regressionFieldValue)
       local t="${1#--}"
       BUILD_TARGETS[$t]=1
       ;;
-    --no-DEM | --no-fieldPorosityModel | --no-radiationModels | --no-thermophysicalModels | --no-pyrolysisModels | --no-porousGasificationFoam | --no-utilities)
+    --no-DEM | --no-fieldPorosityModel | --no-radiationModels | --no-thermophysicalModels | --no-pyrolysisModels | --no-porousGasificationFoam | --no-utilities | --no-regressionFieldValue)
       local t="${1#--no-}"
       BUILD_TARGETS[$t]=0
       ;;

@@ -547,7 +547,9 @@ Gas-phase reactions are typically orders of magnitude faster than heterogeneous 
 
 ## Regression Testing
 
-Numerical regression tests live under `applications/test/regression/`. The framework runs selected tutorial cases, extracts a small set of summary scalars produced by OpenFOAM `volFieldValue` function objects, and diffs the results against a committed reference baseline within a numerical tolerance.
+Numerical regression tests live under `applications/test/regression/`. The framework runs selected tutorial cases, extracts a small set of summary scalars produced by `regressionFieldValue` function objects, and diffs the results against a committed reference baseline within a numerical tolerance.
+
+`regressionFieldValue` (`applications/test/regression/functionObjects/`, built by `build.sh` alongside everything else) is PGF's own minimal stand-in for stock OpenFOAM's `volFieldValue` — same min/max/volAverage/volIntegrate reductions, same `postProcessing/<name>/<time>/volFieldValue.dat` output, but without stock `libfieldFunctionObjects`'s incidental link to `libreactingMultiphaseSystem`, whose static-initializer object was getting double-freed against one of PGF's own libraries at process exit (issue #76). See that class's header comment for the full trace.
 
 The point is to give refactors a safety net: any change that perturbs the selected scalars beyond tolerance fails the regression and surfaces a clear diff. The gate is deliberately **honest** — it never reports success unless it actually ran a case and compared it (see the outcome contract below).
 
@@ -557,7 +559,7 @@ The framework has two runners that share one outcome vocabulary:
 - **DEM (Yade) suite** — `Allrun.yade`, `cases_yade.list`, `tools/runDEMCase.sh` (requires a Yade-enabled build; see below).
 - **Shared logic** — `tools/regressionLib.sh` holds the pieces both runners must agree on: how a case list is loaded, how a case's exit status becomes an outcome, how the summary decides whether the suite is green, and the bounded-concurrency mechanics. `tools/regressionState.py` serialises run state as JSON (standard library only, no project imports).
 
-Per-case bits live in `tutorials/cases/<caseName>/system/regressionFunctions` (`volFieldValue` blocks included from `controlDict`) and `tutorials/cases/<caseName>/reference/postProcessing/` (committed baseline).
+Per-case bits live in `tutorials/cases/<caseName>/system/regressionFunctions` (`regressionFieldValue` blocks included from `controlDict`) and `tutorials/cases/<caseName>/reference/postProcessing/` (committed baseline).
 
 **The suite scripts are self-contained.** They need bash, `python3` and the OpenFOAM environment, and nothing else — no external tool takes part in deciding which cases run, how they are cleaned, what a case's `Allrun` does, how output is compared, or whether the suite is green. Tooling that wants to watch a run reads the optional structured state described below; it is a reader, never a participant. If a helper ever appears to be *required* to run regressions, that is a bug in the helper.
 
