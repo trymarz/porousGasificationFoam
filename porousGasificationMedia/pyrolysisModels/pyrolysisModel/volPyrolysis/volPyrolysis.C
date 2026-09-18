@@ -815,6 +815,9 @@ void volPyrolysis::recoverPorosity()
                 }
             }
         }
+
+        // porosity_ has just been rewritten; the gate is derived from it.
+        updateSolidSourceActive();
     }
     else
     {}
@@ -1044,7 +1047,7 @@ void volPyrolysis::preSolveEnergy()
             whereIsNot_.correctBoundaryConditions();
             surfaceScalarField  whereIsPatch  = fvc::interpolate(whereIs_);
 
-            const volScalarField sourceActive(solidSourceActive());
+            const volScalarField& sourceActive = solidSourceActive();
 
             // Evaluated once and stored, so the gas EEqn adds back the same
             // joules after TEqn has moved T_. heatTransferCalc() gates
@@ -1369,11 +1372,16 @@ void volPyrolysis::calculateMassTransfer()
     }
 }
 
-tmp<volScalarField> volPyrolysis::solidSourceActive() const
+void volPyrolysis::updateSolidSourceActive()
 {
     // whereIs_ marks the bed (porosity < 1); the critPorosity_ test is the
-    // strength gate and, being the stricter threshold, subsumes it.
-    return whereIs_*pos(critPorosity_ - porosity_);
+    // strength gate and, at its default, the stricter of the two.
+    solidSourceActive_ = whereIs_*pos(critPorosity_ - porosity_);
+}
+
+const volScalarField& volPyrolysis::solidSourceActive() const
+{
+    return solidSourceActive_;
 }
 
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
@@ -1533,6 +1541,19 @@ volPyrolysis::volPyrolysis
         IOobject
         (
             "whereWas",
+            time_.timeName(),
+            mesh_,
+            IOobject::NO_READ,
+            IOobject::NO_WRITE
+        ),
+        mesh_,
+        dimensionedScalar("zero", dimless, 0.0)
+    ),
+    solidSourceActive_
+    (
+        IOobject
+        (
+            "solidSourceActive",
             time_.timeName(),
             mesh_,
             IOobject::NO_READ,
@@ -1876,6 +1897,11 @@ volPyrolysis::volPyrolysis
 
     whereIs_ = neg(porosity_ - 1);
     whereIsNot_ = pos0(porosity_ - 1);
+
+    // The radiation model is constructed next and holds a reference to this,
+    // so it has to be valid before the first correct() rather than after the
+    // first recoverPorosity().
+    updateSolidSourceActive();
 
     // porosity_ is assigned in recoverPorosity(), not solved; storeOldTimes()
     // is a no-op on the first call, so seed oldTime() here or the gas-side
@@ -2288,7 +2314,7 @@ Foam::tmp<Foam::volScalarField> volPyrolysis::heatTransferCalc() const
         // Gate the emitted exchange at the producer so the solid TEqn and the
         // gas EEqn consume the same field: an ungated gas side would exchange
         // heat with a solid whose own equation refuses it, creating energy.
-        const volScalarField sourceActive(solidSourceActive());
+        const volScalarField& sourceActive = solidSourceActive();
 
         if (subintegrateSwitch_)
         {

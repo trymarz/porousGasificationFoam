@@ -120,9 +120,10 @@ public:
                 const volScalarField& T,
                 const volScalarField& porosityF,
                 const volScalarField& surfF,
-                const volScalarField& Ts
+                const volScalarField& Ts,
+                const volScalarField& solidSourceActive
             ),
-            (T,porosityF,surfF,Ts)
+            (T,porosityF,surfF,Ts,solidSourceActive)
         );
 
     // Constructors
@@ -153,7 +154,8 @@ public:
             const volScalarField& T,
             const volScalarField& porosityF,
             const volScalarField& surfF,
-            const volScalarField& Ts
+            const volScalarField& Ts,
+            const volScalarField& solidSourceActive
         );
 
 

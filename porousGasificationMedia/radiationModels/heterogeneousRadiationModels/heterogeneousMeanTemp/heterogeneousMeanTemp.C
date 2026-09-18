@@ -57,7 +57,8 @@ Foam::radiationModels::heterogeneousMeanTemp::heterogeneousMeanTemp
     const volScalarField& T,
     const volScalarField& porosityF,
     const volScalarField& surfF,
-    const volScalarField& Ts
+    const volScalarField& Ts,
+    const volScalarField& solidSourceActive
 )
 :
     heterogeneousRadiationModel(typeName, T),
@@ -108,6 +109,7 @@ Foam::radiationModels::heterogeneousMeanTemp::heterogeneousMeanTemp
     (
         surfF
     ),
+    solidSourceActive_(solidSourceActive),
     surfF_
     (
         IOobject
@@ -261,7 +263,11 @@ void Foam::radiationModels::heterogeneousMeanTemp::calculate()
         G_[cellI] = radiationEnergy;
         if (surfF_[cellI] != 0)
         {
-            solidSh_[cellI] = 4.0 * (G_[cellI] * borderAs_[cellI] - solidRadiation[cellI]) * surfF_[cellI];
+            // Gated like every other solid source: TEqn refuses this term in
+            // a cell emptier than criticalPorosity, and G_ here is prescribed
+            // from a wall temperature, so there is no reservoir to unbalance.
+            solidSh_[cellI] = 4.0 * (G_[cellI] * borderAs_[cellI] - solidRadiation[cellI]) * surfF_[cellI]
+                            * solidSourceActive_[cellI];
         }
     }
 }
