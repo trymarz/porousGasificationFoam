@@ -330,6 +330,11 @@ protected:
         //- Mass check
         void calculateMassTransfer();
 
+        //- Cells holding enough solid for a volumetric source to be meaningful
+        //  Emptier than critPorosity_, rhoCp collapses to its SMALL floor and
+        //  a full-strength source term produces an unbounded temperature step.
+        tmp<volScalarField> solidSourceActive() const;
+
         // Equations
 
             //- Solve solid species mass conservation

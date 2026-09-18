@@ -1044,17 +1044,19 @@ void volPyrolysis::preSolveEnergy()
             whereIsNot_.correctBoundaryConditions();
             surfaceScalarField  whereIsPatch  = fvc::interpolate(whereIs_);
 
-            volScalarField heatTransfField = whereIs_*heatTransfer()()*pos(critPorosity_ - porosity_);
+            const volScalarField sourceActive(solidSourceActive());
+
+            volScalarField heatTransfField = sourceActive*heatTransfer()();
 
             // radiationSh_ has no critPorosity_ gate of its own (unlike
             // heatTransfField): as a cell empties, rhoCp collapses toward its
             // SMALL floor while the T^4 radiative sink stays full strength.
-            volScalarField radiationShField = whereIs_*radiationSh_*pos(critPorosity_ - porosity_);
+            volScalarField radiationShField = sourceActive*radiationSh_;
 
             // Same collapsing-rhoCp gap as radiationShField, for the reaction
             // heat term: chemistrySh_ is set from RRs_/RRg_ (nonzero whenever
             // whereIs_ != 0) but carries no critPorosity_ gate of its own.
-            volScalarField chemistryShField = whereIs_*chemistrySh_*pos(critPorosity_ - porosity_);
+            volScalarField chemistryShField = sourceActive*chemistrySh_;
 
             // Simplistic immersed boundary for heat transport in solid phase.
             fvScalarMatrix TLap
@@ -1361,6 +1363,13 @@ void volPyrolysis::calculateMassTransfer()
         lostSolidMass_ +=
             fvc::domainIntegrate(solidChemistry_->RRs()) * time_.deltaT();
     }
+}
+
+tmp<volScalarField> volPyrolysis::solidSourceActive() const
+{
+    // whereIs_ marks the bed (porosity < 1); the critPorosity_ test is the
+    // strength gate and, being the stricter threshold, subsumes it.
+    return whereIs_*pos(critPorosity_ - porosity_);
 }
 
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
