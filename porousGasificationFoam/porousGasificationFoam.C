@@ -126,6 +126,10 @@ int main(int argc, char *argv[])
 
         #include "rhoEqn.H"
 
+        // porosityF and rho both hold this step's values now; refresh the
+        // stand-in weight before EEqn.H/YEqn.H need it (see EEqn.H banner).
+        porosityRho = porosityF * rho;
+
         while (pimple.loop())
         {
             if (pimple.nCorrPIMPLE() > 0)

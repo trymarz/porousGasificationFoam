@@ -38,7 +38,7 @@ Srho = pyrolysisZone.Srho();
         fvm::ddt(porosityF, rho)
       + fvc::div(phi)
       ==
-        Srho * (1.0 - porosityF)
+        Srho
     );
 
     fvOptions.constrain(rhoEqn);
