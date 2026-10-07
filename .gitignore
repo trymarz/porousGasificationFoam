@@ -18,3 +18,7 @@ simulation_logs
 dtInfo.txt
 lambdaUsHistory.txt
 run.log
+
+/submodules/*-build/
+/submodules/*-install/
+/submodules/*-venv/

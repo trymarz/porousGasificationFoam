@@ -1,0 +1,3 @@
+[submodule "submodules/Foam-Yade"]
+	path = submodules/Foam-Yade
+	url = https://github.com/zhiwar-ep/Foam-Yade.git

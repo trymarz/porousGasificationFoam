@@ -194,6 +194,7 @@ check_foam_environment() {
 
 # --yade / --DEM only; the normal build never requires Foam-Yade.
 check_yade_environment() {
+  YADE_TRUNK="${YADE_TRUNK:-$PGF_ROOT/submodules/Foam-Yade}"
   if [ -z "$YADE_TRUNK" ]; then
     clog ERROR "YADE_TRUNK is not set, but a DEM/Yade build was requested."
     clog ERROR "Point it at the Foam-Yade source checkout, e.g."
@@ -381,7 +382,7 @@ source_fingerprint() {
   for dir in "${TARGET_DIRS[@]}"; do
     [ -d "$dir" ] || continue
     find "$dir" \( -name '*.C' -o -name '*.H' -o -name 'files' -o -name 'options' \) \
-        -type f -print0
+      -type f -print0
   done | LC_ALL=C sort -z | xargs -0 sha1sum 2>/dev/null | sha1sum | cut -d' ' -f1
 }
 
