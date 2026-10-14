@@ -31,7 +31,7 @@ Next: `tutorials/cases/gasifier` is a full reactive-flow demo. `./Allwclean` cle
 | Set up my own case (input files, initial fields, tips, utilities) | [doc/case-setup.md](doc/case-setup.md) |
 | Pick a tutorial to start from | [Tutorial cases](doc/case-setup.md#tutorial-cases) |
 | Fix an error | [doc/troubleshooting.md](doc/troubleshooting.md) |
-| Understand what the solver does each time step | [doc/solver-tour.md](doc/solver-tour.md) |
+| Understand the model: equations, per-step flow, where the code is | [doc/theory.md](doc/theory.md) |
 | Run or extend the regression tests | [doc/regression-testing.md](doc/regression-testing.md) |
 | Contribute (branches, PRs, doc rules) | [CONTRIBUTING.md](CONTRIBUTING.md) |
 | Browse the API | Doxygen — see [doc/build.md](doc/build.md#doxygen-documentation) |

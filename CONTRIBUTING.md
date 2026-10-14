@@ -57,12 +57,13 @@ Aim for terse and specific. The body becomes part of `main`'s history once squas
 
 Source code is the source of truth for physics, equations, units, and algorithm choices. Comments live next to the implementation they describe — OpenFOAM-style file banner with a `Description` block, `//-` briefs above function declarations, and `// ...` narrative inside function bodies for non-obvious steps.
 
-The [solver tour](doc/solver-tour.md) is a tour: it narrates the per-step flow and points into the code. It does **not** restate equations or implementation detail — those belong in the source file that implements them, where they cannot drift unnoticed during refactors.
+[doc/theory.md](doc/theory.md) summarises the model: per-step flow, a model → input → source table, and short-form equations. It does **not** restate implementation detail, which belongs in the source file where it cannot drift unnoticed during refactors. If theory.md and the code differ, the code wins.
 
 When you submit a PR:
 
 - **Behaviour change** → update the relevant code-comment block in the same commit.
-- **Loop structure or step ordering change** → update the per-step tour in `doc/solver-tour.md` too.
+- **Loop structure or step ordering change** → update the per-step flow in `doc/theory.md` too.
+- **Equation change** → update the short-form equation in `doc/theory.md` too.
 - **New documentation insight** → if it's about *what the code does*, write it as a code comment. If it's about *how to use* the solver or *how to navigate* the codebase, it belongs in the README or `doc/`.
 
-If you catch a solver-tour claim that's already in the code as a comment, replace it with a pointer in the same PR. The migration is opportunistic — no need to wait for a dedicated cleanup branch.
+If you catch a theory.md claim (beyond a short-form equation) that's already in the code as a comment, replace it with a pointer in the same PR. The migration is opportunistic — no need to wait for a dedicated cleanup branch.
