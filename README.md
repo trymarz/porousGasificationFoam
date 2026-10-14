@@ -13,25 +13,17 @@ Local thermal non-equilibrium · Compressible species transport · Generalized s
 
 [Quick start](#quick-start) · [Documentation](doc/README.md) · [Tutorials](doc/case-setup.md#tutorial-cases) · [Citation](#citation)
 
-**Gas phase**
+```text
+Gas phase
+  ∂(ε ρ_f)/∂t     + ∇·(ρ_f U)     = S_m,f
+  ∂(ε ρ_f U)/∂t   + ∇·(ρ_f U U)   = −∇p + S
+  ∂(ε ρ_f Y_i)/∂t + ∇·(ρ_f U Y_i) = S_Y,i
+  ∂(ε ρ_f h)/∂t   + ∇·(ρ_f U h)   = S_h,f
 
-$$
-\begin{aligned}
-\frac{\partial(\varepsilon\rho_f)}{\partial t} + \nabla\cdot(\rho_f \mathbf{U}) &= S_{m,f} \\
-\frac{\partial(\varepsilon\rho_f \mathbf{U})}{\partial t} + \nabla\cdot(\rho_f \mathbf{U}\mathbf{U}) &= -\nabla p + \mathbf{S} \\
-\frac{\partial(\varepsilon\rho_f Y_i)}{\partial t} + \nabla\cdot(\rho_f \mathbf{U} Y_i) &= S_{Y,i} \\
-\frac{\partial(\varepsilon\rho_f h)}{\partial t} + \nabla\cdot(\rho_f \mathbf{U} h) &= S_{h,f}
-\end{aligned}
-$$
-
-**Solid phase**
-
-$$
-\begin{aligned}
-\frac{\partial\left((1-\varepsilon)\rho_s\right)}{\partial t} &= S_{m,s} \\
-\frac{\partial\left((1-\varepsilon)\rho_s h_s\right)}{\partial t} &= S_{h,s}
-\end{aligned}
-$$
+Solid phase
+  ∂((1−ε) ρ_s)/∂t     = S_m,s
+  ∂((1−ε) ρ_s h_s)/∂t = S_h,s
+```
 
 </div>
 
