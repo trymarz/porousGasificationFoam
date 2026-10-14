@@ -1,6 +1,19 @@
+<div align="center">
+
 # porousGasificationFoam
 
 **Advanced multiphase solver for generalized thermochemical conversion in porous media**
+
+[![License: GPL v3](https://img.shields.io/badge/license-GPL%20v3-blue)](https://www.gnu.org/licenses/gpl-3.0)
+[![OpenFOAM](https://img.shields.io/badge/OpenFOAM-v2406-green)](https://www.openfoam.com)
+[![Paper](https://img.shields.io/badge/CPC-10.1016%2Fj.cpc.2022.108407-orange)](https://doi.org/10.1016/j.cpc.2022.108407)
+
+Arbitrary chemistry · Dynamic porosity and permeability · Interphase heat and mass exchange<br>
+Local thermal non-equilibrium · Compressible species transport · Generalized source terms
+
+[Quick start](#quick-start) · [Documentation](doc/README.md) · [Tutorials](doc/case-setup.md#tutorial-cases) · [Citation](#citation)
+
+</div>
 
 | | Gas | Solid |
 |---|---|---|
@@ -8,13 +21,6 @@
 | Momentum | ∂(ερ_f U)/∂t + ∇·(ρ_f UU) = −∇p + S | |
 | Species | ∂(ερ_f Y_i)/∂t + ∇·(ρ_f U Y_i) = S_Y,i | |
 | Energy | ∂(ερ_f h)/∂t + ∇·(ρ_f U h) = S_h,f | ∂((1−ε)ρ_s h_s)/∂t = S_h,s |
-
-- Arbitrary chemistry mechanisms
-- Dynamic porosity and permeability
-- Interphase heat and mass exchange
-- Local thermal non-equilibrium
-- Compressible species transport
-- Generalized source terms (S_Φ)
 
 *porousGasificationFoam* (PGF) is an OpenFOAM solver for **thermochemical conversion in porous media**. A solid phase, represented as a porosity field, is coupled to a gas flowing through the void space. Mass, momentum, and energy are exchanged through the porosity. All chemistry — gas-phase, heterogeneous (gas–solid), and solid decomposition — is defined per case. With no reactions defined, both phases stay inert. The solid can be stationary or move under gravity and other external forces, shrink, or disappear entirely as conversion proceeds.
 
