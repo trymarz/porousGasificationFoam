@@ -1,6 +1,6 @@
 #!/bin/sh
 # Native build entry point: wmake every non-DEM target in this checkout.
-# DEM/Yade coupling is opt-in — pass --yade (see README -> Build System).
+# DEM/Yade coupling is opt-in — pass --yade (see doc/build.md).
 cd "${0%/*}" || exit 1
 
 exec ./build.sh build --all --no-DEM "$@"
