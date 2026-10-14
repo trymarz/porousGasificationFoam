@@ -8,30 +8,30 @@ This file may lag the codebase. Before acting on any specific claim below, sanit
 
 Also flag if the *Last verified* date below predates significant recent commits in the affected area; in that case, propose a refresh rather than acting on stale guidance.
 
-*Last verified: 2026-09-10*
+*Last verified: 2026-10-14*
 
 ## Documentation split
 
-- **`README.md`** (root + any subordinate READMEs) — human-facing. Quick start, build, input file reference, physical-model walkthrough, tutorial guide, troubleshooting, contribution-relevant invariants and gotchas.
+- **`README.md`** (short front page), **`doc/*.md`** and **`CONTRIBUTING.md`** — human-facing. Quick start and doc index in the README; build, case setup, tutorials, troubleshooting, theory and regression testing in `doc/`; contribution workflow in `CONTRIBUTING.md`.
 - **`AGENTS.md`** (this file) — agent-operating instructions only.
 
-**Rule for new content**: if a fact is useful to *either* a human contributor *or* an agent, it goes in `README.md`. Only put content in `AGENTS.md` when it is 100% agent-targeted and would be noise for a human reader (e.g. "pass git identity per-invocation rather than touching global config", "verify before claiming"). When in doubt, choose `README.md` — false positives there are cheap; missing facts are not.
+**Rule for new content**: if a fact is useful to *either* a human contributor *or* an agent, it goes in `README.md` or `doc/` (whichever fits; the README stays short and links out). Only put content in `AGENTS.md` when it is 100% agent-targeted and would be noise for a human reader (e.g. "pass git identity per-invocation rather than touching global config", "verify before claiming"). When in doubt, choose `README.md` — false positives there are cheap; missing facts are not.
 
 For the current state of work in the repository — what's in flight, what's stable — use `git status`, `git log`, and `gh pr list` rather than expecting a written summary here. Per-contributor working state does not live in this file.
 
 ## Documentation source of truth
 
-Physics, equations, units, and algorithm choices belong in source-code comments — OpenFOAM-style `Description` block in the file banner, `//-` briefs above function declarations, `// ...` narrative inside the implementing function. README Part II is a *tour* that points into the code; it does **not** restate equations or implementation detail.
+Physics, equations, units, and algorithm choices belong in source-code comments — OpenFOAM-style `Description` block in the file banner, `//-` briefs above function declarations, `// ...` narrative inside the implementing function. `doc/theory.md` holds short-form summaries of the model equations and points into the code; the source stays authoritative, and if the two differ the code wins.
 
 In practice this means:
 
-- When a user asks to "document the physics" of a piece of code, write the comment in the source file (or expand an existing block). Update Part II only if the high-level flow changes.
+- When a user asks to "document the physics" of a piece of code, write the comment in the source file (or expand an existing block). Update `doc/theory.md` only if the high-level flow or a summarised equation changes.
 - When reading code to answer a physics question, quote the relevant comment block rather than re-deriving from the README. The code (and its comments) is authoritative.
-- If you see Part II restating something the code already comments on, replace it with a pointer to the source location — don't keep the duplication "just in case".
+- If `doc/theory.md` restates implementation detail beyond a short-form equation that the code already comments on, replace it with a pointer to the source location — don't keep the duplication "just in case".
 - The migration from README-as-source-of-truth to code-as-source-of-truth is opportunistic: add comments to files as you touch them on other work, not in dedicated cleanup PRs.
 - **A comment is at most 3 lines.** If a comment wants to be longer, that is evidence of a non-modular implementation, not of a documentation need — extract a named function or collaborator instead of writing more prose. Long banner-and-brief walls defeat their own purpose: readers skim past them. Applies to `//-` briefs and to narrative inside function bodies. A file-banner `Description` block is exempt from the 3-line cap — it is the one-time algorithm/design spec for the whole file — but is not a licence to restate what the briefs below it already say; if it does, trim the restated parts rather than counting lines.
 
-The full human-facing version of this rule is in README → Development Workflow → Documentation.
+The full human-facing version of this rule is in `CONTRIBUTING.md` → Documentation.
 
 ## Git / VCS rules
 
@@ -61,18 +61,18 @@ The full human-facing version of this rule is in README → Development Workflow
 - **Do not expand scope.** No incidental refactors, no "while I'm here" cleanups, no new abstractions for hypothetical future needs. Bug fixes do not need surrounding cleanup.
 - **Be explicit about what kind of verification you did.** This is a numerical solver: "type-checks and lints pass" is not the same as "the run produces correct results", and a successful build is not a successful regression. State what was actually exercised — not what the change *should* do, but what was observed.
 
-## Pointers into README
+## Pointers into the docs
 
-When you need a load-bearing fact, go to the README rather than re-deriving it from the code:
+When you need a load-bearing fact, go to `README.md` and `doc/` rather than re-deriving it from the code:
 
 | Need | Section |
 |---|---|
-| Per-time-step flow / which source file implements each step | "Part II — Physics and Implementation → Per-Time-Step Tour" (for equations and details, follow the tour's pointers into source comments — not the README) |
-| Branch naming, PR titles, PR body, doc-strategy rule | "Development Workflow" |
-| Per-case input dictionaries (`chemistryProperties`, `solidThermophysicalProperties`, `radiationProperties`, `pyrolysisProperties`, `lambdaDict`, `heatTransferProperties`, `specieTransferProperties`, `porosityProperties`) | "Input File Reference" |
-| DEM `lambdaDict` keys, and which side owns `lambdaDot` vs `lambda` | "Input File Reference → `constant/lambdaDict`" |
-| Required `0/` fields and their meaning | "Required Initial Fields" |
-| Practical pitfalls (true vs bulk density, JANAF substitution, radiation calibration, time-step coupling) | "Tips for Preparing New Simulations" |
-| Build targets and dependencies | "Build System" |
-| Common failure modes | "Troubleshooting" |
-| Regression framework — hook a case, capture a baseline, run comparisons | "Regression Testing" |
+| Per-time-step flow / which source file implements each step | `doc/theory.md` → "Per-time-step flow" (short-form equations; for details follow its pointers into source comments — the code wins) |
+| Branch naming, PR titles, PR body, doc-strategy rule | `CONTRIBUTING.md` |
+| Per-case input dictionaries (`chemistryProperties`, `solidThermophysicalProperties`, `radiationProperties`, `pyrolysisProperties`, `lambdaDict`, `heatTransferProperties`, `specieTransferProperties`, `porosityProperties`) | `doc/case-setup.md` → "Input File Reference" |
+| DEM `lambdaDict` keys, and which side owns `lambdaDot` vs `lambda` | `doc/case-setup.md` → "Input File Reference → `constant/lambdaDict`" |
+| Required `0/` fields and their meaning | `doc/case-setup.md` → "Required Initial Fields" |
+| Practical pitfalls (true vs bulk density, JANAF substitution, radiation calibration, time-step coupling) | `doc/case-setup.md` → "Tips for Preparing New Simulations" |
+| Build targets and dependencies | `doc/build.md` |
+| Common failure modes | `doc/troubleshooting.md` |
+| Regression framework — hook a case, capture a baseline, run comparisons | `doc/regression-testing.md` |
