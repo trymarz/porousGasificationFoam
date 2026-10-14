@@ -1,63 +1,67 @@
 # Building porousGasificationFoam
 
-## Build System
+Source OpenFOAM-v2406 (`etc/bashrc`) first. `wmake` runs in place in your checkout, which may live anywhere; `./Allwmake`, `./build.sh …` and `/abs/path/Allwmake` behave the same from any working directory.
 
-### Where things are built and where they land
+## Common builds
 
-porousGasificationFoam uses the ordinary OpenFOAM user-build layout. `wmake`
-runs **in place**, in the component directories of your checkout — the checkout
-may live anywhere, and nothing is copied into `$WM_PROJECT_USER_DIR`.
+```bash
+./Allwmake                        # normal build: libraries, solver, utilities, no DEM
+./Allwmake --yade                 # DEM build: adds the DEM library, solver gets WITH_YADE=1
+./Allwclean                       # clean build state (wclean-style, keeps installed binaries)
+./build.sh clean --all --purge    # blank slate; required before switching between the two builds
+```
+
+- **Normal build** — everything except DEM. This is what you want unless you couple to YADE.
+- **DEM build** — see [YADE DEM coupling](#yade-dem-coupling).
+- **Clean** — see [Cleaning](#cleaning). `./build.sh --help` lists every option.
+
+## Where things land
 
 | What | Where |
 |---|---|
-| Source | your checkout, wherever you cloned it |
-| `lnInclude/`, `Make/<WM_OPTIONS>/` | beside the source, inside the checkout (git-ignored) |
+| Source | your checkout |
+| `lnInclude/`, `Make/<WM_OPTIONS>/` | beside the source, in the checkout (git-ignored, never commit) |
 | Libraries | `$FOAM_USER_LIBBIN` |
 | Executables | `$FOAM_USER_APPBIN` |
 
-`$FOAM_USER_LIBBIN` is already on the runtime library path once you have sourced
-OpenFOAM's `etc/bashrc`, so no extra environment file has to be sourced before
-building or running. (Earlier releases shipped a `porousGasificationMediaDirectories`
-helper that mirrored the sources under `$WM_PROJECT_USER_DIR/applications` and
-exported `FOAM_HGS`. Both the file and the mirror are gone; if you still have an
-old mirror lying around, delete it — nothing consults it any more, and it can
-only confuse a header search.)
+Nothing is copied into `$WM_PROJECT_USER_DIR`. `$FOAM_USER_LIBBIN` is already on the runtime library path after sourcing `etc/bashrc`, so no extra environment file is needed to build or run.
 
-`build.sh` resolves its own location, so `./Allwmake`, `./build.sh …` and
-`/abs/path/to/checkout/Allwmake` all behave identically from any working
-directory.
+## YADE DEM coupling
 
-### Generated artifacts and cleaning
+`--yade` enables the `DEM` library target and compiles the solver with `WITH_YADE=1`, which switches on the `#ifdef WITH_YADE` coupling code. Without it the solver has no DEM support and Yade hangs waiting for MPI communication.
 
-A build writes `lnInclude/` and `Make/<WM_OPTIONS>/` next to each component's
-sources. Both are git-ignored; neither should ever be committed.
+It needs YADE installed with the OpenFOAM coupling module and `YADE_TRUNK` pointing at the Foam-Yade source checkout. `build.sh` checks both before compiling, so a missing prerequisite is an error rather than a linker failure, and an existing normal build is left untouched.
 
-`./Allwclean` (or `./build.sh clean …`) removes that generated state through
-`wclean`. Like `wclean`, it leaves the installed libraries and executables in
-place: `$FOAM_USER_LIBBIN` and `$FOAM_USER_APPBIN` are shared by every project
-built into this `$WM_PROJECT_USER_DIR`, so a clean in one checkout has no
-business reaching into them.
-
-When you do want a guaranteed blank slate — before switching build variants, or
-after a rebuild failed and you would rather have no solver than the previous
-one — add `--purge`:
+**Switching between normal and `--yade` needs a clean.** `wmake` recompiles by source timestamp and does not notice that `WITH_YADE` changed, so an in-place rebuild would link a mix of the two variants. `build.sh` records which variant built the current objects and refuses to build the other on top:
 
 ```bash
 ./build.sh clean --all --purge
+./build.sh build --yade           # or ./Allwmake for the normal build
 ```
 
-That additionally deletes the libraries and executables the cleaned targets
-declare in their own `Make/files`, and nothing else. Other libraries in
-`$FOAM_USER_LIBBIN`, including Foam-Yade's, are left alone.
+Use `--purge` here: it also removes the installed solver, so a rebuild that fails partway cannot leave the other variant's binary on your `PATH`. Only one variant can exist in `$FOAM_USER_APPBIN` at a time.
 
-One thing `wmake` will not do on its own is prune a symlink in `lnInclude/`
-whose source file you deleted or renamed; it is left dangling, so an include of
-it fails loudly rather than resolving to stale content. Run `./Allwclean` after
-renaming or deleting headers to clear it.
+## Cleaning
 
-### Build targets
+`./Allwclean` (or `./build.sh clean …`) removes `lnInclude/` and `Make/<WM_OPTIONS>/` through `wclean`. Like `wclean`, it leaves installed libraries and executables alone: `$FOAM_USER_LIBBIN` and `$FOAM_USER_APPBIN` are shared by every project built into this `$WM_PROJECT_USER_DIR`.
 
-| Target | Type | Dependency |
+`--purge` additionally deletes the libraries and executables the cleaned targets declare in their own `Make/files`, and nothing else; other libraries there, including Foam-Yade's, stay. Use it before switching build variants, or when you would rather have no solver than the previous one after a failed rebuild.
+
+`wmake` does not prune a symlink in `lnInclude/` whose source you deleted or renamed. It dangles, so an include of it fails loudly instead of picking up stale content. Run `./Allwclean` after renaming or deleting headers.
+
+## Fine-grained control with `build.sh`
+
+`build.sh [build|clean]` acts on all active targets, which you switch on or off with flags; later flags override earlier ones.
+
+```bash
+./build.sh build --apps-only      # apps on, libs off
+./build.sh clean --reset-all --radiationModels   # all off, then radiationModels on: clean only that
+./build.sh build --all --no-DEM   # everything except DEM (this is ./Allwmake)
+```
+
+`./Allwmake` is `./build.sh build --all --no-DEM` and `./Allwclean` is `./build.sh clean --all` (which cleans DEM too); both forward extra arguments.
+
+| Target | Type | Depends on |
 |---|---|---|
 | DEM (`--yade` only) | library | Foam-Yade coupling libs |
 | fieldPorosityModel | library | — |
@@ -67,70 +71,11 @@ renaming or deleting headers to clear it.
 | porousGasificationFoam | executable | all libraries |
 | utilities | executable suite | — |
 
-### Fine-grained control with build.sh
-
-The `build.sh` script operates in two modes: `build` or `clean`. For the selected mode it builds or cleans all active targets. Targets are switched on or off via CLI flags.
-
-Examples:
-
-```bash
-./build.sh build --apps-only # set app targets to 1 and libs to 0, build targets with 1 set
-./build.sh clean --reset-all --radiationModels # set all targets to 0; set radiationModels to 1, clean only radiationModels (later flags overwrite previous ones)
-./build.sh build --all --no-DEM # skip DEM, build all the rest
-
-# Aliases
-./Allwmake  → ./build.sh build --all --no-DEM   # normal build: no DEM/Yade
-./Allwclean → ./build.sh clean --all            # cleans DEM too
-```
-
-Add `--purge` to a clean to also delete the installed libraries and
-executables; without it, cleaning matches `wclean` and touches build state only.
-
-Both wrappers forward any extra arguments, so `./Allwmake --yade` is the
-DEM-enabled build.
-
-Run `build.sh --help` for all options.
-
-### YADE DEM coupling
-
-```bash
-./build.sh build --yade
-```
-
-`--yade` enables the `DEM` library target and compiles the solver with `WITH_YADE=1`, which activates the `#ifdef WITH_YADE` DEM coupling blocks. Without this flag the solver is built without DEM support and Yade will hang waiting for MPI communication.
-
-Requires YADE installed with the OpenFOAM coupling module, with `YADE_TRUNK`
-pointing at the Foam-Yade source checkout. `build.sh` checks both before it
-compiles anything, so a missing prerequisite is reported as an error instead of
-a linker failure — and an existing normal build is left untouched.
-
-**Switching between the normal and `--yade` builds requires a clean.** `wmake`
-decides what to recompile from source timestamps; it does not know that
-`WITH_YADE` changed, so an in-place rebuild after a mode switch would relink a
-mix of the two variants. `build.sh` records which variant produced the objects
-currently in the tree and refuses to build the other one on top of them:
-
-```bash
-./build.sh clean --all --purge   # then
-./build.sh build --yade          # (or ./Allwmake for the normal build)
-```
-
-`--purge` is the right choice here specifically: it drops the installed solver
-too, so a rebuild that fails partway cannot leave the *other* variant's binary
-on your `PATH`.
-
-Only one variant can exist in a given `$FOAM_USER_APPBIN` at a time; the two are
-not built side by side.
-
-### Doxygen documentation
+## Doxygen documentation
 
 ```bash
 cd doc/Doxygen
 ./Allwmake
 ```
 
-Output: `$WM_PROJECT_DIR/doc/Doxygen/html/index.html`. Requires `doxygen` and `graphviz`.
-
-The wrapper derives the source root from its own location, so it may also be run
-by absolute path from anywhere; set `POROUS_DOC_SRC` explicitly only if you want
-to document a different tree.
+Output: `$WM_PROJECT_DIR/doc/Doxygen/html/index.html`. Needs `doxygen` and `graphviz`. The wrapper finds the source root from its own location, so it can be run by absolute path from anywhere; set `POROUS_DOC_SRC` only to document a different tree.
