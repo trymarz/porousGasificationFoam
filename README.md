@@ -1,12 +1,43 @@
+```text
+/*---------------------------------------------------------------------------*\
+  =========                 |
+  \\      /  F ield         | porousGasificationFoam
+   \\    /   O peration     | 
+    \\  /    A nd           | Advanced multiphase solver for generalized
+     \\/     M anipulation  | thermochemical conversion in porous media
+-------------------------------------------------------------------------------
+ 
+  [Mass]   ∂(ερ_f)/∂t + ∇·(ρ_f U) = S_m,f|  [S-Mass] ∂((1-ε)ρ_s)/∂t = S_m,s
+  [Mom.]   ∂(ερ_f U)/∂t+∇·(ρ_f UU)=-∇p+S |  [Spec.]  ∂(ερ_f Y_i)/∂t+∇·=S_Y,i
+  [Energy] ∂(ερ_f h)/∂t+∇·(ρ_f Uh)=S_h,f |  [S-Egy]  ∂((1-ε)ρ_s h_s)/∂t=S_h,s
+ 
+-------------------------------------------------------------------------------
+   ► Arbitrary Chemistry Mechanisms      ► Local Thermal Non-Equilibrium
+   ► Dynamic Porosity & Permeability     ► Compressible Species Transport
+   ► Interphase Heat & Mass Exchange     ► Generalized Source Terms (S_Φ)
+\*---------------------------------------------------------------------------*/
+```
+
 # porousGasificationFoam
 
-**An OpenFOAM solver for thermochemical conversion in porous media** — a reacting solid (a porosity field) exchanging mass, momentum and energy with a gas flowing through its pores. Used for biomass pyrolysis, gasification and combustion, wood fires, waste incineration, coffee roasting, peat smouldering and metal-foam manufacturing.
+*porousGasificationFoam* (PGF) is an OpenFOAM solver for **thermochemical conversion in porous media**. A solid phase, represented as a porosity field, is coupled to a gas flowing through the void space. Mass, momentum, and energy are exchanged through the porosity. All chemistry — gas-phase, heterogeneous (gas–solid), and solid decomposition — is defined per case. With no reactions defined, both phases stay inert. The solid can be stationary or move under gravity and other external forces, shrink, or disappear entirely as conversion proceeds.
 
-- **Chemistry and geometry are yours.** Gas-phase, gas–solid and solid-decomposition reactions, material properties, initial porosity and kinetics are all per-case inputs; with no reactions defined, both phases stay inert.
-- **The solid can move.** It can sit still, fall under gravity and other forces, shrink, or disappear as conversion proceeds.
-- **Optional DEM coupling.** [YADE](https://yade-dem.org) can supply the solid velocity field (`--yade` build).
+The continuum transport equations are solved with the Finite Volume Method (OpenFOAM). An optional coupling to a Discrete Element Method solver YADE provides PGF with a velocity field for the solid momentum equation. Solid material properties, initial distribution of porosity throughout a domain, reaction kinetics, and many other parameters — all these are user inputs — the solver is geometry- and chemistry-agnostic.
 
-Target: **OpenFOAM-v2406** · License: **GPL v3** · Earlier versions for [OpenFOAM 8](https://github.com/btuznik/porousGasificationFoam) and foam-extend 4.1 are no longer maintained.
+Example application areas:
+
+- Biomass pyrolysis, gasification, and combustion (the solver's origin)
+- Wood fires and waste incineration
+- Coffee bean roasting
+- Peat smouldering
+- Metal-foam manufacturing
+
+…and other processes that share a reactive or transforming porous solid exchanging mass and heat with a gas. The name *porousGasificationFoam* reflects the solver's origins in biomass-to-syngas gasification (feedstock + air/O₂/steam/CO₂ → H₂/CO), not a limit on what it can model.
+
+- **License**: GNU GPL v3
+- **Target**: OpenFOAM-v2406
+- **Optional**: DEM coupling via YADE (`WITH_YADE=1` at build time)
+- Earlier versions for [OpenFOAM 8](https://github.com/btuznik/porousGasificationFoam) and foam-extend 4.1 exist but are no longer actively maintained.
 
 ## Quick start
 
