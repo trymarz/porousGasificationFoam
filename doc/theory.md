@@ -60,7 +60,7 @@ The loop is `porousGasificationFoam/porousGasificationFoam.C`; each step is an `
 ∂(ε ρ Yᵢ)/∂t + ∇·(φ Yᵢ) − ∇·(μ_eff ∇Yᵢ) = R_hom,ᵢ + S_ρ,ᵢ
 ```
 
-The continuity source carries `(1 − ε)`; the species source does not.
+The continuity source carries `(1 − ε)`; the species source does not (known discrepancy, [#114](https://github.com/trymarz/porousGasificationFoam/issues/114)).
 
 **Gas momentum** (`UEqn.H` with `fieldPorosityModel`; paper 2d)
 
