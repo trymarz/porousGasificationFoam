@@ -1,26 +1,27 @@
 # porousGasificationFoam
 
-**An OpenFOAM solver for thermochemical conversion in porous media** — a reacting solid (a porosity field) exchanging mass, momentum and energy with a gas flowing through its pores.
+**An OpenFOAM solver for thermochemical conversion in porous media** — a reacting solid (a porosity field) exchanging mass, momentum and energy with a gas flowing through its pores. Used for biomass pyrolysis, gasification and combustion, wood fires, waste incineration, coffee roasting, peat smouldering and metal-foam manufacturing.
 
-- **Chemistry is yours.** Gas-phase, gas–solid and solid-decomposition reactions are all defined per case; with none defined, both phases stay inert.
+- **Chemistry and geometry are yours.** Gas-phase, gas–solid and solid-decomposition reactions, material properties, initial porosity and kinetics are all per-case inputs; with no reactions defined, both phases stay inert.
 - **The solid can move.** It can sit still, fall under gravity and other forces, shrink, or disappear as conversion proceeds.
-- **Geometry- and chemistry-agnostic.** Material properties, initial porosity, kinetics and the rest are user inputs.
 - **Optional DEM coupling.** [YADE](https://yade-dem.org) can supply the solid velocity field (`--yade` build).
-
-Used for biomass pyrolysis, gasification and combustion (where it started), wood fires and waste incineration, coffee roasting, peat smouldering, metal-foam manufacturing — any reactive porous solid exchanging heat and mass with a gas.
 
 Target: **OpenFOAM-v2406** · License: **GPL v3** · Earlier versions for [OpenFOAM 8](https://github.com/btuznik/porousGasificationFoam) and foam-extend 4.1 are no longer maintained.
 
 ## Quick start
 
+You need OpenFOAM-v2406 (installed and sourceable), a C++ compiler and `wmake` (both come with OpenFOAM).
+
 ```bash
 source /path/to/OpenFOAM-v2406/etc/bashrc   # 1. OpenFOAM environment
 ./Allwmake                                  # 2. build libraries, solver, utilities
-cd tutorials/cases/charOnlyMoveCases/serial # 3. run a small serial case
-./Allrun
+cd tutorials/cases/charOnlyMoveCases/serial # 3. a small serial case
+./Allrun                                    #    copies 0.orig to 0, runs blockMesh and
+                                            #    setFields, then the solver (output stays
+                                            #    in the case directory)
 ```
 
-Next: `tutorials/cases/gasifier` is a full reactive-flow demo. `./Allwclean` cleans the build. Build options, DEM (`--yade`) builds and clean/purge rules are in [doc/build.md](doc/build.md).
+Next: `tutorials/cases/gasifier` is a full reactive-flow demo. `./Allwclean` cleans the build. Build options, DEM (`--yade`) builds and clean/purge rules are in [doc/build.md](doc/build.md). To run your own case, start from [doc/case-setup.md](doc/case-setup.md).
 
 ## Documentation
 
