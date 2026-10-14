@@ -13,14 +13,27 @@ Local thermal non-equilibrium · Compressible species transport · Generalized s
 
 [Quick start](#quick-start) · [Documentation](doc/README.md) · [Tutorials](doc/case-setup.md#tutorial-cases) · [Citation](#citation)
 
-</div>
+**Gas phase**
 
-| | Gas | Solid |
-|---|---|---|
-| Mass | ∂(ερ_f)/∂t + ∇·(ρ_f U) = S_m,f | ∂((1−ε)ρ_s)/∂t = S_m,s |
-| Momentum | ∂(ερ_f U)/∂t + ∇·(ρ_f UU) = −∇p + S | |
-| Species | ∂(ερ_f Y_i)/∂t + ∇·(ρ_f U Y_i) = S_Y,i | |
-| Energy | ∂(ερ_f h)/∂t + ∇·(ρ_f U h) = S_h,f | ∂((1−ε)ρ_s h_s)/∂t = S_h,s |
+$$
+\begin{aligned}
+\frac{\partial(\varepsilon\rho_f)}{\partial t} + \nabla\cdot(\rho_f \mathbf{U}) &= S_{m,f} \\
+\frac{\partial(\varepsilon\rho_f \mathbf{U})}{\partial t} + \nabla\cdot(\rho_f \mathbf{U}\mathbf{U}) &= -\nabla p + \mathbf{S} \\
+\frac{\partial(\varepsilon\rho_f Y_i)}{\partial t} + \nabla\cdot(\rho_f \mathbf{U} Y_i) &= S_{Y,i} \\
+\frac{\partial(\varepsilon\rho_f h)}{\partial t} + \nabla\cdot(\rho_f \mathbf{U} h) &= S_{h,f}
+\end{aligned}
+$$
+
+**Solid phase**
+
+$$
+\begin{aligned}
+\frac{\partial\left((1-\varepsilon)\rho_s\right)}{\partial t} &= S_{m,s} \\
+\frac{\partial\left((1-\varepsilon)\rho_s h_s\right)}{\partial t} &= S_{h,s}
+\end{aligned}
+$$
+
+</div>
 
 *porousGasificationFoam* (PGF) is an OpenFOAM solver for **thermochemical conversion in porous media**. A solid phase, represented as a porosity field, is coupled to a gas flowing through the void space. Mass, momentum, and energy are exchanged through the porosity. All chemistry — gas-phase, heterogeneous (gas–solid), and solid decomposition — is defined per case. With no reactions defined, both phases stay inert. The solid can be stationary or move under gravity and other external forces, shrink, or disappear entirely as conversion proceeds.
 
