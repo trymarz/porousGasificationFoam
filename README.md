@@ -1,24 +1,20 @@
-```text
-/*---------------------------------------------------------------------------*\
-  =========                 |
-  \\      /  F ield         | porousGasificationFoam
-   \\    /   O peration     | 
-    \\  /    A nd           | Advanced multiphase solver for generalized
-     \\/     M anipulation  | thermochemical conversion in porous media
--------------------------------------------------------------------------------
- 
-  [Mass]   ∂(ερ_f)/∂t + ∇·(ρ_f U) = S_m,f|  [S-Mass] ∂((1-ε)ρ_s)/∂t = S_m,s
-  [Mom.]   ∂(ερ_f U)/∂t+∇·(ρ_f UU)=-∇p+S |  [Spec.]  ∂(ερ_f Y_i)/∂t+∇·=S_Y,i
-  [Energy] ∂(ερ_f h)/∂t+∇·(ρ_f Uh)=S_h,f |  [S-Egy]  ∂((1-ε)ρ_s h_s)/∂t=S_h,s
- 
--------------------------------------------------------------------------------
-   ► Arbitrary Chemistry Mechanisms      ► Local Thermal Non-Equilibrium
-   ► Dynamic Porosity & Permeability     ► Compressible Species Transport
-   ► Interphase Heat & Mass Exchange     ► Generalized Source Terms (S_Φ)
-\*---------------------------------------------------------------------------*/
-```
-
 # porousGasificationFoam
+
+**Advanced multiphase solver for generalized thermochemical conversion in porous media**
+
+| | Gas | Solid |
+|---|---|---|
+| Mass | ∂(ερ_f)/∂t + ∇·(ρ_f U) = S_m,f | ∂((1−ε)ρ_s)/∂t = S_m,s |
+| Momentum | ∂(ερ_f U)/∂t + ∇·(ρ_f UU) = −∇p + S | |
+| Species | ∂(ερ_f Y_i)/∂t + ∇·(ρ_f U Y_i) = S_Y,i | |
+| Energy | ∂(ερ_f h)/∂t + ∇·(ρ_f U h) = S_h,f | ∂((1−ε)ρ_s h_s)/∂t = S_h,s |
+
+- Arbitrary chemistry mechanisms
+- Dynamic porosity and permeability
+- Interphase heat and mass exchange
+- Local thermal non-equilibrium
+- Compressible species transport
+- Generalized source terms (S_Φ)
 
 *porousGasificationFoam* (PGF) is an OpenFOAM solver for **thermochemical conversion in porous media**. A solid phase, represented as a porosity field, is coupled to a gas flowing through the void space. Mass, momentum, and energy are exchanged through the porosity. All chemistry — gas-phase, heterogeneous (gas–solid), and solid decomposition — is defined per case. With no reactions defined, both phases stay inert. The solid can be stationary or move under gravity and other external forces, shrink, or disappear entirely as conversion proceeds.
 
@@ -34,10 +30,7 @@ Example application areas:
 
 …and other processes that share a reactive or transforming porous solid exchanging mass and heat with a gas. The name *porousGasificationFoam* reflects the solver's origins in biomass-to-syngas gasification (feedstock + air/O₂/steam/CO₂ → H₂/CO), not a limit on what it can model.
 
-- **License**: GNU GPL v3
-- **Target**: OpenFOAM-v2406
-- **Optional**: DEM coupling via YADE (`WITH_YADE=1` at build time)
-- Earlier versions for [OpenFOAM 8](https://github.com/btuznik/porousGasificationFoam) and foam-extend 4.1 exist but are no longer actively maintained.
+Target: **OpenFOAM-v2406** · License: **GPL v3** · Earlier versions for [OpenFOAM 8](https://github.com/btuznik/porousGasificationFoam) and foam-extend 4.1 are no longer maintained.
 
 ## Quick start
 
