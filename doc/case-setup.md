@@ -1,4 +1,43 @@
-# Setting up a case
+# Setting up your own case
+
+A PGF case is a normal OpenFOAM case plus extra files for the solid and its chemistry. This page covers only those.
+
+## Your first case
+
+Start from `tutorials/cases/canonical/pyrolysis`: one solid (`wood`), one reaction (`wood = targas`), a 1-D mesh, about a second to run.
+
+1. **Copy it:** `cp -r tutorials/cases/canonical/pyrolysis myCase`. `./Allrun` restores `0/` from `0.orig/`, runs `blockMesh`, then the solver. `reference/` and `system/regressionFunctions` are for the regression tests and can go.
+2. **Mesh and fields:** edit `system/blockMeshDict` and `0.orig/` ([required fields](#required-initial-fields)). Values here are uniform; for a partial bed use `setFields` ([how](#biomass-distribution-initial-porosityf)).
+3. **Solid:** list components in `constant/solidThermophysicalProperties`, with true (not bulk) density ([why](#solid-thermophysical-properties-true-density-not-bulk)). Each needs a `Y<name>` field.
+4. **Chemistry:** set gas `species` and `solidReactions` in `constant/chemistryProperties` ([reference](#constantchemistryproperties)). No reactions means both phases stay inert.
+5. **Gas species:** each needs a field in `0.orig/` and an entry in `constant/thermo.compressibleGas` ([no JANAF data?](#gas-species-without-janaf-data)).
+6. **Run:** `./Allrun`, then check `log.porousGasificationFoam`. If it is slow, see [time-step coupling](#time-step-coupling-between-gas-and-solid-chemistry).
+
+Other tutorials: [Tutorial Cases](#tutorial-cases). File details: [Input File Reference](#input-file-reference).
+
+## Required Initial Fields
+
+| Field | Type | Description |
+|---|---|---|
+| `p` | volScalarField | Pressure [Pa] |
+| `U` | volVectorField | Velocity [m/s] |
+| `T` | volScalarField | Gas temperature [K] |
+| `Ts` | volScalarField | Solid temperature [K] |
+| `rhos` | volScalarField | Solid density [kg/m³] |
+| `porosityF` | volScalarField | Porosity (0 = solid, 1 = gas) |
+| `porosityF0` | volScalarField | Initial porosity (archival copy) |
+| `Df` | volTensorField | Darcy resistance tensor |
+| `anisotropyK` | volTensorField | Optional, READ_IF_PRESENT. Anisotropic multiplier for the solid thermal conductivity used in the solid energy equation (`K_eff = K · (1−φ) · anisotropyK`). Defaults to the unit tensor if the file is absent. |
+| `<gasName>` (e.g. `O2`, `N2`, `CO`) | volScalarField | Gas species mass fractions |
+| `Y<solidName>` (e.g. `Ywood`, `Yash`) | volScalarField | Solid species mass fractions |
+| `Ydefault` | volScalarField | Default field for unmatched gas species (set to 0) |
+| `YsDefault` | volScalarField | Default field for unmatched solid species (set to 0) |
+
+**Notes:**
+
+- `Df` is a tensor field. For isotropic porous media, use a diagonal tensor with large values (e.g. `1e9`) in gas-only regions and smaller values (based on permeability) in porous zones. Use the `setPorosity` utility to create appropriate fields.
+- Solid species field names: `Y` + component name from `solidThermophysicalProperties` (e.g. `wood` → `Ywood`).
+- Gas species field names match the `species` list in `chemistryProperties`.
 
 ## Tutorial Cases
 
@@ -253,30 +292,6 @@ adjustTimeStep  yes;
 maxCo           5;          // Courant number limit (fluid)
 maxDi           5000;       // Diffusion number limit (solid)
 ```
-
-## Required Initial Fields
-
-| Field | Type | Description |
-|---|---|---|
-| `p` | volScalarField | Pressure [Pa] |
-| `U` | volVectorField | Velocity [m/s] |
-| `T` | volScalarField | Gas temperature [K] |
-| `Ts` | volScalarField | Solid temperature [K] |
-| `rhos` | volScalarField | Solid density [kg/m³] |
-| `porosityF` | volScalarField | Porosity (0 = solid, 1 = gas) |
-| `porosityF0` | volScalarField | Initial porosity (archival copy) |
-| `Df` | volTensorField | Darcy resistance tensor |
-| `anisotropyK` | volTensorField | Optional, READ_IF_PRESENT. Anisotropic multiplier for the solid thermal conductivity used in the solid energy equation (`K_eff = K · (1−φ) · anisotropyK`). Defaults to the unit tensor if the file is absent. |
-| `<gasName>` (e.g. `O2`, `N2`, `CO`) | volScalarField | Gas species mass fractions |
-| `Y<solidName>` (e.g. `Ywood`, `Yash`) | volScalarField | Solid species mass fractions |
-| `Ydefault` | volScalarField | Default field for unmatched gas species (set to 0) |
-| `YsDefault` | volScalarField | Default field for unmatched solid species (set to 0) |
-
-**Notes:**
-
-- `Df` is a tensor field. For isotropic porous media, use a diagonal tensor with large values (e.g. `1e9`) in gas-only regions and smaller values (based on permeability) in porous zones. Use the `setPorosity` utility to create appropriate fields.
-- Solid species field names: `Y` + component name from `solidThermophysicalProperties` (e.g. `wood` → `Ywood`).
-- Gas species field names match the `species` list in `chemistryProperties`.
 
 ## Tips for Preparing New Simulations
 
