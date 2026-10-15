@@ -19,25 +19,8 @@ thermoType solidMixtureThermo<constHeterogeneous>;
 
 solidComponents
 (
-    wood char1 char hum 
+    wood char1 char
 );
-
-humCoeffs
-{
-    transport
-    {
-	    K           0.58;
-    }
-    thermodynamics
-    {
-        Cp          4200;
-        Hf         -15.86e6;
-    }
-    density
-    {
-        rho         1000;
-    }
-};
 
 char1Coeffs
 {

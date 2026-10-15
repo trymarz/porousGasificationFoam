@@ -19,25 +19,8 @@ thermoType solidMixtureThermo<constHeterogeneous>;
 
 solidComponents
 (
-    char ash rubberwood hum
+    char ash rubberwood
 );
-
-humCoeffs
-{
-    transport
-    {
-	    K           0.58;
-    }
-    thermodynamics
-    {
-        Cp          4200;
-        Hf         -15.86e6;
-    }
-    density
-    {
-        rho         1000;
-    }
-};
 
 charCoeffs
 {

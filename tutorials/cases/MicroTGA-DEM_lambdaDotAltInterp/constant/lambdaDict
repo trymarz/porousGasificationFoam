@@ -19,8 +19,8 @@ lambdaMode exactDifferential;
 dlambdaOverDTs 0.0;
 
 // Per-specie form (Chemistry uses the uniform-scalar form). solidComponents
-// here are wood, char1, char, hum -- only wood/char1 get a nonzero
-// coefficient, so char/hum read the 0.0 default. wood is the dominant
+// here are wood, char1, char -- only wood/char1 get a nonzero
+// coefficient, so char reads the 0.0 default. wood is the dominant
 // reactant (sRhoSi < 0, drives the asserted negative sign); char1 is a
 // transient intermediate; char (sRhoSi > 0) is deliberately left out so its
 // positive contribution isn't netted against wood's, unlike Chemistry.
