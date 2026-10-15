@@ -39,8 +39,10 @@ SourceFiles
 #include "HGSSolidThermo.H"
 #include "porousThermoSolidChemistryModel.H"
 #include "surfaceFields.H"
+#include "FIFOStack.H"
 #include "solidFluxLimiter.H"
 #include "solidStateChecker.H"
+#include "volPyrolysisDiagnostics.H"
 
 #ifdef WITH_YADE
     // liblambdaDotModel links YADE, so it is referenced only here.
@@ -92,6 +94,42 @@ private:
             const volScalarField& por,
             const surfaceScalarField& phiUs
         ) const;
+
+        //- Sum of the solid mass concentrations, sum_i Ym_i [kg/m3]
+        tmp<volScalarField> totalSolidMass() const;
+
+        // Stages of recoverPorosity(), in call order
+
+            //- Write porosity_ = 1 - totalYm/rho_ (internal field), guard it
+            //  and log the range
+            void porosityFromSolidMass(const volScalarField& totalYm);
+
+            //- Cells above critPorosity_ that may flip to porosity 1, minus
+            //  those still receiving solid. Pushes the local cells onto
+            //  flipStack; returns the global (reduced) flip count.
+            label selectFlipCells
+            (
+                const volScalarField& totalYm,
+                FIFOStack<label>& flipStack
+            ) const;
+
+            //- Set whereIs_/whereIsNot_ from porosity_ (internal field)
+            void updateSolidMasks();
+
+            //- Bed collapse: walk each flip cell's upward route and shift
+            //  the solid down it, across processors. bedCollapse only.
+            void collapseBed(const List<Field<label>>& procFlipList);
+
+            //- Empty the local flip cells, charging the mass destroyed.
+            //  emptyFlippedCells only.
+            void emptyFlipCells
+            (
+                const FIFOStack<label>& flipStack,
+                const label nFlips
+            );
+
+            //- Mark solid cells on the solid/void interface in surfF_
+            void markSurfaceCells();
 
 
 protected:
@@ -169,7 +207,7 @@ protected:
 
     //- Switch for emptying a flipped cell rather than leaving its solid
     //  A flip candidate: above critPorosity_ with Us pointing inward. Set,
-    //  it is emptied for real; mass destroyed, charged to cumulativeFlipMass_.
+    //  it is emptied for real; mass destroyed, charged to diagnostics_.
     Switch emptyFlippedCells_;
 
     //- Switch for taking a nearly-empty cell's solid temperature from the gas
@@ -278,45 +316,12 @@ protected:
 
     // Checks
 
-        //- Cumulative lost mass of the condensed phase [kg]
-        dimensionedScalar lostSolidMass_;
-
-        //- Cumulative mass generation of the gas phase [kg]
-        dimensionedScalar addedGasMass_;
-
-        //- Total mass gas flux at the pyrolysing walls [kg/s]
-        dimensionedScalar totalGasMassFlux_;
-
-        //- Total heat release rate [J/s]
-        dimensionedScalar totalHeatRR_;
+        //- Diagnostic accounting: mass/heat counters and the solid mass
+        //  budget. Bookkeeping only; nothing here feeds back into the solve.
+        VolPyrolysisDiagnostics diagnostics_;
 
         //- scalar chemistryTime
         scalar timeChem_;
-
-        //- Total Ym mass integral at construction, for the conservation
-        //  diagnostic [kg]. On restart this holds the restart inventory,
-        //  so conservation is checked from the restart onward.
-        scalar initialTotalYmMass_;
-
-        //- Cumulative solid mass advected out through boundaries [kg]
-        //  Credited in the conservation diagnostic so the budget stays
-        //  checkable in domains with an open outlet.
-        scalar cumulativeYmOutflow_;
-
-        //- Cumulative mass created by the max(0) clip on Ym [kg]
-        //  Reported with the mass budget, so the budget cannot look closed
-        //  while the clip is quietly paying for it.
-        scalar cumulativeYmClip_;
-
-        //- Cumulative solid mass destroyed by emptying flipped cells [kg]
-        //  Nonzero only under emptyFlippedCells_; reported with the mass
-        //  budget so it isn't hidden in a conserved-looking total.
-        scalar cumulativeFlipMass_;
-
-        //- Cumulative solid mass shed at the foot of a bed-motion route [kg]
-        //  Nonzero only under collapseMovesSolidMass_. A route spanning
-        //  processors can also create mass not charged here - see recoverPorosity().
-        scalar cumulativeCollapseMass_;
 
 
     // Protected member functions
