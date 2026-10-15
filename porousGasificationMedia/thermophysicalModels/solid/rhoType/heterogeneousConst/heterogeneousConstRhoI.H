@@ -29,10 +29,12 @@ License
 
 inline Foam::heterogeneousConstRho::heterogeneousConstRho
 (
-    scalar rho
+    scalar rho,
+    scalar rhoApparent
 )
 :
-    rho_(rho)
+    rho_(rho),
+    rhoApparent_(rhoApparent)
 {}
 
 
@@ -40,7 +42,8 @@ inline Foam::heterogeneousConstRho::heterogeneousConstRho
 
 inline Foam::heterogeneousConstRho::heterogeneousConstRho(const heterogeneousConstRho& pg)
 :
-    rho_(pg.rho_)
+    rho_(pg.rho_),
+    rhoApparent_(pg.rhoApparent_)
 {}
 
 
@@ -61,6 +64,12 @@ inline Foam::autoPtr<Foam::heterogeneousConstRho> Foam::heterogeneousConstRho::N
 inline Foam::scalar Foam::heterogeneousConstRho::rho(scalar) const
 {
     return rho_;
+}
+
+
+inline Foam::scalar Foam::heterogeneousConstRho::rhoApparent() const
+{
+    return rhoApparent_;
 }
 
 

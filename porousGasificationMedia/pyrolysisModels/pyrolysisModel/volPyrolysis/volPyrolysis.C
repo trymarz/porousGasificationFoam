@@ -910,6 +910,7 @@ void volPyrolysis::solveSpeciesMass()
                 lamDotCalc_->calculateChemistryDriven
                 (
                     sRhoSi,
+                    Ym_i,
                     solidThermo_.composition().components()[i]
                 );
             }
@@ -978,6 +979,7 @@ void volPyrolysis::solveSpeciesMass()
 #ifdef WITH_YADE
         if (demActive_)
         {
+            lamDotCalc_->endStep();
             lambdaDotPtr_->correctBoundaryConditions();
         }
 #endif
@@ -1931,6 +1933,20 @@ volPyrolysis::volPyrolysis
             (
                 lambdaDict, mesh_, *lambdaDotPtr_
             );
+
+            // lam3 = 1/rhoApparent, a per-specie constant; only apparentVolume
+            // uses it.
+            const basicSolidMixture& mixture = solidThermo_.composition();
+            wordList specieNames(Ys_.size());
+            scalarList lam3(Ys_.size());
+
+            forAll(lam3, i)
+            {
+                specieNames[i] = mixture.components()[i];
+                lam3[i] = 1.0/mixture.rhoApparent(i);
+            }
+
+            lamDotCalc_->setApparentSpecificVolumes(specieNames, lam3);
 #endif
         }
         else if (demRequested)

@@ -29,8 +29,30 @@ License
 
 Foam::constRho::constRho(const dictionary& dict)
 :
-    rho_(readScalar(dict.subDict("density").lookup("rho")))
-{}
+    rho_(readScalar(dict.subDict("density").lookup("rho"))),
+    rhoApparent_(0)
+{
+    // Required, no fallback: a silent default would hide a wrong particle
+    // volume. density.name() carries the file and the <specie>Coeffs path.
+    const dictionary& density = dict.subDict("density");
+
+    if (!density.found("rhoApparent"))
+    {
+        FatalIOErrorInFunction(density)
+            << "Missing required entry 'rhoApparent' [kg/m^3], the apparent "
+            << "(envelope) density, next to the skeletal 'rho'."
+            << exit(FatalIOError);
+    }
+
+    rhoApparent_ = density.get<scalar>("rhoApparent");
+
+    if (rhoApparent_ <= 0)
+    {
+        FatalIOErrorInFunction(density)
+            << "'rhoApparent' must be positive, got " << rhoApparent_
+            << exit(FatalIOError);
+    }
+}
 
 
 // * * * * * * * * * * * * * * * Ostream Operator  * * * * * * * * * * * * * //

@@ -113,6 +113,9 @@ public:
         //- Density
         virtual scalar rho(scalar T, label celli) const = 0;
 
+        //- Apparent (envelope) density [kg/m^3] of specie i, a constant
+        virtual scalar rhoApparent(const label i) const = 0;
+
         //- Absorption coefficient
         virtual scalar kappa(scalar T, label celli) const = 0;
 

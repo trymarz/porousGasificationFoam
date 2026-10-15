@@ -5,6 +5,7 @@ interpolationModels/laplaceSetValues/laplaceSetValues.C
 lambdaDotModels/LambdaDotCalculationModel/LambdaDotCalculationModel.C
 lambdaDotModels/constantLambdaDot/constantLambdaDot.C
 lambdaDotModels/exactDifferentialLambdaDot/exactDifferentialLambdaDot.C
+lambdaDotModels/apparentVolumeLambdaDot/apparentVolumeLambdaDot.C
 
 lambdaDotModel.C
 
