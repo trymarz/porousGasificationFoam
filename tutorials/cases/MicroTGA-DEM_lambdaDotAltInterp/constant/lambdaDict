@@ -19,15 +19,13 @@ lambdaMode exactDifferential;
 dlambdaOverDTs 0.0;
 
 // Per-specie form (Chemistry uses the uniform-scalar form). solidComponents
-// here are wood, char1, char -- only wood/char1 get a nonzero
-// coefficient, so char reads the 0.0 default. wood is the dominant
-// reactant (sRhoSi < 0, drives the asserted negative sign); char1 is a
-// transient intermediate; char (sRhoSi > 0) is deliberately left out so its
+// here are wood and char -- only wood gets a nonzero coefficient, so char
+// reads the 0.0 default. wood is the reactant (sRhoSi < 0, drives the
+// asserted negative sign); char (sRhoSi > 0) is deliberately left out so its
 // positive contribution isn't netted against wood's, unlike Chemistry.
 dlambdaOverDYmi
 {
     wood  2.5e-6;
-    char1 2.5e-6;
 }
 
 // Alternate interpolation strategy (the other four fixtures use the

@@ -63,12 +63,8 @@ solidReactions
     (2.0e10 1.78e4 300 1.10e5 1)  
 
     irreversibleSolidArrheniusHeterogeneousReaction
-    wood = char1
-    (2.51e7 1.4e4 300 0e5 1)  
-    
-    irreversibleSolidArrheniusHeterogeneousReaction
-    char1 = 0.65 char + 0.35 gas
-    (1.38e10 1.9e4 300 -2.1e5 1) 
+    wood = 0.65 char + 0.35 gas
+    (2.51e7 1.4e4 300 -2.1e5 1)
 );
 
 
