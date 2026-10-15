@@ -23,7 +23,7 @@ Gas and solid coexist in every cell, split by the porosity `ε` (`porosityF`): `
 The loop is `porousGasificationFoam/porousGasificationFoam.C`; each step is an `#include` or call.
 
 1. **Time step** — Courant (gas), diffusion (solid) and chemistry limits give one `deltaT` (`setMultiRegionDeltaT.H`, `updateChemistryTimeStep.H`).
-2. **DEM coupling** (only with `WITH_YADE`) — particle state is exchanged with YADE; `Us` and `lambda` are rebuilt from it and `lambdaDot` is pushed back (`DEM/lambdaDotModel.C`).
+2. **DEM coupling** (only with `WITH_YADE`) — particle state is exchanged with YADE; `Us` and `lambda` are rebuilt from it and `lambdaDot` is pushed back (`DEM/lambdaDotModel.C`): a rate YADE integrates, or under `apparentVolume` a factor `r` it applies once.
 3. **Radiation** — updates the solid radiative source (`radiation.H`, `radiationModels/`).
 4. **Solid region, `pyrolysisZone.evolve()`** (`volPyrolysis::evolveRegion()`), in this order: chemistry ODE; solid-flux limit; solid temperature equation and enthalpy transport (`preSolveEnergy`); solid species transport (`solveSpeciesMass`); `Ts` recovery (`postSolveEnergy`); porosity recovery and bed collapse (`recoverPorosity`).
 5. **Gas continuity** — `rhoEqn.H`.
@@ -104,6 +104,15 @@ Tₛ = H / (Σₖ Ymₖ cₚ,ₛ)
 ```
 
 `A` is the optional `anisotropyK` tensor; `S_chem` is the solid reaction heat (`chemistrySh`).
+
+**Particle size under `lambdaMode apparentVolume`** (`DEM/lambdaDotModels/apparentVolumeLambdaDot/`). With `λ³ₖ = 1/ρ_app,k` the apparent specific volume of specie `k`, and `Ymₖ` taken before this step's solve:
+
+```
+V_old = Σₖ Ymₖ λ³ₖ ,    ΔV_chem = Δt Σₖ Rₖ λ³ₖ ,    r = ∛(1 + ΔV_chem/V_old)
+λ ← r λ        (in YADE, once per coupling exchange)
+```
+
+Only chemistry changes the particle size; solid transport moves particles without resizing them. Every particle in a cell gets the same cell-mean `r`.
 
 ## Not summarised here
 
