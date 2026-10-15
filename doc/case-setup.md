@@ -309,6 +309,8 @@ Three approaches, in increasing order of complexity:
 
 Entries in `solidThermophysicalProperties` (`rho`, `K`, `Cp`, `Hf`) describe the **pure solid** — i.e. the material at `porosityF = 0`. The macroscopic bulk density inside the bed is then `ρ · (1 − φ)`. PGF reconstructs it from `porosityF` and the intrinsic `rho`. Literature often reports bulk values instead, so be careful: feeding a bulk density into `rho` understates the solid by a factor of `(1 − φ)`.
 
+Material data lives in one database, `thermoData/solidThermoData`, one entry per material with its source; the file header states the basis of each value. A case includes it and maps its reaction names onto entries, e.g. `#include "../../../../thermoData/solidThermoData"` (path relative to the including file) and then `woodCoeffs { $park2010Wood; }`. Numerical fixtures may keep local values instead; there `rhoApparent` equals `rho`.
+
 ### Gas species without JANAF data
 
 Pyrolysis pseudo-species (e.g. lumped `tar`, `targas`) generally have no JANAF coefficients. In `thermo.compressibleGas` pick an existing species from `$FOAM_ETC/thermoData` whose molar mass and `Cp(T)` are the best available proxy for the pseudo-species. Document the substitution in the case to make the assumption auditable later.

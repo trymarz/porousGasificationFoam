@@ -36,6 +36,7 @@ charCoeffs
     density
     {
         rho           1050;
+        rhoApparent 1050; // = rho: non-porous, fixture value
     }
 };
 
@@ -53,6 +54,7 @@ rubberwoodCoeffs
     density
     {
         rho          1050; // 630/0.6 Park2010
+        rhoApparent 1050; // = rho: non-porous, fixture value
     }
 };
 
@@ -70,6 +72,7 @@ ashCoeffs
     density
     {
         rho           3000;
+        rhoApparent 3000; // = rho: non-porous, fixture value
     }
 };
 

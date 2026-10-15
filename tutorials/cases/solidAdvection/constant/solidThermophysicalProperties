@@ -17,27 +17,14 @@ FoamFile
 
 thermoType solidMixtureThermo<constHeterogeneous>;
 
+#include "../../../../thermoData/solidThermoData"
+
 solidComponents
 (
     char ash rubberwood
 );
 
-charCoeffs
-{
-    transport
-    {
-        K           0.156; // (0.071+0.105+0.105)/3./.6  Park2010, Asako2002
-    }
-    thermodynamics
-    {
-        Cp          1054; // Park2010 for T=300
-        Hf          -2.12e4;
-    }
-    density
-    {
-        rho           1050;
-    }
-};
+charCoeffs { $park2010Char; }
 
 rubberwoodCoeffs
 {
@@ -53,6 +40,7 @@ rubberwoodCoeffs
     density
     {
         rho          1050; // 630/0.6 Park2010
+        rhoApparent 1050; // = rho: non-porous, fixture value
     }
 };
 
@@ -70,6 +58,7 @@ ashCoeffs
     density
     {
         rho           3000;
+        rhoApparent 3000; // = rho: non-porous, fixture value
     }
 };
 
