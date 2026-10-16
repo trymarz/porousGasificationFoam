@@ -15,16 +15,13 @@ FoamFile
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-// Per-FVM-cell continuum lambdaDot (issue #104 decision: no per-particle
-// chemistry). Same model and coefficients as
-// tutorials/cases/MicroTGA-DEM_lambdaDotBoth/constant/lambdaDict -- carried
-// over untuned for this geometry/chemistry, not re-derived from mass
-// conservation (dr/dt = -(1/(4*pi*r^2*rho))*(dm/dt), nonlinear in r). Known
-// limitation: revisit once real radius trajectories are observed on a run.
-lambdaMode exactDifferential;
+// Yade multiplies each sphere's lambda by r = cbrt(1 + dV_chem/V_old) once per
+// exchange, and MPI_lambda.py's changeRadius() sets radius = r0 * lambda.
+// R24 leaves 0.74% char, so full pyrolysis gives lambda = cbrt(0.0074*630/409.5) = 0.22.
+lambdaMode apparentVolume;
 
-// [m/K]
-dlambdaOverDTs 1e-6;
+// Optional guards, shown at their defaults.
+minSolidVolume  1e-6;   // [-] V_old below this: r = 1
+minVolumeRatio  1e-6;   // [-] floor on 1 + dV_chem/V_old
 
-// [m^4/kg], one value for every specie.
-dlambdaOverDYmi 2.5e-6;
+// ************************************************************************* //
