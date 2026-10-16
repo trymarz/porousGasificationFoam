@@ -2,11 +2,11 @@
 
 Twin-domain case (issue #104): unlike LEIgasifierPrescribedUs, both channels
 are live here --
-  - lambdaDot (OpenFOAM -> Yade): per-FVM-cell continuum rate
-    (exactDifferentialLambdaDot, constant/lambdaDict). NewtonIntegrator
-    integrates it into each body's state.lambda_; this script only reads
-    lambda_ back to set the sphere's physical radius (radius = lambda_ *
-    initial radius -- the PR#43 contract, see changeRadius() below).
+  - lambdaDot (OpenFOAM -> Yade): per-FVM-cell apparent-volume factor r
+    (lambdaMode apparentVolume, constant/lambdaDict). FoamCoupling multiplies
+    each body's state.lambda_ by r once per exchange; this script only reads
+    lambda_ back to set the sphere's radius (radius = lambda_ * initial
+    radius, see changeRadius() below).
   - Us (Yade -> OpenFOAM): FoamCoupling maps sphere velocities onto solid
     cells every step (isGaussianInterp), same mechanism as the reverse
     lambdaDot mapping. No Python code needed for this side.
@@ -112,17 +112,11 @@ fluidCoupling.setIdList(sphereIDs)
 fluidCoupling.setNumParticles(len(sphereIDs))
 
 # ---------------------------------------------------------------------------
-# Radius shrinkage driven by lambda (PR#43 contract)
+# Radius shrinkage driven by lambda
 # ---------------------------------------------------------------------------
 def changeRadius():
-    # lambda_ is the value NewtonIntegrator integrates from lambdaDot
-    # (state.lambda_ += lambdaDot*dt each DEM step); it is a dimensionless
-    # scale around 1.0, same quantity the MicroTGA lambdaDot fixtures' spring
-    # rest-length scaling reads (target_L = L0 * lambda_avg). Radius must be
-    # scaled the same way -- radius = sphere_radius * lambda_ -- not
-    # multiplied onto the current radius every step (that was the pre-PR#43
-    # bug: lambdaDot is now a rate, not a one-step [0,1] shrink fraction, so
-    # radius *= lambdaDot would erase every sphere on the first step).
+    # lambda_ is the dimensionless size factor FoamCoupling keeps per body
+    # (multiplied by r at each exchange), so radius = sphere_radius * lambda_.
     for i in sphereIDs:
         if i >= len(O.bodies) or O.bodies[i] is None:
             continue
