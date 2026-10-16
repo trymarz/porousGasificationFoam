@@ -3,8 +3,7 @@
 # LEIgasifierDEM — Allrun
 # ====================
 # 2D downdraft gasifier tutorial, twin-domain: full-domain sphere packing
-# under gravity produces a real DEM-derived Us field (contrast with
-# LEIgasifierPrescribedUs's static potential-flow Us). Issue #104.
+# under gravity produces a DEM-derived Us field. Issue #104.
 #
 # PREREQUISITES
 #   - porousGasificationFoam compiled and on PATH (OpenFOAM 8 environment sourced)

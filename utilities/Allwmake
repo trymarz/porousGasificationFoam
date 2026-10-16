@@ -4,4 +4,3 @@ makeType=${1:-libso}
 
 wmake "$makeType" totalMassPorousGasificationFoam
 wmake "$makeType" setPorosity
-wmake "$makeType" solidUsPotential

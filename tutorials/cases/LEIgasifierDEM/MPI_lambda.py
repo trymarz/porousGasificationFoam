@@ -1,7 +1,6 @@
 """Yade DEM + porousGasificationFoam coupling script for LEIgasifierDEM.
 
-Twin-domain case (issue #104): unlike LEIgasifierPrescribedUs, both channels
-are live here --
+Twin-domain case (issue #104): both coupling channels are live --
   - lambdaDot (OpenFOAM -> Yade): per-FVM-cell apparent-volume factor r
     (lambdaMode apparentVolume, constant/lambdaDict). FoamCoupling multiplies
     each body's state.lambda_ by r once per exchange; this script only reads
@@ -33,8 +32,7 @@ parallelYade       = True
 numProcOF          = 2          # OpenFOAM MPI ranks
 
 writeInterval      = 0.1        # VTK write interval (virtual seconds)
-yadeDtFixed        = 5e-6       # reused from LEIgasifierPrescribedUs -- already
-                                 # tuned for ~4 mm spheres at young=25e6 below
+yadeDtFixed        = 5e-6       # tuned for ~4 mm spheres at young=25e6 below
 O.dynDt            = False
 O.dt               = yadeDtFixed
 
@@ -56,7 +54,6 @@ sphere_radius = 0.004   # initial radius (m) -- 4 mm biomass pellets, monodisper
 # Tapered blocks 1 and 3 use their narrower (inner, +-0.08) X extent so the
 # initial cloud never starts outside the walls at either end of the taper.
 # Y matches the sub-box's existing margin inside the +-0.008 slab half-depth
-# (unchanged from LEIgasifierPrescribedUs -- reused as-is, not re-derived).
 # ---------------------------------------------------------------------------
 pack_zones = [
     (-0.08, 0.08, 0.20, 0.30),   # block 1: constriction (narrower bound)
