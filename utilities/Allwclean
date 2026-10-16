@@ -4,4 +4,3 @@ makeType=${1:-libso}
 
 wclean "$makeType" totalMassPorousGasificationFoam
 wclean "$makeType" setPorosity
-wclean "$makeType" solidUsPotential

@@ -18,8 +18,7 @@ FoamFile
 dimensions      [0 1 -1 0 0 0 0];
 
 // DEM-derived bed descent field: FoamCoupling maps sphere velocities onto
-// solid cells each coupling step (isGaussianInterp, see MPI_lambda.py), so
-// unlike LEIgasifierPrescribedUs there is no static solve to seed this from.
+// solid cells each coupling step (isGaussianInterp, see MPI_lambda.py).
 // Spheres start at rest under gravity -- uniform zero is the correct IC.
 internalField   uniform (0 0 0);
 
