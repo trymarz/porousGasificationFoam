@@ -10,18 +10,24 @@ Twin-domain case (issue #104): both coupling channels are live --
     cells every step (isGaussianInterp), same mechanism as the reverse
     lambdaDot mapping. No Python code needed for this side.
 
-Spheres pack the full bed cross-section -- every mesh block that holds bed
-per system/setFieldsDict (z=[0.20,1.00], not just the old, narrower
-throat+combustion sub-box) -- and fall under gravity from t=0; there is no
-separate DEM-only settling phase.
+The spheres start from relaxedSpheres.txt, written by relax.py: one
+hexagonal layer filling the whole gasifier, settled under gravity before
+coupling, so the run starts at rest. Spheres in cells without FVM solid get
+r = 1 (lambdaDict minSolidVolume), keep their size and carry the bed.
 
 Usage (2 Yade ranks pre-launched, 2 OpenFOAM ranks spawned by FoamCoupling):
     mpirun -n 2 yade MPI_lambda.py
 """
 import os
+import sys
+
+sys.path.insert(0, os.getcwd())
+
 from yade import mpy as mp
-from yade import export, pack, ymport
+from yade import export, pack
 from yade.system import O
+
+import demGeometry as geom
 
 comm = mp.comm_slave   # communicator for worker ranks
 
@@ -32,7 +38,7 @@ parallelYade       = True
 numProcOF          = 2          # OpenFOAM MPI ranks
 
 writeInterval      = 0.1        # VTK write interval (virtual seconds)
-yadeDtFixed        = 5e-6       # tuned for ~4 mm spheres at young=25e6 below
+yadeDtFixed        = 5e-6       # tuned for ~4 mm spheres at young=25e6 (demGeometry.py)
 O.dynDt            = False
 O.dt               = yadeDtFixed
 
@@ -42,61 +48,26 @@ NSTEPS    = int(os.environ.get('YADE_NSTEPS', 2000000))
 if mp.rank == 0:
     print(f"[EXPORT] yadeDt={yadeDtFixed}  writeInterval={writeInterval}  iterPeriod={timeRatio}")
 
-sphere_radius = 0.004   # initial radius (m) -- 4 mm biomass pellets, monodisperse
+sphere_radius = geom.sphere_radius   # initial radius (m)
 
 # ---------------------------------------------------------------------------
-# Full-domain packing zones -- one aligned box per make_mesh.py mesh block
-# that holds bed, i.e. blocks 1-4 (z >= 0.20), matching this case's own
-# system/setFieldsDict, which fills exactly z=[0.20,1.01] with wood/char and
-# leaves block 0 (freeboard, z<0.20) at the ambient gas default (porosityF=1,
-# no wood/char) -- packing spheres there would put solid where the CFD side
-# has none. The outer shells 5/6 are gas-only, not part of the bed, either.
-# Tapered blocks 1 and 3 use their narrower (inner, +-0.08) X extent so the
-# initial cloud never starts outside the walls at either end of the taper.
-# Y matches the sub-box's existing margin inside the +-0.008 slab half-depth
+# Materials, walls and the relaxed packing (relax.py)
 # ---------------------------------------------------------------------------
-pack_zones = [
-    (-0.08, 0.08, 0.20, 0.30),   # block 1: constriction (narrower bound)
-    (-0.08, 0.08, 0.30, 0.32),   # block 2: throat
-    (-0.08, 0.08, 0.32, 0.42),   # block 3: expansion (narrower bound)
-    (-0.15, 0.15, 0.42, 1.00),   # block 4: main upper (drying + pyrolysis)
-]
-pack_y_lo, pack_y_hi = -0.006, 0.006
+geom.add_materials()
+geom.add_walls()
 
-# ---------------------------------------------------------------------------
-# Materials
-# ---------------------------------------------------------------------------
-young   = 25e6
-density = 1050   # wood/char (kg/m3, from yadeProperties)
-O.materials.append(FrictMat(young=young, poisson=0.5, frictionAngle=radians(15),
-                             density=density, label='spheremat'))
-O.materials.append(FrictMat(young=young * 100, poisson=0.5, frictionAngle=0,
-                             density=0, label='wallmat'))
-
-# ---------------------------------------------------------------------------
-# DEM boundary — gasifier walls from blockMeshDict
-# ---------------------------------------------------------------------------
-facets = ymport.blockMeshDict("system/blockMeshDict")
-O.bodies.append(facets)
-
-# ---------------------------------------------------------------------------
-# Sphere packing — random packing across the full reactor cross-section
-# ---------------------------------------------------------------------------
-for x_lo, x_hi, z_lo, z_hi in pack_zones:
-    sp = pack.SpherePack()
-    sp.makeCloud(
-        Vector3(x_lo, pack_y_lo, z_lo),
-        Vector3(x_hi, pack_y_hi, z_hi),
-        rMean=sphere_radius,
-        rRelFuzz=0.0,
-    )
-    O.bodies.append([sphere(c, r, material='spheremat') for c, r in sp])
+sp = pack.SpherePack()
+sp.load("relaxedSpheres.txt")
+for c, r in sp:
+    b = sphere(c, r, material="spheremat")
+    b.state.blockedDOFs = geom.blocked_dofs
+    O.bodies.append(b)
 
 sphereIDs = [b.id for b in O.bodies if type(b.shape) == Sphere]
 os.makedirs("spheres", exist_ok=True)
 
 if mp.rank == 0:
-    print(f"[DEM] packed {len(sphereIDs)} spheres across {len(pack_zones)} zones (full domain)")
+    print(f"[DEM] loaded {len(sphereIDs)} relaxed spheres")
 
 # ---------------------------------------------------------------------------
 # Fluid coupling
