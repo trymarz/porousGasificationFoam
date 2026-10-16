@@ -114,7 +114,9 @@ for i in range(len(x_pts)):
     ]
 
     box = cb.Extrude(cb.Face(face_pts), extr_len)
-    box.translate([0.0, -extr_len * 0.5, 0.0])
+    # Extrude follows the face normal, here -Y (y in [-extr_len, 0]); shift
+    # by +extr_len/2 so the slab is centred at y = 0, where MPI_lambda.py packs.
+    box.translate([0.0, extr_len * 0.5, 0.0])
 
     nx = NX_MAIN if i < 5 else NX_SHELL
     box.chop(0, count=nx)       # X direction (v0→v1)
