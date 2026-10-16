@@ -60,7 +60,7 @@ regressionSolidSpeciesIntegrals
 {
     ${regressionBase}
     enabled         true;
-    fields          (Ycharm Yashm Yhumm Ywoodm);
+    fields          (Ycharm Yashm Ywoodm);
     operation       volIntegrate;
 }
 

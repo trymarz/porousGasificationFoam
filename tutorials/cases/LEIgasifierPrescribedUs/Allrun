@@ -2,7 +2,7 @@
 #
 # LEIgasifierPrescribedUs — Allrun
 # ====================
-# 2D downdraft gasifier tutorial: fresh moist biomass bed ignited by hot air.
+# 2D downdraft gasifier tutorial: fresh dry biomass bed ignited by hot air.
 # Runs a coupled Yade DEM + porousGasificationFoam simulation.
 #
 # PREREQUISITES

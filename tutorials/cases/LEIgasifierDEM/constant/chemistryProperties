@@ -67,11 +67,6 @@ solidOdeCoeffs
 
 solidReactions
 (
-    // R1 — Drying  (Ibrahim 2025, Table 5.4; A=5.13e6 1/s, Ta=1.06e4 K)
-    irreversibleSolidArrheniusHeterogeneousReaction
-    hum = H2O
-    (5.13e6 1.0589e4 300 2.256e6 1)
-
     // R24 — Wood pyrolysis, merged single reaction (was R24a+b+c, split by
     // product fraction only — same kinetics, coefficient 1 instead of three
     // fractional ones, which also sidesteps issue #92 Finding A's

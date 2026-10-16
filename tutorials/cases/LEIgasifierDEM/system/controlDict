@@ -96,7 +96,7 @@ functions
         operation       volIntegrate;
         regionType      all;
         writeFields     false;
-        fields          (Ywood Ychar Yash Yhum);
+        fields          (Ywood Ychar Yash);
     }
 
     // Centerline probes (z-axis at x=0)
@@ -106,7 +106,7 @@ functions
         libs            ("libsampling.so");
         writeControl    adjustableRunTime;
         writeInterval   0.25;
-        fields          (T Ts porosityF Ywood Ychar Yash Yhum U);
+        fields          (T Ts porosityF Ywood Ychar Yash U);
         // y = -0.016 is the mid-thickness of the 2D mesh
         // (extruded over y in [-0.024, -0.008]); x=0 is the centerline.
         probeLocations
@@ -129,7 +129,7 @@ functions
         writeControl    adjustableRunTime;
         writeInterval   0.25;
         surfaceFormat   vtk;
-        fields          (T Ts porosityF Ywood Ychar Yash Yhum U p);
+        fields          (T Ts porosityF Ywood Ychar Yash U p);
         surfaces
         (
             midPlane

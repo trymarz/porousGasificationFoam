@@ -24,15 +24,13 @@ defaultFieldValues
     volScalarFieldValue porosityF0     1.0
     volScalarFieldValue Ywood          0.0
     volScalarFieldValue Ychar          0.0
-    volScalarFieldValue Yhum           0.0
     volScalarFieldValue Yash           0.0
 );
 
 // Regions apply in order; a later one overrides an earlier one cell by cell.
 regions
 (
-    // Fresh moist biomass fills the entire bed above the freeboard.
-    // Moisture content 18.5 wt% (Jayah et al., as in Ibrahim 2025).
+    // Fresh dry biomass fills the entire bed above the freeboard.
     // Porosity 0.40 — representative for wood chips/pellets in a packed bed.
     // Bulk bed at 400 K, matching Ibrahim (2025) Fig. 5.6's solid-phase IC
     // rather than the fully cold start this case started from.
@@ -50,8 +48,7 @@ regions
         box (-0.21 -0.1 0.20) (0.21 0.1 1.01);
         fieldValues
         (
-            volScalarFieldValue Ywood          0.815
-            volScalarFieldValue Yhum           0.185
+            volScalarFieldValue Ywood          1.0
             volScalarFieldValue Ychar          0.0
             volScalarFieldValue Yash           0.0
             volScalarFieldValue porosityF      0.40
@@ -70,7 +67,7 @@ regions
     //
     // The strip is char, not wood. A real 1200 K zone in a packed bed holds no
     // wood: the R24 kinetics give wood a ~0.4 ms half-life there, so
-    // co-locating Ywood = 0.815 with Ts = 1200 K releases pyrolysis gas about
+    // co-locating Ywood = 1.0 with Ts = 1200 K releases pyrolysis gas about
     // 1e7x faster than the domain can vent it. Char's reactions (R6/R7
     // oxidation, R3 Boudouard, R4 water-gas) are gas-solid and supply-limited
     // instead of Ts-driven, so the strip cannot run away the same way.
@@ -87,7 +84,6 @@ regions
         fieldValues
         (
             volScalarFieldValue Ywood          0.0
-            volScalarFieldValue Yhum           0.0
             volScalarFieldValue Ychar          1.0
             volScalarFieldValue Yash           0.0
             volScalarFieldValue Ts             1200
