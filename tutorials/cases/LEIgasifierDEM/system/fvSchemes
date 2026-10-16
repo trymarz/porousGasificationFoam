@@ -34,7 +34,9 @@ divSchemes
     div(phi,h)      Gauss upwind;
     div(phi,K)      Gauss upwind;
     div(((rho*nuEff)*dev2(T(grad(U))))) Gauss linear;
-    div(phiSolid) Gauss SuperBee ;
+    // Upwind keeps solid species non-negative at the sharp wood/char interface
+    // of the ignition strip; SuperBee exported wood from wood-free cells there.
+    div(phiSolid)   Gauss upwind;
     div(porPhi) Gauss SuperBee ;
 }
 
