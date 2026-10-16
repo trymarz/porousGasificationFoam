@@ -32,7 +32,7 @@ stopAt          endTime;
 // the first smoke run: Yade exited after 25 substeps, OpenFOAM was left
 // waiting mid-run for the next coupling exchange that never came).
 // deltaT=4e-3 s is just below the smallest steady, post-startup-ramp
-// adaptive step observed running LEIgasifierPrescribedUs CFD-only
+// adaptive step observed in a CFD-only run of this geometry
 // (yadeProperties.active false) in /scratch: adjustTimeStep climbed
 // 1e-7 -> ~4.4e-3 over the first ~1 s (that ramp is a startup artifact,
 // not a real floor) then held in [4.13e-3, 5.07e-3] through t=30.6 s,
