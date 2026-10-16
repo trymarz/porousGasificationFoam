@@ -34,7 +34,7 @@ License
 namespace Foam
 {
     defineTypeNameAndDebug(pipeCONV, 0);
-    addToRunTimeSelectionTable(heatTransferModel, pipeCONV, porosity);
+    addToRunTimeSelectionTable(porousHeatTransferModel, pipeCONV, porosity);
 }
 
 // * * * * * * * * * * * * * Private Member Functions  * * * * * * * * * * * //
@@ -52,7 +52,7 @@ Foam::pipeCONV::pipeCONV
     const volScalarField& initialPorosity
 )
 :
-  heatTransferModel(porosity,initialPorosity),
+  porousHeatTransferModel(porosity,initialPorosity),
   pipeRadius_(1.0),
   Up_(db().lookupObject<volVectorField>("U")),
   rhop_(db().lookupObject<volScalarField>("rho")),

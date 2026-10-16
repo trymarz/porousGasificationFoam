@@ -38,7 +38,7 @@ License
 namespace Foam
 {
     defineTypeNameAndDebug(constCONV, 0);
-    addToRunTimeSelectionTable(heatTransferModel, constCONV, porosity);
+    addToRunTimeSelectionTable(porousHeatTransferModel, constCONV, porosity);
 }
 
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
@@ -49,7 +49,7 @@ Foam::constCONV::constCONV
     const volScalarField& por0
 )
 :
-  heatTransferModel(por,por0),
+  porousHeatTransferModel(por,por0),
   hCoeff_(0.0),
   SAV_(0.0)
 {

@@ -22,7 +22,7 @@ License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
 Class
-    Foam::heatTransferModel
+    Foam::porousHeatTransferModel
 
 Description
     Interface of the base class for the convective heat transfer models
@@ -38,12 +38,12 @@ Description
         - T -- temperature
 
 SourceFiles
-    heatTransferModel.C
+    porousHeatTransferModel.C
 
 \*---------------------------------------------------------------------------*/
 
-#ifndef heatTransferModel_H
-#define heatTransferModel_H
+#ifndef porousHeatTransferModel_H
+#define porousHeatTransferModel_H
 
 #include "primitiveFieldsFwd.H"
 #include "Time.H"
@@ -62,11 +62,11 @@ namespace Foam
 {
 
 /*---------------------------------------------------------------------------*\
-                           Class heatTransferModel Declaration
+                           Class porousHeatTransferModel Declaration
 \*---------------------------------------------------------------------------*/
 
-//- The heatTransferModel class
-class heatTransferModel
+//- The porousHeatTransferModel class
+class porousHeatTransferModel
 :
     public IOdictionary
 {
@@ -92,22 +92,22 @@ private:
     // Private Member Functions
 
         //- Disallow default bitwise copy construct
-        heatTransferModel(const heatTransferModel&);
+        porousHeatTransferModel(const porousHeatTransferModel&);
 
         //- Disallow default bitwise assignment
-        void operator=(const heatTransferModel&);
+        void operator=(const porousHeatTransferModel&);
 
 
 public:
 
     //- Runtime type information
-    TypeName("heatTransferModel");
+    TypeName("porousHeatTransferModel");
 
     // Declare run-time New selection table
         declareRunTimeNewSelectionTable
         (
             autoPtr,
-            heatTransferModel,
+            porousHeatTransferModel,
             porosity,
             (
                 const volScalarField& porosity, const volScalarField& initialPorosity
@@ -119,7 +119,7 @@ public:
     // Constructors
 
         //- Construct from porosity
-        heatTransferModel
+        porousHeatTransferModel
         (
             const volScalarField& porosity,
             const volScalarField& initialPorosity
@@ -128,7 +128,7 @@ public:
     // Selectors
 
         //- Return a reference to the selected heatTransfer model.
-        static autoPtr<heatTransferModel> New
+        static autoPtr<porousHeatTransferModel> New
         (
             const volScalarField& porosity,
             const volScalarField& initialPorosity
@@ -136,7 +136,7 @@ public:
 
 
     //- Destructor
-    virtual ~heatTransferModel()
+    virtual ~porousHeatTransferModel()
     {}
 
 

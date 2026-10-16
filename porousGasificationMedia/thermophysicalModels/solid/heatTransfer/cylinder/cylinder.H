@@ -40,7 +40,7 @@ SourceFiles
 #ifndef cylinder_H
 #define cylinder_H
 
-#include "heatTransferModel.H"
+#include "porousHeatTransferModel.H"
 #include "fluidThermo.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
@@ -56,7 +56,7 @@ namespace Foam
 
 class cylinderCONV
 :
-    public heatTransferModel
+    public porousHeatTransferModel
 {
 private:
 
