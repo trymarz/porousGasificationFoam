@@ -24,40 +24,29 @@ FoamFile
 // exactly, only redistributing how it varies through the domain):
 //   inlet area   A     = 0.40 m (full top width, blocks 4+5+6) * 0.016 m
 //                       = 0.0064 m^2
-//   inlet mixture true density rhoSolidInlet, 81.5% wood / 18.5% moisture
-//   (setFieldsDict's bed region), reciprocal mixing rule:
-//     1/rho = Ywood/rho_wood + Yhum/rho_hum = 0.815/1050 + 0.185/1000
-//     rho   = 1040.375 kg/m^3
+//   inlet solid true density rhoSolidInlet = rho_wood = 1050 kg/m^3
+//   (setFieldsDict's bed region is dry wood, Ywood = 1)
 //   inletMassFlux = rhoSolidInlet * (1 - porosityInlet) * |Us_ref| * A
-//                 = 1040.375 * 0.60 * 4.4e-4 * 0.0064 = 1.75782e-3 kg/s
+//                 = 1050 * 0.60 * 4.4e-4 * 0.0064 = 1.77408e-3 kg/s
 //
-// Per-zone sink masses (kg/s), sized to hit Decision 4's ~90% overall
-// gas conversion target -- NOT Decision 5's literal "~95% pyrolysis-zone
-// wood conversion", which turned out inconsistent with it (see the
-// commit message / issue #96 comment for the reconciliation the user
-// picked: honour the 90% overall figure, let the pyrolysis-zone fraction
-// float to whatever satisfies it once moisture's unconditional 100%
-// drying conversion is accounted for):
-//   Mhum       = 0.185 * inletMassFlux                    = 3.2519e-4 kg/s
-//   Mwood      = 0.815 * inletMassFlux                    = 1.43262e-3 kg/s
-//   gasYield   = 1 - (0.0074/0.9970)  [R24 char/gas split] = 0.992577
-//   fPyro      = (0.90 - 0.185) / 0.815                    = 0.87730
-//     (fraction of Mwood reacted in the pyrolysis zone; the complement,
-//     0.1227*Mwood = 10% of inletMassFlux, is the unconverted residue
-//     that reaches the outlet -- Decision 4's ~10%.)
-//   sink(pyrolysis)    = Mhum + fPyro*Mwood*gasYield       = 1.57254e-3 kg/s
-//   freshChar          = fPyro*Mwood*(1-gasYield)          = 9.330e-6 kg/s
+// Per-zone sink masses (kg/s), sized to ~90% overall gas conversion
+// (Decision 4); the remaining 10% of inletMassFlux is the unconverted
+// residue that reaches the outlet:
+//   gasYield   = 1 - 0.0074  [R24 char/gas split]          = 0.9926
+//   fPyro      = 0.90  (fraction of the wood reacted in the pyrolysis zone)
+//   sink(pyrolysis)    = fPyro*inletMassFlux*gasYield      = 1.58486e-3 kg/s
+//   freshChar          = fPyro*inletMassFlux*(1-gasYield)  = 1.1815e-5 kg/s
 //     assumed fully burned out downstream (100% char burnout), split
 //     80/20 combustion/gasification (oxidation dominates char removal;
 //     Boudouard accounts for the rest reaching the reduction zone --
 //     an assumption, flagged, not measured):
-//   sink(combustion)   = 0.80 * freshChar                  = 7.464e-6 kg/s
-//   sink(gasification) = 0.20 * freshChar                  = 1.866e-6 kg/s
+//   sink(combustion)   = 0.80 * freshChar                  = 9.4523e-6 kg/s
+//   sink(gasification) = 0.20 * freshChar                  = 2.3631e-6 kg/s
 //
 // Zone z-ranges taken directly from system/make_mesh.py's block comments
 // (Decision 3): block 3 (0.32-0.42, expansion) carries no sink.
 
-inletMassFlux   1.75782e-3;   // kg/s, solid mass entering at z = 1.00
+inletMassFlux   1.77408e-3;   // kg/s, solid mass entering at z = 1.00
 
 zones
 {
@@ -65,19 +54,19 @@ zones
     {
         zMin            0.42;
         zMax            1.00;
-        sinkMassRate    1.57254e-3;   // kg/s
+        sinkMassRate    1.58486e-3;   // kg/s
     }
     combustion
     {
         zMin            0.20;
         zMax            0.32;
-        sinkMassRate    7.464e-6;     // kg/s
+        sinkMassRate    9.4523e-6;    // kg/s
     }
     gasification
     {
         zMin            0.00;
         zMax            0.20;
-        sinkMassRate    1.866e-6;     // kg/s
+        sinkMassRate    2.3631e-6;    // kg/s
     }
 }
 
