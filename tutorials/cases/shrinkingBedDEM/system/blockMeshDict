@@ -1,0 +1,76 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     |
+    \\  /    A nd           |
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+// One block on purpose: Yade's ymport.blockMeshDict reads this file too, and
+// its parser needs every "(" / ")" of a list on a line of its own.
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      blockMeshDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// 0.2 m x 0.4 m column, one 16 mm cell thick (y), 20 mm cells in-plane.
+vertices
+(
+    (-0.1 -0.008 0.0)
+    ( 0.1 -0.008 0.0)
+    ( 0.1  0.008 0.0)
+    (-0.1  0.008 0.0)
+    (-0.1 -0.008 0.4)
+    ( 0.1 -0.008 0.4)
+    ( 0.1  0.008 0.4)
+    (-0.1  0.008 0.4)
+);
+
+blocks
+(
+    hex (0 1 2 3 4 5 6 7) (10 1 20) simpleGrading (1 1 1)
+);
+
+edges
+(
+);
+
+boundary
+(
+    sides
+    {
+        type empty;
+        faces
+        (
+            (0 1 5 4)
+            (3 7 6 2)
+        );
+    }
+    outlet
+    {
+        type patch;
+        faces
+        (
+            (4 5 6 7)
+        );
+    }
+    wall
+    {
+        type wall;
+        faces
+        (
+            (0 3 2 1)
+            (0 4 7 3)
+            (1 2 6 5)
+        );
+    }
+);
+
+mergePatchPairs
+(
+);
+
+// ************************************************************************* //
