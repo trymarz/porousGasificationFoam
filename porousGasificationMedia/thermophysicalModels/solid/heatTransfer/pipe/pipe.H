@@ -40,7 +40,7 @@ SourceFiles
 #ifndef pipe_H
 #define pipe_H
 
-#include "heatTransferModel.H"
+#include "porousHeatTransferModel.H"
 #include "fluidThermo.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
@@ -54,7 +54,7 @@ namespace Foam
 
 class pipeCONV
 :
-    public heatTransferModel
+    public porousHeatTransferModel
 {
 private:
 

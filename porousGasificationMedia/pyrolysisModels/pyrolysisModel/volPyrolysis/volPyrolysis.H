@@ -266,7 +266,7 @@ protected:
         volScalarField heatUpGas_;
 
         //- Reference to heat transport model
-        autoPtr<heatTransferModel> HTmodel_;
+        autoPtr<porousHeatTransferModel> HTmodel_;
 
         volScalarField CONV_;
 

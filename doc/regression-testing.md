@@ -65,14 +65,6 @@ Defaults `rtol=1e-4`, `atol=1e-12`. Column names from the `volFieldValue.dat` he
 - Only scalar reductions are compared, not full fields; a change that cancels in every selected scalar goes undetected. Add metrics to widen coverage.
 - Results depend on MPI decomposition: rerun with the baseline's `numberOfSubdomains`. The pilot `charOnlyMoveCases/serial` is serial (1 proc) by design, so the suite does not exercise the parallel path. `charOnlyMoveCases/parallel` is not a baseline because its 4-proc run hits a processor-boundary breakdown in the moving-solid immersed boundary.
 
-## Known caveat: teardown abort shows as CRASH
-
-Some cases finish and write correct output, then the solver aborts at teardown (heap corruption after `End`, e.g. `malloc_consolidate(): invalid chunk size`). The runner reports `CRASH (SIGABRT)`, not `PASS`, even when the scalars match: a solver that corrupts its heap on exit is not a healthy pass.
-
-- It is a solver/library lifetime defect, tracked separately, and **intermittent**: the same binary and `fast` case aborted every time in one environment and never in another, and the fault has also appeared as a teardown hang. A green fast tier is evidence about one run, not about the code, and a red one is not necessarily a regression from your change.
-- For that reason a tracked pre-push hook running the fast tier is deferred until the defect is fixed.
-- Do not hide it with `|| true`; that trades an honest CRASH for a false green.
-
 ---
 
 ## Protocol reference

@@ -1550,7 +1550,7 @@ volPyrolysis::volPyrolysis
         mesh_,
         dimensionedScalar("zero", dimEnergy/dimTime/dimVolume, 0.0)
     ),
-    HTmodel_(heatTransferModel::New(porosity_,porosityArch_)),
+    HTmodel_(porousHeatTransferModel::New(porosity_,porosityArch_)),
     CONV_
     (
         IOobject

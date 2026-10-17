@@ -23,20 +23,20 @@ License
 
 \*---------------------------------------------------------------------------*/
 
-#include "heatTransferModel.H"
+#include "porousHeatTransferModel.H"
 #include "volFields.H"
 #include "surfaceFields.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 namespace Foam
 {
-    defineTypeNameAndDebug(heatTransferModel, 0);
-    defineRunTimeSelectionTable(heatTransferModel, porosity);
+    defineTypeNameAndDebug(porousHeatTransferModel, 0);
+    defineRunTimeSelectionTable(porousHeatTransferModel, porosity);
 }
 
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
-Foam::heatTransferModel::heatTransferModel
+Foam::porousHeatTransferModel::porousHeatTransferModel
 (
     const volScalarField& porosity,
     const volScalarField& initialPorosity
@@ -62,7 +62,7 @@ Foam::heatTransferModel::heatTransferModel
 
 // * * * * * * * * * * * * * * * * * Selectors * * * * * * * * * * * * * * * //
 
-Foam::autoPtr<Foam::heatTransferModel> Foam::heatTransferModel::New
+Foam::autoPtr<Foam::porousHeatTransferModel> Foam::porousHeatTransferModel::New
 (
     const volScalarField& porosity,
     const volScalarField& initialPorosity
@@ -95,7 +95,7 @@ Foam::autoPtr<Foam::heatTransferModel> Foam::heatTransferModel::New
     {
         FatalErrorIn
         (
-            "heatTransferModel::New(const volVectorField&, "
+            "porousHeatTransferModel::New(const volVectorField&, "
             "const surfaceScalarField&)"
         )   << "Unknown heatTransferModel type "
             << modelType << nl << nl
@@ -105,7 +105,7 @@ Foam::autoPtr<Foam::heatTransferModel> Foam::heatTransferModel::New
     }
 
  
-    return autoPtr<heatTransferModel>
+    return autoPtr<porousHeatTransferModel>
     (
         cstrIter()(porosity,initialPorosity)
     );
