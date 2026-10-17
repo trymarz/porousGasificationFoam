@@ -25,7 +25,7 @@ stopAt          endTime;
 
 // Fixed-deltaT coupling (issue #104): no early-exit handshake exists, so
 // Yade must run exactly endTime/yadeDt substeps; Allrun derives YADE_NSTEPS
-// from this endTime (yadeDt = 5e-6 s, yadeDtFixed in MPI_lambda.py).
+// from this endTime (yadeDt = dem_dt in demGeometry.py).
 // deltaT=4e-3 s is just below the smallest steady, post-startup-ramp
 // adaptive step observed in a CFD-only run of this geometry
 // (yadeProperties.active false) in /scratch: adjustTimeStep climbed
