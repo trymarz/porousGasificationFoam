@@ -90,12 +90,12 @@ regions
             volScalarFieldValue T              1200
         );
     }
-    // Pyrolysis band above the strip: R24 gives wood a ~7 s time constant at
-    // 750 K, so the band chars (lambda -> 0.22) within a run and the spheres
-    // shrink; hotter wood vents gas faster than the fixed deltaT handles.
+    // Pyrolysis band: R24 gives wood a ~7 s time constant at 750 K. It sits
+    // 6 cm above the 1200 K strip and the nozzles: directly on them, the
+    // solid energy update ran away at t = 0.55 s.
     boxToCell
     {
-        box (-0.21 -0.1 0.34) (0.21 0.1 0.38);
+        box (-0.21 -0.1 0.44) (0.21 0.1 0.48);
         fieldValues
         (
             volScalarFieldValue Ts             750
