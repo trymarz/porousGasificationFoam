@@ -1,0 +1,128 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  porousGasificationFoam solid thermophysical database           (#113)
+\*---------------------------------------------------------------------------*/
+
+// One dictionary per material, keyed by material and source, not by the role
+// it plays in a case. A case includes this file and maps its reaction names:
+//
+//     #include "<relative path to>/thermoData/solidThermoData"
+//     solidComponents ( wood char );
+//     woodCoeffs $corymbiaWood;
+//     charCoeffs $corymbiaChar;
+//
+// Basis, matching how volPyrolysis uses each value:
+//   rho          true (skeletal) density [kg/m^3], solid at porosity 0.
+//   rhoApparent  apparent (envelope) density of ONE particle [kg/m^3].
+//   K            conductivity of the solid matter [W/m/K]; the solver applies
+//                K*(1 - porosity). Particle values are converted by dividing
+//                by the particle solid fraction rhoApparent/rho.
+//   Cp           [J/kg/K]; the solid thermo is constant-Cp, so temperature
+//                correlations are evaluated at the stated temperature.
+//   Hf           standard enthalpy of formation at 298 K [J/kg], on the JANAF
+//                reference used for the gas species (solidReactionEnergyFromEnthalpy).
+//
+// Physical entries share values per material class, then one entry per
+// measured feedstock. Park 2010 entries reproduce a validated model instead.
+
+
+// -------------------------------------------------------- Park 2010 ----
+// Park, Atreya & Baum, Combust. Flame 157 (2010) 481-494: dry maple spheres,
+// Model-3 (wood -> char1 -> 0.65 char + 0.35 gas). Values reproduce the PGF
+// validation cases (2022 paper) unchanged, i.e. Park's MODEL assumptions:
+//   rhoApparent 630 measured; initial porosity 0.4 assumed, so rho = 630/0.6.
+//   K: Park's three-direction average / 0.6 (solid basis); Cp at 300 K.
+//   No shrinkage (Park's assumption): char1 keeps the wood volume and char
+//   occupies it too, rhoApparent = 0.65*630. apparentVolume then gives r = 1.
+// Park treats the intermediate solid like wood (Cw, kw); these cases give it
+// the char values instead, kept as validated.
+
+park2010Wood
+{
+    transport       { K   0.341; }   // (0.1046+0.255+0.255)/3/0.6
+    thermodynamics  { Cp  1800;  Hf  -1.04e6; }
+    density         { rho 1050;  rhoApparent 630; }
+}
+
+park2010IntermediateSolid
+{
+    transport       { K   0.156; }   // (0.071+0.105+0.105)/3/0.6
+    thermodynamics  { Cp  1054;  Hf  -2.12e4; }
+    density         { rho 1050;  rhoApparent 630; }
+}
+
+park2010Char
+{
+    transport       { K   0.156; }
+    thermodynamics  { Cp  1054;  Hf  -2.12e4; }
+    density         { rho 1050;  rhoApparent 409.5; }
+}
+
+
+// ---------------------------------------------------------------- wood ----
+// rho, K: dry cell-wall substance, Siau (1995), tabulated in Hunt et al.,
+//   USDA FS treesearch 31172: 1540 kg/m^3, 0.410 W/m/K. Cross-check: Gronli's
+//   across-grain 0.15 W/m/K at 660 kg/m^3 converts to 0.35 on this basis.
+// Cp: Gronli (1996), 1500 + T, at 450 K (between ambient and pyrolysis onset).
+//   Siau gives 1260 at room temperature; the correlation runs higher.
+// Hf: Douglas fir, HHV 21.05 MJ/kg with its ultimate analysis (U. Washington
+//   ME430 handout, courses.washington.edu/mengr430). The handout prints
+//   -511,112 and -551,112 kJ per 100 kg; the larger is the one it carries on.
+
+// Corymbia citriodora (eucalypt): rhoApparent is the wood BASIC density
+// (oven-dry mass / green volume), so the oven-dry value is somewhat higher.
+// Source: ResearchGate 369047784 (wood and charcoal measured together).
+corymbiaWood
+{
+    transport       { K   0.410; }
+    thermodynamics  { Cp  1950;  Hf  -5.51e6; }
+    density         { rho 1540;  rhoApparent 583; }
+}
+
+// Wood from Wood Sci. Technol. 57:1157-1173 (2023), Table 1, own analysis.
+wst2023Wood
+{
+    transport       { K   0.410; }
+    thermodynamics  { Cp  1950;  Hf  -5.51e6; }
+    density         { rho 1540;  rhoApparent 660; }
+}
+
+
+// Rubberwood (Hevea brasiliensis): basic density 580 kg/m^3, mean of five
+// clones (de Lima et al., Maderas Cienc. Tecnol. 2023, redalyc 48575202020).
+rubberwood
+{
+    transport       { K   0.410; }
+    thermodynamics  { Cp  1950;  Hf  -5.51e6; }
+    density         { rho 1540;  rhoApparent 580; }
+}
+
+
+// ---------------------------------------------------------------- char ----
+// rho: woody biochar made at 600-650 C, target true density 1546 +- 93 kg/m^3
+//   (data collated by Wood et al., in arXiv 2401.17414); measured wood
+//   biochars span 1479-2015 kg/m^3.
+// Cp: Gronli (1996), 420 + 2.09 T - 6.85e-4 T^2, at 800 K. Park et al. (2010)
+//   print +6.85e-4 T^2 (2530 at 800 K); the minus form is kept as the one near
+//   graphite's ~1.6 kJ/kg/K at 800 K. Unverified against Gronli's original.
+// K: Park et al. particle value 0.0002 T - 0.0183 at 800 K (0.142 W/m/K),
+//   divided by the solid fraction 204/1546 of the Wood Sci. Technol. 2023 char.
+// Hf: taken as 0, the graphite reference; residual H and O are neglected.
+
+// Charcoal from Corymbia citriodora, same source as corymbiaWood.
+corymbiaChar
+{
+    transport       { K   1.07; }
+    thermodynamics  { Cp  1654;  Hf  0; }
+    density         { rho 1546;  rhoApparent 459; }
+}
+
+// Char from Wood Sci. Technol. 57:1157-1173 (2023), Table 1, own analysis.
+wst2023Char
+{
+    transport       { K   1.07; }
+    thermodynamics  { Cp  1654;  Hf  0; }
+    density         { rho 1546;  rhoApparent 204; }
+}
+
+
+// ************************************************************************* //

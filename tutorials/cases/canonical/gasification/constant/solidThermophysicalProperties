@@ -17,24 +17,11 @@ FoamFile
 
 thermoType solidMixtureThermo<constHeterogeneous>;
 
+#include "../../../../../thermoData/solidThermoData"
+
 solidComponents ( char ash );
 
-charCoeffs
-{
-    transport
-    {
-        K       0.156;
-    }
-    thermodynamics
-    {
-        Cp      1054;
-        Hf      -2.12e4;
-    }
-    density
-    {
-        rho     1050;
-    }
-}
+charCoeffs { $park2010Char; }
 
 ashCoeffs
 {
@@ -50,6 +37,7 @@ ashCoeffs
     density
     {
         rho     1050;
+        rhoApparent 1050; // = rho: non-porous, fixture value
     }
 }
 

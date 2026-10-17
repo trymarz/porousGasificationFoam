@@ -38,6 +38,10 @@ tutorials/cases/MicroTGA-DEM_lambdaDotBoth
 # non-default lambdaBackgroundValue. See its constant/lambdaDict.
 tutorials/cases/MicroTGA-DEM_lambdaDotAltInterp
 
+# apparentVolume factor mode: Yade multiplies lambda by r once per exchange.
+# Uses the corymbiaWood/corymbiaChar entries, so lambda shrinks (r < 1).
+tutorials/cases/MicroTGA-DEM_lambdaDotApparentVolume
+
 # tutorials/cases/simple_line_case is NOT listed yet. It builds, meshes and
 # reaches the coupled loop, but its Allrun does not exit 0 under
 # tools/runDEMCase.sh: the run aborts on the heap corruption that also trips

@@ -56,8 +56,12 @@ class heterogeneousConstRho
 {
     // Private data
 
-        //- Density [kg/m3]
+        //- Skeletal (solid-matter) density [kg/m3]
         scalar rho_;
+
+        //- Apparent (envelope) density [kg/m3]: mass over particle volume
+        //  including internal pores. Required; lam3 = 1/rhoApparent.
+        scalar rhoApparent_;
 
 
 public:
@@ -65,7 +69,7 @@ public:
     // Constructors
 
         //- Construct from components
-        inline heterogeneousConstRho(scalar rho);
+        inline heterogeneousConstRho(scalar rho, scalar rhoApparent);
 
         //- Construct from dictionary
         //heterogeneousConstRho(Istream&);
@@ -90,6 +94,9 @@ public:
 
         //- Return density [kg/m3]
         inline scalar rho(scalar T) const;
+
+        //- Return apparent (envelope) density [kg/m3]
+        inline scalar rhoApparent() const;
 
 
     // Ostream Operator

@@ -57,8 +57,12 @@ class constRho
 {
     // Private data
 
-        //- Density [kg/m3]
+        //- Skeletal (solid-matter) density [kg/m3]
         scalar rho_;
+
+        //- Apparent (envelope) density [kg/m3]: mass over particle volume
+        //  including internal pores. Required; lam3 = 1/rhoApparent.
+        scalar rhoApparent_;
 
 
 public:
@@ -66,7 +70,7 @@ public:
     // Constructors
 
         //- Construct from components
-        inline constRho(scalar rho);
+        inline constRho(scalar rho, scalar rhoApparent);
 
         //- Construct from dictionary
         //constRho(Istream&);
@@ -92,6 +96,9 @@ public:
 
         //- Return density [kg/m3]
         inline scalar rho(scalar T) const;
+
+        //- Return apparent (envelope) density [kg/m3]
+        inline scalar rhoApparent() const;
 
         //- Ostream Operator
         friend Ostream& operator<<(Ostream&, const constRho&);
