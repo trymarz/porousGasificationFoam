@@ -7,6 +7,10 @@ shells: those faces are blockMesh defaultFaces, not in the boundary list.
 The packing is a single hexagonal layer of spheres at y = 0 filling the
 whole gasifier outline (blocks 0-6), with translation in y and rotation
 about x and z blocked, so the bed stays one sphere thick.
+
+The spheres are soft and heavily damped: they stand in for the FVM solid's
+slow, gravity-driven rearrangement, not for real particle contact, and the
+soft contacts allow a DEM step 10x larger than 4 mm wood would need.
 """
 from math import radians, sqrt
 
@@ -17,6 +21,9 @@ from yade.system import O
 sphere_radius = 0.004   # initial radius (m) -- 4 mm biomass pellets
 half_depth    = 0.008   # mesh slab half-thickness in y (make_mesh.py)
 blocked_dofs  = "yXZ"   # keep the bed in the xz-plane
+dem_dt        = 5e-5    # DEM step (s); Allrun reads it for YADE_NSTEPS
+damping       = 0.7     # NewtonIntegrator: quasi-static rearrangement
+sphere_young  = 5e5     # Pa; dem_dt = 0.27 p-wave step, overlap under bed < 5% r
 
 # Gasifier outline in the xz-plane, counter-clockwise (make_mesh.py blocks).
 outline = [
@@ -27,10 +34,10 @@ outline = [
 
 
 def add_materials():
-    O.materials.append(FrictMat(young=25e6, poisson=0.5,
+    O.materials.append(FrictMat(young=sphere_young, poisson=0.5,
                                 frictionAngle=radians(15), density=1050,
                                 label="spheremat"))
-    O.materials.append(FrictMat(young=25e6 * 100, poisson=0.5,
+    O.materials.append(FrictMat(young=sphere_young * 100, poisson=0.5,
                                 frictionAngle=0, density=0, label="wallmat"))
 
 
