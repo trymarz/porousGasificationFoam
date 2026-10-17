@@ -48,7 +48,7 @@ SourceFiles
 #include "volFieldsFwd.H"
 #include "psiReactionThermo.H"
 #include "HGSSolidThermo.H"
-#include "heatTransferModel.H"
+#include "porousHeatTransferModel.H"
 #include "specieTransferModel.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //

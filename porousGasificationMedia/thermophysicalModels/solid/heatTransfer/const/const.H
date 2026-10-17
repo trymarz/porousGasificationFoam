@@ -35,7 +35,7 @@ SourceFiles
 #ifndef const_H
 #define const_H
 
-#include "heatTransferModel.H"
+#include "porousHeatTransferModel.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -48,7 +48,7 @@ namespace Foam
 
 class constCONV
 :
-    public heatTransferModel
+    public porousHeatTransferModel
 
 {
 
