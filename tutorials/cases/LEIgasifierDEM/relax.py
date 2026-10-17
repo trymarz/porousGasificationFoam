@@ -19,12 +19,12 @@ from yade.system import O
 import demGeometry as geom
 
 maxIters      = 200000   # hard cap on relaxation steps
-checkInterval = 2000     # steps between convergence checks
+checkInterval = 500      # steps between convergence checks
 targetUnbal   = 0.01     # unbalanced force / mean contact force
 targetVel     = 1e-3     # m/s, fastest sphere
 
 O.dynDt = False
-O.dt    = 5e-6           # same DEM step as MPI_lambda.py
+O.dt    = geom.dem_dt    # same DEM step as MPI_lambda.py
 
 geom.add_materials()
 geom.add_walls()
@@ -42,7 +42,7 @@ O.engines = [
         [Ip2_FrictMat_FrictMat_FrictPhys()],
         [Law2_ScGeom_FrictPhys_CundallStrack()],
     ),
-    NewtonIntegrator(gravity=(0, 0, -9.81), damping=0.4),
+    NewtonIntegrator(gravity=(0, 0, -9.81), damping=geom.damping),
 ]
 collider.verletDist = geom.sphere_radius * 0.2
 

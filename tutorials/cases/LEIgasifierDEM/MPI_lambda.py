@@ -37,8 +37,9 @@ comm = mp.comm_slave   # communicator for worker ranks
 parallelYade       = True
 numProcOF          = 2          # OpenFOAM MPI ranks
 
-writeInterval      = 0.1        # VTK write interval (virtual seconds)
-yadeDtFixed        = 5e-6       # tuned for ~4 mm spheres at young=25e6 (demGeometry.py)
+writeInterval      = 0.25       # VTK write interval (virtual seconds)
+radiusInterval     = 0.01       # changeRadius() period (virtual seconds)
+yadeDtFixed        = geom.dem_dt
 O.dynDt            = False
 O.dt               = yadeDtFixed
 
@@ -200,8 +201,8 @@ O.engines = [
         label="ts",
     ),
     fluidCoupling,
-    NewtonIntegrator(gravity=(0, 0, -9.81), damping=0.2, label="newton"),
-    PyRunner(command="changeRadius()",        virtPeriod=writeInterval * 0.1),
+    NewtonIntegrator(gravity=(0, 0, -9.81), damping=geom.damping, label="newton"),
+    PyRunner(command="changeRadius()",        virtPeriod=radiusInterval),
     PyRunner(command="export_spheres()",      iterPeriod=timeRatio, firstIterRun=1),
     PyRunner(command="printAndSaveDtInfo()",  iterPeriod=timeRatio, firstIterRun=1),
 ]
