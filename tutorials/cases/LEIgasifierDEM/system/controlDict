@@ -23,14 +23,9 @@ startTime       0;
 
 stopAt          endTime;
 
-// Fixed-deltaT coupling (issue #104 decision): no early-exit handshake
-// exists between OpenFOAM and Yade, so YADE_NSTEPS on the Yade side must
-// cover this endTime exactly (see Allrun) or one side hangs. YADE_NSTEPS
-// counts Yade's own DEM substeps (O.dt=5e-6s), not OpenFOAM steps -- it is
-// endTime/yadeDtFixed = 20000, confirmed against dtInfo.txt's measured
-// foamDt/yadeDt=800 ratio, not endTime/deltaT=25 (that wrong guess hung
-// the first smoke run: Yade exited after 25 substeps, OpenFOAM was left
-// waiting mid-run for the next coupling exchange that never came).
+// Fixed-deltaT coupling (issue #104): no early-exit handshake exists, so
+// Yade must run exactly endTime/yadeDt substeps; Allrun derives YADE_NSTEPS
+// from this endTime (yadeDt = 5e-6 s, yadeDtFixed in MPI_lambda.py).
 // deltaT=4e-3 s is just below the smallest steady, post-startup-ramp
 // adaptive step observed in a CFD-only run of this geometry
 // (yadeProperties.active false) in /scratch: adjustTimeStep climbed
@@ -38,9 +33,8 @@ stopAt          endTime;
 // not a real floor) then held in [4.13e-3, 5.07e-3] through t=30.6 s,
 // where an unrelated chemistry-ODE FPE crash ended the probe (matches the
 // known main-branch fast-tier chemistry instability -- not a DEM issue).
-// endTime=0.1 s (25 steps) is a first smoke run only, to confirm the
-// coupling wires up and observe early porosity-limit behaviour -- not a
-// converged result.
+// endTime=0.1 s (25 steps) is a smoke run that checks the coupling; raise
+// endTime for shrinkage, which takes seconds.
 endTime         0.1;
 
 deltaT          4e-3;
@@ -49,7 +43,7 @@ maxDeltaT       4e-3;
 
 writeControl    adjustableRunTime;
 
-writeInterval   0.25;
+writeInterval   0.02;
 
 purgeWrite      0;
 

@@ -18,7 +18,7 @@
 #       cp -r 0.orig 0 && blockMesh
 #       topoSet && createPatch -overwrite && setFields && decomposePar
 #       yade -n -x relax.py
-#       YADE_NSTEPS=20000 mpirun -n 2 yade MPI_lambda.py
+#       YADE_NSTEPS=<endTime/5e-6> mpirun -n 2 yade MPI_lambda.py
 #
 #   mpirun -n 2 starts TWO Yade ranks. FoamCoupling then spawns TWO OpenFOAM
 #   ranks internally (via MPI_Comm_spawn). Do NOT launch porousGasificationFoam
@@ -28,10 +28,8 @@
 #   ./Allclean
 #
 # OUTPUT
-#   Time directories written every deltaT=4e-3 s (fixed, no adjustTimeStep)
-#   to the case root; endTime=0.1 s is a first smoke run (25 OpenFOAM steps,
-#   20000 Yade substeps), not a converged result -- see system/controlDict
-#   for how deltaT was picked.
+#   Time directories every writeInterval (system/controlDict); endTime=0.1 s
+#   is a smoke run (25 OpenFOAM steps at deltaT 4e-3, 20000 Yade substeps).
 #   DEM sphere positions/radii: spheres/spheres_*.vtp  (open spheres/spheres.pvd in ParaView)
 #   Time-step coupling log:     dtInfo.txt
 
@@ -58,14 +56,11 @@ decomposePar
 #    relaxedSpheres.txt, so the coupled run starts at rest.
 yade -n -x relax.py
 
-# 5. Coupled Yade + OpenFOAM run. YADE_NSTEPS counts Yade's own DEM substeps
-#    (O.dt = yadeDtFixed = 5e-6 s in MPI_lambda.py), NOT OpenFOAM steps --
-#    the first smoke run got this wrong (YADE_NSTEPS=25, i.e. endTime/foamDt)
-#    and produced a real hang: Yade finished its 25 tiny substeps, exited,
-#    and porousGasificationFoam was left stuck mid-run waiting on the next
-#    coupling exchange (no early-exit handshake between the two sides). The
-#    coupling log confirmed the real substep ratio: dtInfo.txt's first row
-#    gave foamDt/yadeDt = 4e-3/5e-6 = 800, so covering endTime=0.1 s needs
-#    endTime/yadeDtFixed = 20000 Yade substeps, not endTime/foamDeltaT = 25.
-export YADE_NSTEPS=20000
+# 5. Coupled Yade + OpenFOAM run. With no early-exit handshake, Yade must
+#    run exactly endTime/yadeDt DEM substeps or one side waits forever;
+#    YADE_DT must match yadeDtFixed in MPI_lambda.py.
+YADE_DT=5e-6
+END_TIME=$(foamDictionary -entry endTime -value system/controlDict)
+export YADE_NSTEPS=$(awk -v t="$END_TIME" -v dt="$YADE_DT" 'BEGIN { printf "%d", t / dt + 0.5 }')
+echo "YADE_NSTEPS = $YADE_NSTEPS (endTime $END_TIME / yadeDt $YADE_DT)"
 mpirun -n 2 yade MPI_lambda.py
