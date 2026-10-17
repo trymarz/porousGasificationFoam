@@ -59,10 +59,6 @@ species
 
 solidReactions
 (
-/*    irreversibleSolidArrheniusHeterogeneousReaction
-    hum = H2O
-     (1.36e1 6.0e3 301 2.256e6 1)   
-*/
     irreversibleSolidArrheniusHeterogeneousReaction
     wood = targas 
     (2.0e10 1.78e4 300 1.10e5 1)  //

@@ -13,6 +13,9 @@ checked fields share the same decomposition), and checks:
     MASK < threshold satisfies the sign (zero requires every selected value
     to be exactly 0.0, not just a small mean -- the code paths this guards
     produce a hard zero, not a cancellation).
+  - --mean-below FIELD=VALUE  the mean of FIELD over the same cells is below
+    VALUE. With --sign FIELD=positive it brackets a factor in (0, VALUE), e.g.
+    the apparentVolume lambdaDot r, which is 1 for no size change.
 
 --threshold defaults to 0.9999, the criticalPorosity these fixtures set in
 constant/pyrolysisProperties; pass it explicitly for a case that differs.
@@ -21,6 +24,7 @@ Usage:
   checkFieldSign.py <caseDir> [--mask FIELD] [--threshold VALUE]
                     [--dims FIELD=d0 d1 d2 d3 d4 d5 d6]...
                     [--sign FIELD=positive|negative|zero]...
+                    [--mean-below FIELD=VALUE]...
 
 Exit codes: 0 pass, 1 assertion failure, 2 infrastructure error.
 """
@@ -108,6 +112,8 @@ def main():
     ap.add_argument("--dims", action="append", default=[], metavar="FIELD=D0 .. D6")
     ap.add_argument("--sign", action="append", default=[],
                      metavar="FIELD=positive|negative|zero")
+    ap.add_argument("--mean-below", action="append", default=[],
+                     metavar="FIELD=VALUE")
     args = ap.parse_args()
 
     case_dir = os.path.abspath(args.case_dir)
@@ -119,6 +125,12 @@ def main():
 
     dims_checks = dict(parse_field_arg(s) for s in args.dims)
     sign_checks = dict(parse_field_arg(s) for s in args.sign)
+    try:
+        below_checks = {f: float(v) for f, v in
+                        (parse_field_arg(s) for s in args.mean_below)}
+    except ValueError as exc:
+        print(f"ERROR: --mean-below: {exc}", file=sys.stderr)
+        return 2
 
     # Reject an unrecognised sign rather than silently asserting nothing:
     # neither branch below would match it and the case would pass unchecked.
@@ -130,10 +142,11 @@ def main():
                   "positive, negative, zero", file=sys.stderr)
         return 2
 
-    needed_fields = set(dims_checks) | set(sign_checks) | {args.mask}
+    value_fields = set(sign_checks) | set(below_checks)
+    needed_fields = set(dims_checks) | value_fields | {args.mask}
 
     dims_seen = {f: set() for f in dims_checks}
-    values = {f: [] for f in sign_checks}
+    values = {f: [] for f in value_fields}
     mask_values = []
 
     for proc_dir in proc_dirs:
@@ -159,7 +172,7 @@ def main():
 
         mask_raw = parsed[args.mask][1]
         n = len(mask_raw) if isinstance(mask_raw, list) else None
-        for field in sign_checks:
+        for field in value_fields:
             field_raw = parsed[field][1]
             if n is None:
                 n = len(field_raw) if isinstance(field_raw, list) else 1
@@ -178,7 +191,7 @@ def main():
 
     solid_mask = [m < args.threshold for m in mask_values]
     n_solid = sum(solid_mask)
-    if sign_checks and n_solid == 0:
+    if value_fields and n_solid == 0:
         failures.append(
             f"no cells with {args.mask} < {args.threshold} found across "
             f"{len(mask_values)} cells -- packed-bed box did not register"
@@ -207,6 +220,16 @@ def main():
                         f"{field}: expected negative mean over solid cells, "
                         f"got {mean_val:.6e}"
                     )
+
+        for field, limit in below_checks.items():
+            solid_vals = [v for v, keep in zip(values[field], solid_mask) if keep]
+            mean_val = sum(solid_vals) / len(solid_vals)
+            print(f"  {field}: {n_solid} solid cells, mean = {mean_val:.12e}")
+            if not mean_val < limit:
+                failures.append(
+                    f"{field}: expected mean over solid cells below {limit}, "
+                    f"got {mean_val:.12e}"
+                )
 
     if failures:
         for f in failures:

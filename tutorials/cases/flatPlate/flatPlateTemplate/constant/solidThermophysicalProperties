@@ -35,6 +35,7 @@ porousMaterialCoeffs
     density
     {
       rho          630;
+      rhoApparent 630; // = rho: non-porous, fixture value
     }
 };
 

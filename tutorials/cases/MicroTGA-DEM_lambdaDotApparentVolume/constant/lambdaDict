@@ -1,0 +1,30 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     |
+    \\  /    A nd           |
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      lambdaDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// Regression fixture for lambdaMode apparentVolume: lambdaDot is the
+// dimensionless factor r = cbrt(1 + dV_chem/V_old) that Yade multiplies each
+// particle's lambda by once per exchange. Wood and char come from the Corymbia
+// pair in thermoData/solidThermoData (rhoApparent 583 and 459), so with the
+// 0.65 char yield the solid shrinks: r < 1 wherever wood is converting.
+// Requires the matching Foam-Yade (FoamCoupling.lambdaMode handshake).
+lambdaMode apparentVolume;
+
+// Optional guards, shown at their defaults.
+minSolidVolume  1e-6;   // [-] V_old below this: r = 1
+minVolumeRatio  1e-6;   // [-] floor on 1 + dV_chem/V_old
+
+// ************************************************************************* //

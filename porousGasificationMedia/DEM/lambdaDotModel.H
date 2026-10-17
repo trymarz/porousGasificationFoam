@@ -24,6 +24,7 @@ private:
     volScalarField& lambda_;      // interpolated particle length scale
     volScalarField& porosityF_;   // from the main solver
     scalar criticalPorosity_;     // from constant/pyrolysisProperties
+    scalar lambdaDotNeutral_;     // what lambdaDot_ gates to: 0 rate, 1 factor
 
     FoamYade& yade_;
 

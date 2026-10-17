@@ -1,0 +1,33 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     |
+    \\  /    A nd           |
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      solidThermophysicalProperties;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+thermoType solidMixtureThermo<constHeterogeneous>;
+
+#include "../../../../thermoData/solidThermoData"
+
+solidComponents
+(
+    wood char
+);
+
+// Physical entries with different apparent densities, so the particle size
+// changes (the Park entries assume no shrinkage and would give r = 1).
+woodCoeffs { $corymbiaWood; }
+
+charCoeffs { $corymbiaChar; }
+
+// ************************************************************************* //
