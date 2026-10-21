@@ -1,0 +1,27 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  8
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      lambdaDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// Yade multiplies each sphere's lambda by r = cbrt(1 + dV_chem/V_old) once per
+// exchange, and MPI_lambda.py's changeRadius() sets radius = r0 * lambda.
+// R24 leaves 0.74% char, so full pyrolysis gives lambda = cbrt(0.0074*630/409.5) = 0.22.
+lambdaMode apparentVolume;
+
+// Optional guards, shown at their defaults.
+minSolidVolume  1e-6;   // [-] V_old below this: r = 1
+minVolumeRatio  1e-6;   // [-] floor on 1 + dV_chem/V_old
+
+// ************************************************************************* //

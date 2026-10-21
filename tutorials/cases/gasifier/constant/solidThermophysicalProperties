@@ -35,6 +35,7 @@ woodCoeffs
     density
     {
         rho           663;
+        rhoApparent 663; // = rho: non-porous, fixture value
     }
 };
 
@@ -52,6 +53,7 @@ ashCoeffs
     density
     {
         rho           650;
+        rhoApparent 650; // = rho: non-porous, fixture value
     }
 };
 

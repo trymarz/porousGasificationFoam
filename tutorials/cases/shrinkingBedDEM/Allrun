@@ -1,0 +1,47 @@
+#!/bin/sh
+#
+# shrinkingBedDEM — Allrun
+# ========================
+# Smallest coupled test of lambdaMode apparentVolume with bed motion: a 2D
+# column of inert solid with one reactive layer (wood = tar, no heat of
+# reaction, isothermal 600 K). The layer's solid volume falls, its spheres
+# shrink and vanish, and the bed above settles into the space; the DEM
+# velocities come back to PGF as Us and move the FVM solid.
+#
+# PREREQUISITES
+#   - porousGasificationFoam built with ./build.sh build --yade
+#   - Yade with FoamCoupling on PATH (source Foam-Yade-builds/bin/yade-env)
+#
+# STEPS (what this script runs)
+#       cp -r 0.orig 0 && blockMesh && setFields && decomposePar
+#       yade -n -x relax.py
+#       YADE_NSTEPS=<endTime/dem_dt> mpirun -n 2 yade MPI_lambda.py
+#
+#   mpirun -n 2 starts two Yade ranks; FoamCoupling spawns the two OpenFOAM
+#   ranks itself, so porousGasificationFoam is never launched directly.
+#
+# OUTPUT
+#   Time directories every writeInterval (system/controlDict)
+#   spheres/spheres.pvd (sphere positions and radii, for ParaView)
+#   postProcessing/solidMass, postProcessing/axisProbes
+
+set -e
+
+# 1. Mesh and initial fields.
+cp -r 0.orig 0
+blockMesh
+setFields
+decomposePar
+
+# 2. DEM-only relaxation: settle the sphere bed under gravity and write
+#    relaxedSpheres.txt, so the coupled run starts at rest.
+yade -n -x relax.py
+
+# 3. Coupled Yade + OpenFOAM run. With no early-exit handshake, Yade must
+#    run exactly endTime/yadeDt DEM substeps or one side waits forever;
+#    YADE_DT is dem_dt from demGeometry.py, the step both DEM scripts use.
+YADE_DT=$(sed -n 's/^dem_dt *= *\([0-9.eE+-]*\).*/\1/p' demGeometry.py)
+END_TIME=$(foamDictionary -entry endTime -value system/controlDict)
+export YADE_NSTEPS=$(awk -v t="$END_TIME" -v dt="$YADE_DT" 'BEGIN { printf "%d", t / dt + 0.5 }')
+echo "YADE_NSTEPS = $YADE_NSTEPS (endTime $END_TIME / yadeDt $YADE_DT)"
+mpirun -n 2 yade MPI_lambda.py

@@ -26,6 +26,7 @@ lambdaDotModel::lambdaDotModel
     lambdaDEM_(lambdaDEM),
     lambda_(lambda),
     porosityF_(porosityF),
+    lambdaDotNeutral_(0.0),
     yade_(yade),
     interpolateUs_(true),
     solidPorosityCutoff_(1),
@@ -66,6 +67,12 @@ lambdaDotModel::lambdaDotModel
                 .subDict("pyrolysisCoeffs")
                 .lookup("criticalPorosity")
         );
+
+    // apparentVolume sends a factor r, whose "no change" is 1; the rate
+    // models send m/s, whose "no change" is 0.
+    lambdaDotNeutral_ =
+        lambdaDict.lookupOrDefault<word>("lambdaMode", "constant")
+     == "apparentVolume" ? 1.0 : 0.0;
 
     interpolateUs_ =
         lambdaDict.lookupOrDefault<Switch>("interpolateUs", true);
@@ -124,7 +131,7 @@ void lambdaDotModel::updateLambdaDot()
     {
         if (porosityF_[cellI] >= criticalPorosity_)
         {
-            lambdaDot_[cellI] = 0.0;
+            lambdaDot_[cellI] = lambdaDotNeutral_;
         }
     }
 

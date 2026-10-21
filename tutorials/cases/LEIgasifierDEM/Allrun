@@ -1,0 +1,66 @@
+#!/bin/sh
+#
+# LEIgasifierDEM — Allrun
+# ====================
+# 2D downdraft gasifier tutorial, twin-domain: full-domain sphere packing
+# under gravity produces a DEM-derived Us field. Issue #104.
+#
+# PREREQUISITES
+#   - porousGasificationFoam compiled and on PATH (OpenFOAM 8 environment sourced)
+#   - Yade built with FoamCoupling support, `yade` on PATH
+#   - uv + classy-blocks available via utilities/py_utils (for mesh generation)
+#
+# COUPLED RUN (default)
+#   From the case directory:
+#       ./Allrun
+#   or step by step:
+#       uv run --project ../../../utilities/py_utils python system/make_mesh.py
+#       cp -r 0.orig 0 && blockMesh
+#       topoSet && createPatch -overwrite && setFields && decomposePar
+#       yade -n -x relax.py
+#       YADE_NSTEPS=<endTime/dem_dt> mpirun -n 2 yade MPI_lambda.py
+#
+#   mpirun -n 2 starts TWO Yade ranks. FoamCoupling then spawns TWO OpenFOAM
+#   ranks internally (via MPI_Comm_spawn). Do NOT launch porousGasificationFoam
+#   directly — the inter-communicator requires Yade to be the MPI parent.
+#
+# CLEAN
+#   ./Allclean
+#
+# OUTPUT
+#   Time directories every writeInterval (system/controlDict); endTime=0.1 s
+#   is a smoke run (25 OpenFOAM steps at deltaT 4e-3, 2000 Yade substeps).
+#   DEM sphere positions/radii: spheres/spheres_*.vtp  (open spheres/spheres.pvd in ParaView)
+#   Time-step coupling log:     dtInfo.txt
+
+set -e   # abort on first error
+
+CASE_DIR="$(dirname "$(realpath "$0")")"
+PY_UTILS="$CASE_DIR/../../../utilities/py_utils"
+
+# 1. Generate blockMeshDict from the classy_blocks mesh script.
+uv run --project "$PY_UTILS" python "$CASE_DIR/system/make_mesh.py"
+
+# 2. Build the mesh, carve the air-nozzle patch out of the throat's side
+#    walls, and initialise fields.
+cp -r 0.orig 0
+blockMesh
+topoSet
+createPatch -overwrite
+setFields
+
+# 3. Decompose for 2-rank parallel OpenFOAM run (split in X direction).
+decomposePar
+
+# 4. DEM-only relaxation: settle the sphere bed under gravity and write
+#    relaxedSpheres.txt, so the coupled run starts at rest.
+yade -n -x relax.py
+
+# 5. Coupled Yade + OpenFOAM run. With no early-exit handshake, Yade must
+#    run exactly endTime/yadeDt DEM substeps or one side waits forever;
+#    YADE_DT is dem_dt from demGeometry.py, the step both DEM scripts use.
+YADE_DT=$(sed -n 's/^dem_dt *= *\([0-9.eE+-]*\).*/\1/p' demGeometry.py)
+END_TIME=$(foamDictionary -entry endTime -value system/controlDict)
+export YADE_NSTEPS=$(awk -v t="$END_TIME" -v dt="$YADE_DT" 'BEGIN { printf "%d", t / dt + 0.5 }')
+echo "YADE_NSTEPS = $YADE_NSTEPS (endTime $END_TIME / yadeDt $YADE_DT)"
+mpirun -n 2 yade MPI_lambda.py

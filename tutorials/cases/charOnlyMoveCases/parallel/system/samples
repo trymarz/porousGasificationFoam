@@ -29,7 +29,7 @@ setConfig
 start   (0.02 0. 0.00);
 end     (0.02 0. 0.26);
 
-fields  (T Ts Yhum Yrubberwood Ychar1 Ychar Yash O2 H2 CO CO2 H2O CH4 tar porosityF);
+fields  (T Ts Yrubberwood Ychar Yash O2 H2 CO CO2 H2O CH4 tar porosityF);
 
 sets
 (
@@ -43,5 +43,5 @@ sets
 
 // postProcess -func samples
 
-// p for [i = 6:10] for [j = 0:300:100] './postProcessing/samples/'.j.'/line_T_Ts_Yhum_Ywood_Ychar1_Ychar_Yash_O2_H2_CO_CO2_H2O_CH4_tar.xy' u 3:i w l t 'time '.j.' filed '.i
+// p for [i = 6:10] for [j = 0:300:100] './postProcessing/samples/'.j.'/line_T_Ts_Ywood_Ychar_Yash_O2_H2_CO_CO2_H2O_CH4_tar.xy' u 3:i w l t 'time '.j.' filed '.i
 

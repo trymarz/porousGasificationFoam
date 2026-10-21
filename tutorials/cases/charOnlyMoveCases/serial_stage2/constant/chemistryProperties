@@ -59,11 +59,6 @@ solidOdeCoeffs
 
 solidReactions
 (
-//    // Reaction 1
-//    irreversibleSolidArrheniusHeterogeneousReaction
-//    hum = H2O
-//    (5.13e6 1.0589e4 301 2.256e6 1)
-//
 //    // Reaction 2
 //    irreversibleSolidArrheniusHeterogeneousReaction
 //    0.2 rubberwood = 0.2 char

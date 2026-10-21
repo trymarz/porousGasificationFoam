@@ -20,24 +20,11 @@ thermoType solidMixtureThermo<constHeterogeneous>;
 // Four inert components with deliberately different skeletal densities. The
 // prescribed Us advects their mixed mass concentrations with one shared solid
 // volume flux, so density weighting is exercised independently of chemistry.
+#include "../../../../../thermoData/solidThermoData"
+
 solidComponents ( char ash wood mineral );
 
-charCoeffs
-{
-    transport
-    {
-        K           0.156;
-    }
-    thermodynamics
-    {
-        Cp          1054;
-        Hf          -2.12e4;
-    }
-    density
-    {
-        rho         1050;
-    }
-}
+charCoeffs { $park2010Char; }
 
 ashCoeffs
 {
@@ -53,6 +40,7 @@ ashCoeffs
     density
     {
         rho         2500;
+        rhoApparent 2500; // = rho: non-porous, fixture value
     }
 }
 
@@ -70,6 +58,7 @@ woodCoeffs
     density
     {
         rho         650;
+        rhoApparent 650; // = rho: non-porous, fixture value
     }
 }
 
@@ -87,6 +76,7 @@ mineralCoeffs
     density
     {
         rho         3000;
+        rhoApparent 3000; // = rho: non-porous, fixture value
     }
 }
 

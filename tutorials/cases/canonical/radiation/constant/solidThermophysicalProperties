@@ -33,6 +33,7 @@ woodCoeffs
     density
     {
         rho     1000;
+        rhoApparent 1000; // = rho: non-porous, fixture value
     }
 }
 

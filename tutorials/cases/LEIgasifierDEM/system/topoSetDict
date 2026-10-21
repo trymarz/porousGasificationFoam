@@ -1,0 +1,56 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  8
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "system";
+    object      topoSetDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// Collects the air-nozzle faces for createPatch: the throat's own side walls
+// (block 2, z = 0.30-0.32) plus the row immediately above them (block 3's
+// first row, z = 0.32-0.34), on both sides. Together they span exactly the
+// ignition strip's z-extent, which is where an Imbert tuyere belongs.
+//
+// Faces are matched on their centres, so the boxes only have to separate
+// neighbouring rows: block 1's top row centres at z = 0.29 and block 3's
+// second row at z = 0.35, both outside [0.295, 0.345]. Four faces total.
+//
+// The y span is deliberately loose. make_mesh.py's comment claims the 0.016 m
+// extrusion is centred on y = 0, but cb.Extrude runs in -y and the translate
+// that follows pushes it further out, so the slab actually occupies
+// y = -0.024 to -0.008. Bracketing the whole neighbourhood keeps this
+// selection correct either way.
+
+actions
+(
+    {
+        name    nozzleFaces;
+        type    faceSet;
+        action  new;
+        source  patchToFace;
+        patch   wall;
+    }
+
+    {
+        name    nozzleFaces;
+        type    faceSet;
+        action  subset;
+        source  boxToFace;
+        boxes
+        (
+            ( 0.070 -0.050 0.295) ( 0.100 0.050 0.345)
+            (-0.100 -0.050 0.295) (-0.070 0.050 0.345)
+        );
+    }
+);
+
+// ************************************************************************* //
