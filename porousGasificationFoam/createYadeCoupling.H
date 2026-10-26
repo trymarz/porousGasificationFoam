@@ -1,3 +1,6 @@
+// Always false: this coupling only exchanges lambdaDot (PGF -> YADE) and
+// Us/porosity (YADE -> PGF), never particle drag forces, so FoamYade's
+// Gaussian-interpolated drag path is never applicable here. Not a TODO.
 bool gaussianInterp = false;
 
 autoPtr<FoamYade> yadeCoupling(nullptr);
