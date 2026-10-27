@@ -153,7 +153,7 @@ void volPyrolysis::guardPorosity
 
     OStringStream context;
     context
-        << "    minPorosity  = " << solidFluxLimiter_->minPorosity() << nl
+        << "    minPorosity  = " << solidState_->minPorosity() << nl
         << "    Us           = " << Us_[badCell] << nl
         << "    div(phiUs)   = " << fvc::div(phiUs)()[badCell] << nl
         << "    sum(Ym)      = " << sumYm << nl
@@ -1668,7 +1668,8 @@ volPyrolysis::volPyrolysis
             rho_,
             T_,
             solidChemistry_(),
-            active_
+            active_,
+            solidState_()
         )
     );
 
