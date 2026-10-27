@@ -3,6 +3,10 @@
 # Iterates the case paths listed in cases.list, runs each case, then diffs
 # postProcessing/ output against the committed reference/ baseline.
 #
+# Each case runs from a copy under the run root (tools/runCase.sh --run-dir), so
+# the source tree never gets logs, time dirs or postProcessing/. Passed copies
+# are deleted, failed ones kept. --in-place restores the old in-tree run.
+#
 # This script is the authority on the serial regression suite: which cases
 # belong to it, how they are filtered, in what order and how many at a time they
 # run, and whether the suite as a whole is green. It needs nothing but bash,
@@ -36,7 +40,11 @@ ATOL="1e-12"
 ONLY_CASE=""
 SKIP_RUN=false
 TAG="fast"
+TAG_GIVEN=false
 JOBS=1
+RUN_ROOT=""
+KEEP_RUNS=false
+IN_PLACE=false
 LIST_ONLY=false
 AS_JSON=false
 STATE_DIR=""
@@ -46,9 +54,15 @@ usage() {
 Usage: $0 [options]
 
 Options:
-  --case <path>   Run only the named case (must appear in cases.list).
+  --case <path>   Run only the named case (must appear in cases.list): its
+                  cases.list path, a trailing part of it, or its basename.
+                  Implies --tag all unless --tag is given.
   --tag  <tag>    Run only cases with this tag (default: fast).
                   Use 'all' to run every case regardless of tag.
+  --run-root <d>  Run each case from a copy under <d>/<case path with / as __>/
+                  (default: \${PGF_RUN_ROOT:-\${TMPDIR:-/tmp}/pgf-runs}/regression-<time>-<pid>).
+  --keep-runs     Keep the copies of passed cases too (failed ones are always kept).
+  --in-place      Run in the source tree instead of a copy (the pre-#120 behaviour).
   --rtol <val>    Relative tolerance for compareScalars.py (default 1e-4).
   --atol <val>    Absolute tolerance for compareScalars.py (default 1e-12).
   --no-run        Skip running cases; only compare existing postProcessing/
@@ -71,7 +85,10 @@ EOF
 while [ $# -gt 0 ]; do
     case "$1" in
         --case) ONLY_CASE="$2"; shift 2 ;;
-        --tag)  TAG="$2";       shift 2 ;;
+        --tag)  TAG="$2"; TAG_GIVEN=true; shift 2 ;;
+        --run-root) RUN_ROOT="$2"; shift 2 ;;
+        --keep-runs) KEEP_RUNS=true; shift ;;
+        --in-place) IN_PLACE=true; shift ;;
         --rtol) RTOL="$2";      shift 2 ;;
         --atol) ATOL="$2";      shift 2 ;;
         --no-run) SKIP_RUN=true; shift ;;
@@ -83,6 +100,9 @@ while [ $# -gt 0 ]; do
         *) clog ERROR "Unknown option: $1"; usage; exit 2 ;;
     esac
 done
+
+# Naming one case means that case, whatever its tier.
+[ -n "$ONLY_CASE" ] && [ "$TAG_GIVEN" = false ] && TAG="all"
 
 # A malformed job count is an infrastructure error, not something to guess at:
 # silently coercing it could turn a typo into an unbounded fork storm.
@@ -118,10 +138,12 @@ select_cases() {
             continue
         fi
 
-        # --case filter: accepts the basename or the cases.list path.
+        # --case filter: the basename, the cases.list path, or a trailing
+        # part of it such as charOnlyMoveCases/serial.
         if [ -n "$ONLY_CASE" ] && \
            [ "$(basename "$caseRel")" != "$ONLY_CASE" ] && \
-           [ "$caseRel" != "$ONLY_CASE" ]; then
+           [ "$caseRel" != "$ONLY_CASE" ] && \
+           [[ "$caseRel" != */"$ONLY_CASE" ]]; then
             continue
         fi
 
@@ -206,6 +228,20 @@ elif [ "$JOBS" -gt 1 ]; then
 fi
 [ -n "$SCHED_DIR" ] && CASES_ROOT="$SCHED_DIR/cases"
 
+if [ "$IN_PLACE" = false ]; then
+    [ -n "$RUN_ROOT" ] || RUN_ROOT="${PGF_RUN_ROOT:-${TMPDIR:-/tmp}/pgf-runs}/regression-$(date +%Y%m%d-%H%M%S)-$$"
+    if ! mkdir -p "$RUN_ROOT"; then
+        clog ERROR "cannot create run root: $RUN_ROOT"
+        exit 2
+    fi
+    RUN_ROOT="$(cd "$RUN_ROOT" && pwd)"
+fi
+
+# case_run_dir <case-id> — the per-case mirror root under the run root.
+case_run_dir() {
+    printf '%s/%s' "$RUN_ROOT" "${1//\//__}"
+}
+
 T_SUITE_START=$(date +%s)
 
 if [ "$STATE_ACTIVE" = true ]; then
@@ -219,6 +255,7 @@ if [ "$STATE_ACTIVE" = true ]; then
                 --field "tag=$TAG" --int "jobs=$JOBS" --bool "no_run=$SKIP_RUN"
                 --field "rtol=$RTOL" --field "atol=$ATOL"
                 --field "state_dir=$SCHED_DIR" --field "status=running"
+                --field "run_root=${RUN_ROOT:-in-place}"
                 --num "started_epoch=$T_SUITE_START")
     [ -n "$ONLY_CASE" ] && suite_args+=(--field "case_filter=$ONLY_CASE")
     listing_args suite_args
@@ -238,6 +275,11 @@ clog INFO "  rtol:    $RTOL   atol: $ATOL"
 [ -n "$ONLY_CASE" ]     && clog INFO "  filter:  $ONLY_CASE"
 [ "$JOBS" -gt 1 ]       && clog INFO "  jobs:    $JOBS cases at a time"
 [ "$STATE_ACTIVE" = true ] && clog INFO "  state:   $SCHED_DIR"
+if [ "$IN_PLACE" = true ]; then
+    clog INFO "  runs:    in place, in the source tree"
+else
+    clog INFO "  runs:    $RUN_ROOT"
+fi
 clog INFO "=================================================="
 
 for i in "${!SEL_IDS[@]}"; do
@@ -282,21 +324,32 @@ run_one() {
     [ "$SKIP_RUN" = true ] && args+=(--no-run)
     args+=(--rtol "$RTOL" --atol "$ATOL" --compare "$COMPARE"
            --case-id "$id" --suite-id "$SUITE_ID")
+    local run_dir="" rc
+    if [ "$IN_PLACE" = false ]; then
+        run_dir="$(case_run_dir "$id")"
+        rm -rf "$run_dir"
+        args+=(--run-dir "$run_dir")
+    fi
 
     if [ -z "$CASES_ROOT" ]; then
         "$RUN_CASE" "${args[@]}"
-        return $?
+        rc=$?
+    else
+        local cs="$CASES_ROOT/$id"
+        mkdir -p "$cs"
+        # Drop any result from an earlier run in this directory: a stale result.json
+        # must never be able to stand in for a case that died before writing one.
+        rm -f "$cs/result.json"
+        args+=(--state-dir "$cs")
+        [ "$STATE_ACTIVE" = true ] && args+=(--suite-events "$SUITE_EVENTS")
+        "$RUN_CASE" "${args[@]}" >"$cs/stdout.log" 2>"$cs/stderr.log"
+        rc=$?
     fi
 
-    local cs="$CASES_ROOT/$id"
-    mkdir -p "$cs"
-    # Drop any result from an earlier run in this directory: a stale result.json
-    # must never be able to stand in for a case that died before writing one.
-    rm -f "$cs/result.json"
-    args+=(--state-dir "$cs")
-    [ "$STATE_ACTIVE" = true ] && args+=(--suite-events "$SUITE_EVENTS")
-    "$RUN_CASE" "${args[@]}" >"$cs/stdout.log" 2>"$cs/stderr.log"
-    return $?
+    if [ -n "$run_dir" ] && [ "$rc" -eq 0 ] && [ "$KEEP_RUNS" = false ]; then
+        rm -rf "$run_dir"
+    fi
+    return "$rc"
 }
 
 # replay_case_output <case-id> — echo a captured case's streams through.
@@ -422,6 +475,14 @@ fi
 
 reg_summary "regression summary"
 suite_rc=$?
+
+if [ -n "$RUN_ROOT" ]; then
+    if rmdir "$RUN_ROOT" 2>/dev/null; then
+        :
+    else
+        clog INFO "case copies kept under $RUN_ROOT"
+    fi
+fi
 
 if [ "$STATE_ACTIVE" = true ]; then
     T_SUITE_END=$(date +%s)

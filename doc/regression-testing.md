@@ -10,14 +10,19 @@ Source OpenFOAM and build the solver first (a missing solver gives `ERROR`/`CRAS
 cd applications/test/regression
 ./Allrun                                  # fast tier, one case at a time
 ./Allrun --tag all                        # every case (adds the convergence tier)
-./Allrun --case charOnlyMoveCases/serial  # one case
+./Allrun --case charOnlyMoveCases/serial  # one case, whatever its tag
 ./Allrun --list                           # show the selection, run nothing
 ./Allrun --no-run                         # compare existing output only
 ./Allrun --rtol 1e-3                      # override relative tolerance
 ./Allrun --jobs 4                         # four cases at once
+./Allrun --run-root /scratch/r --keep-runs  # where the case copies go; keep passed ones too
 ```
 
-Exit `0` = every case passed; non-zero = at least one did not. A single case without the suite: `tools/runCase.sh tutorials/cases/canonical/pyrolysis [--no-run] [--rtol R] [--atol A]`.
+Exit `0` = every case passed; non-zero = at least one did not. A single case without the suite: `tools/runCase.sh tutorials/cases/canonical/pyrolysis [--no-run] [--run-dir D] [--rtol R] [--atol A]`. To run against an isolated build instead of the solver on your `PATH`, prefix the command with `./pgf-env --` (see [Isolated builds](build.md#isolated-builds-and-pgf-env)).
+
+`--case` accepts the `cases.list` path, a trailing part of it or the basename, and selects every tag unless `--tag` is also given.
+
+**Cases run from a copy.** Each case is copied to `<run root>/<case path with / as __>/<case path>` and cleaned, run and compared there against the source tree's `reference/`, so the source tree never gets logs, time directories, `processor*/` or `postProcessing/`. The copy keeps its symlinks, and every sibling directory on the way up (including `applications/`) is a symlink back into the source tree, so `../MicroTGA-DEM_lambdaDot_common/…` and `../../../applications/…` resolve as usual. The run root defaults to `${PGF_RUN_ROOT:-${TMPDIR:-/tmp}/pgf-runs}/regression-<time>-<pid>`. Copies of passed cases are deleted, failed ones kept (the runner prints `run copy <path>`), all of them with `--keep-runs`. `--in-place` runs in the source tree as before. With `--no-run`, the copy includes whatever output is already in the source case. The DEM driver (`Allrun.yade`) still runs in place.
 
 ## Outcomes
 
@@ -39,16 +44,22 @@ The suite is green only if at least one case ran and every case passed. There is
 
 1. Add `system/regressionFunctions` with the metrics to extract (example: `tutorials/cases/charOnlyMoveCases/serial/system/regressionFunctions`), and `#includeIfPresent "regressionFunctions"` inside `functions { … }` at the bottom of `system/controlDict`.
 2. Add the case path (and optional tag) to `applications/test/regression/cases.list`.
-3. Capture and commit a baseline (a case without one fails the suite, so register and baseline together):
+3. Capture and commit a baseline (a case without one fails the suite, so register and baseline together). For a new case, run it in a copy and take its whole `postProcessing/`:
 
 ```bash
-cd tutorials/cases/charOnlyMoveCases/serial
-./Allclean && ./Allrun
-mkdir -p reference && cp -r postProcessing reference/
-git add reference && git commit -m "Capture charOnlyMoveCases/serial regression baseline"
+applications/test/regression/Allrun --case charOnlyMoveCases/serial --run-root /scratch/r --keep-runs
+case=tutorials/cases/charOnlyMoveCases/serial
+mkdir -p $case/reference && cp -r /scratch/r/${case//\//__}/$case/postProcessing $case/reference/
+git add $case/reference && git commit -m "Capture charOnlyMoveCases/serial regression baseline"
 ```
 
-The baseline is only as correct as the run that made it. After an intentional model change, regenerate it and say why in the commit message.
+The baseline is only as correct as the run that made it. After an intentional model change, recapture it from a kept run with `tools/captureBaseline.sh`, and say why in the commit message:
+
+```bash
+applications/test/regression/tools/captureBaseline.sh $case --run-dir /scratch/r/${case//\//__}/$case [--dry-run] [--all-files]
+```
+
+By default it copies only the reference files that fail the comparison, so files still within tolerance are not rewritten. `--all-files` copies every reference file, and `--dry-run` copies nothing. It never adds a file that is not already in `reference/`. For each file it prints the first, middle and last sample before and after.
 
 ## How the comparison works
 
@@ -97,8 +108,8 @@ tools/runDEMCase.sh tutorials/cases/simple_line_case [--timeout S] [--nsteps N]
 
 ### Scripts
 
-- Serial suite: `Allrun`/`Allclean`, `cases.list`, `tools/runCase.sh`, `tools/compareScalars.py`. DEM suite: `Allrun.yade`, `cases_yade.list`, `tools/runDEMCase.sh`.
-- `tools/regressionLib.sh` holds what both runners must agree on: loading the case list, mapping exit status to outcome, deciding if the suite is green, and bounded concurrency. `tools/regressionState.py` writes run state as JSON (standard library only).
+- Serial suite: `Allrun`/`Allclean`, `cases.list`, `tools/runCase.sh`, `tools/compareScalars.py`, `tools/captureBaseline.sh`. DEM suite: `Allrun.yade`, `cases_yade.list`, `tools/runDEMCase.sh`.
+- `tools/regressionLib.sh` holds what both runners must agree on: loading the case list, mapping exit status to outcome, deciding if the suite is green, bounded concurrency, and copying a case into a run root (`reg_stage_case`). `tools/regressionState.py` writes run state as JSON (standard library only).
 - Both runners return the same outcomes as the suite and accept the state flags below.
 
 ### Machine-readable listing and run state
