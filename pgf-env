@@ -1,0 +1,219 @@
+#!/bin/bash
+#
+# pgf-env: run a command in a hermetic porousGasificationFoam environment.
+#
+#   pgf-env [--prefix DIR | --for-tree | --bare] [--yade] [--mpi loopback] -- <command ...>
+#
+# The caller's environment is dropped (env -i, small allowlist), OpenFOAM's
+# etc/bashrc is sourced with set +eu, and only then are the user output
+# variables pointed at a build prefix: bashrc resets WM_PROJECT_USER_DIR, so
+# overriding it beforehand has no effect. Every PATH / LD_LIBRARY_PATH entry
+# under the user dir bashrc chose is removed, so the shared build there can
+# neither be run nor overwritten (PGF_ISOLATED_ONLY=1 makes build.sh refuse).
+#
+#   --prefix DIR  use this complete prefix (built by build.sh --prefix/--isolated)
+#   --for-tree    (default) the build.sh --isolated prefix for this checkout
+#   --bare        no prefix: OpenFOAM only, for running build.sh --isolated
+#   --yade        the WITH_YADE variant, plus yade, YADE_TRUNK and PYTHONPATH
+#   --mpi loopback  restrict Open MPI to self,vader,tcp on lo
+#
+# Inputs: PGF_FOAM_BASHRC (else $WM_PROJECT_DIR/etc/bashrc), PGF_BUILD_ROOT,
+# PGF_RUN_ROOT (default ${TMPDIR:-/tmp}/pgf-runs; TMPDIR becomes its tmp/),
+# YADE_TRUNK, YADE_BIN (else `yade` on the caller's PATH), YADE_PYTHONPATH.
+# Exit 2 when the environment cannot be set up; otherwise the command's status.
+
+PGF_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+SELF="$PGF_ROOT/pgf-env"
+
+die() {
+  echo "pgf-env: $*" >&2
+  exit 2
+}
+
+# -- 1. drop the caller's environment ------------------------------------------
+
+if [ -z "${PGF_ENV_ACTIVE:-}" ]; then
+  keep=()
+  for v in HOME USER LANG TERM TMPDIR WM_PROJECT_DIR; do
+    [ -n "${!v+x}" ] && keep+=("$v=${!v}")
+  done
+  while IFS= read -r v; do
+    keep+=("$v=${!v}")
+  done < <(compgen -e | grep -E '^(PGF_|YADE_)')
+  # The caller's PATH is kept aside only to find yade; PATH is rebuilt below.
+  exec env -i "${keep[@]}" PGF_ENV_CALLER_PATH="$PATH" PGF_ENV_ACTIVE=0 \
+    /bin/bash "$SELF" "$@"
+fi
+
+# -- arguments -----------------------------------------------------------------
+
+mode="tree"
+prefix=""
+yade=0
+mpi=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+  --prefix)
+    [ -n "${2:-}" ] || die "--prefix needs a directory"
+    mode="prefix"
+    prefix="$2"
+    shift 2
+    ;;
+  --for-tree) mode="tree"; shift ;;
+  --bare) mode="bare"; shift ;;
+  --yade) yade=1; shift ;;
+  --mpi)
+    [ "${2:-}" = "loopback" ] || die "--mpi supports only 'loopback'"
+    mpi="loopback"
+    shift 2
+    ;;
+  --) shift; break ;;
+  -h | --help)
+    sed -n '3,24p' "$SELF" | sed 's/^# \{0,1\}//'
+    exit 0
+    ;;
+  *) die "unknown option '$1' (the command goes after --)" ;;
+  esac
+done
+[ $# -gt 0 ] || die "no command given (usage: pgf-env [options] -- <command ...>)"
+cmd=("$@")
+
+# -- 2. OpenFOAM ---------------------------------------------------------------
+
+bashrc="${PGF_FOAM_BASHRC:-${WM_PROJECT_DIR:+$WM_PROJECT_DIR/etc/bashrc}}"
+[ -n "$bashrc" ] || die "set PGF_FOAM_BASHRC (or WM_PROJECT_DIR) to locate OpenFOAM's etc/bashrc"
+[ -r "$bashrc" ] || die "cannot read $bashrc"
+
+PATH="/usr/local/bin:/usr/bin:/bin"
+# bashrc parses positional arguments as settings, and fails under -u / -e.
+set +eu
+set --
+# shellcheck disable=SC1090
+. "$bashrc"
+[ -n "${WM_PROJECT_USER_DIR:-}" ] && [ -n "${WM_OPTIONS:-}" ] ||
+  die "$bashrc did not set WM_PROJECT_USER_DIR / WM_OPTIONS"
+export PGF_DEFAULT_USER_DIR="${PGF_DEFAULT_USER_DIR:-$WM_PROJECT_USER_DIR}"
+export PGF_BUILD_ROOT="${PGF_BUILD_ROOT:-$PGF_DEFAULT_USER_DIR/pgf-builds}"
+
+# -- 3. the prefix -------------------------------------------------------------
+
+variant_flag=()
+[ "$yade" -eq 1 ] && variant_flag=(--yade)
+case "$mode" in
+tree)
+  prefix="$("$PGF_ROOT/build.sh" --print-prefix "${variant_flag[@]}")" ||
+    die "cannot compute the build key for $PGF_ROOT"
+  [ -f "$prefix/.pgf-build.json" ] ||
+    die "no complete build for this tree at $prefix; run: $PGF_ROOT/pgf-env --bare -- $PGF_ROOT/build.sh --isolated ${variant_flag[*]}"
+  ;;
+prefix)
+  prefix="$(cd "$prefix" 2>/dev/null && pwd -P)" || die "prefix not found: $prefix"
+  [ -f "$prefix/.pgf-build.json" ] || die "$prefix is not a complete build (no .pgf-build.json)"
+  ;;
+esac
+
+# -- 4. point the user dirs at it; drop the default user dir from the paths ----
+
+under_default() {
+  case "$1" in "$PGF_DEFAULT_USER_DIR" | "$PGF_DEFAULT_USER_DIR"/*) return 0 ;; esac
+  return 1
+}
+
+strip_default() {
+  local IFS=: entry out=()
+  for entry in $1; do
+    [ -n "$entry" ] && ! under_default "$entry" && out+=("$entry")
+  done
+  printf '%s' "${out[*]}"
+}
+
+PATH="$(strip_default "$PATH")"
+LD_LIBRARY_PATH="$(strip_default "${LD_LIBRARY_PATH:-}")"
+
+export PGF_RUN_ROOT="${PGF_RUN_ROOT:-${TMPDIR:-/tmp}/pgf-runs}"
+export FOAM_RUN="$PGF_RUN_ROOT"
+if [ "$mode" = "bare" ]; then
+  unset FOAM_USER_APPBIN FOAM_USER_LIBBIN
+  export WM_PROJECT_USER_DIR="$PGF_BUILD_ROOT"
+else
+  export WM_PROJECT_USER_DIR="$prefix"
+  export FOAM_USER_APPBIN="$prefix/bin"
+  export FOAM_USER_LIBBIN="$prefix/lib"
+  PATH="$FOAM_USER_APPBIN:$PATH"
+  LD_LIBRARY_PATH="$FOAM_USER_LIBBIN${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+fi
+export PATH LD_LIBRARY_PATH
+
+# -- 5. run-time settings ------------------------------------------------------
+
+# UCX may print "failed to create VFS socket" on stdout, which RunFunctions'
+# getApplication then reads as the application name.
+export UCX_VFS_ENABLE=n UCX_LOG_LEVEL=fatal
+export PGF_ISOLATED_ONLY=1
+mkdir -p "$PGF_RUN_ROOT/tmp" || die "cannot create $PGF_RUN_ROOT/tmp"
+export TMPDIR="$PGF_RUN_ROOT/tmp"
+
+# -- 6. Yade and MPI -----------------------------------------------------------
+
+if [ "$yade" -eq 1 ]; then
+  export YADE_TRUNK="${YADE_TRUNK:-$PGF_ROOT/submodules/Foam-Yade}"
+  yade_bin="${YADE_BIN:-$(PATH="$PGF_ENV_CALLER_PATH" command -v yade)}"
+  [ -x "$yade_bin" ] || die "no yade binary: set YADE_BIN or put yade on PATH"
+  # Installs may only carry a suffixed binary; the tutorials call plain `yade`.
+  shim="$TMPDIR/pgf-env-bin"
+  mkdir -p "$shim" && ln -sfn "$yade_bin" "$shim/yade" || die "cannot create $shim/yade"
+  PATH="$shim:$PATH"
+  if [ -z "${YADE_PYTHONPATH:-}" ]; then
+    for d in "$(dirname "$(dirname "$yade_bin")")"/lib/*/yade-*/py; do
+      [ -d "$d" ] && YADE_PYTHONPATH="$d" && break
+    done
+  fi
+  [ -n "${YADE_PYTHONPATH:-}" ] && export PYTHONPATH="$YADE_PYTHONPATH${PYTHONPATH:+:$PYTHONPATH}"
+
+  # Yade hard-codes mkdtemp("/tmp/yade-XXXXXX") and segfaults if /tmp is read-only.
+  if [ ! -w /tmp ]; then
+    so="$TMPDIR/pgf-mkdtemp-shim.so"
+    if [ ! -f "$so" ]; then
+      cc -shared -fPIC -O2 -o "$so" "$PGF_ROOT/utilities/pgf-env/mkdtempShim.c" -ldl ||
+        die "cannot build the mkdtemp shim"
+    fi
+    export LD_PRELOAD="$so${LD_PRELOAD:+:$LD_PRELOAD}"
+  fi
+  export PATH
+fi
+
+if [ "$mpi" = "loopback" ]; then
+  export OMPI_MCA_btl=self,vader,tcp OMPI_MCA_btl_tcp_if_include=lo OMPI_MCA_oob_tcp_if_include=lo
+fi
+
+# -- 7. assert and announce ----------------------------------------------------
+
+for v in PATH LD_LIBRARY_PATH; do
+  IFS=: read -r -a entries <<<"${!v}"
+  for entry in "${entries[@]}"; do
+    if under_default "$entry"; then
+      case "$entry" in "$prefix" | "$prefix"/*) [ "$mode" != "bare" ] && continue ;; esac
+      die "$v still holds $entry, under the default user dir $PGF_DEFAULT_USER_DIR"
+    fi
+  done
+done
+
+if [ "$mode" != "bare" ]; then
+  solver="$(command -v porousGasificationFoam)"
+  case "$solver" in
+  "$prefix"/bin/*) ;;
+  *) die "porousGasificationFoam resolves to '${solver:-nothing}', not into $prefix/bin" ;;
+  esac
+  variant="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("variant","?"))' "$prefix/.pgf-build.json" 2>/dev/null)"
+  [ "$yade" -eq 1 ] && [ "$variant" != "yade1" ] && die "--yade given, but $prefix is variant $variant"
+  echo "pgf-env: prefix $prefix (key ${prefix##*/}, variant ${variant:-?}, OpenFOAM $WM_PROJECT_VERSION)" >&2
+else
+  echo "pgf-env: bare (no prefix; build root $PGF_BUILD_ROOT, OpenFOAM $WM_PROJECT_VERSION)" >&2
+fi
+
+export PGF_ENV_ACTIVE=1
+unset PGF_ENV_CALLER_PATH
+
+# -- 8. run --------------------------------------------------------------------
+
+exec "${cmd[@]}"
