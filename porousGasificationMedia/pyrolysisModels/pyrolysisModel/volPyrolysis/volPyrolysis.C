@@ -162,7 +162,7 @@ void volPyrolysis::guardPorosity
         << "    div(phiUs)   = " << fvc::div(phiUs)()[badCell] << nl
         << "    sum(Ym)      = " << sumYm << nl
         << "    rho          = " << rho_[badCell] << nl
-        << "    occupiesCell = " << solidOccupiesCell_[badCell];
+        << "    occupiesCell = " << solidState_->occupied()[badCell];
 
     solidStateChecker_->abort(stage, por, badCell, context.str());
 }
@@ -219,11 +219,11 @@ void volPyrolysis::recoverPorosity()
 
         FIFOStack<label> candidateStack = {};
 
-        volVectorField solidOccupancyGrad = fvc::grad(solidOccupiesCell_);        
+        volVectorField solidOccupancyGrad = fvc::grad(solidState_->occupied());        
 
         forAll(porosity_,cellI)
         {
-            if (porosity_[cellI] > critPorosity_) 
+            if (porosity_[cellI] > solidState_->criticalPorosity()) 
             {
                 if ( (mag(solidOccupancyGrad[cellI]) == 0) || ((mag(solidOccupancyGrad[cellI]) > 0) && ((Us_[cellI] & solidOccupancyGrad[cellI]) > 0))  )
                 {
@@ -233,17 +233,10 @@ void volPyrolysis::recoverPorosity()
                     }
                 }
             }
-            if (porosity_[cellI] < 1.0)
-            {
-                solidOccupiesCell_[cellI] = 1.0;
-                solidAbsentFromCell_[cellI] = 0.0;
-            }
-            else
-            {
-                solidOccupiesCell_[cellI] = 0.0;
-                solidAbsentFromCell_[cellI] = 1.0;
-            }
         }
+
+        // After the candidates: they read the gradient of last step's mask.
+        solidState_->snapshotAfterTransport();
 
         // Do not erase a nearly empty cell while solid mass is still
         // entering it through the advective transport equation.
@@ -305,7 +298,7 @@ void volPyrolysis::recoverPorosity()
         {
             if (evaluate)
             {
-                solidOccupiesCell_.correctBoundaryConditions();
+                solidState_->correctOccupiedBoundaryConditions();
                 porosity_.correctBoundaryConditions();
                 solidOccupiedCellLastStep_ = solidOccupiedCellLastStep_*0;
 
@@ -331,7 +324,7 @@ void volPyrolysis::recoverPorosity()
                     }
                 }
                 Pstream::scatter(globalIndex);
-                volScalarField globalIndices = solidOccupiesCell_*0;
+                volScalarField globalIndices = solidState_->occupied()*0;
                 forAll(globalIndices,cellI)
                 {
                     globalIndices[cellI] = globalIndex[Pstream::myProcNo()][cellI];
@@ -340,10 +333,10 @@ void volPyrolysis::recoverPorosity()
 
                 // this part determines processor based a possible motion paths using the global numbering
                 // it writes into takeFrom the global adress of cell from which the resources will be taken
-                volScalarField takeFrom = solidOccupiesCell_;
+                volScalarField takeFrom = solidState_->occupied();
                 forAll(mesh_.cells(),cellI)
                 {
-                    if (solidOccupiesCell_[cellI] < 1)
+                    if (solidState_->occupied()[cellI] < 1)
                     {
                         takeFrom[cellI] = -1;
                     }
@@ -362,7 +355,7 @@ void volPyrolysis::recoverPorosity()
                                     if (isA<processorPolyPatch>(mesh_.boundaryMesh()[patchID]))
                                     {
                                         takeFromGlobalID = globalIndices.boundaryField()[patchID].patchNeighbourField()()[faceID];
-                                        if (solidOccupiesCell_.boundaryField()[patchID].patchNeighbourField()()[faceID] < 1)
+                                        if (solidState_->occupied().boundaryField()[patchID].patchNeighbourField()()[faceID] < 1)
                                         {
                                             takeFromGlobalID = -1;
                                         }
@@ -379,7 +372,7 @@ void volPyrolysis::recoverPorosity()
                                     {
                                         takeFromGlobalID =  mesh_.faceNeighbour()[mesh_.cells()[cellI][faceI]]; 
                                     }
-                                    if (solidOccupiesCell_[takeFromGlobalID] < 1)
+                                    if (solidState_->occupied()[takeFromGlobalID] < 1)
                                     {
                                         takeFromGlobalID = -1;
                                     }
@@ -757,19 +750,7 @@ void volPyrolysis::recoverPorosity()
             }
         }
 
-        forAll(porosity_,cellI)
-        {
-            if (porosity_[cellI] < 1.0)
-            {
-                solidOccupiesCell_[cellI] = 1.0;
-                solidAbsentFromCell_[cellI] = 0.0;
-            }
-            else
-            {
-                solidOccupiesCell_[cellI] = 0.0;
-                solidAbsentFromCell_[cellI] = 1.0;
-            }
-        }
+        solidState_->snapshotAfterTransport();
 
         // Here, after everything above that writes porosity_ directly: the
         // bed-motion model and the flip to por = 1.
@@ -779,21 +760,21 @@ void volPyrolysis::recoverPorosity()
             por,
             phiUs
         );
-        solidStateChecker_->checkConsistency(porosity_, Ym_, rho_, solidOccupiesCell_);
+        solidStateChecker_->checkConsistency(porosity_, Ym_, rho_, solidState_->occupied());
 
         cellOnBedBorder_= cellOnBedBorder_*0;
         porosity_.correctBoundaryConditions();
-        solidOccupiesCell_.correctBoundaryConditions();
-        surfaceScalarField  solidOccupancyAtFaces  = fvc::interpolate(solidOccupiesCell_);
+        solidState_->correctOccupiedBoundaryConditions();
+        surfaceScalarField  solidOccupancyAtFaces  = fvc::interpolate(solidState_->occupied());
         forAll(solidOccupancyAtFaces,faceI)
         {
             if ( (solidOccupancyAtFaces[faceI] > 0) and (solidOccupancyAtFaces[faceI] < 1) )
             {
-                if (solidOccupiesCell_[mesh_.owner()[faceI]] == 1)
+                if (solidState_->occupied()[mesh_.owner()[faceI]] == 1)
                 {
                     cellOnBedBorder_[mesh_.owner()[faceI]] = 1;
                 }
-                if (solidOccupiesCell_[mesh_.neighbour()[faceI]] == 1)
+                if (solidState_->occupied()[mesh_.neighbour()[faceI]] == 1)
                 {
                     cellOnBedBorder_[mesh_.neighbour()[faceI]] = 1;
                 }
@@ -807,7 +788,7 @@ void volPyrolysis::recoverPorosity()
                 {
                     if ( (solidOccupancyAtFaces.boundaryField()[patchI][faceI] > 0) and (solidOccupancyAtFaces.boundaryField()[patchI][faceI] < 1) )
                     {
-                        if (solidOccupiesCell_[mesh_.owner()[faceI + mesh_.boundaryMesh()[patchI].start()]] == 1)
+                        if (solidState_->occupied()[mesh_.owner()[faceI + mesh_.boundaryMesh()[patchI].start()]] == 1)
                         {
                             cellOnBedBorder_[mesh_.owner()[faceI + mesh_.boundaryMesh()[patchI].start()]] = 1;
                         }
@@ -817,7 +798,7 @@ void volPyrolysis::recoverPorosity()
         }
 
         // porosity_ has just been rewritten; the gate is derived from it.
-        updateSolidSourceTermsAdmissible();
+        solidState_->snapshotStepStart();
     }
     else
     {}
@@ -970,7 +951,7 @@ void volPyrolysis::preSolveEnergy()
     if (active_)
     {
 
-        volTensorField composedK(K_ * (1 - porosity_) * anisotropyK_);
+        volTensorField composedK(K_ * solidState_->solidFraction() * anisotropyK_);
         radiationSh_ = radiation_;
 
         if (equilibrium_)
@@ -996,7 +977,7 @@ void volPyrolysis::preSolveEnergy()
             );
 
             // The heat capacity of the solid the cell actually holds. No
-            // solidOccupiesCell_ factor: solidH_ carries none either, and
+            // occupancy factor: solidH_ carries none either, and
             // masking one and not the other is a temperature of any size.
             volScalarField rhoCp
             (
@@ -1010,7 +991,7 @@ void volPyrolysis::preSolveEnergy()
             // solidH_/rhoCp is exactly scale-invariant in the mass, so a cell
             // holding only upwind-diffused trace echoes its donor's Ts at full
             // strength. In the bed but under the floor: follow the gas.
-            const volScalarField solidBelowPresenceFloor(solidOccupiesCell_*(1 - pos(solidAbovePresenceFloor)));
+            const volScalarField solidBelowPresenceFloor(solidState_->occupied()*(1 - pos(solidAbovePresenceFloor)));
 
             T_ = solidH_()/rhoCp*(1 - solidBelowPresenceFloor) + gasThermo_.T()*solidBelowPresenceFloor;
 
@@ -1030,7 +1011,7 @@ void volPyrolysis::preSolveEnergy()
                     << "    sum(Ym)      = " << totalYm[badTsCell] << nl
                     << "    rhoCp        = " << rhoCp[badTsCell] << nl
                     << "    porosity     = " << porosity_[badTsCell] << nl
-                    << "    occupiesCell = " << solidOccupiesCell_[badTsCell];
+                    << "    occupiesCell = " << solidState_->occupied()[badTsCell];
 
                 solidStateChecker_->abort
                 (
@@ -1043,9 +1024,9 @@ void volPyrolysis::preSolveEnergy()
 
             T_.correctBoundaryConditions();
 
-            solidOccupiesCell_.correctBoundaryConditions();
-            solidAbsentFromCell_.correctBoundaryConditions();
-            surfaceScalarField  solidOccupancyAtFaces  = fvc::interpolate(solidOccupiesCell_);
+            solidState_->correctOccupiedBoundaryConditions();
+            solidState_->correctAbsentBoundaryConditions();
+            surfaceScalarField  solidOccupancyAtFaces  = fvc::interpolate(solidState_->occupied());
 
             const volScalarField& sourceTermsAdmissible = solidSourceTermsAdmissible();
 
@@ -1055,14 +1036,14 @@ void volPyrolysis::preSolveEnergy()
             heatTransferSh_ = heatTransferCalc()();
             const volScalarField& interphaseHeatTransfer = heatTransferSh_;
 
-            // radiationSh_ carries no critPorosity_ gate of its own: as a cell
+            // radiationSh_ carries no criticalPorosity gate of its own: as a cell
             // empties, rhoCp collapses toward its SMALL floor while the T^4
             // radiative sink stays full strength.
             volScalarField solidRadiationSource = sourceTermsAdmissible*radiationSh_;
 
             // Same collapsing-rhoCp gap as solidRadiationSource, for the
             // reaction heat: chemistrySh_ is set from RRs_/RRg_ (nonzero
-            // wherever the bed is) with no critPorosity_ gate of its own.
+            // wherever the bed is) with no criticalPorosity gate of its own.
             volScalarField solidChemistrySource = sourceTermsAdmissible*chemistrySh_;
 
             // Simplistic immersed boundary for heat transport in solid phase.
@@ -1266,15 +1247,15 @@ void volPyrolysis::postSolveEnergy()
 
             // Divided by the mass that carried the enthalpy, not by what
             // survived: gas-bound solid takes its sensible enthalpy with it,
-            // so losing mass must not raise Ts. No solidOccupiesCell_ factor:
+            // so losing mass must not raise Ts. No occupancy factor:
             // it lags a stage, and zeroing T_ there while keeping the
             // enthalpy starts the cell at 0 K.
             if (gasTemperatureBelowCriticalPorosity_)
             {
-                // Emptier than critPorosity_, the cell follows the gas. pos0
+                // Emptier than criticalPorosity, the cell follows the gas. pos0
                 // and neg, not pos and neg: pos(0)=neg(0)=0 would otherwise
-                // leave a cell exactly at critPorosity_ with Ts = 0.
-                const volScalarField porosityHeadroomBelowCritical(critPorosity_ - porosity_);
+                // leave a cell exactly at criticalPorosity with Ts = 0.
+                const volScalarField porosityHeadroomBelowCritical(solidState_->criticalPorosity() - porosity_);
 
                 T_ = solidH_()/rhoCpPreReaction*pos0(porosityHeadroomBelowCritical)
                    + gasThermo_.T()*neg(porosityHeadroomBelowCritical);
@@ -1289,7 +1270,7 @@ void volPyrolysis::postSolveEnergy()
             // left here is what the next step's recovery would read back.
             const volScalarField solidBelowPresenceFloor
             (
-                solidOccupiesCell_
+                solidState_->occupied()
                *(1 - pos(solidStateChecker_->solidMassAbovePresenceFloor(totalYm, rho_)))
             );
 
@@ -1308,7 +1289,7 @@ void volPyrolysis::postSolveEnergy()
                     << "    sum(Ym) pre  = " << preReactionYm[badCell] << nl
                     << "    rhoCp        = " << rhoCp[badCell] << nl
                     << "    porosity     = " << porosity_[badCell] << nl
-                    << "    occupiesCell = " << solidOccupiesCell_[badCell];
+                    << "    occupiesCell = " << solidState_->occupied()[badCell];
 
                 solidStateChecker_->abort
                 (
@@ -1331,7 +1312,7 @@ void volPyrolysis::postSolveEnergy()
             scalar areThere = 0;
             forAll(T_,cellI)
             {
-                if (solidOccupiesCell_[cellI] == 1 )
+                if (solidState_->occupied()[cellI] == 1 )
                 {
                     areThere = 1;
                     if (T_[cellI] < minTemp)
@@ -1373,16 +1354,9 @@ void volPyrolysis::calculateMassTransfer()
     }
 }
 
-void volPyrolysis::updateSolidSourceTermsAdmissible()
-{
-    // solidOccupiesCell_ marks the bed (porosity < 1); the critPorosity_ test
-    // is the strength gate and, at its default, the stricter of the two.
-    solidSourceTermsAdmissible_ = solidOccupiesCell_*pos(critPorosity_ - porosity_);
-}
-
 const volScalarField& volPyrolysis::solidSourceTermsAdmissible() const
 {
-    return solidSourceTermsAdmissible_;
+    return solidState_->sourceTermsAdmissible();
 }
 
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
@@ -1464,7 +1438,6 @@ volPyrolysis::volPyrolysis
     collapseMovesSolidMass_(false),
     emptyFlippedCells_(false),
     gasTemperatureBelowCriticalPorosity_(false),
-    critPorosity_(0.9999),
     poroProtectSolidInflowFluxTolerance_(1e-12),
     totRepMass_(0.),
     nNonOrthCorr_(-1),
@@ -1511,50 +1484,12 @@ volPyrolysis::volPyrolysis
         mesh_,
         dimensionedScalar("zero", dimless/dimTime, 0.0)
     ),
-    solidOccupiesCell_
-    (
-        IOobject
-        (
-            "solidOccupiesCell",
-            time_.timeName(),
-            mesh_,
-            IOobject::NO_READ,
-            IOobject::AUTO_WRITE
-        ),
-        mesh_,
-        dimensionedScalar("zero", dimless, 0.0)
-    ),
-    solidAbsentFromCell_
-    (
-        IOobject
-        (
-            "solidAbsentFromCell",
-            time_.timeName(),
-            mesh_,
-            IOobject::NO_READ,
-            IOobject::AUTO_WRITE
-        ),
-        mesh_,
-        dimensionedScalar("one", dimless, 1.0)
-    ),
+    solidState_(new SolidState(coeffs(), porosity_)),
     solidOccupiedCellLastStep_
     (
         IOobject
         (
             "solidOccupiedCellLastStep",
-            time_.timeName(),
-            mesh_,
-            IOobject::NO_READ,
-            IOobject::NO_WRITE
-        ),
-        mesh_,
-        dimensionedScalar("zero", dimless, 0.0)
-    ),
-    solidSourceTermsAdmissible_
-    (
-        IOobject
-        (
-            "solidSourceTermsAdmissible",
             time_.timeName(),
             mesh_,
             IOobject::NO_READ,
@@ -1706,32 +1641,6 @@ volPyrolysis::volPyrolysis
         coeffs().lookupOrDefault("emptyFlippedCells",false);
     gasTemperatureBelowCriticalPorosity_ =
         coeffs().lookupOrDefault("gasTemperatureBelowCriticalPorosity",false);
-    critPorosity_ = coeffs().lookupOrDefault("criticalPorosity",0.9999);
-
-    if (critPorosity_ > 1.0)
-    {
-        FatalIOErrorInFunction(coeffs())
-            << "criticalPorosity must not exceed 1, but is " << critPorosity_
-            << "." << nl
-            << "Above 1 the solid source gate pos(criticalPorosity - porosity)"
-            << " stays open in empty cells, where rhoCp is at its SMALL floor"
-            << " and any source term gives an unbounded Ts step, and bed"
-            << " collapse stops selecting cells. Default 0.9999."
-            << exit(FatalIOError);
-    }
-
-    if (critPorosity_ <= 0.0)
-    {
-        FatalIOErrorInFunction(coeffs())
-            << "criticalPorosity must be positive, but is " << critPorosity_
-            << "." << nl
-            << "At or below 0 the solid source gate pos(criticalPorosity -"
-            << " porosity) is shut everywhere, so the radiation, chemistry and"
-            << " heat-transfer terms all leave the solid energy equation, and"
-            << " bed collapse selects every cell. Default 0.9999."
-            << exit(FatalIOError);
-    }
-
     poroProtectSolidInflowFluxTolerance_ =
         coeffs().lookupOrDefault
         (
@@ -1744,7 +1653,7 @@ volPyrolysis::volPyrolysis
     Info << "bedCollapse              " << bedCollapseSwitch_    << endl;
     if (bedCollapseSwitch_ || gasTemperatureBelowCriticalPorosity_)
     {
-        Info << "criticalPorosity         " << critPorosity_  << endl;
+        Info << "criticalPorosity         " << solidState_->criticalPorosity()  << endl;
     }
     Info << "poroProtectSolidInflowFluxTolerance  "
          << poroProtectSolidInflowFluxTolerance_
@@ -1896,13 +1805,12 @@ volPyrolysis::volPyrolysis
 
     solidH_().correctBoundaryConditions();
 
-    solidOccupiesCell_ = neg(porosity_ - 1);
-    solidAbsentFromCell_ = pos0(porosity_ - 1);
+    solidState_->classifyInitialState();
 
-    // The radiation model is constructed next and holds a reference to this,
-    // so it has to be valid before the first correct() rather than after the
-    // first recoverPorosity().
-    updateSolidSourceTermsAdmissible();
+    // The radiation model is constructed next and holds a reference to the
+    // gate, so it has to be valid before the first correct() rather than
+    // after the first recoverPorosity().
+    solidState_->snapshotStepStart();
 
     // porosity_ is assigned in recoverPorosity(), not solved; storeOldTimes()
     // is a no-op on the first call, so seed oldTime() here or the gas-side
@@ -1922,7 +1830,7 @@ volPyrolysis::volPyrolysis
     // consistent from the first time step.
     forAll(rho_,cellI)
     {
-        if (solidOccupiesCell_[cellI] == 1)
+        if (solidState_->occupied()[cellI] == 1)
         {
             scalar Ytotal = 0.0;
             for (label i = 0; i < Ys_.size(); ++i)
@@ -1946,14 +1854,14 @@ volPyrolysis::volPyrolysis
         read();
     }
 
-    forAll(solidOccupiesCell_, cellI)
+    forAll(solidState_->occupied(), cellI)
     {
-        if (solidOccupiesCell_[cellI] == 1)
+        if (solidState_->occupied()[cellI] == 1)
         {
             bool surfC = false;
             forAll(mesh_.cellCells()[cellI],cellJ)
             {
-                if (solidOccupiesCell_[mesh_.cellCells()[cellI][cellJ]] == 0)
+                if (solidState_->occupied()[mesh_.cellCells()[cellI][cellJ]] == 0)
                 {
                     surfC = true;
                 }
@@ -2139,7 +2047,7 @@ void volPyrolysis::preEvolveRegion() {
     // criticalPorosity converts no mass, so none of its heat goes unbooked.
     forAll(T_, cellI)
     {
-        if ( active_ && solidSourceTermsAdmissible_[cellI] != 0)
+        if ( active_ && solidState_->sourceTermsAdmissible()[cellI] != 0)
         {
             solidChemistry_->setCellReacting(cellI, true);
         }
@@ -2338,7 +2246,7 @@ Foam::tmp<Foam::volScalarField> volPyrolysis::heatTransferCalc() const
                 (
                         max
                         (
-                            rho_ * solidThermo_.Cp() * (1 - porosity_),
+                            rho_ * solidThermo_.Cp() * solidState_->solidFraction(),
                             dimensionedScalar("minRhoCp",dimEnergy/dimTemperature/dimVolume,SMALL)
                         )
                 );
@@ -2347,7 +2255,7 @@ Foam::tmp<Foam::volScalarField> volPyrolysis::heatTransferCalc() const
 
             forAll(deltaTemp,cellI)
             {
-                if (solidOccupiesCell_[cellI] == 1.0 && CONV_[cellI] > 0.0)
+                if (solidState_->occupied()[cellI] == 1.0 && CONV_[cellI] > 0.0)
                 {
                     deltaTemp[cellI] =
                         (Tgas[cellI]
@@ -2411,7 +2319,7 @@ Foam::tmp<Foam::volScalarField> volPyrolysis::CONV() const
     {}
     else
     {
-        CONVloc_ = HTmodel_->CONV()*solidOccupiesCell_;
+        CONVloc_ = HTmodel_->CONV()*solidState_->occupied();
     }
     return CONVloc_;
 }
@@ -2450,7 +2358,7 @@ Foam::tmp<Foam::volScalarField> volPyrolysis::heatUpGasCalc() const
             // same one its three siblings in TEqn have.
             volScalarField tempSh = hSh_();
             tempSh = gasThermo_.Cp() * (T_ - gasThermo_.T()) * Srho();
-            hSh_ = tempSh * solidSourceTermsAdmissible_ * (1 - porosity_);
+            hSh_ = tempSh * solidState_->sourceTermsAdmissible() * solidState_->solidFraction();
         }
     }
 
