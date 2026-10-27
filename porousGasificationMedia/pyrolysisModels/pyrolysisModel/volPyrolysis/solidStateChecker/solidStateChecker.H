@@ -174,7 +174,7 @@ public:
         //- Positive only where the cell holds solid; the Ts guards' mask
         //  A solid temperature is meaningless without solid to carry it -
         //  testing exact zero would flag trace dust as a defect.
-        tmp<volScalarField> solidPresent
+        tmp<volScalarField> solidMassAbovePresenceFloor
         (
             const volScalarField& totalYm,
             const volScalarField& rho
@@ -188,7 +188,7 @@ public:
             const volScalarField& porosity,
             const PtrList<volScalarField>& Ym,
             const volScalarField& rho,
-            const volScalarField& whereIs
+            const volScalarField& solidOccupiesCell
         ) const;
 };
 

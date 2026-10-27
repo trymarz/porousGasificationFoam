@@ -7318,8 +7318,8 @@
           <String text="rhos0"/>
           <String text="solidChemistrySh"/>
           <String text="targas"/>
-          <String text="whereIs"/>
-          <String text="whereIsNot"/>
+          <String text="solidOccupiesCell"/>
+          <String text="solidAbsentFromCell"/>
         </Domain>
       </Property>
       <Property name="SelectionPointFieldDataArrayName" id="7650.SelectionPointFieldDataArrayName" number_of_elements="1">
@@ -7373,8 +7373,8 @@
           <String text="rhos0"/>
           <String text="solidChemistrySh"/>
           <String text="targas"/>
-          <String text="whereIs"/>
-          <String text="whereIsNot"/>
+          <String text="solidOccupiesCell"/>
+          <String text="solidAbsentFromCell"/>
         </Domain>
       </Property>
       <Property name="SelectionVisibility" id="7650.SelectionVisibility" number_of_elements="1">
@@ -7536,8 +7536,8 @@
           <String text="solidChemistrySh"/>
           <String text="targas"/>
           <String text="vtkCompositeIndex"/>
-          <String text="whereIs"/>
-          <String text="whereIsNot"/>
+          <String text="solidOccupiesCell"/>
+          <String text="solidAbsentFromCell"/>
           <String text="CONVvol"/>
           <String text="Df"/>
           <String text="G"/>
@@ -7587,8 +7587,8 @@
           <String text="solidChemistrySh"/>
           <String text="targas"/>
           <String text="vtkCompositeIndex"/>
-          <String text="whereIs"/>
-          <String text="whereIsNot"/>
+          <String text="solidOccupiesCell"/>
+          <String text="solidAbsentFromCell"/>
           <String text="vtkBlockColors"/>
         </Domain>
       </Property>
@@ -7708,8 +7708,8 @@
           <String text="rhos0"/>
           <String text="solidChemistrySh"/>
           <String text="targas"/>
-          <String text="whereIs"/>
-          <String text="whereIsNot"/>
+          <String text="solidOccupiesCell"/>
+          <String text="solidAbsentFromCell"/>
           <String text="CONVvol"/>
           <String text="Df"/>
           <String text="G"/>
@@ -7758,8 +7758,8 @@
           <String text="rhos0"/>
           <String text="solidChemistrySh"/>
           <String text="targas"/>
-          <String text="whereIs"/>
-          <String text="whereIsNot"/>
+          <String text="solidOccupiesCell"/>
+          <String text="solidAbsentFromCell"/>
           <String text="CasePath"/>
         </Domain>
       </Property>
@@ -7902,8 +7902,8 @@
           <String text="rhos0"/>
           <String text="solidChemistrySh"/>
           <String text="targas"/>
-          <String text="whereIs"/>
-          <String text="whereIsNot"/>
+          <String text="solidOccupiesCell"/>
+          <String text="solidAbsentFromCell"/>
         </Domain>
       </Property>
       <Property name="OSPRayScaleFunction" id="7650.OSPRayScaleFunction" number_of_elements="1">
@@ -7985,8 +7985,8 @@
           <String text="rhos0"/>
           <String text="solidChemistrySh"/>
           <String text="targas"/>
-          <String text="whereIs"/>
-          <String text="whereIsNot"/>
+          <String text="solidOccupiesCell"/>
+          <String text="solidAbsentFromCell"/>
         </Domain>
       </Property>
       <Property name="OpacityArrayComponent" id="7650.OpacityArrayComponent" number_of_elements="1">
@@ -8048,8 +8048,8 @@
           <String text="rhos0"/>
           <String text="solidChemistrySh"/>
           <String text="targas"/>
-          <String text="whereIs"/>
-          <String text="whereIsNot"/>
+          <String text="solidOccupiesCell"/>
+          <String text="solidAbsentFromCell"/>
           <String text="CONVvol"/>
           <String text="Df"/>
           <String text="G"/>
@@ -8098,8 +8098,8 @@
           <String text="rhos0"/>
           <String text="solidChemistrySh"/>
           <String text="targas"/>
-          <String text="whereIs"/>
-          <String text="whereIsNot"/>
+          <String text="solidOccupiesCell"/>
+          <String text="solidAbsentFromCell"/>
           <String text="CasePath"/>
         </Domain>
       </Property>
@@ -8316,8 +8316,8 @@
           <String text="rhos0"/>
           <String text="solidChemistrySh"/>
           <String text="targas"/>
-          <String text="whereIs"/>
-          <String text="whereIsNot"/>
+          <String text="solidOccupiesCell"/>
+          <String text="solidAbsentFromCell"/>
           <String text="CONVvol"/>
           <String text="G"/>
           <String text="H2O"/>
@@ -8364,8 +8364,8 @@
           <String text="rhos0"/>
           <String text="solidChemistrySh"/>
           <String text="targas"/>
-          <String text="whereIs"/>
-          <String text="whereIsNot"/>
+          <String text="solidOccupiesCell"/>
+          <String text="solidAbsentFromCell"/>
         </Domain>
       </Property>
       <Property name="SelectTCoordArray" id="7650.SelectTCoordArray" number_of_elements="1">
@@ -8579,8 +8579,8 @@
           <String text="rhos0"/>
           <String text="solidChemistrySh"/>
           <String text="targas"/>
-          <String text="whereIs"/>
-          <String text="whereIsNot"/>
+          <String text="solidOccupiesCell"/>
+          <String text="solidAbsentFromCell"/>
         </Domain>
       </Property>
       <Property name="ShaderPreset" id="7650.ShaderPreset" number_of_elements="1">
@@ -8788,8 +8788,8 @@
           <String text="rhos0"/>
           <String text="solidChemistrySh"/>
           <String text="targas"/>
-          <String text="whereIs"/>
-          <String text="whereIsNot"/>
+          <String text="solidOccupiesCell"/>
+          <String text="solidAbsentFromCell"/>
         </Domain>
       </Property>
       <Property name="SelectionPointFieldDataArrayName" id="8401.SelectionPointFieldDataArrayName" number_of_elements="1">
@@ -8843,8 +8843,8 @@
           <String text="rhos0"/>
           <String text="solidChemistrySh"/>
           <String text="targas"/>
-          <String text="whereIs"/>
-          <String text="whereIsNot"/>
+          <String text="solidOccupiesCell"/>
+          <String text="solidAbsentFromCell"/>
         </Domain>
       </Property>
       <Property name="SelectionVisibility" id="8401.SelectionVisibility" number_of_elements="1">
@@ -9006,8 +9006,8 @@
           <String text="solidChemistrySh"/>
           <String text="targas"/>
           <String text="vtkCompositeIndex"/>
-          <String text="whereIs"/>
-          <String text="whereIsNot"/>
+          <String text="solidOccupiesCell"/>
+          <String text="solidAbsentFromCell"/>
           <String text="CONVvol"/>
           <String text="Df"/>
           <String text="G"/>
@@ -9057,8 +9057,8 @@
           <String text="solidChemistrySh"/>
           <String text="targas"/>
           <String text="vtkCompositeIndex"/>
-          <String text="whereIs"/>
-          <String text="whereIsNot"/>
+          <String text="solidOccupiesCell"/>
+          <String text="solidAbsentFromCell"/>
           <String text="vtkBlockColors"/>
         </Domain>
       </Property>
@@ -9178,8 +9178,8 @@
           <String text="rhos0"/>
           <String text="solidChemistrySh"/>
           <String text="targas"/>
-          <String text="whereIs"/>
-          <String text="whereIsNot"/>
+          <String text="solidOccupiesCell"/>
+          <String text="solidAbsentFromCell"/>
           <String text="CONVvol"/>
           <String text="Df"/>
           <String text="G"/>
@@ -9228,8 +9228,8 @@
           <String text="rhos0"/>
           <String text="solidChemistrySh"/>
           <String text="targas"/>
-          <String text="whereIs"/>
-          <String text="whereIsNot"/>
+          <String text="solidOccupiesCell"/>
+          <String text="solidAbsentFromCell"/>
           <String text="CasePath"/>
         </Domain>
       </Property>
@@ -9373,8 +9373,8 @@
           <String text="rhos0"/>
           <String text="solidChemistrySh"/>
           <String text="targas"/>
-          <String text="whereIs"/>
-          <String text="whereIsNot"/>
+          <String text="solidOccupiesCell"/>
+          <String text="solidAbsentFromCell"/>
         </Domain>
       </Property>
       <Property name="OSPRayScaleFunction" id="8401.OSPRayScaleFunction" number_of_elements="1">
@@ -9456,8 +9456,8 @@
           <String text="rhos0"/>
           <String text="solidChemistrySh"/>
           <String text="targas"/>
-          <String text="whereIs"/>
-          <String text="whereIsNot"/>
+          <String text="solidOccupiesCell"/>
+          <String text="solidAbsentFromCell"/>
         </Domain>
       </Property>
       <Property name="OpacityArrayComponent" id="8401.OpacityArrayComponent" number_of_elements="1">
@@ -9521,8 +9521,8 @@
           <String text="rhos0"/>
           <String text="solidChemistrySh"/>
           <String text="targas"/>
-          <String text="whereIs"/>
-          <String text="whereIsNot"/>
+          <String text="solidOccupiesCell"/>
+          <String text="solidAbsentFromCell"/>
           <String text="CONVvol"/>
           <String text="Df"/>
           <String text="G"/>
@@ -9571,8 +9571,8 @@
           <String text="rhos0"/>
           <String text="solidChemistrySh"/>
           <String text="targas"/>
-          <String text="whereIs"/>
-          <String text="whereIsNot"/>
+          <String text="solidOccupiesCell"/>
+          <String text="solidAbsentFromCell"/>
           <String text="CasePath"/>
         </Domain>
       </Property>
@@ -9794,8 +9794,8 @@
           <String text="rhos0"/>
           <String text="solidChemistrySh"/>
           <String text="targas"/>
-          <String text="whereIs"/>
-          <String text="whereIsNot"/>
+          <String text="solidOccupiesCell"/>
+          <String text="solidAbsentFromCell"/>
           <String text="CONVvol"/>
           <String text="G"/>
           <String text="H2O"/>
@@ -9842,8 +9842,8 @@
           <String text="rhos0"/>
           <String text="solidChemistrySh"/>
           <String text="targas"/>
-          <String text="whereIs"/>
-          <String text="whereIsNot"/>
+          <String text="solidOccupiesCell"/>
+          <String text="solidAbsentFromCell"/>
         </Domain>
       </Property>
       <Property name="SelectTCoordArray" id="8401.SelectTCoordArray" number_of_elements="1">
@@ -10057,8 +10057,8 @@
           <String text="rhos0"/>
           <String text="solidChemistrySh"/>
           <String text="targas"/>
-          <String text="whereIs"/>
-          <String text="whereIsNot"/>
+          <String text="solidOccupiesCell"/>
+          <String text="solidAbsentFromCell"/>
         </Domain>
       </Property>
       <Property name="ShaderPreset" id="8401.ShaderPreset" number_of_elements="1">
@@ -11291,9 +11291,9 @@
         <Element index="93" value="1"/>
         <Element index="94" value="targas"/>
         <Element index="95" value="1"/>
-        <Element index="96" value="whereIs"/>
+        <Element index="96" value="solidOccupiesCell"/>
         <Element index="97" value="1"/>
-        <Element index="98" value="whereIsNot"/>
+        <Element index="98" value="solidAbsentFromCell"/>
         <Element index="99" value="1"/>
       </Property>
       <Property name="CellArrays" id="7352.CellArrays" number_of_elements="100">
@@ -11393,9 +11393,9 @@
         <Element index="93" value="1"/>
         <Element index="94" value="targas"/>
         <Element index="95" value="1"/>
-        <Element index="96" value="whereIs"/>
+        <Element index="96" value="solidOccupiesCell"/>
         <Element index="97" value="1"/>
-        <Element index="98" value="whereIsNot"/>
+        <Element index="98" value="solidAbsentFromCell"/>
         <Element index="99" value="1"/>
         <Domain name="array_list" id="7352.CellArrays.array_list">
           <String text="CONVvol"/>
@@ -11446,8 +11446,8 @@
           <String text="rhos0"/>
           <String text="solidChemistrySh"/>
           <String text="targas"/>
-          <String text="whereIs"/>
-          <String text="whereIsNot"/>
+          <String text="solidOccupiesCell"/>
+          <String text="solidAbsentFromCell"/>
         </Domain>
       </Property>
       <Property name="CopyDataToCellZones" id="7352.CopyDataToCellZones" number_of_elements="1">
@@ -11756,8 +11756,8 @@
           <String text="rhos0"/>
           <String text="solidChemistrySh"/>
           <String text="targas"/>
-          <String text="whereIs"/>
-          <String text="whereIsNot"/>
+          <String text="solidOccupiesCell"/>
+          <String text="solidAbsentFromCell"/>
           <String text="CONVvol"/>
           <String text="G"/>
           <String text="H2O"/>
@@ -11800,8 +11800,8 @@
           <String text="rhos0"/>
           <String text="solidChemistrySh"/>
           <String text="targas"/>
-          <String text="whereIs"/>
-          <String text="whereIsNot"/>
+          <String text="solidOccupiesCell"/>
+          <String text="solidAbsentFromCell"/>
         </Domain>
       </Property>
       <Property name="ThresholdMethod" id="8171.ThresholdMethod" number_of_elements="1">
