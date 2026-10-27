@@ -60,6 +60,17 @@ The suite is green only if at least one case ran and every case passed. There is
 
 Each run goes to `$PGF_RUN_ROOT/pgf-test-<tier>-<time>-<pid>/` (`build.log`, `driver.log`, `state/` with `result.json`, and `cases/` with the kept case copies). `PGF_RUN_ROOT` defaults to `${TMPDIR:-/tmp}/pgf-runs`. The record `$PGF_RUN_ROOT/last/<tier>.json` holds the build key, source fingerprint, git `HEAD`, start and end time, outcome counts, the exit code and the paths to the run's state. A tier is **stale** when the key it last tested is not this tree's current key, or with `--if-stale AGE` when that run is older than `AGE`. `--if-stale` reruns a tier whose last run failed, even for the same key. `--rebuild` deletes the tier's prefix and builds it again. `--gc` keeps the newest N run dirs plus every dir a record points at, and the newest M prefixes. It never removes this tree's prefixes (either variant) or a prefix whose build lock is held. `PGF_TIERS_CONF` points `pgf-test` at another tiers file. Exit codes are the drivers' (see [Outcomes](#outcomes)).
 
+### Baselines on another toolchain
+
+Baselines are captured with one compiler and OpenFOAM build, and nothing guarantees another toolchain reproduces them within `rtol`. `container/pgf-toolchain.def` pins one: ESI's `opencfd/openfoam-dev:2406` image (Ubuntu 24.04, gcc 13) by digest, plus `python3`. PGF is not built into the image; `pgf-test` builds whatever tree it is given. `container/compareToolchains.sh` runs the same commit natively and in the image and prints each case's outcome on both sides:
+
+```bash
+apptainer build --fakeroot /scratch/pgf-toolchain.sif container/pgf-toolchain.def
+container/compareToolchains.sh --image /scratch/pgf-toolchain.sif [--tiers "fast convergence"] [--work DIR]
+```
+
+Each side gets its own `git archive` copy of `HEAD` under the work dir (default `$PGF_RUN_ROOT/toolchains-<time>-<pid>`), so uncommitted changes are not tested. The native side uses your `PGF_BUILD_ROOT`; the image side builds into the work dir. It exits 1 when any case fails in the image. The image has no Yade, so the `dem` tier is not covered.
+
 ## Add a case
 
 1. Add `system/regressionFunctions` with the metrics to extract (example: `tutorials/cases/charOnlyMoveCases/serial/system/regressionFunctions`), and `#includeIfPresent "regressionFunctions"` inside `functions { … }` at the bottom of `system/controlDict`.
