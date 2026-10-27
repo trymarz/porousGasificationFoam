@@ -287,3 +287,27 @@ reg_summary() {
 
     [ "$n" -gt 0 ] && [ "$nPass" -eq "$n" ]
 }
+
+# reg_stage_case <repo-root> <case-rel> <mirror-root> — cp -a the case to <mirror-root>/<case-rel>
+#   and symlink every sibling on the way up back into <repo-root>, so ../../../applications
+#   resolves. No hard links: foamDictionary -set rewrites in place. Prints the copy's path.
+reg_stage_case() {
+    local root="$1" rel="$2" mirror="$3" parent="" part entry
+    local -a parts
+    IFS=/ read -r -a parts <<< "$rel"
+    [ -d "$root/$rel" ] || { clog ERROR "no case to stage: $root/$rel"; return 2; }
+    [ -e "$mirror/$rel" ] && { clog ERROR "run dir already holds $mirror/$rel"; return 2; }
+    mkdir -p "$mirror" || return 2
+    for part in "${parts[@]}"; do
+        for entry in "$root/${parent:+$parent/}".[!.]* "$root/${parent:+$parent/}"*; do
+            [ -e "$entry" ] || [ -L "$entry" ] || continue
+            [ "${entry##*/}" = "$part" ] && continue
+            [ -z "$parent" ] && [ "${entry##*/}" = ".git" ] && continue
+            ln -s "$entry" "$mirror/${parent:+$parent/}${entry##*/}" || return 2
+        done
+        parent="${parent:+$parent/}$part"
+        [ "$parent" = "$rel" ] || mkdir "$mirror/$parent" || return 2
+    done
+    cp -a "$root/$rel" "$mirror/$rel" || return 2
+    printf '%s\n' "$mirror/$rel"
+}

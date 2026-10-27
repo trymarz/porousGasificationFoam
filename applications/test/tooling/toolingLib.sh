@@ -74,3 +74,18 @@ tree_prefix() {
 default_user_dir() {
     "$PGF_ENV" --bare -- printenv PGF_DEFAULT_USER_DIR 2>/dev/null
 }
+
+REGRESSION_DIR="$PGF_ROOT/applications/test/regression"
+
+# ensure_prefix — build (or reuse) this tree's --isolated prefix, quietly.
+ensure_prefix() {
+    isolated_build >"$TEST_TMP/ensure-prefix.log" 2>&1 ||
+        { tail -30 "$TEST_TMP/ensure-prefix.log"; die "build.sh --isolated failed"; }
+}
+
+# tutorials_state — what git sees under tutorials/ (ignored files included) plus
+#   a hash of the working-tree diff there and in applications/.
+tutorials_state() {
+    git -C "$PGF_ROOT" status --porcelain --ignored -- tutorials
+    git -C "$PGF_ROOT" diff -- tutorials applications | sha1sum
+}

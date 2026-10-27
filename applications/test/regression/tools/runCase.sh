@@ -10,11 +10,15 @@
 #
 # Usage:
 #   runCase.sh <caseDir> [--no-run] [--rtol R] [--atol A] [--compare PATH]
-#              [--state-dir DIR] [--suite-events PATH]
+#              [--run-dir DIR] [--state-dir DIR] [--suite-events PATH]
 #              [--case-id ID] [--suite-id ID]
 #
 # Options:
 #   --no-run          Skip cleaning and running; compare existing output only.
+#   --run-dir DIR     Copy the case into DIR at its repo-relative path (siblings
+#                     symlinked) and clean, run and compare the copy there; the
+#                     baseline is still the source case's reference/. Without
+#                     it the case runs in place, as it always has.
 #   --rtol R          Relative tolerance for the comparator.
 #   --atol A          Absolute tolerance for the comparator.
 #   --compare PATH    Comparator to use (default: sibling compareScalars.py).
@@ -51,6 +55,7 @@ SKIP_RUN=false
 RTOL="1e-4"
 ATOL="1e-12"
 COMPARE=""
+RUN_DIR=""
 STATE_DIR=""
 SUITE_EVENTS=""
 CASE_ID=""
@@ -72,6 +77,10 @@ while [ $# -gt 0 ]; do
         ;;
     --compare)
         COMPARE="$2"
+        shift 2
+        ;;
+    --run-dir)
+        RUN_DIR="$2"
         shift 2
         ;;
     --state-dir)
@@ -253,32 +262,52 @@ if [ "$SKIP_RUN" = false ] && [ "${PGF_ALLOW_BINARY_MISMATCH:-0}" != "1" ] &&
     fi
 fi
 
+# -- run copy -----------------------------------------------------------------
+
+# workDir is where the case is cleaned, run and its output read; refDir is the
+# committed baseline, always taken from the source case.
+workDir="$caseDir"
+refDir="$caseDir/reference/postProcessing"
+if [ -n "$RUN_DIR" ]; then
+    stageRoot="$REPO_ROOT"
+    caseRel="${caseDir#"$REPO_ROOT"/}"
+    if [ "$caseRel" = "$caseDir" ]; then
+        stageRoot="$(dirname "$caseDir")"
+        caseRel="$(basename "$caseDir")"
+    fi
+    if ! workDir="$(reg_stage_case "$stageRoot" "$caseRel" "$RUN_DIR")"; then
+        finish 2 "cannot copy $caseDir into $RUN_DIR"
+    fi
+    echo "[runCase] run copy    $workDir"
+    RESULT_FIELDS+=(--artifact "run_dir=$workDir")
+fi
+
 # -- clean + run --------------------------------------------------------------
 
 if [ "$SKIP_RUN" = false ]; then
-    if [ ! -x "$caseDir/Allrun" ]; then
-        echo "$caseDir/Allrun is missing or not executable" >&2
-        finish 2 "$caseDir/Allrun is missing or not executable"
+    if [ ! -x "$workDir/Allrun" ]; then
+        echo "$workDir/Allrun is missing or not executable" >&2
+        finish 2 "$workDir/Allrun is missing or not executable"
     fi
 
     # Clean prior run artefacts (preserve reference/). A swallowed clean can
     # leave a dirty slate that silently corrupts the comparison, so the clean
     # is checked and the slate is asserted afterwards.
     reg_phase clean
-    if [ -x "$caseDir/Allclean" ]; then
-        if ! (cd "$caseDir" && ./Allclean) >/dev/null 2>&1; then
-            echo "[runCase] Allclean failed in $caseDir" >&2
-            finish 2 "Allclean failed in $caseDir"
+    if [ -x "$workDir/Allclean" ]; then
+        if ! (cd "$workDir" && ./Allclean) >/dev/null 2>&1; then
+            echo "[runCase] Allclean failed in $workDir" >&2
+            finish 2 "Allclean failed in $workDir"
         fi
     fi
-    if ls "$caseDir"/log.* >/dev/null 2>&1 || [ -d "$caseDir/postProcessing" ]; then
-        echo "[runCase] dirty slate: log.*/postProcessing survived the clean in $caseDir" >&2
-        finish 2 "dirty slate: log.*/postProcessing survived the clean in $caseDir"
+    if ls "$workDir"/log.* >/dev/null 2>&1 || [ -d "$workDir/postProcessing" ]; then
+        echo "[runCase] dirty slate: log.*/postProcessing survived the clean in $workDir" >&2
+        finish 2 "dirty slate: log.*/postProcessing survived the clean in $workDir"
     fi
 
     reg_phase run
-    echo "[runCase] Running $caseDir/Allrun"
-    (cd "$caseDir" && ./Allrun)
+    echo "[runCase] Running $workDir/Allrun"
+    (cd "$workDir" && ./Allrun)
     rc=$?
     # Propagate the case's own exit status so the runner can classify it: a
     # signal death (128+N) surfaces as CRASH, any other non-zero as the case's
@@ -286,10 +315,10 @@ if [ "$SKIP_RUN" = false ]; then
     # slate, missing files) are the runner's own concern and exit 2 above.
     if [ "$rc" -ne 0 ]; then
         if [ "$rc" -gt 128 ]; then
-            echo "[runCase] Allrun in $caseDir died on signal $(( rc - 128 )) (exit $rc)" >&2
+            echo "[runCase] Allrun in $workDir died on signal $(( rc - 128 )) (exit $rc)" >&2
             finish "$rc" "Allrun died on signal $(( rc - 128 )) ($(reg_signal_name $(( rc - 128 ))))"
         else
-            echo "[runCase] Allrun in $caseDir exited non-zero ($rc)" >&2
+            echo "[runCase] Allrun in $workDir exited non-zero ($rc)" >&2
             finish "$rc" "Allrun exited non-zero ($rc)"
         fi
     fi
@@ -299,19 +328,19 @@ fi
 
 reg_phase assert
 
-if [ ! -d "$caseDir/postProcessing" ]; then
-    echo "[runCase] No postProcessing/ produced under $caseDir" >&2
-    finish 2 "no postProcessing/ produced under $caseDir"
+if [ ! -d "$workDir/postProcessing" ]; then
+    echo "[runCase] No postProcessing/ produced under $workDir" >&2
+    finish 2 "no postProcessing/ produced under $workDir"
 fi
 
-if [ ! -d "$caseDir/reference/postProcessing" ]; then
-    echo "[runCase] No reference baseline at $caseDir/reference/postProcessing" >&2
-    finish 2 "no reference baseline at $caseDir/reference/postProcessing"
+if [ ! -d "$refDir" ]; then
+    echo "[runCase] No reference baseline at $refDir" >&2
+    finish 2 "no reference baseline at $refDir"
 fi
 
 RESULT_FIELDS+=(
-    --artifact "candidate=$caseDir/postProcessing"
-    --artifact "reference=$caseDir/reference/postProcessing"
+    --artifact "candidate=$workDir/postProcessing"
+    --artifact "reference=$refDir"
 )
 
 # -- comparison ---------------------------------------------------------------
@@ -323,8 +352,8 @@ if [ -n "$STATE_DIR" ]; then
     # machine-readable, then replays them so the terminal output is unchanged.
     # No pipe: the comparator's exit status stays this script's own.
     python3 "$COMPARE" \
-        --reference "$caseDir/reference/postProcessing" \
-        --candidate "$caseDir/postProcessing" \
+        --reference "$refDir" \
+        --candidate "$workDir/postProcessing" \
         --rtol "$RTOL" \
         --atol "$ATOL" >"$COMPARE_LOG" 2>"$COMPARE_ERR"
     rc=$?
@@ -362,8 +391,8 @@ if [ -n "$STATE_DIR" ]; then
 fi
 
 python3 "$COMPARE" \
-    --reference "$caseDir/reference/postProcessing" \
-    --candidate "$caseDir/postProcessing" \
+    --reference "$refDir" \
+    --candidate "$workDir/postProcessing" \
     --rtol "$RTOL" \
     --atol "$ATOL"
 finish $? ""
