@@ -1004,7 +1004,12 @@ void volPyrolysis::preSolveEnergy()
                 )
             );
 
-            T_ = solidH_()/rhoCp;
+            // solidH_/rhoCp is exactly scale-invariant in the mass, so a cell
+            // holding only upwind-diffused trace echoes its donor's Ts at full
+            // strength. Solid to whereIs_ but not to the checker: follow the gas.
+            const volScalarField traceOnly(whereIs_*(1 - pos(solidPresent)));
+
+            T_ = solidH_()/rhoCp*(1 - traceOnly) + gasThermo_.T()*traceOnly;
 
             const label badTsCell =
                 solidStateChecker_->firstInvalidTemperature
@@ -1039,7 +1044,21 @@ void volPyrolysis::preSolveEnergy()
             whereIsNot_.correctBoundaryConditions();
             surfaceScalarField  whereIsPatch  = fvc::interpolate(whereIs_);
 
-            volScalarField heatTransfField = whereIs_*heatTransfer()()*pos(critPorosity_ - porosity_);
+            const volScalarField sourceActive(solidSourceActive());
+
+            // heatTransfer() gates itself, so that the gas side consumes the
+            // same field; gating again here would be a no-op, not a safeguard.
+            volScalarField heatTransfField = heatTransfer()();
+
+            // radiationSh_ carries no critPorosity_ gate of its own: as a cell
+            // empties, rhoCp collapses toward its SMALL floor while the T^4
+            // radiative sink stays full strength.
+            volScalarField radiationShField = sourceActive*radiationSh_;
+
+            // Same collapsing-rhoCp gap as radiationShField, for the reaction
+            // heat term: chemistrySh_ is set from RRs_/RRg_ (nonzero whenever
+            // whereIs_ != 0) but carries no critPorosity_ gate of its own.
+            volScalarField chemistryShField = sourceActive*chemistrySh_;
 
             // Simplistic immersed boundary for heat transport in solid phase.
             fvScalarMatrix TLap
@@ -1085,10 +1104,10 @@ void volPyrolysis::preSolveEnergy()
                 fvm::ddt(rhoCp,T_)
               - TLap                                                  
             ==
-                chemistrySh_ // eqZx2uHGn004, eqZx2uHGn017
+                chemistryShField // eqZx2uHGn004, eqZx2uHGn017
               - heatTransfField // eqZx2uHGn005
               - heatUpGas_
-              + radiationSh_
+              + radiationShField
             );
 
             TEqn.relax();
@@ -1107,12 +1126,12 @@ void volPyrolysis::preSolveEnergy()
                 context
                     << "    rhoCp        = " << rhoCp[badTEqnCell] << nl
                     << "    chemistrySh  = "
-                    << chemistrySh_[badTEqnCell] << nl
+                    << chemistryShField[badTEqnCell] << nl
                     << "    heatTransfer = "
                     << heatTransfField[badTEqnCell] << nl
                     << "    heatUpGas    = " << heatUpGas_[badTEqnCell] << nl
                     << "    radiationSh  = "
-                    << radiationSh_[badTEqnCell] << nl
+                    << radiationShField[badTEqnCell] << nl
                     << "    porosity     = " << porosity_[badTEqnCell];
 
                 solidStateChecker_->abort
@@ -1212,18 +1231,38 @@ void volPyrolysis::postSolveEnergy()
             {
                 totalYm += Ym_[i];
             }
-            solidThermo_.correct(); 
-            volScalarField rhoCp
+            solidThermo_.correct();
+
+            const dimensionedScalar minRhoCp
+            (
+                "minRhoCp",
+                dimEnergy/dimTemperature/dimVolume,
+                SMALL
+            );
+
+            volScalarField rhoCp(max(totalYm*solidThermo_.Cp(), minRhoCp));
+
+            // The mass solveSpeciesMass() has just converted to gas. Ym_
+            // carries the loss, solidH_ does not: it was built in
+            // preSolveEnergy() on what the cell held before the reaction.
+            const volScalarField preReactionYm
             (
                 max
                 (
-                    totalYm * solidThermo_.Cp(),
-                    dimensionedScalar("minRhoCp",dimEnergy/dimTemperature/dimVolume,SMALL)
+                    totalYm - time_.deltaT()*solidChemistry_->RRs()(),
+                    dimensionedScalar("zero", dimDensity, 0.0)
                 )
             );
-            // Same ratio preSolveEnergy() reads back as T_.oldTime(), so the
-            // two must agree. No whereIs_ factor: it lags a stage, and
-            // zeroing T_ there while keeping enthalpy would start at 0 K.
+
+            const volScalarField rhoCpPreReaction
+            (
+                max(preReactionYm*solidThermo_.Cp(), minRhoCp)
+            );
+
+            // Divided by the mass that carried the enthalpy, not by what
+            // survived: gas-bound solid takes its sensible enthalpy with it,
+            // so losing mass must not raise Ts. No whereIs_ factor: it lags a
+            // stage, and zeroing T_ there while keeping enthalpy starts at 0 K.
             if (gasTemperatureBelowCriticalPorosity_)
             {
                 // Emptier than critPorosity_, the cell follows the gas. pos0
@@ -1231,13 +1270,24 @@ void volPyrolysis::postSolveEnergy()
                 // leave a cell exactly at critPorosity_ with Ts = 0.
                 const volScalarField weight(critPorosity_ - porosity_);
 
-                T_ = solidH_()/rhoCp*pos0(weight)
+                T_ = solidH_()/rhoCpPreReaction*pos0(weight)
                    + gasThermo_.T()*neg(weight);
             }
             else
             {
-                T_ = solidH_()/rhoCp;
+                T_ = solidH_()/rhoCpPreReaction;
             }
+
+            // The same trace-only cells preSolveEnergy() pins, pinned again
+            // after transport: solidH_ is restated from T_ below, so an echo
+            // left here is what the next step's recovery would read back.
+            const volScalarField traceOnly
+            (
+                whereIs_
+               *(1 - pos(solidStateChecker_->solidPresent(totalYm, rho_)))
+            );
+
+            T_ = T_*(1 - traceOnly) + gasThermo_.T()*traceOnly;
 
             const label badCell =
                 solidStateChecker_->firstInvalidTemperature(T_);
@@ -1249,6 +1299,7 @@ void volPyrolysis::postSolveEnergy()
                     << "    solidH       = "
                     << solidH_()[badCell] << nl
                     << "    sum(Ym)      = " << totalYm[badCell] << nl
+                    << "    sum(Ym) pre  = " << preReactionYm[badCell] << nl
                     << "    rhoCp        = " << rhoCp[badCell] << nl
                     << "    porosity     = " << porosity_[badCell] << nl
                     << "    whereIs      = " << whereIs_[badCell];
@@ -1261,6 +1312,11 @@ void volPyrolysis::postSolveEnergy()
                     context.str()
                 );
             }
+
+            // Restated on the mass that remains, so preSolveEnergy() reads
+            // back this Ts next step instead of re-inflating it.
+            solidH_().ref() = rhoCp*T_;
+            solidH_().correctBoundaryConditions();
 
             T_.correctBoundaryConditions();
 
@@ -1309,6 +1365,13 @@ void volPyrolysis::calculateMassTransfer()
         lostSolidMass_ +=
             fvc::domainIntegrate(solidChemistry_->RRs()) * time_.deltaT();
     }
+}
+
+tmp<volScalarField> volPyrolysis::solidSourceActive() const
+{
+    // whereIs_ marks the bed (porosity < 1); the critPorosity_ test is the
+    // strength gate and, being the stricter threshold, subsumes it.
+    return whereIs_*pos(critPorosity_ - porosity_);
 }
 
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
@@ -1607,6 +1670,31 @@ volPyrolysis::volPyrolysis
     gasTemperatureBelowCriticalPorosity_ =
         coeffs().lookupOrDefault("gasTemperatureBelowCriticalPorosity",false);
     critPorosity_ = coeffs().lookupOrDefault("criticalPorosity",0.9999);
+
+    if (critPorosity_ > 1.0)
+    {
+        FatalIOErrorInFunction(coeffs())
+            << "criticalPorosity must not exceed 1, but is " << critPorosity_
+            << "." << nl
+            << "Above 1 the solid source gate pos(criticalPorosity - porosity)"
+            << " stays open in empty cells, where rhoCp is at its SMALL floor"
+            << " and any source term gives an unbounded Ts step, and bed"
+            << " collapse stops selecting cells. Default 0.9999."
+            << exit(FatalIOError);
+    }
+
+    if (critPorosity_ <= 0.0)
+    {
+        FatalIOErrorInFunction(coeffs())
+            << "criticalPorosity must be positive, but is " << critPorosity_
+            << "." << nl
+            << "At or below 0 the solid source gate pos(criticalPorosity -"
+            << " porosity) is shut everywhere, so the radiation, chemistry and"
+            << " heat-transfer terms all leave the solid energy equation, and"
+            << " bed collapse selects every cell. Default 0.9999."
+            << exit(FatalIOError);
+    }
+
     poroProtectSolidInflowFluxTolerance_ =
         coeffs().lookupOrDefault
         (
@@ -2182,6 +2270,11 @@ Foam::tmp<Foam::volScalarField> volPyrolysis::heatTransfer()
     {}
     else
     {
+        // Gate the emitted exchange at the producer so the solid TEqn and the
+        // gas EEqn consume the same field: an ungated gas side would exchange
+        // heat with a solid whose own equation refuses it, creating energy.
+        const volScalarField sourceActive(solidSourceActive());
+
         if (subintegrateSwitch_)
         {
             // Keep the subintegrated gas/solid exchange defined in a fully
@@ -2232,7 +2325,7 @@ Foam::tmp<Foam::volScalarField> volPyrolysis::heatTransfer()
 
             forAll(Sh_(),cellI)
             {
-                Sh_.ref()[cellI] = deltaTemp[cellI] * rhoCpG[cellI] * whereIs_[cellI] / deltaTime;
+                Sh_.ref()[cellI] = deltaTemp[cellI] * rhoCpG[cellI] * sourceActive[cellI] / deltaTime;
             }
 
             volScalarField HT(CONV_*(T_-Tgas));
@@ -2245,7 +2338,7 @@ Foam::tmp<Foam::volScalarField> volPyrolysis::heatTransfer()
             // This works only for small CONV otherwise oscillations appear.
             volScalarField Tgas = gasThermo_.T();
             volScalarField HT(CONV_*(T_-Tgas));
-            Sh_ = HT * whereIs_;
+            Sh_ = HT * sourceActive;
         }
     }
     return Sh_;
