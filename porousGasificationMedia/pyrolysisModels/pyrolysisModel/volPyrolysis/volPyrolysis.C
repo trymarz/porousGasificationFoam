@@ -973,7 +973,7 @@ void volPyrolysis::preSolveEnergy()
             // What the two Ts guards below are judged on.
             const volScalarField solidAbovePresenceFloor
             (
-                solidStateChecker_->solidMassAbovePresenceFloor(totalYm, rho_)
+                solidState_->massAbovePresenceFloor(totalYm, rho_)
             );
 
             // The heat capacity of the solid the cell actually holds. No
@@ -988,12 +988,8 @@ void volPyrolysis::preSolveEnergy()
                 )
             );
 
-            // solidH_/rhoCp is exactly scale-invariant in the mass, so a cell
-            // holding only upwind-diffused trace echoes its donor's Ts at full
-            // strength. In the bed but under the floor: follow the gas.
-            const volScalarField solidBelowPresenceFloor(solidState_->occupied()*(1 - pos(solidAbovePresenceFloor)));
-
-            T_ = solidH_()/rhoCp*(1 - solidBelowPresenceFloor) + gasThermo_.T()*solidBelowPresenceFloor;
+            // In the bed but under the presence floor: follow the gas.
+            T_ = solidState_->recoverTs(solidH_()/rhoCp, totalYm, rho_, gasThermo_.T());
 
             const label badTsCell =
                 solidStateChecker_->firstInvalidTemperature
@@ -1268,13 +1264,7 @@ void volPyrolysis::postSolveEnergy()
             // The same trace-only cells preSolveEnergy() pins, pinned again
             // after transport: solidH_ is restated from T_ below, so an echo
             // left here is what the next step's recovery would read back.
-            const volScalarField solidBelowPresenceFloor
-            (
-                solidState_->occupied()
-               *(1 - pos(solidStateChecker_->solidMassAbovePresenceFloor(totalYm, rho_)))
-            );
-
-            T_ = T_*(1 - solidBelowPresenceFloor) + gasThermo_.T()*solidBelowPresenceFloor;
+            T_ = solidState_->recoverTs(T_, totalYm, rho_, gasThermo_.T());
 
             const label badCell =
                 solidStateChecker_->firstInvalidTemperature(T_);
