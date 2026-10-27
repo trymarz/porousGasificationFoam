@@ -5,6 +5,13 @@
 # wmake runs in place, per component: lnInclude/ and Make/$WM_OPTIONS/ land
 # beside their sources, binaries in $FOAM_USER_LIBBIN / $FOAM_USER_APPBIN as
 # each Make/files declares. Callable by absolute path from anywhere.
+#
+# --prefix DIR / --isolated redirect those two variables to DIR/{bin,lib}
+# before wmake runs. --isolated derives DIR from the build key
+# <fingerprint12>-<yade0|yade1>-<OpenFOAM version>-gcc<version> under
+# $PGF_BUILD_ROOT; a prefix holding .pgf-build.json is complete and is reused
+# without compiling. Make/options link with -L$(FOAM_USER_LIBBIN), so nothing
+# else needs to change, and v2406 embeds no RPATH, so a prefix can be moved.
 
 . "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)/utilities/bash_utils/helpers.sh"
 
@@ -84,6 +91,14 @@ declare -A CLEAN_COMMANDS=(
 
 MODE="build"
 
+# none | prefix | isolated. PREFIX is the resolved output directory.
+PREFIX_MODE="none"
+PREFIX=""
+# Set by --print-key / --print-prefix: print and exit, build nothing.
+QUERY=""
+# Arguments as given, recorded in .pgf-build.json.
+BUILD_ARGS=()
+
 # ============================================================
 # ARGUMENT PARSING
 # ============================================================
@@ -138,6 +153,21 @@ parse_arguments() {
       source_fingerprint
       exit 0
       ;;
+    --prefix)
+      [ -n "${2:-}" ] || {
+        clog ERROR "--prefix needs a directory"
+        exit 1
+      }
+      PREFIX_MODE="prefix"
+      PREFIX="$2"
+      shift
+      ;;
+    --isolated)
+      PREFIX_MODE="isolated"
+      ;;
+    --print-key | --print-prefix)
+      QUERY="${1#--print-}"
+      ;;
     --help)
       echo "Usage: $0 [build|clean] [OPTIONS]"
       echo "Options: --reset-all, --all, --libs-only, --apps-only, --yade, --purge"
@@ -151,9 +181,17 @@ parse_arguments() {
       echo "  --fingerprint  Print the source content hash a build stamps into"
       echo "           \$FOAM_USER_APPBIN, and exit. The regression runner"
       echo "           compares it to refuse a solver built from other sources."
+      echo "  --prefix DIR   Install into DIR/bin and DIR/lib instead of"
+      echo "           \$FOAM_USER_APPBIN / \$FOAM_USER_LIBBIN."
+      echo "  --isolated     Install into \$PGF_BUILD_ROOT/<build key>; reuse it"
+      echo "           without compiling when it is already complete."
+      echo "           PGF_BUILD_ROOT defaults to \$WM_PROJECT_USER_DIR/pgf-builds."
+      echo "  --print-key, --print-prefix  Print the build key or the --isolated"
+      echo "           prefix for this tree and variant (honours --yade), and exit."
       echo ""
       echo "Builds happen in this checkout ($PGF_ROOT); output goes to"
-      echo "\$FOAM_USER_LIBBIN and \$FOAM_USER_APPBIN."
+      echo "\$FOAM_USER_LIBBIN and \$FOAM_USER_APPBIN unless a prefix is given."
+      echo "PGF_ISOLATED_ONLY=1 (set by pgf-env) refuses a build without one."
       exit 0
       ;;
     *)
@@ -174,7 +212,7 @@ parse_arguments() {
 check_foam_environment() {
   local missing=()
   local var
-  for var in WM_PROJECT_DIR WM_OPTIONS FOAM_USER_LIBBIN FOAM_USER_APPBIN; do
+  for var in WM_PROJECT_DIR WM_OPTIONS WM_PROJECT_VERSION FOAM_USER_LIBBIN FOAM_USER_APPBIN; do
     [ -n "${!var}" ] || missing+=("$var")
   done
 
@@ -215,14 +253,188 @@ check_yade_environment() {
     return 1
   fi
 
-  # Link-time deps of the DEM library and the WITH_YADE solver.
-  local lib
-  for lib in libMeshTree libYadeFoam; do
-    [ -e "$FOAM_USER_LIBBIN/$lib.so" ] ||
-      clog WARNING "$lib.so not found in \$FOAM_USER_LIBBIN; linking will fail unless it is elsewhere on the link path."
+  # Link-time deps of the DEM library and the WITH_YADE solver; libYadeComm
+  # is a runtime dep of libYadeFoam. A prefix starts empty, so it is seeded.
+  [ "$PREFIX_MODE" = "none" ] || seed_yade_libs || return 1
+  local lib missing=()
+  for lib in "${YADE_LIBS[@]}"; do
+    [ -e "$FOAM_USER_LIBBIN/$lib.so" ] || missing+=("$lib.so")
   done
+  if [ ${#missing[@]} -gt 0 ]; then
+    clog ERROR "Foam-Yade libraries not found in $FOAM_USER_LIBBIN: ${missing[*]}"
+    clog ERROR "Build the Foam-Yade coupling libraries (wmake libso in"
+    clog ERROR "\$YADE_TRUNK/pkg/openfoam/coupling/FoamYade) first."
+    return 1
+  fi
 
   return 0
+}
+
+declare -a YADE_LIBS=(libMeshTree libYadeFoam libYadeComm)
+
+# The Foam-Yade coupling libs install into whichever $FOAM_USER_LIBBIN was
+# active when they were built, so they are copied from PGF_YADE_LIBDIR or the
+# default user lib dir. Copies, not links: a later rebuild there must not
+# change a prefix underneath its metadata.
+seed_yade_libs() {
+  local src="${PGF_YADE_LIBDIR:-$DEFAULT_USER_LIBBIN}" lib
+  for lib in "${YADE_LIBS[@]}"; do
+    if [ ! -e "$src/$lib.so" ]; then
+      clog ERROR "$lib.so not found in ${src:-<no default user lib dir>}."
+      clog ERROR "Set PGF_YADE_LIBDIR to the directory holding the Foam-Yade coupling libs."
+      return 1
+    fi
+    cp -fL "$src/$lib.so" "$FOAM_USER_LIBBIN/$lib.so" || return 1
+  done
+  clog INFO "Seeded ${YADE_LIBS[*]} from $src"
+}
+
+# ============================================================
+# BUILD PREFIX
+# ============================================================
+
+# The fingerprint covers the sources only, so the key adds what else changes
+# the binaries: the WITH_YADE variant, the OpenFOAM version and the compiler.
+build_key() {
+  local fp cc_version
+  fp="$(source_fingerprint)" || return 1
+  cc_version="$(gcc -dumpversion 2>/dev/null)" || {
+    clog ERROR "gcc -dumpversion failed; cannot form the build key."
+    return 1
+  }
+  printf '%s-yade%s-%s-gcc%s\n' "${fp:0:12}" "$WITH_YADE" "$WM_PROJECT_VERSION" "$cc_version"
+}
+
+# PGF_DEFAULT_USER_DIR is what OpenFOAM's bashrc chose; pgf-env exports it
+# because it overrides WM_PROJECT_USER_DIR afterwards.
+resolve_build_root() {
+  local user_dir="${PGF_DEFAULT_USER_DIR:-${WM_PROJECT_USER_DIR:-}}"
+  PGF_BUILD_ROOT="${PGF_BUILD_ROOT:-${user_dir:+$user_dir/pgf-builds}}"
+  [ -n "$PGF_BUILD_ROOT" ] || {
+    clog ERROR "PGF_BUILD_ROOT is unset and there is no WM_PROJECT_USER_DIR to default it from."
+    return 1
+  }
+}
+
+resolve_prefix() {
+  case "$PREFIX_MODE" in
+  prefix)
+    mkdir -p "$PREFIX" && PREFIX="$(cd "$PREFIX" && pwd -P)" || {
+      clog ERROR "Cannot create prefix $PREFIX"
+      return 1
+    }
+    ;;
+  isolated)
+    [ -n "${WM_PROJECT_VERSION:-}" ] || {
+      clog ERROR "WM_PROJECT_VERSION is unset; source OpenFOAM's etc/bashrc (or use pgf-env --bare)."
+      return 1
+    }
+    resolve_build_root || return 1
+    BUILD_KEY="$(build_key)" || return 1
+    PREFIX="$PGF_BUILD_ROOT/$BUILD_KEY"
+    ;;
+  esac
+}
+
+prefix_complete() {
+  [ -f "$PREFIX/.pgf-build.json" ]
+}
+
+# A complete prefix built the requested targets if its metadata lists them.
+prefix_has_targets() {
+  local t wanted=()
+  for t in "${ALL_TARGETS[@]}"; do
+    [ "${BUILD_TARGETS[$t]:-0}" -eq 1 ] && wanted+=("$t")
+  done
+  python3 -c 'import json, sys
+built = set(json.load(open(sys.argv[1])).get("targets", []))
+sys.exit(0 if set(sys.argv[2:]) <= built else 1)' "$PREFIX/.pgf-build.json" "${wanted[@]}" 2>/dev/null
+}
+
+report_cache_hit() {
+  clog SUCCESS "Cache hit: $PREFIX is complete for key $BUILD_KEY; nothing compiled."
+  printf '%s\n' "$PREFIX"
+}
+
+# Point wmake's output at the prefix, under a lock so two builds of the same
+# key cannot interleave. The metadata is removed until the build succeeds, so
+# an interrupted build leaves an incomplete prefix that is never reused.
+activate_prefix() {
+  DEFAULT_USER_LIBBIN="${PGF_DEFAULT_USER_DIR:+$PGF_DEFAULT_USER_DIR/platforms/$WM_OPTIONS/lib}"
+  DEFAULT_USER_LIBBIN="${DEFAULT_USER_LIBBIN:-${FOAM_USER_LIBBIN:-}}"
+
+  if [ "$MODE" = "build" ] && [ "$PREFIX_MODE" = "isolated" ] &&
+    prefix_complete && prefix_has_targets; then
+    report_cache_hit
+    exit 0
+  fi
+
+  local lock="$PREFIX/.pgf-build.lock"
+  [ "$PREFIX_MODE" = "isolated" ] && lock="$PGF_BUILD_ROOT/$BUILD_KEY.lock"
+  mkdir -p "${lock%/*}" || return 1
+  exec {BUILD_LOCK_FD}>"$lock" || return 1
+  if ! flock -n "$BUILD_LOCK_FD"; then
+    clog INFO "Waiting for another build holding $lock ..."
+    flock "$BUILD_LOCK_FD" || return 1
+  fi
+
+  if [ "$MODE" = "build" ] && [ "$PREFIX_MODE" = "isolated" ] &&
+    prefix_complete && prefix_has_targets; then
+    report_cache_hit
+    exit 0
+  fi
+
+  rm -f "$PREFIX/.pgf-build.json"
+  mkdir -p "$PREFIX/bin" "$PREFIX/lib" || return 1
+  export FOAM_USER_APPBIN="$PREFIX/bin"
+  export FOAM_USER_LIBBIN="$PREFIX/lib"
+  export LD_LIBRARY_PATH="$FOAM_USER_LIBBIN${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+}
+
+# Written last: its presence is what marks the prefix complete.
+write_build_metadata() {
+  local targets=() t
+  for t in "${ALL_TARGETS[@]}"; do
+    [ "${BUILD_TARGETS[$t]:-0}" -eq 1 ] && targets+=("$t")
+  done
+  python3 - "$PREFIX/.pgf-build.json" "$(source_fingerprint)" "$WITH_YADE" \
+    "$WM_PROJECT_VERSION" "$WM_OPTIONS" "$(gcc -dumpversion)" \
+    "$(git -C "$PGF_ROOT" rev-parse HEAD 2>/dev/null)" "$PGF_ROOT" \
+    "${BUILD_KEY:-}" "${#targets[@]}" "${targets[@]}" "${BUILD_ARGS[@]}" <<'PY' || return 1
+import datetime, json, os, sys
+path, fp, yade, foam, opts, cc, head, root, key, n = sys.argv[1:11]
+n = int(n)
+meta = {
+    "key": key or None, "fingerprint": fp, "variant": "yade" + yade,
+    "wm_project_version": foam, "wm_options": opts, "compiler": "gcc " + cc,
+    "built_utc": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    "targets": sys.argv[11:11 + n], "build_args": sys.argv[11 + n:],
+    "git_head": head or None, "source_tree": root,
+}
+with open(path + ".tmp", "w") as f:
+    json.dump(meta, f, indent=2)
+    f.write("\n")
+os.replace(path + ".tmp", path)
+PY
+  clog INFO "Wrote $PREFIX/.pgf-build.json"
+}
+
+# The shared user dir is what automation must not overwrite by accident.
+check_isolated_only() {
+  [ "${PGF_ISOLATED_ONLY:-0}" = "1" ] || return 0
+  [ "$PREFIX_MODE" = "none" ] || return 0
+  [ "$MODE" = "build" ] || [ "$PURGE" -eq 1 ] || return 0
+  clog ERROR "PGF_ISOLATED_ONLY=1: refusing to $MODE in the shared \$FOAM_USER_APPBIN / \$FOAM_USER_LIBBIN."
+  clog ERROR "Use --isolated or --prefix DIR."
+  return 1
+}
+
+print_destination() {
+  local where="shared user dir"
+  [ "$PREFIX_MODE" = "none" ] || where="prefix ${BUILD_KEY:-$PREFIX}"
+  clog INFO "Destination ($where):"
+  clog INFO "  bin: $FOAM_USER_APPBIN"
+  clog INFO "  lib: $FOAM_USER_LIBBIN"
 }
 
 # ============================================================
@@ -377,13 +589,16 @@ build_all_targets() {
 # Content hash of every source file the targets compile. Not a git revision:
 # the binary has to match the tree it was built from, committed or not, and a
 # plain commit must not invalidate a build whose sources never changed.
+# Paths are hashed repo-relative, so every checkout of the same sources gets
+# the same key; Make/<WM_OPTIONS>/ is pruned (wmake generates `options` there).
 source_fingerprint() {
   local dir
   for dir in "${TARGET_DIRS[@]}"; do
     [ -d "$dir" ] || continue
-    find "$dir" \( -name '*.C' -o -name '*.H' -o -name 'files' -o -name 'options' \) \
-      -type f -print0
-  done | LC_ALL=C sort -z | xargs -0 sha1sum 2>/dev/null | sha1sum | cut -d' ' -f1
+    (cd "$PGF_ROOT" && find "${dir#"$PGF_ROOT"/}" -path '*/Make/*/*' -prune -o \
+      \( -name '*.C' -o -name '*.H' -o -name 'files' -o -name 'options' \) \
+      -type f -print0)
+  done | LC_ALL=C sort -z | (cd "$PGF_ROOT" && xargs -0 sha1sum 2>/dev/null) | sha1sum | cut -d' ' -f1
 }
 
 # Record which sources produced the installed binaries. $FOAM_USER_APPBIN is
@@ -408,6 +623,7 @@ dry_run() {
   echo "PATHS:"
   echo "────────────────────────────────────────────────────────────"
   printf "  checkout:          %s\n" "$PGF_ROOT"
+  [ "$PREFIX_MODE" = "none" ] || printf "  prefix:            %s\n" "${PREFIX:-<unresolved>}"
   printf "  FOAM_USER_LIBBIN:  %s\n" "${FOAM_USER_LIBBIN:-<unset>}"
   printf "  FOAM_USER_APPBIN:  %s\n" "${FOAM_USER_APPBIN:-<unset>}"
   echo ""
@@ -469,14 +685,31 @@ dry_run() {
 
 main() {
   DRY_RUN=0
+  BUILD_ARGS=("$@")
   parse_arguments "$@"
 
+  if [ -n "$QUERY" ]; then
+    PREFIX_MODE="isolated"
+    resolve_prefix || exit 1
+    [ "$QUERY" = "key" ] && printf '%s\n' "$BUILD_KEY" || printf '%s\n' "$PREFIX"
+    exit 0
+  fi
+
   [ "$DRY_RUN" -eq 1 ] && {
+    [ "$PREFIX_MODE" = "isolated" ] && { resolve_prefix || PREFIX=""; }
     dry_run
     exit 0
   }
 
+  check_isolated_only || exit 1
+
+  if [ "$PREFIX_MODE" != "none" ]; then
+    resolve_prefix || exit 1
+    activate_prefix || exit 1
+  fi
+
   check_foam_environment || exit 1
+  print_destination
 
   if [ "$MODE" = "build" ] &&
     { [ "$WITH_YADE" -eq 1 ] || [ "${BUILD_TARGETS[DEM]:-0}" -eq 1 ]; }; then
@@ -486,10 +719,19 @@ main() {
   check_build_variant || exit 1
 
   build_all_targets || exit 1
+
+  if [ "$PREFIX_MODE" != "none" ]; then
+    if [ "$MODE" = "build" ]; then
+      write_build_metadata || exit 1
+      printf '%s\n' "$PREFIX"
+    elif [ "$PURGE" -eq 1 ]; then
+      rm -f "$PREFIX/.pgf-build.json"
+    fi
+  fi
 }
 
 _build_completion() {
-  local opts="build clean --reset-all --all --libs-only --apps-only --yade --purge ${ALL_TARGETS_FLAGS[*]} ${ALL_TARGETS_NO_FLAGS[*]} --help --dry-run"
+  local opts="build clean --reset-all --all --libs-only --apps-only --yade --purge --prefix --isolated --print-key --print-prefix --fingerprint ${ALL_TARGETS_FLAGS[*]} ${ALL_TARGETS_NO_FLAGS[*]} --help --dry-run"
   COMPREPLY=($(compgen -W "$opts" -- "${COMP_WORDS[COMP_CWORD]}"))
 }
 

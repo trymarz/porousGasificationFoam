@@ -3,6 +3,9 @@
 | Symptom | Likely cause | Fix |
 |---|---|---|
 | `Cannot find library` | OpenFOAM environment not sourced, or PGF not built into this `$WM_PROJECT_USER_DIR` | `source /path/to/OpenFOAM-v2406/etc/bashrc`, then `./Allwmake` |
+| A script that sources `etc/bashrc` stops silently, with no output | OpenFOAM's `bashrc` fails under `set -u` / `set -e` (and treats the script's positional arguments as settings) | Source it as `set +eu; set --; . etc/bashrc`, or run the command through `./pgf-env -- …` |
+| Exporting `WM_PROJECT_USER_DIR` before sourcing `bashrc` has no effect; the build still lands in the shared user dir | `bashrc` resets `WM_PROJECT_USER_DIR` unconditionally | Build with `./pgf-env --bare -- ./build.sh --isolated` (or `--prefix DIR`); see [Isolated builds](build.md#isolated-builds-and-pgf-env) |
+| Every case fails with `Error getting 'application' from system/controlDict` | UCX prints `failed to create VFS socket` on stdout, which `RunFunctions` reads as the application name | `export UCX_VFS_ENABLE=n UCX_LOG_LEVEL=fatal` (`pgf-env` sets both) |
 | `Build variant mismatch` | Switching between the normal and `--yade` builds without cleaning | `./build.sh clean --all --purge`, then rebuild in the wanted mode |
 | A deleted or renamed header still appears to be found | Dangling `lnInclude/` symlink from an earlier build | `./Allwclean && ./Allwmake` |
 | `undefined symbol` | Library version mismatch or incomplete rebuild | `./build.sh clean --all && ./build.sh build --all` |
