@@ -120,9 +120,10 @@ public:
                 const volScalarField& T,
                 const volScalarField& porosityF,
                 const volScalarField& surfF,
-                const volScalarField& Ts
+                const volScalarField& Ts,
+                const volScalarField& solidSourceActive
             ),
-            (T,porosityF,surfF,Ts)
+            (T,porosityF,surfF,Ts,solidSourceActive)
         );
 
     // Constructors
@@ -133,12 +134,12 @@ public:
         //- Construct from components
         heterogeneousRadiationModel(const word& type, const volScalarField& T);
 
-        //- Construct from porosity, surface and solid temperature
+        //- Construct from components, radiating the solid at its own Ts
+        //  rather than at the gas temperature the two-argument form binds.
         heterogeneousRadiationModel
         (
+            const word& type,
             const volScalarField& T,
-            const volScalarField& porosityF,
-            const List<label>& surfF,
             const volScalarField& Ts
         );
 
@@ -153,7 +154,8 @@ public:
             const volScalarField& T,
             const volScalarField& porosityF,
             const volScalarField& surfF,
-            const volScalarField& Ts
+            const volScalarField& Ts,
+            const volScalarField& solidSourceActive
         );
 
 

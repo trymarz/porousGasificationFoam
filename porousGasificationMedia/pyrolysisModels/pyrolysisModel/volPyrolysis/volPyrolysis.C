@@ -815,6 +815,9 @@ void volPyrolysis::recoverPorosity()
                 }
             }
         }
+
+        // porosity_ has just been rewritten; the gate is derived from it.
+        updateSolidSourceActive();
     }
     else
     {}
@@ -1044,11 +1047,13 @@ void volPyrolysis::preSolveEnergy()
             whereIsNot_.correctBoundaryConditions();
             surfaceScalarField  whereIsPatch  = fvc::interpolate(whereIs_);
 
-            const volScalarField sourceActive(solidSourceActive());
+            const volScalarField& sourceActive = solidSourceActive();
 
-            // heatTransfer() gates itself, so that the gas side consumes the
-            // same field; gating again here would be a no-op, not a safeguard.
-            volScalarField heatTransfField = heatTransfer()();
+            // Evaluated once and stored, so the gas EEqn adds back the same
+            // joules after TEqn has moved T_. heatTransferCalc() gates
+            // itself; gating again here would be a no-op, not a safeguard.
+            heatTransferSh_ = heatTransferCalc()();
+            const volScalarField& heatTransfField = heatTransferSh_;
 
             // radiationSh_ carries no critPorosity_ gate of its own: as a cell
             // empties, rhoCp collapses toward its SMALL floor while the T^4
@@ -1367,11 +1372,16 @@ void volPyrolysis::calculateMassTransfer()
     }
 }
 
-tmp<volScalarField> volPyrolysis::solidSourceActive() const
+void volPyrolysis::updateSolidSourceActive()
 {
     // whereIs_ marks the bed (porosity < 1); the critPorosity_ test is the
-    // strength gate and, being the stricter threshold, subsumes it.
-    return whereIs_*pos(critPorosity_ - porosity_);
+    // strength gate and, at its default, the stricter of the two.
+    solidSourceActive_ = whereIs_*pos(critPorosity_ - porosity_);
+}
+
+const volScalarField& volPyrolysis::solidSourceActive() const
+{
+    return solidSourceActive_;
 }
 
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
@@ -1539,6 +1549,19 @@ volPyrolysis::volPyrolysis
         mesh_,
         dimensionedScalar("zero", dimless, 0.0)
     ),
+    solidSourceActive_
+    (
+        IOobject
+        (
+            "solidSourceActive",
+            time_.timeName(),
+            mesh_,
+            IOobject::NO_READ,
+            IOobject::NO_WRITE
+        ),
+        mesh_,
+        dimensionedScalar("zero", dimless, 0.0)
+    ),
     cellVolume_
     (
         IOobject
@@ -1561,6 +1584,19 @@ volPyrolysis::volPyrolysis
             mesh_,
             IOobject::NO_READ,
             IOobject::AUTO_WRITE
+        ),
+        mesh_,
+        dimensionedScalar("zero", dimEnergy/dimTime/dimVolume, 0.0)
+    ),
+    heatTransferSh_
+    (
+        IOobject
+        (
+            "pyrolysisSh",
+            time_.timeName(),
+            mesh_,
+            IOobject::NO_READ,
+            IOobject::NO_WRITE
         ),
         mesh_,
         dimensionedScalar("zero", dimEnergy/dimTime/dimVolume, 0.0)
@@ -1862,6 +1898,11 @@ volPyrolysis::volPyrolysis
     whereIs_ = neg(porosity_ - 1);
     whereIsNot_ = pos0(porosity_ - 1);
 
+    // The radiation model is constructed next and holds a reference to this,
+    // so it has to be valid before the first correct() rather than after the
+    // first recoverPorosity().
+    updateSolidSourceActive();
+
     // porosity_ is assigned in recoverPorosity(), not solved; storeOldTimes()
     // is a no-op on the first call, so seed oldTime() here or the gas-side
     // fvm::ddt(porosityF, rho) loses a step of d(porosity)/dt.
@@ -2092,11 +2133,12 @@ void volPyrolysis::preEvolveRegion() {
     // Added for completeness
     heterogeneousPyrolysisModel::preEvolveRegion();
 
-    // Iterates over every cell and sets cells containing solid phase
-    // as reacting cell.
+    // Iterates over every cell and sets cells whose solid energy equation
+    // will accept the reaction heat as reacting. A cell emptier than
+    // criticalPorosity converts no mass, so none of its heat goes unbooked.
     forAll(T_, cellI)
     {
-        if ( active_ && whereIs_[cellI] != 0)
+        if ( active_ && solidSourceActive_[cellI] != 0)
         {
             solidChemistry_->setCellReacting(cellI, true);
         }
@@ -2245,7 +2287,7 @@ Foam::tmp<Foam::volScalarField> volPyrolysis::Srho(const label i) const
     }
 }
 
-Foam::tmp<Foam::volScalarField> volPyrolysis::heatTransfer()
+Foam::tmp<Foam::volScalarField> volPyrolysis::heatTransferCalc() const
 {
 // eqZx2uHGn005
     Foam::tmp<Foam::volScalarField> Sh_ = Foam::tmp<Foam::volScalarField>
@@ -2273,7 +2315,7 @@ Foam::tmp<Foam::volScalarField> volPyrolysis::heatTransfer()
         // Gate the emitted exchange at the producer so the solid TEqn and the
         // gas EEqn consume the same field: an ungated gas side would exchange
         // heat with a solid whose own equation refuses it, creating energy.
-        const volScalarField sourceActive(solidSourceActive());
+        const volScalarField& sourceActive = solidSourceActive();
 
         if (subintegrateSwitch_)
         {
@@ -2402,9 +2444,12 @@ Foam::tmp<Foam::volScalarField> volPyrolysis::heatUpGasCalc() const
         {}
         else // eqZx2uHGn018
         {
+            // Gated at the producer, so both consumers keep seeing one field.
+            // The pair already conserved; what the gate adds is a bound, the
+            // same one its three siblings in TEqn have.
             volScalarField tempSh = hSh_();
             tempSh = gasThermo_.Cp() * (T_ - gasThermo_.T()) * Srho();
-            hSh_ = tempSh * whereIs_ * (1 - porosity_);
+            hSh_ = tempSh * solidSourceActive_ * (1 - porosity_);
         }
     }
 
@@ -2414,6 +2459,11 @@ Foam::tmp<Foam::volScalarField> volPyrolysis::heatUpGasCalc() const
 Foam::tmp<Foam::volScalarField> volPyrolysis::heatUpGas() const
 {
     return heatUpGas_;
+}
+
+Foam::tmp<Foam::volScalarField> volPyrolysis::heatTransfer() const
+{
+    return heatTransferSh_;
 }
 
 Foam::tmp<Foam::volScalarField> volPyrolysis::solidChemistrySh() const
