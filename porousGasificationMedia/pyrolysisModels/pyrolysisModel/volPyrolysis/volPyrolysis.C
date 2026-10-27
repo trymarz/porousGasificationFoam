@@ -136,11 +136,7 @@ void volPyrolysis::guardPorosity
     const surfaceScalarField& phiUs
 ) const
 {
-    const label badCell = solidStateChecker_->firstInvalidPorosity
-    (
-        por,
-        solidFluxLimiter_->minPorosity()
-    );
+    const label badCell = solidStateChecker_->firstInvalidPorosity(por);
 
     if (badCell == -1)
     {
@@ -760,7 +756,7 @@ void volPyrolysis::recoverPorosity()
             por,
             phiUs
         );
-        solidStateChecker_->checkConsistency(porosity_, Ym_, rho_, solidState_->occupied());
+        solidStateChecker_->checkConsistency(porosity_, Ym_, rho_);
 
         cellOnBedBorder_= cellOnBedBorder_*0;
         porosity_.correctBoundaryConditions();
@@ -1654,7 +1650,10 @@ volPyrolysis::volPyrolysis
     Info << "gasTemperatureBelowCriticalPorosity  "
          << gasTemperatureBelowCriticalPorosity_ << endl;
     // Constructed here because it carries the last three banner lines.
-    solidStateChecker_.reset(new SolidStateChecker(coeffs(), mesh_, time_));
+    solidStateChecker_.reset
+    (
+        new SolidStateChecker(coeffs(), solidState_(), mesh_, time_)
+    );
 
     // Reads its own keys and logs them where the rest are reported. Binds
     // Ym_ by reference, so it reads no entries until limit() is first called.

@@ -70,6 +70,7 @@ label SolidStateChecker::firstInvalidCell
 SolidStateChecker::SolidStateChecker
 (
     const dictionary& coeffs,
+    const SolidState& solidState,
     const fvMesh& mesh,
     const Time& time
 )
@@ -80,17 +81,14 @@ SolidStateChecker::SolidStateChecker
     (
         coeffs.lookupOrDefault("failOnInvalidSolidState",true)
     ),
-    solidStateTolerance_
-    (
-        coeffs.lookupOrDefault<scalar>("solidStateTolerance",1e-8)
-    ),
+    solidState_(solidState),
     maxSolidTemperature_
     (
         coeffs.lookupOrDefault<scalar>("maxSolidTemperature",1e5)
     )
 {
     Info << "failOnInvalidSolidState  " << failOnInvalidSolidState_ << endl;
-    Info << "solidStateTolerance      " << solidStateTolerance_ << endl;
+    Info << "solidStateTolerance      " << solidState_.solidStateTolerance() << endl;
     Info << "maxSolidTemperature      " << maxSolidTemperature_ << endl;
 }
 
@@ -105,8 +103,7 @@ SolidStateChecker::~SolidStateChecker()
 
 label SolidStateChecker::firstInvalidPorosity
 (
-    const volScalarField& por,
-    const scalar minPorosity
+    const volScalarField& por
 ) const
 {
     if (!failOnInvalidSolidState_)
@@ -117,8 +114,8 @@ label SolidStateChecker::firstInvalidPorosity
     return firstInvalidCell
     (
         por,
-        minPorosity - solidStateTolerance_,
-        1.0 + solidStateTolerance_
+        solidState_.minPorosity() - solidState_.solidStateTolerance(),
+        1.0 + solidState_.solidStateTolerance()
     );
 }
 
@@ -135,7 +132,7 @@ label SolidStateChecker::firstInvalidExtensive
 
     const scalar fldScale = max(gMax(fld), SMALL);
 
-    return firstInvalidCell(fld, -solidStateTolerance_*fldScale, GREAT);
+    return firstInvalidCell(fld, -solidState_.solidStateTolerance()*fldScale, GREAT);
 }
 
 
@@ -153,7 +150,7 @@ label SolidStateChecker::firstInvalidTemperature
     return firstInvalidCell
     (
         T,
-       -solidStateTolerance_*maxSolidTemperature_,
+       -solidState_.solidStateTolerance()*maxSolidTemperature_,
         maxSolidTemperature_,
         &mask
     );
@@ -200,34 +197,11 @@ void SolidStateChecker::abort
 }
 
 
-tmp<volScalarField> SolidStateChecker::solidMassAbovePresenceFloor
-(
-    const volScalarField& totalYm,
-    const volScalarField& rho
-) const
-{
-    // Smallest solid mass distinguishable from zero: a fraction
-    // solidStateTolerance_ of what a packed cell would hold. Floored
-    // by SMALL too, since rho is itself zero where empty.
-    const volScalarField YmFloor
-    (
-        max
-        (
-            solidStateTolerance_*rho,
-            dimensionedScalar("YmFloorMin", dimDensity, SMALL)
-        )
-    );
-
-    return totalYm - YmFloor;
-}
-
-
 void SolidStateChecker::checkConsistency
 (
     const volScalarField& porosity,
     const PtrList<volScalarField>& Ym,
-    const volScalarField& rho,
-    const volScalarField& solidOccupiesCell
+    const volScalarField& rho
 ) const
 {
     scalar maxResidual = 0.0;
@@ -262,7 +236,7 @@ void SolidStateChecker::checkConsistency
     // Last two conditions: only the rank owning the worst cell reports it.
     if
     (
-        globalResidual > solidStateTolerance_
+        globalResidual > solidState_.solidStateTolerance()
      && worstCell != -1
      && maxResidual == globalResidual
     )
@@ -272,7 +246,7 @@ void SolidStateChecker::checkConsistency
             << " in cell " << worstCell << " at "
             << mesh_.C()[worstCell] << ": porosity = "
             << porosity[worstCell] << ", solidOccupiesCell = "
-            << solidOccupiesCell[worstCell]
+            << solidState_.occupied()[worstCell]
             << ". A porosity written after the recovery cannot be"
             << " reconciled with the mass the cell holds." << endl;
     }

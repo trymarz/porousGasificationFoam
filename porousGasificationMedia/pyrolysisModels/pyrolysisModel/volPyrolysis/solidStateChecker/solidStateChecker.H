@@ -39,8 +39,9 @@ Description
     one kill switch, no call site tests it itself. Scans are rank-local:
     an invalid cell on any rank aborts the whole job.
 
-    Also owns the solid-presence mask the Ts guards use, and the
-    porosity/solid-mass consistency check.
+    Thresholds and masks come from SolidState, which the switch cannot
+    reach: turning the guards off leaves every physics mask as it is.
+    Also owns the porosity/solid-mass consistency check.
 
     Owned directly by volPyrolysis (like SolidFluxLimiter) - no runtime
     selection, since only one checking policy exists.
@@ -58,6 +59,7 @@ SourceFiles
 #include "PtrList.H"
 #include "Switch.H"
 #include "Time.H"
+#include "solidState.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -85,10 +87,10 @@ class SolidStateChecker
         //  temperature aborts at the equation that produced it.
         Switch failOnInvalidSolidState_;
 
-        //- Relative slack allowed by the guards [-]
-        //  Sized for round-off on explicit updates only; anything past
-        //  this is a real overshoot.
-        scalar solidStateTolerance_;
+        //- Solid regimes: the guards' slack and the porosity floor
+        //  The slack is sized for round-off on explicit updates only;
+        //  anything past it is a real overshoot.
+        const SolidState& solidState_;
 
         //- Bound on a physically credible solid temperature [K]
         //  Ts = solidH/(totalYm*Cp) is meaningless once totalYm is
@@ -119,10 +121,12 @@ public:
 
     // Constructors
 
-        //- Construct from the owning model's coefficients, mesh and time
+        //- Construct from the owning model's coefficients, solid state,
+        //  mesh and time
         SolidStateChecker
         (
             const dictionary& coeffs,
+            const SolidState& solidState,
             const fvMesh& mesh,
             const Time& time
         );
@@ -137,11 +141,7 @@ public:
         //- First cell with an impossible recovered porosity, else -1
         //  Bounds [minPorosity-tol, 1+tol]: >1 means negative solid mass,
         //  below the floor means no gas volume left for the gas solve.
-        label firstInvalidPorosity
-        (
-            const volScalarField& por,
-            const scalar minPorosity
-        ) const;
+        label firstInvalidPorosity(const volScalarField& por) const;
 
         //- First cell with an impossible Ym or solid enthalpy, else -1
         //  Extensive fields, so the allowed undershoot scales with the
@@ -171,15 +171,6 @@ public:
             const string& context
         ) const;
 
-        //- Positive only where the cell holds solid; the Ts guards' mask
-        //  A solid temperature is meaningless without solid to carry it -
-        //  testing exact zero would flag trace dust as a defect.
-        tmp<volScalarField> solidMassAbovePresenceFloor
-        (
-            const volScalarField& totalYm,
-            const volScalarField& rho
-        ) const;
-
         //- Reports the worst cell violating 1 - porosity = sum_i Ym_i/rho_i
         //  Catches two in-range fields disagreeing with each other, which
         //  a plain min/max can't. Always prints; warns past tolerance.
@@ -187,8 +178,7 @@ public:
         (
             const volScalarField& porosity,
             const PtrList<volScalarField>& Ym,
-            const volScalarField& rho,
-            const volScalarField& solidOccupiesCell
+            const volScalarField& rho
         ) const;
 };
 
