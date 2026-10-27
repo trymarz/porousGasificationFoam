@@ -1,0 +1,342 @@
+#!/bin/bash
+#
+# pgf-test: run a test tier against this checkout's isolated build and record it.
+#
+#   pgf-test <tier|all> [--rebuild] [--if-stale AGE] [--run-root DIR]
+#   pgf-test --status [--if-stale AGE] [tier ...]
+#   pgf-test --gc [--keep-runs N] [--keep-prefixes M] [--dry-run]
+#
+# A run builds (or reuses) the tier's prefix with build.sh --isolated, runs the
+# tier's driver under pgf-env with --state-dir below the run dir, and writes
+# $PGF_RUN_ROOT/last/<tier>.json: key, fingerprint, git HEAD, start/end, counts,
+# outcome and where the state is. Tiers come from applications/test/tiers.conf
+# (PGF_TIERS_CONF overrides it).
+#
+#   --rebuild        delete the tier's prefix first, then build it again
+#   --if-stale AGE   run only when the last record is not a PASS of the current
+#                    key younger than AGE (e.g. 7d, 12h, 30m); otherwise exit 0
+#   --run-root DIR   run dir for this run (default
+#                    $PGF_RUN_ROOT/pgf-test-<tier>-<time>-<pid>; one per tier for 'all')
+#   --status         per tier: last outcome, when, the key it tested, and whether
+#                    that is this tree's current key (stale if not, or older than AGE)
+#   --gc             prune old run dirs (keep N, default 10, and every dir a last
+#                    record points at) and prefixes (keep M, default 5); never the
+#                    prefixes of this tree, nor one whose lock is held
+#
+# PGF_RUN_ROOT defaults to ${TMPDIR:-/tmp}/pgf-runs. pgf-env needs PGF_FOAM_BASHRC
+# or WM_PROJECT_DIR. Exit codes: the driver's (0 PASS, 1 FAIL, 2 ERROR,
+# 124 TIMEOUT, 128+N CRASH); for 'all', the first non-zero one.
+
+set -u
+
+PGF_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+PGF_ENV="$PGF_ROOT/pgf-env"
+BUILD_SH="$PGF_ROOT/build.sh"
+REG_DIR="$PGF_ROOT/applications/test/regression"
+TIERS_CONF="${PGF_TIERS_CONF:-$PGF_ROOT/applications/test/tiers.conf}"
+export PGF_RUN_ROOT="${PGF_RUN_ROOT:-${TMPDIR:-/tmp}/pgf-runs}"
+LAST_DIR="$PGF_RUN_ROOT/last"
+
+die() {
+  echo "pgf-test: $*" >&2
+  exit 2
+}
+
+# -- tiers ---------------------------------------------------------------------
+
+TIERS=()
+declare -A T_RUNNER T_VARIANT T_JOBS T_TIMEOUT T_ENV T_SELECT T_CADENCE
+pgf_tier() {
+  [ $# -eq 8 ] || die "$TIERS_CONF: pgf_tier needs 8 fields, got $# ($*)"
+  local t="$1" f
+  TIERS+=("$t")
+  for f in 2 3 4 5 6 7 8; do [ "${!f}" = "-" ] && set -- "${@:1:f-1}" "" "${@:f+1}"; done
+  T_RUNNER[$t]="$2" T_VARIANT[$t]="$3" T_JOBS[$t]="$4" T_TIMEOUT[$t]="$5"
+  T_ENV[$t]="$6" T_SELECT[$t]="$7" T_CADENCE[$t]="$8"
+}
+[ -r "$TIERS_CONF" ] || die "cannot read $TIERS_CONF"
+# shellcheck disable=SC1090
+. "$TIERS_CONF"
+[ ${#TIERS[@]} -gt 0 ] || die "$TIERS_CONF defines no tier"
+
+known_tier() {
+  [ -n "${T_RUNNER[$1]+x}" ]
+}
+
+variant_flag() {
+  [ "${T_VARIANT[$1]}" = "yade1" ] && echo "--yade"
+}
+
+# current_key <tier> — this tree's build key for the tier's variant.
+current_key() {
+  # shellcheck disable=SC2046
+  "$PGF_ENV" --bare -- "$BUILD_SH" --print-key $(variant_flag "$1") 2>/dev/null
+}
+
+# -- ages and records ------------------------------------------------------------
+
+# age_seconds <AGE> — 7d / 12h / 30m / 45s / 90 to seconds.
+age_seconds() {
+  local n="${1%[dhms]}" unit="${1##*[0-9]}"
+  [[ "$n" =~ ^[0-9]+$ ]] || die "bad age '$1' (use e.g. 7d, 12h, 30m)"
+  case "$unit" in
+  d) echo $((n * 86400)) ;;
+  h) echo $((n * 3600)) ;;
+  m) echo $((n * 60)) ;;
+  s | "") echo "$n" ;;
+  *) die "bad age unit in '$1'" ;;
+  esac
+}
+
+# record_field <tier> <field> — one field of last/<tier>.json, empty if absent.
+record_field() {
+  python3 -c 'import json, sys
+try:
+    v = json.load(open(sys.argv[1])).get(sys.argv[2])
+except (OSError, ValueError):
+    v = None
+print("" if v is None else v)' "$LAST_DIR/$1.json" "$2" 2>/dev/null
+}
+
+# fresh <tier> <key> <max-age-seconds|""> — the last record is a PASS of <key>
+#   that ended within the age limit.
+fresh() {
+  local ended
+  [ "$(record_field "$1" outcome)" = "PASS" ] || return 1
+  [ "$(record_field "$1" key)" = "$2" ] || return 1
+  [ -n "$3" ] || return 0
+  ended="$(record_field "$1" ended_epoch)"
+  [ -n "$ended" ] && [ $(($(date +%s) - ${ended%.*})) -le "$3" ]
+}
+
+classify() {
+  case "$1" in
+  0) echo PASS ;;
+  1) echo FAIL ;;
+  124) echo TIMEOUT ;;
+  *) [ "$1" -gt 128 ] && echo CRASH || echo ERROR ;;
+  esac
+}
+
+write_record() {
+  local tier="$1" key="$2" rc="$3" start="$4" end="$5" run="$6"
+  mkdir -p "$LAST_DIR" || return 1
+  python3 - "$LAST_DIR/$tier.json" "$tier" "$key" "$("$BUILD_SH" --fingerprint)" \
+    "${T_VARIANT[$tier]}" "$(git -C "$PGF_ROOT" rev-parse HEAD 2>/dev/null)" "$PGF_ROOT" \
+    "$start" "$end" "$rc" "$(classify "$rc")" "$run" <<'PY'
+import datetime, json, os, sys
+(path, tier, key, fp, variant, head, tree, start, end, rc, outcome, run) = sys.argv[1:13]
+utc = lambda t: datetime.datetime.fromtimestamp(int(t), datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+state = os.path.join(run, "state")
+counts = None
+try:
+    counts = json.load(open(os.path.join(state, "result.json"))).get("counts")
+except (OSError, ValueError):
+    pass
+rec = {
+    "schema_version": 1, "tier": tier, "key": key or None, "fingerprint": fp,
+    "variant": variant, "git_head": head or None, "source_tree": tree,
+    "started_epoch": int(start), "ended_epoch": int(end),
+    "started_utc": utc(start), "ended_utc": utc(end),
+    "exit_code": int(rc), "outcome": outcome, "counts": counts,
+    "run_dir": run, "state_dir": state, "result_json": os.path.join(state, "result.json"),
+}
+with open(path + ".tmp", "w") as f:
+    json.dump(rec, f, indent=2)
+    f.write("\n")
+os.replace(path + ".tmp", path)
+PY
+}
+
+# -- run -------------------------------------------------------------------------
+
+run_tier() {
+  local tier="$1" max_age="$2" run="$3" key prefix rc start end args=() envflags=()
+  key="$(current_key "$tier")" || die "cannot compute the build key (is PGF_FOAM_BASHRC set?)"
+
+  if [ -n "$IF_STALE" ] && fresh "$tier" "$key" "$max_age"; then
+    echo "pgf-test: $tier is fresh (PASS of $key at $(record_field "$tier" ended_utc)); not run"
+    return 0
+  fi
+
+  if [ "$REBUILD" = true ]; then
+    # shellcheck disable=SC2046
+    prefix="$("$PGF_ENV" --bare -- "$BUILD_SH" --print-prefix $(variant_flag "$tier") 2>/dev/null)"
+    case "${prefix##*/}" in
+    "$key") [ -d "$prefix" ] && rm -rf "$prefix" && echo "pgf-test: removed $prefix" ;;
+    *) die "refusing to remove unexpected prefix '$prefix'" ;;
+    esac
+  fi
+
+  mkdir -p "$run" || die "cannot create $run"
+  echo "pgf-test: tier $tier, key $key, run dir $run"
+  start="$(date +%s)"
+  # shellcheck disable=SC2046
+  if ! "$PGF_ENV" --bare -- "$BUILD_SH" --isolated $(variant_flag "$tier") >"$run/build.log" 2>&1; then
+    tail -20 "$run/build.log" >&2
+    echo "pgf-test: build failed; log $run/build.log" >&2
+    write_record "$tier" "$key" 2 "$start" "$(date +%s)" "$run"
+    return 2
+  fi
+
+  read -r -a envflags <<<"${T_ENV[$tier]}"
+  read -r -a args <<<"${T_SELECT[$tier]}"
+  args+=(--jobs "${T_JOBS[$tier]}" --state-dir "$run/state")
+  [ "${T_RUNNER[$tier]}" = "Allrun" ] && args+=(--run-root "$run/cases")
+  [ -n "${T_TIMEOUT[$tier]}" ] && export YADE_TIMEOUT="${T_TIMEOUT[$tier]}"
+
+  "$PGF_ENV" "${envflags[@]}" -- "$REG_DIR/${T_RUNNER[$tier]}" "${args[@]}" 2>&1 | tee "$run/driver.log"
+  rc=${PIPESTATUS[0]}
+  end="$(date +%s)"
+  write_record "$tier" "$key" "$rc" "$start" "$end" "$run" || echo "pgf-test: could not write $LAST_DIR/$tier.json" >&2
+  echo "pgf-test: $tier $(classify "$rc") (exit $rc, $((end - start))s); record $LAST_DIR/$tier.json"
+  return "$rc"
+}
+
+# -- status ----------------------------------------------------------------------
+
+show_status() {
+  local max_age="$1" tier key last ended when state
+  shift
+  [ $# -gt 0 ] || set -- "${TIERS[@]}"
+  printf '%-12s %-8s %-22s %-34s %s\n' tier last ended "tested key" state
+  for tier in "$@"; do
+    known_tier "$tier" || die "unknown tier '$tier'"
+    key="$(current_key "$tier")"
+    last="$(record_field "$tier" outcome)"
+    if [ -z "$last" ]; then
+      printf '%-12s %-8s %-22s %-34s %s\n' "$tier" never - - "stale (no record)"
+      continue
+    fi
+    ended="$(record_field "$tier" ended_epoch)"
+    when="$(record_field "$tier" ended_utc)"
+    state="current"
+    if [ "$(record_field "$tier" key)" != "$key" ]; then
+      state="stale (tree is now $key)"
+    elif [ -n "$max_age" ] && [ $(($(date +%s) - ${ended%.*})) -gt "$max_age" ]; then
+      state="stale (older than $IF_STALE)"
+    fi
+    printf '%-12s %-8s %-22s %-34s %s\n' "$tier" "$last" "$when" "$(record_field "$tier" key)" "$state"
+  done
+}
+
+# -- gc --------------------------------------------------------------------------
+
+# newest_first <dir ...> — the dirs sorted by mtime, newest first.
+newest_first() {
+  [ $# -gt 0 ] || return 0
+  ls -1dt -- "$@"
+}
+
+gc() {
+  local keep_runs="$1" keep_prefixes="$2" dry="$3" d n build_root lockfd tier
+  local -A protect_runs=() protect_keys=()
+  local -a runs=() prefixes=()
+  act() {
+    if [ "$dry" = true ]; then echo "would remove $1"; else rm -rf -- "$1" && echo "removed $1"; fi
+  }
+
+  for f in "$LAST_DIR"/*.json; do
+    [ -f "$f" ] && protect_runs["$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("run_dir",""))' "$f" 2>/dev/null)"]=1
+  done
+  for d in "$PGF_RUN_ROOT"/pgf-test-* "$PGF_RUN_ROOT"/regression-*; do
+    [ -d "$d" ] && runs+=("$d")
+  done
+  n=0
+  while IFS= read -r d; do
+    [ -n "$d" ] || continue
+    if [ -n "${protect_runs[$d]:-}" ]; then continue; fi
+    n=$((n + 1))
+    [ "$n" -le "$keep_runs" ] || act "$d"
+  done < <(newest_first "${runs[@]}")
+
+  build_root="$("$PGF_ENV" --bare -- printenv PGF_BUILD_ROOT 2>/dev/null)" ||
+    die "cannot resolve PGF_BUILD_ROOT"
+  for tier in "${TIERS[@]}"; do
+    protect_keys["$(current_key "$tier")"]=1
+  done
+  protect_keys["$("$PGF_ENV" --bare -- "$BUILD_SH" --print-key 2>/dev/null)"]=1
+  protect_keys["$("$PGF_ENV" --bare -- "$BUILD_SH" --print-key --yade 2>/dev/null)"]=1
+  for d in "$build_root"/*-yade[01]-*; do
+    [ -d "$d" ] && prefixes+=("$d")
+  done
+  n=0
+  while IFS= read -r d; do
+    [ -n "$d" ] || continue
+    if [ -n "${protect_keys[${d##*/}]:-}" ]; then
+      echo "keep $d (this tree)"
+      continue
+    fi
+    if [ -e "$d.lock" ]; then
+      exec {lockfd}<"$d.lock"
+      if ! flock -n "$lockfd"; then
+        exec {lockfd}<&-
+        echo "keep $d (build in progress)"
+        continue
+      fi
+      exec {lockfd}<&-
+    fi
+    n=$((n + 1))
+    [ "$n" -le "$keep_prefixes" ] && continue
+    act "$d"
+    [ "$dry" = true ] || rm -f -- "$d.lock"
+  done < <(newest_first "${prefixes[@]}")
+}
+
+# -- arguments -------------------------------------------------------------------
+
+MODE="run"
+REBUILD=false
+IF_STALE=""
+RUN_ROOT=""
+KEEP_RUNS=10
+KEEP_PREFIXES=5
+DRY_RUN=false
+targets=()
+while [ $# -gt 0 ]; do
+  case "$1" in
+  --rebuild) REBUILD=true; shift ;;
+  --if-stale) IF_STALE="${2:-}"; [ -n "$IF_STALE" ] || die "--if-stale needs an age"; shift 2 ;;
+  --run-root) RUN_ROOT="${2:-}"; [ -n "$RUN_ROOT" ] || die "--run-root needs a directory"; shift 2 ;;
+  --status) MODE="status"; shift ;;
+  --gc) MODE="gc"; shift ;;
+  --keep-runs) KEEP_RUNS="${2:-}"; shift 2 ;;
+  --keep-prefixes) KEEP_PREFIXES="${2:-}"; shift 2 ;;
+  --dry-run) DRY_RUN=true; shift ;;
+  -h | --help) sed -n '3,29p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+  -*) die "unknown option '$1'" ;;
+  *) targets+=("$1"); shift ;;
+  esac
+done
+max_age=""
+[ -n "$IF_STALE" ] && max_age="$(age_seconds "$IF_STALE")"
+
+case "$MODE" in
+status)
+  show_status "$max_age" "${targets[@]}"
+  exit 0
+  ;;
+gc)
+  [[ "$KEEP_RUNS" =~ ^[0-9]+$ ]] && [[ "$KEEP_PREFIXES" =~ ^[0-9]+$ ]] ||
+    die "--keep-runs / --keep-prefixes need a non-negative integer"
+  gc "$KEEP_RUNS" "$KEEP_PREFIXES" "$DRY_RUN"
+  exit 0
+  ;;
+esac
+
+[ ${#targets[@]} -eq 1 ] || die "name one tier, or 'all' (tiers: ${TIERS[*]})"
+if [ "${targets[0]}" = "all" ]; then
+  targets=("${TIERS[@]}")
+else
+  known_tier "${targets[0]}" || die "unknown tier '${targets[0]}' (tiers: ${TIERS[*]})"
+fi
+
+suite_rc=0
+for tier in "${targets[@]}"; do
+  run="${RUN_ROOT:-$PGF_RUN_ROOT/pgf-test-$tier-$(date +%Y%m%d-%H%M%S)-$$}"
+  [ -n "$RUN_ROOT" ] && [ ${#targets[@]} -gt 1 ] && run="$RUN_ROOT/$tier"
+  run_tier "$tier" "$max_age" "$run"
+  rc=$?
+  [ "$suite_rc" -eq 0 ] && suite_rc=$rc
+done
+exit "$suite_rc"

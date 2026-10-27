@@ -40,6 +40,26 @@ The suite is green only if at least one case ran and every case passed. There is
 
 **Tiers** (tagged in `cases.list`): `fast` runs by default and is meant as the pre-push gate; `convergence` is a mesh-refinement study, run with `--tag convergence` or `--tag all`. DEM cases are listed separately in `cases_yade.list`.
 
+### Tiers with `pgf-test`
+
+`pgf-test` runs a whole tier against this checkout's isolated build (see [Isolated builds](build.md#isolated-builds-and-pgf-env)) and remembers the result. The tiers are rows in `applications/test/tiers.conf`: driver, build variant, jobs, timeout, `pgf-env` flags, selection and cadence.
+
+| Tier | Driver and selection | Variant | Jobs | Cadence |
+|---|---|---|---|---|
+| `fast` | `Allrun --tag fast` | normal | 4 | every push |
+| `convergence` | `Allrun --tag convergence` | normal | 2 | nightly or `--if-stale 7d` |
+| `dem` | `Allrun.yade` | `--yade` | 1 | before DEM-touching merges |
+
+```bash
+./pgf-test fast                        # build or reuse the prefix, run the tier, record it
+./pgf-test convergence --if-stale 7d   # run only if the last PASS is for other sources or older than 7 days
+./pgf-test all                         # every tier in order; exits with the first non-zero status
+./pgf-test --status                    # per tier: last outcome, when, tested key, current or stale
+./pgf-test --gc --keep-runs 10 --keep-prefixes 5 [--dry-run]
+```
+
+Each run goes to `$PGF_RUN_ROOT/pgf-test-<tier>-<time>-<pid>/` (`build.log`, `driver.log`, `state/` with `result.json`, and `cases/` with the kept case copies). `PGF_RUN_ROOT` defaults to `${TMPDIR:-/tmp}/pgf-runs`. The record `$PGF_RUN_ROOT/last/<tier>.json` holds the build key, source fingerprint, git `HEAD`, start and end time, outcome counts, the exit code and the paths to the run's state. A tier is **stale** when the key it last tested is not this tree's current key, or with `--if-stale AGE` when that run is older than `AGE`. `--if-stale` reruns a tier whose last run failed, even for the same key. `--rebuild` deletes the tier's prefix and builds it again. `--gc` keeps the newest N run dirs plus every dir a record points at, and the newest M prefixes. It never removes this tree's prefixes (either variant) or a prefix whose build lock is held. `PGF_TIERS_CONF` points `pgf-test` at another tiers file. Exit codes are the drivers' (see [Outcomes](#outcomes)).
+
 ## Add a case
 
 1. Add `system/regressionFunctions` with the metrics to extract (example: `tutorials/cases/charOnlyMoveCases/serial/system/regressionFunctions`), and `#includeIfPresent "regressionFunctions"` inside `functions { … }` at the bottom of `system/controlDict`.
