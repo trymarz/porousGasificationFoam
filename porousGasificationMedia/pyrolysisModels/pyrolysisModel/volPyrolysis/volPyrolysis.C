@@ -1031,7 +1031,7 @@ void volPyrolysis::preSolveEnergy()
             solidState_->correctSolidPresentBoundaryConditions();
             surfaceScalarField  solidPresenceAtFaces  = fvc::interpolate(solidState_->solidPresent());
 
-            const volScalarField& connectedAtStepStart = solidConnectedAtStepStart();
+            const volScalarField& connectedAtStepStart = solidState_->connectedAtStepStart();
 
             // Evaluated once and stored, so the gas EEqn adds back the same
             // joules after TEqn has moved T_. heatTransferCalc() gates
@@ -1341,9 +1341,9 @@ void volPyrolysis::calculateMassTransfer()
     }
 }
 
-const volScalarField& volPyrolysis::solidConnectedAtStepStart() const
+const SolidState& volPyrolysis::solidState() const
 {
-    return solidState_->connectedAtStepStart();
+    return solidState_();
 }
 
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
@@ -2213,7 +2213,7 @@ Foam::tmp<Foam::volScalarField> volPyrolysis::heatTransferCalc() const
         // Gate the emitted exchange at the producer so the solid TEqn and the
         // gas EEqn consume the same field: an ungated gas side would exchange
         // heat with a solid whose own equation refuses it, creating energy.
-        const volScalarField& connectedAtStepStart = solidConnectedAtStepStart();
+        const volScalarField& connectedAtStepStart = solidState_->connectedAtStepStart();
 
         if (subintegrateSwitch_)
         {

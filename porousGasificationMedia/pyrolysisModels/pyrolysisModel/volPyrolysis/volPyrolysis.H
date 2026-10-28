@@ -392,8 +392,8 @@ public:
                 //- Return list of cells in surface layer inside solid
                 virtual const volScalarField& surf() const;
 
-                //- Return the solid-source gate
-                virtual const volScalarField& solidConnectedAtStepStart() const;
+                //- The solid regimes of every cell, and their thresholds
+                virtual const SolidState& solidState() const;
 
         // Parametrs from main region
 

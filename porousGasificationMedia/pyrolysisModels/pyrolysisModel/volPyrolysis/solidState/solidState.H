@@ -85,7 +85,8 @@ Description
     replacement, since two of them were porosities.
 
     Owned directly by volPyrolysis (like SolidStateChecker and
-    SolidFluxLimiter) - no runtime selection.
+    SolidFluxLimiter) - no runtime selection. The radiation models read
+    it too, through the inline accessors only: their library builds first.
 
 SourceFiles
     solidState.C
@@ -145,6 +146,9 @@ private:
 
         //- Solid fraction no cell may exceed [-]
         scalar maxSolidFraction_;
+
+        //- 1 - dispersedAboveSolidFraction_, for tests on the porosity [-]
+        scalar traceAbovePorosity_;
 
         //- 1 - connectedAboveSolidFraction_, for tests on the porosity [-]
         scalar connectedBelowPorosity_;
@@ -231,6 +235,12 @@ public:
 
         // Thresholds, in porosity, for tests on the porosity field
 
+            //- Porosity above which a cell holds only trace, or no solid [-]
+            scalar traceAbovePorosity() const
+            {
+                return traceAbovePorosity_;
+            }
+
             //- Porosity below which the solid is connected [-]
             scalar connectedBelowPorosity() const
             {
@@ -283,6 +293,15 @@ public:
                 return
                     porosity_[cellI] > connectedBelowPorosity_
                  && porosity_[cellI] < 1.0;
+            }
+
+            //- Whether the cell holds only trace solid, or none
+            //  Read on the porosity as it stands, not on a snapshot.
+            bool isTraceOrEmpty(const label cellI) const
+            {
+                return
+                    porosity_[cellI] > traceAbovePorosity_
+                 || porosity_[cellI] >= 1.0;
             }
 
             //- Positive only where the cell holds more than trace

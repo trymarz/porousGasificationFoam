@@ -187,6 +187,8 @@ gaps between them too. Only the values are case-specific.
 
 - `dispersedAboveSolidFraction` changes results. Below it, Ts = solidH/(ρ Cp)
   is a ratio of two vanishing numbers whose errors do not shrink with them.
+  `heterogeneousP1` uses the same threshold: only cells above it attenuate
+  radiation as solid.
 - `connectedAboveSolidFraction` is also the threshold the DEM coupling uses:
   `lambdaDot` is switched off, and the interpolation models treat the cell as
   outside the solid, where the solid is not connected. DEM cases must set it.

@@ -73,7 +73,7 @@ public:
             const volScalarField& porosityF,
             const volScalarField& cellOnBedBorder,
             const volScalarField& Ts,
-            const volScalarField& solidConnectedAtStepStart
+            const heterogeneousPyrolysisModels::SolidState& solidState
         );
 
 

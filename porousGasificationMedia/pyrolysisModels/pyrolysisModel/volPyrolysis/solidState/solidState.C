@@ -226,6 +226,7 @@ SolidState::SolidState
         coeffs.subOrEmptyDict("solidRegimes")
             .lookupOrDefault<scalar>("maxSolidFraction", 0.9999)
     ),
+    traceAbovePorosity_(1.0 - dispersedAboveSolidFraction_),
     connectedBelowPorosity_(1.0 - connectedAboveSolidFraction_),
     minPorosity_(1.0 - maxSolidFraction_),
     dispersedTakesGasTemperature_

@@ -79,8 +79,8 @@ class heterogeneousMeanTemp
             //- Bed border flag from the pyrolysis model, 1 on a border cell
             const volScalarField& cellOnBedBorder_;
 
-            //- Cells the solid energy equation will pay for a source in
-            const volScalarField& solidConnectedAtStepStart_;
+            //- The solid regimes: the source gate, and which cells hold solid
+            const heterogeneousPyrolysisModels::SolidState& solidState_;
 
             //- Radiating border area per unit cell volume [1/m]
             volScalarField bedBorderSurfaceAreaDensity_;
@@ -104,7 +104,7 @@ public:
             const volScalarField& porosityF,
             const volScalarField& cellOnBedBorder,
             const volScalarField& Ts,
-            const volScalarField& solidConnectedAtStepStart
+            const heterogeneousPyrolysisModels::SolidState& solidState
         );
 
         //- Disallow default bitwise copy construction

@@ -58,7 +58,7 @@ Foam::radiationModels::heterogeneousP1::heterogeneousP1
     const volScalarField& porosityF,
     const volScalarField& cellOnBedBorder,
     const volScalarField& Ts,
-    const volScalarField& solidConnectedAtStepStart
+    const heterogeneousPyrolysisModels::SolidState& solidState
 )
 :
     heterogeneousRadiationModel(typeName, T, Ts),
@@ -148,7 +148,7 @@ Foam::radiationModels::heterogeneousP1::heterogeneousP1
     (
         cellOnBedBorder
     ),
-    solidConnectedAtStepStart_(solidConnectedAtStepStart),
+    solidState_(solidState),
     bedBorderSurfaceAreaDensity_
     (
         IOobject
@@ -204,7 +204,7 @@ Foam::radiationModels::heterogeneousP1::heterogeneousP1
 {
     forAll(porosityF_,cellI)
     {
-        if (porosityF_[cellI] > (1.0 - pow(10.0, -8.0)))
+        if (solidState_.isTraceOrEmpty(cellI))
         {
             radiatingCellHasSolid_[cellI] = 0.0;
             radiatingCellHasNoSolid_[cellI] = 1.0;
@@ -298,7 +298,7 @@ void Foam::radiationModels::heterogeneousP1::calculate()
     scalar totalVol = 0;
     forAll(porosityF_, cellI)
     {
-        if (porosityF_[cellI] > (1.0 - pow(10.0, -8.0)))
+        if (solidState_.isTraceOrEmpty(cellI))
         {
             radiatingCellHasSolid_[cellI] = 0.0;
             radiatingCellHasNoSolid_[cellI] = 1.0;
@@ -335,8 +335,8 @@ void Foam::radiationModels::heterogeneousP1::calculate()
     // The solid's share of the radiation reservoir, gated by what TEqn will
     // accept: emission, absorption and the booked source all carry the same
     // factor, so a cell the solid equation refuses neither emits nor absorbs.
-    const volScalarField solidAs(as_ * radiatingCellHasSolid_ * solidConnectedAtStepStart_);
-    const volScalarField borderAsEff(borderAs_ * bedBorderSurfaceAreaDensity_ * solidConnectedAtStepStart_);
+    const volScalarField solidAs(as_ * radiatingCellHasSolid_ * solidState_.connectedAtStepStart());
+    const volScalarField borderAsEff(borderAs_ * bedBorderSurfaceAreaDensity_ * solidState_.connectedAtStepStart());
 
     // eqZx2uHGn013
     volScalarField solidRadiation = (solidAs + borderAsEff) * physicoChemical::sigma * pow4(Ts_);

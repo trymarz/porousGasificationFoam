@@ -6,6 +6,6 @@ autoPtr<heterogeneousRadiationModel> radiation
         porosityF,
         pyrolysisZone.surf(),
         pyrolysisZone.T(),
-        pyrolysisZone.solidConnectedAtStepStart()
+        pyrolysisZone.solidState()
     )
 );
