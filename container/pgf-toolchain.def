@@ -1,0 +1,41 @@
+# pgf-toolchain: a pinned OpenFOAM v2406 toolchain for comparing regression
+# baselines against the native build (#120, PR 4).
+#
+# ESI's opencfd/openfoam-dev:2406 image (Ubuntu 24.04, gcc 13, system Open MPI,
+# OpenFOAM in /usr/lib/openfoam/openfoam2406), pinned by digest, plus python3
+# for the comparator. PGF itself is not built into the image: pgf-test builds
+# the tree it is given with build.sh --isolated, so one image serves any commit.
+# No Yade: the experiment covers the fast and convergence tiers only.
+#
+# Build (outside the checkout; needs unprivileged user namespaces or root):
+#   apptainer build --fakeroot pgf-toolchain.sif container/pgf-toolchain.def
+# Use: container/compareToolchains.sh --image pgf-toolchain.sif
+
+Bootstrap: docker
+From: opencfd/openfoam-dev@sha256:29dd2c73941c1d718655e6ca7a79f466ec57362b534c4d41bd1deffc5b414e0c
+
+%post
+    set -eu
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update -q
+    apt-get install -y --no-install-recommends python3
+    apt-get clean
+    rm -rf /var/lib/apt/lists/*
+    {
+        echo "image:    opencfd/openfoam-dev:2406 @ sha256:29dd2c73941c"
+        echo "os:       $(. /etc/os-release && echo "$PRETTY_NAME")"
+        echo "gcc:      $(gcc -dumpfullversion)"
+        echo "mpi:      $(mpirun --version 2>/dev/null | head -1)"
+        echo "python3:  $(python3 --version 2>&1)"
+    } > /opt/pgf-toolchain-manifest.txt
+
+%environment
+    export PGF_FOAM_BASHRC=/usr/lib/openfoam/openfoam2406/etc/bashrc
+
+%runscript
+    exec "$@"
+
+%labels
+    OpenFOAM v2406 (ESI opencfd/openfoam-dev:2406)
+    Compiler gcc 13 (Ubuntu 24.04)
+    Manifest /opt/pgf-toolchain-manifest.txt
