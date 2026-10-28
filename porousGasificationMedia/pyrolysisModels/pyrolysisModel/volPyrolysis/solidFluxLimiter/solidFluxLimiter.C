@@ -239,7 +239,7 @@ void SolidFluxLimiter::solidReceiverLimit
 {
     const scalarField& V = mesh_.V();
     const scalar rDeltaT = 1.0/time_.deltaTValue();
-    const scalar alphaSMax = 1.0 - solidState_.minPorosity();
+    const scalar alphaSMax = solidState_.maxSolidFraction();
 
     scalarField sumOut(mesh_.nCells(), Zero);
     scalarField sumIn(mesh_.nCells(), Zero);
@@ -344,7 +344,7 @@ void SolidFluxLimiter::reportSolidFluxLimiter
 {
     const scalarField& V = mesh_.V();
     const scalar deltaT = time_.deltaTValue();
-    const scalar alphaSMax = 1.0 - solidState_.minPorosity();
+    const scalar alphaSMax = solidState_.maxSolidFraction();
 
     const scalarField& fluxScaleIn = fluxScale;
     const surfaceScalarField::Boundary& fluxScaleBf = fluxScale.boundaryField();
@@ -450,8 +450,8 @@ void SolidFluxLimiter::reportSolidFluxLimiter
 
         if
         (
-            maxOvershoot > solidState_.solidStateTolerance()
-         || maxUndershoot > solidState_.solidStateTolerance()*YmScale
+            maxOvershoot > solidState_.checkTolerance()
+         || maxUndershoot > solidState_.checkTolerance()*YmScale
         )
         {
             Info<< ", NOT converged in " << nSolidFluxLimiterCorrectors_

@@ -88,7 +88,6 @@ SolidStateChecker::SolidStateChecker
     )
 {
     Info << "failOnInvalidSolidState  " << failOnInvalidSolidState_ << endl;
-    Info << "solidStateTolerance      " << solidState_.solidStateTolerance() << endl;
     Info << "maxSolidTemperature      " << maxSolidTemperature_ << endl;
 }
 
@@ -114,8 +113,8 @@ label SolidStateChecker::firstInvalidPorosity
     return firstInvalidCell
     (
         por,
-        solidState_.minPorosity() - solidState_.solidStateTolerance(),
-        1.0 + solidState_.solidStateTolerance()
+        solidState_.minPorosity() - solidState_.checkTolerance(),
+        1.0 + solidState_.checkTolerance()
     );
 }
 
@@ -132,7 +131,7 @@ label SolidStateChecker::firstInvalidExtensive
 
     const scalar fldScale = max(gMax(fld), SMALL);
 
-    return firstInvalidCell(fld, -solidState_.solidStateTolerance()*fldScale, GREAT);
+    return firstInvalidCell(fld, -solidState_.checkTolerance()*fldScale, GREAT);
 }
 
 
@@ -150,7 +149,7 @@ label SolidStateChecker::firstInvalidTemperature
     return firstInvalidCell
     (
         T,
-       -solidState_.solidStateTolerance()*maxSolidTemperature_,
+       -solidState_.checkTolerance()*maxSolidTemperature_,
         maxSolidTemperature_,
         &mask
     );
@@ -236,7 +235,7 @@ void SolidStateChecker::checkConsistency
     // Last two conditions: only the rank owning the worst cell reports it.
     if
     (
-        globalResidual > solidState_.solidStateTolerance()
+        globalResidual > solidState_.checkTolerance()
      && worstCell != -1
      && maxResidual == globalResidual
     )
@@ -246,7 +245,7 @@ void SolidStateChecker::checkConsistency
             << " in cell " << worstCell << " at "
             << mesh_.C()[worstCell] << ": porosity = "
             << porosity[worstCell] << ", solidOccupiesCell = "
-            << solidState_.occupied()[worstCell]
+            << solidState_.solidPresent()[worstCell]
             << ". A porosity written after the recovery cannot be"
             << " reconciled with the mass the cell holds." << endl;
     }

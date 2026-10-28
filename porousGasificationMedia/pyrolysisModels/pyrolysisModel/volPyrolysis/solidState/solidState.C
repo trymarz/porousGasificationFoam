@@ -36,10 +36,10 @@ namespace heterogeneousPyrolysisModels
 
 void SolidState::checkThresholds(const dictionary& coeffs) const
 {
-    if (criticalPorosity_ > 1.0)
+    if (connectedBelowPorosity_ > 1.0)
     {
         FatalIOErrorInFunction(coeffs)
-            << "criticalPorosity must not exceed 1, but is " << criticalPorosity_
+            << "criticalPorosity must not exceed 1, but is " << connectedBelowPorosity_
             << "." << nl
             << "Above 1 the solid source gate pos(criticalPorosity - porosity)"
             << " stays open in empty cells, where rhoCp is at its SMALL floor"
@@ -48,10 +48,10 @@ void SolidState::checkThresholds(const dictionary& coeffs) const
             << exit(FatalIOError);
     }
 
-    if (criticalPorosity_ <= 0.0)
+    if (connectedBelowPorosity_ <= 0.0)
     {
         FatalIOErrorInFunction(coeffs)
-            << "criticalPorosity must be positive, but is " << criticalPorosity_
+            << "criticalPorosity must be positive, but is " << connectedBelowPorosity_
             << "." << nl
             << "At or below 0 the solid source gate pos(criticalPorosity -"
             << " porosity) is shut everywhere, so the radiation, chemistry and"
@@ -74,28 +74,45 @@ void SolidState::checkThresholds(const dictionary& coeffs) const
     }
 
     // In solid fraction alpha = 1 - porosity the regimes must nest:
-    // presence floor < source gate < packing.
-    if (minPorosity_ >= criticalPorosity_)
+    // trace < dispersed < connected < maxSolidFraction.
+    if (minPorosity_ >= connectedBelowPorosity_)
     {
         FatalIOErrorInFunction(coeffs)
             << "minPorosity (" << minPorosity_ << ") must be below"
-            << " criticalPorosity (" << criticalPorosity_ << ")." << nl
+            << " criticalPorosity (" << connectedBelowPorosity_ << ")." << nl
             << "A cell packed to minPorosity would otherwise be too empty to"
             << " admit the solid sources, so a full bed could never react."
             << exit(FatalIOError);
     }
 
-    if (solidStateTolerance_ >= 1.0 - criticalPorosity_)
+    if (dispersedAboveSolidFraction_ >= 1.0 - connectedBelowPorosity_)
     {
         FatalIOErrorInFunction(coeffs)
-            << "solidStateTolerance (" << solidStateTolerance_ << ") must be"
-            << " below 1 - criticalPorosity (" << 1.0 - criticalPorosity_
+            << "solidStateTolerance (" << dispersedAboveSolidFraction_
+            << ") must be below 1 - criticalPorosity ("
+            << 1.0 - connectedBelowPorosity_
             << ")." << nl
             << "The presence floor, in solid volume fraction, would otherwise"
             << " reach the source gate, so a cell could take the solid sources"
             << " while its Ts was still being taken from the gas."
             << exit(FatalIOError);
     }
+}
+
+
+void SolidState::printRegimes() const
+{
+    Info<< "Solid regimes by solid fraction alpha = 1 - porosity"
+        << " (each threshold ends the regime below it):" << nl
+        << "    empty      alpha = 0" << nl
+        << "    trace      alpha <= " << dispersedAboveSolidFraction()
+        << "    Ts follows the gas" << nl
+        << "    dispersed  alpha <= " << connectedAboveSolidFraction()
+        << "    no solid sources; may be emptied" << nl
+        << "    connected  alpha <= " << maxSolidFraction()
+        << "    full model" << nl
+        << "Solid state check tolerance " << checkTolerance() << nl
+        << endl;
 }
 
 
@@ -109,16 +126,17 @@ SolidState::SolidState
 :
     mesh_(porosity.mesh()),
     porosity_(porosity),
-    solidStateTolerance_
+    dispersedAboveSolidFraction_
     (
         coeffs.lookupOrDefault<scalar>("solidStateTolerance", 1e-8)
     ),
-    criticalPorosity_
+    checkTolerance_(dispersedAboveSolidFraction_),
+    connectedBelowPorosity_
     (
         coeffs.lookupOrDefault<scalar>("criticalPorosity", 0.9999)
     ),
     minPorosity_(coeffs.lookupOrDefault<scalar>("minPorosity", 1e-4)),
-    occupied_
+    solidPresent_
     (
         IOobject
         (
@@ -144,7 +162,7 @@ SolidState::SolidState
         mesh_,
         dimensionedScalar("one", dimless, 1.0)
     ),
-    sourceTermsAdmissible_
+    connectedAtStepStart_
     (
         IOobject
         (
@@ -159,6 +177,7 @@ SolidState::SolidState
     )
 {
     checkThresholds(coeffs);
+    printRegimes();
 }
 
 
@@ -176,7 +195,7 @@ tmp<volScalarField> SolidState::solidFraction() const
 }
 
 
-tmp<volScalarField> SolidState::massAbovePresenceFloor
+tmp<volScalarField> SolidState::massBeyondTrace
 (
     const volScalarField& totalYm,
     const volScalarField& rho
@@ -186,7 +205,7 @@ tmp<volScalarField> SolidState::massAbovePresenceFloor
     (
         max
         (
-            solidStateTolerance_*rho,
+            dispersedAboveSolidFraction_*rho,
             dimensionedScalar("YmFloorMin", dimDensity, SMALL)
         )
     );
@@ -195,13 +214,13 @@ tmp<volScalarField> SolidState::massAbovePresenceFloor
 }
 
 
-tmp<volScalarField> SolidState::belowPresenceFloor
+tmp<volScalarField> SolidState::isTrace
 (
     const volScalarField& totalYm,
     const volScalarField& rho
 ) const
 {
-    return occupied_*(1 - pos(massAbovePresenceFloor(totalYm, rho)));
+    return solidPresent_*(1 - pos(massBeyondTrace(totalYm, rho)));
 }
 
 
@@ -213,7 +232,7 @@ tmp<volScalarField> SolidState::recoverTs
     const volScalarField& Tgas
 ) const
 {
-    const volScalarField traceOnly(belowPresenceFloor(totalYm, rho));
+    const volScalarField traceOnly(isTrace(totalYm, rho));
 
     return TsFromEnthalpy*(1 - traceOnly) + Tgas*traceOnly;
 }
@@ -221,40 +240,41 @@ tmp<volScalarField> SolidState::recoverTs
 
 void SolidState::classifyInitialState()
 {
-    occupied_ = neg(porosity_ - 1);
+    solidPresent_ = neg(porosity_ - 1);
     absent_ = pos0(porosity_ - 1);
 }
 
 
-void SolidState::snapshotAfterTransport()
+void SolidState::refreshSolidPresent()
 {
     forAll(porosity_, cellI)
     {
         if (porosity_[cellI] < 1.0)
         {
-            occupied_[cellI] = 1.0;
+            solidPresent_[cellI] = 1.0;
             absent_[cellI] = 0.0;
         }
         else
         {
-            occupied_[cellI] = 0.0;
+            solidPresent_[cellI] = 0.0;
             absent_[cellI] = 1.0;
         }
     }
 }
 
 
-void SolidState::snapshotStepStart()
+void SolidState::freezeConnectedAtStepStart()
 {
-    // occupied_ marks the bed (porosity < 1); the criticalPorosity test
-    // is the strength gate and, at its default, the stricter of the two.
-    sourceTermsAdmissible_ = occupied_*pos(criticalPorosity_ - porosity_);
+    // solidPresent_ is porosity < 1; the connected test is the stricter
+    // of the two at the default thresholds.
+    connectedAtStepStart_ =
+        solidPresent_*pos(connectedBelowPorosity_ - porosity_);
 }
 
 
-void SolidState::correctOccupiedBoundaryConditions()
+void SolidState::correctSolidPresentBoundaryConditions()
 {
-    occupied_.correctBoundaryConditions();
+    solidPresent_.correctBoundaryConditions();
 }
 
 

@@ -214,10 +214,10 @@ protected:
         //  Reported, never applied: porosity is recovered from Ym_ instead.
         volScalarField porositySource_;
 
-        //- The solid regimes: occupancy, presence and the source gate
+        //- The solid regimes of each cell, and their thresholds
         autoPtr<SolidState> solidState_;
 
-        //- Bed-motion scratch, zeroed before each use; not an occupancy mask
+        //- Bed-motion scratch, zeroed before each use; not a solid mask
         volScalarField solidOccupiedCellLastStep_;
 
         volScalarField cellVolume_;

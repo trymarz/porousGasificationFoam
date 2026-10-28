@@ -25,33 +25,46 @@ Class
     Foam::heterogeneousPyrolysisModels::SolidState
 
 Description
-    The solid regimes of a cell, and the thresholds that separate them.
+    What a cell holds, as one of four solid regimes, and the thresholds
+    between them.
 
-    With alpha = 1 - porosity the solid volume fraction, a cell is
+    The regimes lie on one axis, the solid volume fraction
+    alpha = 1 - porosity = sum_i Ym_i/rho. Each threshold belongs to the
+    regime below it:
 
-    - occupied  where alpha > 0 exactly (porosity < 1);
-    - present   where sum_i Ym_i > solidStateTolerance*rho, i.e. alpha
-                above the presence floor; under it a cell holds only trace;
-    - source-admissible where it is occupied and porosity < criticalPorosity:
-                the binary gate on the volumetric solid sources;
-    - packed    at porosity = minPorosity, the floor SolidFluxLimiter
-                fills to and the porosity guard holds.
+        empty      alpha = 0
+        trace      alpha <= dispersedAboveSolidFraction
+                   too little solid to trust its own temperature: Ts = Tgas
+        dispersed  alpha <= connectedAboveSolidFraction
+                   the solid no longer forms a connected matrix: no solid
+                   sources, and the cell may be emptied
+        connected  alpha <= maxSolidFraction
+                   the full model
 
-    The thresholds are read from the owning model's coefficients, under
-    the keys they always had. The class classifies only: flipping, bed
-    motion, flux limiting and the fail-fast guards ask it and stay where
-    they are.
+    alpha never exceeds maxSolidFraction: SolidFluxLimiter stops inflow
+    there and SolidStateChecker aborts past it. The regimes hold at any
+    scale - a cell may be a piece of one pellet or hold many pellets.
 
-    The masks are refreshed by two snapshot calls, at the points of the
-    step the solver has always refreshed them at:
+    The class owns what depends on the regime alone. Callers combine the
+    regime with what else they know (motion, fluxes) to decide, e.g.,
+    which cells to empty.
 
-    - snapshotAfterTransport(): occupancy, from the recovered porosity;
-    - snapshotStepStart(): the source gate the next step's explicit
-      sources read. Taken at the end of the step, so it lags whatever
-      writes porosity before the next one (#127 leaves that to step 2).
+    Two snapshots, at the points of the step the solver has always taken
+    them at:
 
-    The presence floor is not a snapshot: it is evaluated on the mass the
-    caller passes in, at each Ts recovery.
+    - refreshSolidPresent(): solidPresent, from the recovered porosity;
+    - freezeConnectedAtStepStart(): the source gate the next step's
+      explicit sources read. Taken at the end of the step, so it lags
+      whatever writes porosity before the next one (#127 leaves that to
+      step 2).
+
+    The trace test is not a snapshot: it is evaluated on the mass the
+    caller passes in.
+
+    The thresholds are read under the keys they always had:
+    solidStateTolerance (the trace threshold, and checkTolerance),
+    criticalPorosity (1 - connectedAboveSolidFraction) and minPorosity
+    (1 - maxSolidFraction).
 
     Owned directly by volPyrolysis (like SolidStateChecker and
     SolidFluxLimiter) - no runtime selection.
@@ -88,26 +101,29 @@ class SolidState
         //- Porosity the regimes are derived from [-]
         const volScalarField& porosity_;
 
-        //- Presence floor, relative to a packed cell's mass [-]
-        //  Also the fail-fast guards' relative slack, under the same key.
-        scalar solidStateTolerance_;
+        //- Solid fraction at or below which a cell holds only trace [-]
+        scalar dispersedAboveSolidFraction_;
 
-        //- Porosity below which the solid sources are admitted [-]
-        scalar criticalPorosity_;
+        //- Solid-fraction slack the fail-fast checks and reports allow [-]
+        //  Changes no result, only whether a run warns or aborts.
+        scalar checkTolerance_;
+
+        //- Porosity below which the solid is connected [-]
+        scalar connectedBelowPorosity_;
 
         //- Lowest porosity a cell may be packed to [-]
         scalar minPorosity_;
 
         //- 1 where the cell holds any solid (porosity < 1), else 0
-        volScalarField occupied_;
+        volScalarField solidPresent_;
 
-        //- Complement of occupied_
+        //- Complement of solidPresent_
         volScalarField absent_;
 
-        //- 1 where the volumetric solid sources are admitted, else 0
-        //  Stored rather than recomputed so the radiation model can hold a
-        //  reference to it.
-        volScalarField sourceTermsAdmissible_;
+        //- 1 where the solid was connected when the step started, else 0
+        //  The gate on the volumetric solid sources. Stored rather than
+        //  recomputed so the radiation model can hold a reference to it.
+        volScalarField connectedAtStepStart_;
 
 
     // Private member functions
@@ -120,6 +136,9 @@ class SolidState
 
         //- Abort unless each threshold lies where its regime needs it
         void checkThresholds(const dictionary& coeffs) const;
+
+        //- Log the regimes and their thresholds, least solid first
+        void printRegimes() const;
 
 
 public:
@@ -141,18 +160,33 @@ public:
 
     // Member Functions
 
-        // Thresholds
+        // Thresholds, in solid fraction
 
-            //- Presence floor and guard slack [-]
-            scalar solidStateTolerance() const
+            //- Solid fraction at or below which a cell holds only trace [-]
+            scalar dispersedAboveSolidFraction() const
             {
-                return solidStateTolerance_;
+                return dispersedAboveSolidFraction_;
             }
 
-            //- Porosity below which the solid sources are admitted [-]
-            scalar criticalPorosity() const
+            //- Solid fraction above which the solid is connected [-]
+            scalar connectedAboveSolidFraction() const
             {
-                return criticalPorosity_;
+                return 1.0 - connectedBelowPorosity_;
+            }
+
+            //- Solid fraction no cell may exceed [-]
+            scalar maxSolidFraction() const
+            {
+                return 1.0 - minPorosity_;
+            }
+
+
+        // Thresholds, in porosity, for tests on the porosity field
+
+            //- Porosity below which the solid is connected [-]
+            scalar connectedBelowPorosity() const
+            {
+                return connectedBelowPorosity_;
             }
 
             //- Lowest porosity a cell may be packed to [-]
@@ -162,12 +196,21 @@ public:
             }
 
 
+        // Check slack
+
+            //- Solid-fraction slack the fail-fast checks and reports allow [-]
+            scalar checkTolerance() const
+            {
+                return checkTolerance_;
+            }
+
+
         // Masks
 
             //- 1 where the cell holds any solid, else 0
-            const volScalarField& occupied() const
+            const volScalarField& solidPresent() const
             {
-                return occupied_;
+                return solidPresent_;
             }
 
             //- 1 where the cell holds no solid, else 0
@@ -176,26 +219,26 @@ public:
                 return absent_;
             }
 
-            //- 1 where the volumetric solid sources are admitted, else 0
-            const volScalarField& sourceTermsAdmissible() const
+            //- 1 where the solid was connected when the step started, else 0
+            const volScalarField& connectedAtStepStart() const
             {
-                return sourceTermsAdmissible_;
+                return connectedAtStepStart_;
             }
 
             //- Solid volume fraction alpha = 1 - porosity [-]
             tmp<volScalarField> solidFraction() const;
 
-            //- Positive only where the cell holds solid above the floor
-            //  A fraction solidStateTolerance of what a packed cell would
+            //- Positive only where the cell holds more than trace
+            //  dispersedAboveSolidFraction of what a packed cell would
             //  hold, floored by SMALL too, since rho is zero where empty.
-            tmp<volScalarField> massAbovePresenceFloor
+            tmp<volScalarField> massBeyondTrace
             (
                 const volScalarField& totalYm,
                 const volScalarField& rho
             ) const;
 
-            //- 1 in an occupied cell holding only trace, else 0
-            tmp<volScalarField> belowPresenceFloor
+            //- 1 in a cell holding solid, but only trace, else 0
+            tmp<volScalarField> isTrace
             (
                 const volScalarField& totalYm,
                 const volScalarField& rho
@@ -221,14 +264,14 @@ public:
             //- Classify every cell, patches included, from the initial porosity
             void classifyInitialState();
 
-            //- Occupancy from the porosity just recovered, internal cells only
-            void snapshotAfterTransport();
+            //- solidPresent from the porosity just recovered, internal cells only
+            void refreshSolidPresent();
 
             //- Freeze the source gate the next step's explicit sources read
-            void snapshotStepStart();
+            void freezeConnectedAtStepStart();
 
-            //- Refresh the occupancy mask's patch values
-            void correctOccupiedBoundaryConditions();
+            //- Refresh solidPresent's patch values
+            void correctSolidPresentBoundaryConditions();
 
             //- Refresh the absence mask's patch values
             void correctAbsentBoundaryConditions();
