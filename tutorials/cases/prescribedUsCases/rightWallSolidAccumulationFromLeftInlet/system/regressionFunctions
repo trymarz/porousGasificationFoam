@@ -28,7 +28,7 @@
 //   volAverage(porosityF) mean void — the domain-wide solid budget read from
 //                         the void side.
 //   min(porosityF)        densest cell: the accumulated bed should reach the
-//                         packing limit, so a flat value equal to minPorosity
+//                         packing limit, so a flat value equal to 1 - maxSolidFraction
 //                         asserts that the receiver half of the flux limiter ran.
 //   max(porosityF)        loosest cell. A void fraction above 1 is a cell
 //                         holding a negative volume of solid, so this is the

@@ -17,7 +17,7 @@ FoamFile
 
 dimensions      [0 0 0 0 0 0 0];
 
-// Above criticalPorosity (0.9999) in every cell, so
+// Dispersed in every cell (porosity above 1 - connectedAboveSolidFraction = 0.9999), so
 // solidSourceTermsAdmissible is 0 from t = 0, while solidOccupiesCell and
 // radiatingCellHasSolid both stay 1 - 0.99995 is below 1 and below 1 - 1e-8.
 // The bed exists; nothing it does is allowed to reach an energy equation.

@@ -80,7 +80,7 @@ void LaplaceSetValuesInterpolation<Type>::interpolate()
     // Cells containing particles already hold the values YADE sent.
     this->field_ = this->fieldDEM_;
 
-    // Mask of the solid region (porosityF below criticalPorosity).
+    // Mask of the connected solid (porosityF below the connected threshold).
     volScalarField solidOccupiesCell
     (
         IOobject

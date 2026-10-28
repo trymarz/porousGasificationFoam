@@ -153,7 +153,7 @@ void volPyrolysis::guardPorosity
 
     OStringStream context;
     context
-        << "    minPorosity  = " << solidState_->minPorosity() << nl
+        << "    maxSolidFraction = " << solidState_->maxSolidFraction() << nl
         << "    Us           = " << Us_[badCell] << nl
         << "    div(phiUs)   = " << fvc::div(phiUs)()[badCell] << nl
         << "    sum(Ym)      = " << sumYm << nl
@@ -1036,14 +1036,14 @@ void volPyrolysis::preSolveEnergy()
             heatTransferSh_ = heatTransferCalc()();
             const volScalarField& interphaseHeatTransfer = heatTransferSh_;
 
-            // radiationSh_ carries no criticalPorosity gate of its own: as a cell
+            // radiationSh_ carries no connected gate of its own: as a cell
             // empties, rhoCp collapses toward its SMALL floor while the T^4
             // radiative sink stays full strength.
             volScalarField solidRadiationSource = sourceTermsAdmissible*radiationSh_;
 
             // Same collapsing-rhoCp gap as solidRadiationSource, for the
             // reaction heat: chemistrySh_ is set from RRs_/RRg_ (nonzero
-            // wherever the bed is) with no criticalPorosity gate of its own.
+            // wherever there is solid) with no connected gate of its own.
             volScalarField solidChemistrySource = sourceTermsAdmissible*chemistrySh_;
 
             // Simplistic immersed boundary for heat transport in solid phase.
@@ -2023,8 +2023,8 @@ void volPyrolysis::preEvolveRegion() {
     heterogeneousPyrolysisModel::preEvolveRegion();
 
     // Iterates over every cell and sets cells whose solid energy equation
-    // will accept the reaction heat as reacting. A cell emptier than
-    // criticalPorosity converts no mass, so none of its heat goes unbooked.
+    // will accept the reaction heat as reacting. A cell whose solid is not
+    // connected converts no mass, so none of its heat goes unbooked.
     forAll(T_, cellI)
     {
         if ( active_ && solidState_->connectedAtStepStart()[cellI] != 0)

@@ -139,7 +139,7 @@ public:
     // Member Functions
 
         //- First cell with an impossible recovered porosity, else -1
-        //  Bounds [minPorosity-tol, 1+tol]: >1 means negative solid mass,
+        //  Bounds [1-maxSolidFraction-tol, 1+tol]: >1 is negative solid mass,
         //  below the floor means no gas volume left for the gas solve.
         label firstInvalidPorosity(const volScalarField& por) const;
 

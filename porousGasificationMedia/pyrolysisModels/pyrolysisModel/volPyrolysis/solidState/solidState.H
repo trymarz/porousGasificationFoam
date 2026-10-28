@@ -61,11 +61,21 @@ Description
     The trace test is not a snapshot: it is evaluated on the mass the
     caller passes in.
 
-    The thresholds are read under the keys they always had:
-    solidStateTolerance (the trace threshold, and checkTolerance),
-    criticalPorosity (1 - connectedAboveSolidFraction) and minPorosity
-    (1 - maxSolidFraction); the dispersed temperature rule under
-    gasTemperatureBelowCriticalPorosity.
+    Read from the owning model's coefficients:
+
+        solidRegimes
+        {
+            dispersedAboveSolidFraction  1e-8;
+            connectedAboveSolidFraction  1e-4;
+            maxSolidFraction             0.9999;
+            dispersedSolidTemperature    solid;   // solid | gas
+        }
+        solidStateCheckTolerance         1e-8;
+
+    The values shown are the defaults. The keys these replace
+    (criticalPorosity, minPorosity, solidStateTolerance,
+    gasTemperatureBelowCriticalPorosity) are refused with the exact
+    replacement, since two of them were porosities.
 
     Owned directly by volPyrolysis (like SolidStateChecker and
     SolidFluxLimiter) - no runtime selection.
@@ -109,10 +119,16 @@ class SolidState
         //  Changes no result, only whether a run warns or aborts.
         scalar checkTolerance_;
 
-        //- Porosity below which the solid is connected [-]
+        //- Solid fraction above which the solid is connected [-]
+        scalar connectedAboveSolidFraction_;
+
+        //- Solid fraction no cell may exceed [-]
+        scalar maxSolidFraction_;
+
+        //- 1 - connectedAboveSolidFraction_, for tests on the porosity [-]
         scalar connectedBelowPorosity_;
 
-        //- Lowest porosity a cell may be packed to [-]
+        //- 1 - maxSolidFraction_, for tests on the porosity [-]
         scalar minPorosity_;
 
         //- Whether dispersed solid takes the gas temperature
@@ -139,8 +155,14 @@ class SolidState
         //- Disallow default bitwise assignment
         void operator=(const SolidState&);
 
+        //- Abort, naming the replacement, if a key this class replaced is set
+        void rejectReplacedKeys(const dictionary& coeffs) const;
+
+        //- Whether dispersed solid takes the gas temperature, from its key
+        static bool readDispersedSolidTemperature(const dictionary& regimes);
+
         //- Abort unless each threshold lies where its regime needs it
-        void checkThresholds(const dictionary& coeffs) const;
+        void checkThresholds(const dictionary& regimes) const;
 
         //- Log the regimes and their thresholds, least solid first
         void printRegimes() const;
@@ -176,13 +198,13 @@ public:
             //- Solid fraction above which the solid is connected [-]
             scalar connectedAboveSolidFraction() const
             {
-                return 1.0 - connectedBelowPorosity_;
+                return connectedAboveSolidFraction_;
             }
 
             //- Solid fraction no cell may exceed [-]
             scalar maxSolidFraction() const
             {
-                return 1.0 - minPorosity_;
+                return maxSolidFraction_;
             }
 
 
@@ -262,7 +284,7 @@ public:
         // Solid temperature, one rule per regime
 
             //- Ts with the dispersed rule applied: Tgas where dispersed, if
-            //  gasTemperatureBelowCriticalPorosity is set; otherwise Ts as given
+            //  dispersedSolidTemperature is gas; otherwise Ts as given
             tmp<volScalarField> withDispersedRule
             (
                 const volScalarField& Ts,

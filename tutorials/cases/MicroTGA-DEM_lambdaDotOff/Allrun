@@ -20,7 +20,7 @@ mpirun --allow-run-as-root -n 2 yade MPI_lambda.py 2>&1 | tee log.yade
 
 # Case-specific assertion, beyond runDEMCase.sh's shared DEM checks:
 # dimensions of lambdaDot/lambda and the sign of lambdaDot over solid cells
-# (porosityF < criticalPorosity).
+# (where the solid is connected).
 python3 ../../../applications/test/regression/tools/checkFieldSign.py . \
     --dims lambdaDot="0 1 -1 0 0 0 0" \
     --dims lambda="0 1 0 0 0 0 0" \

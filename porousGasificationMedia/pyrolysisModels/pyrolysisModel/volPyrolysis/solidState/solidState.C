@@ -24,6 +24,7 @@ License
 \*---------------------------------------------------------------------------*/
 
 #include "solidState.H"
+#include "OStringStream.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -34,67 +35,145 @@ namespace heterogeneousPyrolysisModels
 
 // * * * * * * * * * * * * * Private Member Functions  * * * * * * * * * * * //
 
-void SolidState::checkThresholds(const dictionary& coeffs) const
+void SolidState::rejectReplacedKeys(const dictionary& coeffs) const
 {
-    if (connectedBelowPorosity_ > 1.0)
+    OStringStream replacements;
+
+    if (coeffs.found("criticalPorosity"))
+    {
+        replacements
+            << "    criticalPorosity "
+            << coeffs.get<scalar>("criticalPorosity") << ";  ->  solidRegimes"
+            << " { connectedAboveSolidFraction "
+            << 1.0 - coeffs.get<scalar>("criticalPorosity") << "; }" << nl;
+    }
+
+    if (coeffs.found("minPorosity"))
+    {
+        replacements
+            << "    minPorosity " << coeffs.get<scalar>("minPorosity")
+            << ";  ->  solidRegimes { maxSolidFraction "
+            << 1.0 - coeffs.get<scalar>("minPorosity") << "; }" << nl;
+    }
+
+    if (coeffs.found("solidStateTolerance"))
+    {
+        const scalar tol = coeffs.get<scalar>("solidStateTolerance");
+
+        replacements
+            << "    solidStateTolerance " << tol << ";  ->  both" << nl
+            << "        solidRegimes { dispersedAboveSolidFraction " << tol
+            << "; }   (the trace threshold; changes results)" << nl
+            << "        solidStateCheckTolerance " << tol
+            << ";   (the slack the checks allow; changes none)" << nl;
+    }
+
+    if (coeffs.found("gasTemperatureBelowCriticalPorosity"))
+    {
+        const Switch gas
+        (
+            coeffs.get<Switch>("gasTemperatureBelowCriticalPorosity")
+        );
+
+        replacements
+            << "    gasTemperatureBelowCriticalPorosity " << gas
+            << ";  ->  solidRegimes { dispersedSolidTemperature "
+            << (gas ? "gas" : "solid") << "; }" << nl;
+    }
+
+    if (!replacements.str().empty())
     {
         FatalIOErrorInFunction(coeffs)
-            << "criticalPorosity must not exceed 1, but is " << connectedBelowPorosity_
-            << "." << nl
-            << "Above 1 the solid source gate pos(criticalPorosity - porosity)"
-            << " stays open in empty cells, where rhoCp is at its SMALL floor"
-            << " and any source term gives an unbounded Ts step, and bed"
-            << " collapse stops selecting cells. Default 0.9999."
+            << "These keys are no longer read. Replace each as shown:" << nl
+            << nl << replacements.str().c_str() << nl
+            << "The thresholds are now solid volume fractions, 1 - porosity;"
+            << " see doc/case-setup.md." << exit(FatalIOError);
+    }
+}
+
+
+bool SolidState::readDispersedSolidTemperature(const dictionary& regimes)
+{
+    const word rule
+    (
+        regimes.lookupOrDefault<word>("dispersedSolidTemperature", "solid")
+    );
+
+    if (rule != "solid" && rule != "gas")
+    {
+        FatalIOErrorInFunction(regimes)
+            << "dispersedSolidTemperature must be solid or gas, but is "
+            << rule << "." << exit(FatalIOError);
+    }
+
+    return rule == "gas";
+}
+
+
+void SolidState::checkThresholds(const dictionary& regimes) const
+{
+    if (connectedAboveSolidFraction_ < 0.0)
+    {
+        FatalIOErrorInFunction(regimes)
+            << "connectedAboveSolidFraction must not be negative, but is "
+            << connectedAboveSolidFraction_ << "." << nl
+            << "Below 0 the solid source gate stays open in empty cells, where"
+            << " rhoCp is at its SMALL floor and any source term gives an"
+            << " unbounded Ts step, and no cell is ever emptied. Default 1e-4."
             << exit(FatalIOError);
     }
 
-    if (connectedBelowPorosity_ <= 0.0)
+    if (connectedAboveSolidFraction_ >= 1.0)
     {
-        FatalIOErrorInFunction(coeffs)
-            << "criticalPorosity must be positive, but is " << connectedBelowPorosity_
-            << "." << nl
-            << "At or below 0 the solid source gate pos(criticalPorosity -"
-            << " porosity) is shut everywhere, so the radiation, chemistry and"
-            << " heat-transfer terms all leave the solid energy equation, and"
-            << " bed collapse selects every cell. Default 0.9999."
+        FatalIOErrorInFunction(regimes)
+            << "connectedAboveSolidFraction must be below 1, but is "
+            << connectedAboveSolidFraction_ << "." << nl
+            << "At or above 1 no cell is ever connected, so the radiation,"
+            << " chemistry and heat-transfer terms all leave the solid energy"
+            << " equation, and every solid cell may be emptied. Default 1e-4."
             << exit(FatalIOError);
     }
 
-    if (minPorosity_ <= 0.0)
+    if (maxSolidFraction_ >= 1.0)
     {
-        FatalIOErrorInFunction(coeffs)
-            << "minPorosity must be positive, but is " << minPorosity_
+        FatalIOErrorInFunction(regimes)
+            << "maxSolidFraction must be below 1, but is " << maxSolidFraction_
             << "." << nl
             << "Every gas equation multiplies porosityF straight into its"
             << " ddt coefficient, so a cell packed to zero gas volume leaves"
             << " that matrix with a zero diagonal and the solve divides by"
-            << " zero. Pick the smallest gas fraction the case is meant to"
-            << " reach, not zero."
+            << " zero. Pick the largest solid fraction the case is meant to"
+            << " reach, not 1."
             << exit(FatalIOError);
     }
 
-    // In solid fraction alpha = 1 - porosity the regimes must nest:
-    // trace < dispersed < connected < maxSolidFraction.
-    if (minPorosity_ >= connectedBelowPorosity_)
+    if (dispersedAboveSolidFraction_ < 0.0)
     {
-        FatalIOErrorInFunction(coeffs)
-            << "minPorosity (" << minPorosity_ << ") must be below"
-            << " criticalPorosity (" << connectedBelowPorosity_ << ")." << nl
-            << "A cell packed to minPorosity would otherwise be too empty to"
-            << " admit the solid sources, so a full bed could never react."
-            << exit(FatalIOError);
+        FatalIOErrorInFunction(regimes)
+            << "dispersedAboveSolidFraction must not be negative, but is "
+            << dispersedAboveSolidFraction_ << "." << exit(FatalIOError);
     }
 
-    if (dispersedAboveSolidFraction_ >= 1.0 - connectedBelowPorosity_)
+    // The regimes must nest: trace < dispersed < connected < maxSolidFraction.
+    if (connectedAboveSolidFraction_ >= maxSolidFraction_)
     {
-        FatalIOErrorInFunction(coeffs)
-            << "solidStateTolerance (" << dispersedAboveSolidFraction_
-            << ") must be below 1 - criticalPorosity ("
-            << 1.0 - connectedBelowPorosity_
+        FatalIOErrorInFunction(regimes)
+            << "connectedAboveSolidFraction (" << connectedAboveSolidFraction_
+            << ") must be below maxSolidFraction (" << maxSolidFraction_
             << ")." << nl
-            << "The presence floor, in solid volume fraction, would otherwise"
-            << " reach the source gate, so a cell could take the solid sources"
-            << " while its Ts was still being taken from the gas."
+            << "A cell packed to maxSolidFraction would otherwise never be"
+            << " connected, so a full bed could never react."
+            << exit(FatalIOError);
+    }
+
+    if (dispersedAboveSolidFraction_ >= connectedAboveSolidFraction_)
+    {
+        FatalIOErrorInFunction(regimes)
+            << "dispersedAboveSolidFraction (" << dispersedAboveSolidFraction_
+            << ") must be below connectedAboveSolidFraction ("
+            << connectedAboveSolidFraction_ << ")." << nl
+            << "A cell could otherwise take the solid sources while its Ts"
+            << " was still being taken from the gas."
             << exit(FatalIOError);
     }
 }
@@ -129,17 +208,28 @@ SolidState::SolidState
     porosity_(porosity),
     dispersedAboveSolidFraction_
     (
-        coeffs.lookupOrDefault<scalar>("solidStateTolerance", 1e-8)
+        coeffs.subOrEmptyDict("solidRegimes")
+            .lookupOrDefault<scalar>("dispersedAboveSolidFraction", 1e-8)
     ),
-    checkTolerance_(dispersedAboveSolidFraction_),
-    connectedBelowPorosity_
+    checkTolerance_
     (
-        coeffs.lookupOrDefault<scalar>("criticalPorosity", 0.9999)
+        coeffs.lookupOrDefault<scalar>("solidStateCheckTolerance", 1e-8)
     ),
-    minPorosity_(coeffs.lookupOrDefault<scalar>("minPorosity", 1e-4)),
+    connectedAboveSolidFraction_
+    (
+        coeffs.subOrEmptyDict("solidRegimes")
+            .lookupOrDefault<scalar>("connectedAboveSolidFraction", 1e-4)
+    ),
+    maxSolidFraction_
+    (
+        coeffs.subOrEmptyDict("solidRegimes")
+            .lookupOrDefault<scalar>("maxSolidFraction", 0.9999)
+    ),
+    connectedBelowPorosity_(1.0 - connectedAboveSolidFraction_),
+    minPorosity_(1.0 - maxSolidFraction_),
     dispersedTakesGasTemperature_
     (
-        coeffs.lookupOrDefault("gasTemperatureBelowCriticalPorosity", false)
+        readDispersedSolidTemperature(coeffs.subOrEmptyDict("solidRegimes"))
     ),
     solidPresent_
     (
@@ -181,7 +271,8 @@ SolidState::SolidState
         dimensionedScalar("zero", dimless, 0.0)
     )
 {
-    checkThresholds(coeffs);
+    rejectReplacedKeys(coeffs);
+    checkThresholds(coeffs.subOrEmptyDict("solidRegimes"));
     printRegimes();
 }
 

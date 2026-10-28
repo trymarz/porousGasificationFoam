@@ -84,7 +84,7 @@ private:
         //  stores the result in phiSolid_, the flux every solid field rides.
         void limitSolidVolFlux();
 
-        //- Abort if any cell's porosity left [minPorosity, 1]
+        //- Abort if any cell's solid fraction left [0, maxSolidFraction]
         //  Below the floor a cell has no gas volume, and every gas equation
         //  divides by it. Called each time recoverPorosity() writes porosity_.
         void guardPorosity

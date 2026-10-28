@@ -17,8 +17,8 @@ FoamFile
 
 scale 0.001;
 
-// Two 1 mm cells, every face a wall. Both start in the band above
-// criticalPorosity and stay there: nothing in this case moves the porosity.
+// Two 1 mm cells, every face a wall. Both start dispersed
+// (porosity above 0.9999) and stay there: nothing in this case moves the porosity.
 vertices
 (
     (0 0 0)

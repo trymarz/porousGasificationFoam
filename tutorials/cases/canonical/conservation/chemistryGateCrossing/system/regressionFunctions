@@ -8,7 +8,7 @@
 
 // Reaction heat produced in a cell the solid energy equation refuses to pay
 // for. Since f3c4528 selects reacting cells on solidSourceActive_, a cell that
-// crosses criticalPorosity stops reacting, so this is zero by construction.
+// turns dispersed stops reacting, so this is zero by construction.
 chemistryHeatOutsideGate
 {
     type            exprField;
@@ -94,7 +94,7 @@ regressionGasSourceOutsideGate
     operation       volIntegrate;
 }
 
-// The crossing itself. max(porosityF) rises past criticalPorosity and then
+// The crossing itself. max(porosityF) rises past the connected threshold and then
 // sits flat: the cell that crossed stops converting mass, so its porosity
 // cannot move again. A column that kept climbing would mean the gate leaked.
 regressionPorosityMax

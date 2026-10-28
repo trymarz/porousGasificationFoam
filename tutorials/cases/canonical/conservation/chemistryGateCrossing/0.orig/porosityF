@@ -17,8 +17,8 @@ FoamFile
 
 dimensions      [0 0 0 0 0 0 0];
 
-// Cell 0 holds 1 kg/m3 of solid and is reacted across criticalPorosity
-// (0.9999) between t = 1.5 and t = 2. Cell 1 holds 500 kg/m3 and stays well
+// Cell 0 holds 1 kg/m3 of solid and is reacted from connected to
+// dispersed (porosity 0.9999) between t = 1.5 and t = 2. Cell 1 holds 500 kg/m3 and stays well
 // below it for the whole run, so the chemistry never stops everywhere at once.
 internalField   nonuniform List<scalar> 2 (0.999 0.5);
 

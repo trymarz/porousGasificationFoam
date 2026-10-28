@@ -101,8 +101,8 @@ class SolidFluxLimiter
         //  Zero disables limiting.
         label nSolidFluxLimiterCorrectors_;
 
-        //- Solid regimes: the packing floor minPorosity and the slack
-        //  the sweep residual is judged with. Raise minPorosity to stop
+        //- Solid regimes: the cap maxSolidFraction and the slack the
+        //  sweep residual is judged with. Lower maxSolidFraction to stop
         //  inflow at a looser packing.
         const SolidState& solidState_;
 
@@ -155,11 +155,11 @@ class SolidFluxLimiter
         ) const;
 
         //- Per-cell cap on incoming flux: can't receive more solid
-        //  volume than its porosity has room for (>= minPorosity).
+        //  volume than its room below maxSolidFraction.
         //  Credit adds the cell's own outflow back as extra room.
         //  Gap: only internal and coupled faces are scaled, so solid
         //  arriving across an inlet patch can still push a cell past
-        //  minPorosity - the owning model's guard catches it there.
+        //  maxSolidFraction - the owning model's guard catches it there.
         void solidReceiverLimit
         (
             const surfaceScalarField& phiSolidVol,

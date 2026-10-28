@@ -26,7 +26,7 @@ protected:
     const volScalarField& porosityF_;
 
     //- Porosity at/above which a cell cannot carry the DEM skeleton;
-    //  pyrolysisProperties' criticalPorosity, shared with lambdaDotModel.
+    //  1 - solidRegimes/connectedAboveSolidFraction, as lambdaDotModel.
     scalar solidPorosityCutoff_;
 
     //- Value held by cells outside the solid region.

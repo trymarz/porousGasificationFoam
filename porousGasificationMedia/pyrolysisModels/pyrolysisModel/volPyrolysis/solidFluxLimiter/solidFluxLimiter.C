@@ -497,7 +497,6 @@ SolidFluxLimiter::SolidFluxLimiter
     Info << "advectSolidFields        " << advectSolidFields_  << endl;
     Info << "nSolidFluxLimiterCorrectors " << nSolidFluxLimiterCorrectors_
          << endl;
-    Info << "minPorosity              " << solidState_.minPorosity() << endl;
 }
 
 

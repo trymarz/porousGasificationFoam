@@ -1,6 +1,7 @@
 #include "lambdaDotModel.H"
 #include "InterpolationModel.H"
 #include "IOdictionary.H"
+#include "connectedBelowPorosity.H"
 
 namespace Foam
 {
@@ -56,16 +57,11 @@ lambdaDotModel::lambdaDotModel
         )
     );
 
-    // Required entry, shared with the interpolation models: at or above
-    // criticalPorosity a cell holds too little solid to carry the DEM
-    // skeleton, so lambdaDot is switched off there.
-    criticalPorosity_ =
-        readScalar
-        (
-            pyrolysisProperties
-                .subDict("pyrolysisCoeffs")
-                .lookup("criticalPorosity")
-        );
+    // Required entry, shared with the interpolation models: where the solid
+    // is not connected a cell holds too little to carry the DEM skeleton,
+    // so lambdaDot is switched off there.
+    connectedBelowPorosity_ =
+        connectedBelowPorosity(pyrolysisProperties.subDict("pyrolysisCoeffs"));
 
     interpolateUs_ =
         lambdaDict.lookupOrDefault<Switch>("interpolateUs", true);
@@ -122,7 +118,7 @@ void lambdaDotModel::updateLambdaDot()
     // particles here is the previous step's.
     forAll(lambdaDot_, cellI)
     {
-        if (porosityF_[cellI] >= criticalPorosity_)
+        if (porosityF_[cellI] >= connectedBelowPorosity_)
         {
             lambdaDot_[cellI] = 0.0;
         }
