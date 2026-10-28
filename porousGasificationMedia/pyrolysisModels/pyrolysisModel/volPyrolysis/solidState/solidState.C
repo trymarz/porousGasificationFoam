@@ -108,7 +108,8 @@ void SolidState::printRegimes() const
         << "    trace      alpha <= " << dispersedAboveSolidFraction()
         << "    Ts follows the gas" << nl
         << "    dispersed  alpha <= " << connectedAboveSolidFraction()
-        << "    no solid sources; may be emptied" << nl
+        << "    no solid sources; may be emptied; Ts from the "
+        << (dispersedTakesGasTemperature_ ? "gas" : "solid") << nl
         << "    connected  alpha <= " << maxSolidFraction()
         << "    full model" << nl
         << "Solid state check tolerance " << checkTolerance() << nl
@@ -136,6 +137,10 @@ SolidState::SolidState
         coeffs.lookupOrDefault<scalar>("criticalPorosity", 0.9999)
     ),
     minPorosity_(coeffs.lookupOrDefault<scalar>("minPorosity", 1e-4)),
+    dispersedTakesGasTemperature_
+    (
+        coeffs.lookupOrDefault("gasTemperatureBelowCriticalPorosity", false)
+    ),
     solidPresent_
     (
         IOobject
@@ -224,9 +229,33 @@ tmp<volScalarField> SolidState::isTrace
 }
 
 
-tmp<volScalarField> SolidState::recoverTs
+tmp<volScalarField> SolidState::withDispersedRule
 (
-    const volScalarField& TsFromEnthalpy,
+    const volScalarField& Ts,
+    const volScalarField& Tgas
+) const
+{
+    if (!dispersedTakesGasTemperature_)
+    {
+        return tmp<volScalarField>(new volScalarField(Ts));
+    }
+
+    // pos0 and neg, not pos and neg: pos(0) = neg(0) = 0 would leave a cell
+    // exactly at the connected threshold with Ts = 0.
+    const volScalarField porosityHeadroomBelowConnected
+    (
+        connectedBelowPorosity_ - porosity_
+    );
+
+    return
+        Ts*pos0(porosityHeadroomBelowConnected)
+      + Tgas*neg(porosityHeadroomBelowConnected);
+}
+
+
+tmp<volScalarField> SolidState::withTraceRule
+(
+    const volScalarField& Ts,
     const volScalarField& totalYm,
     const volScalarField& rho,
     const volScalarField& Tgas
@@ -234,7 +263,7 @@ tmp<volScalarField> SolidState::recoverTs
 {
     const volScalarField traceOnly(isTrace(totalYm, rho));
 
-    return TsFromEnthalpy*(1 - traceOnly) + Tgas*traceOnly;
+    return Ts*(1 - traceOnly) + Tgas*traceOnly;
 }
 
 

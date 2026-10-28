@@ -217,25 +217,31 @@ void volPyrolysis::recoverPorosity()
 
         volVectorField solidPresenceGrad = fvc::grad(solidState_->solidPresent());        
 
+        // A dispersed or trace cell may be emptied where solid surrounds it
+        // or is everywhere absent around it (interior), or where the solid
+        // is moving away from the gas (receding edge).
         forAll(porosity_,cellI)
         {
-            if (porosity_[cellI] > solidState_->connectedBelowPorosity()) 
+            const vector& presenceGrad = solidPresenceGrad[cellI];
+            const bool interior = mag(presenceGrad) == 0;
+            const bool recedingEdge =
+                mag(presenceGrad) > 0 && (Us_[cellI] & presenceGrad) > 0;
+
+            if
+            (
+                solidState_->isDispersedOrTrace(cellI)
+             && (interior || recedingEdge)
+            )
             {
-                if ( (mag(solidPresenceGrad[cellI]) == 0) || ((mag(solidPresenceGrad[cellI]) > 0) && ((Us_[cellI] & solidPresenceGrad[cellI]) > 0))  )
-                {
-                    if (porosity_[cellI] < 1.0)
-                    {
-                        candidateStack.push(cellI);
-                    }
-                }
+                candidateStack.push(cellI);
             }
         }
 
         // After the candidates: they read the gradient of last step's mask.
         solidState_->refreshSolidPresent();
 
-        // Do not erase a nearly empty cell while solid mass is still
-        // entering it through the advective transport equation.
+        // Do not empty a cell while solid is still filling it through the
+        // advective transport equation (an advancing edge).
         volScalarField divPhiYm
         (
             fvc::div(phiUs, totalYm, "div(phiSolid)")
@@ -985,7 +991,9 @@ void volPyrolysis::preSolveEnergy()
             );
 
             // Solid, but only trace: follow the gas.
-            T_ = solidState_->recoverTs(solidH_()/rhoCp, totalYm, rho_, gasThermo_.T());
+            // Only the trace rule: the dispersed rule was applied at the end
+            // of the last step, and solidH_ was restated from that Ts.
+            T_ = solidState_->withTraceRule(solidH_()/rhoCp, totalYm, rho_, gasThermo_.T());
 
             const label badTsCell =
                 solidStateChecker_->firstInvalidTemperature
@@ -1242,25 +1250,16 @@ void volPyrolysis::postSolveEnergy()
             // so losing mass must not raise Ts. No solidPresent factor:
             // it lags a stage, and zeroing T_ there while keeping the
             // enthalpy starts the cell at 0 K.
-            if (gasTemperatureBelowCriticalPorosity_)
-            {
-                // Emptier than criticalPorosity, the cell follows the gas. pos0
-                // and neg, not pos and neg: pos(0)=neg(0)=0 would otherwise
-                // leave a cell exactly at criticalPorosity with Ts = 0.
-                const volScalarField porosityHeadroomBelowCritical(solidState_->connectedBelowPorosity() - porosity_);
+            T_ = solidState_->withDispersedRule
+            (
+                solidH_()/rhoCpPreReaction,
+                gasThermo_.T()
+            );
 
-                T_ = solidH_()/rhoCpPreReaction*pos0(porosityHeadroomBelowCritical)
-                   + gasThermo_.T()*neg(porosityHeadroomBelowCritical);
-            }
-            else
-            {
-                T_ = solidH_()/rhoCpPreReaction;
-            }
-
-            // The same trace-only cells preSolveEnergy() pins, pinned again
-            // after transport: solidH_ is restated from T_ below, so an echo
-            // left here is what the next step's recovery would read back.
-            T_ = solidState_->recoverTs(T_, totalYm, rho_, gasThermo_.T());
+            // The same trace cells preSolveEnergy() pins, pinned again after
+            // transport: solidH_ is restated from T_ below, so an echo left
+            // here is what the next step's recovery would read back.
+            T_ = solidState_->withTraceRule(T_, totalYm, rho_, gasThermo_.T());
 
             const label badCell =
                 solidStateChecker_->firstInvalidTemperature(T_);
@@ -1423,7 +1422,6 @@ volPyrolysis::volPyrolysis
     replenishSwitch_(false),
     collapseMovesSolidMass_(false),
     emptyFlippedCells_(false),
-    gasTemperatureBelowCriticalPorosity_(false),
     poroProtectSolidInflowFluxTolerance_(1e-12),
     totRepMass_(0.),
     nNonOrthCorr_(-1),
@@ -1625,8 +1623,6 @@ volPyrolysis::volPyrolysis
         coeffs().lookupOrDefault("collapseMovesSolidMass",false);
     emptyFlippedCells_ =
         coeffs().lookupOrDefault("emptyFlippedCells",false);
-    gasTemperatureBelowCriticalPorosity_ =
-        coeffs().lookupOrDefault("gasTemperatureBelowCriticalPorosity",false);
     poroProtectSolidInflowFluxTolerance_ =
         coeffs().lookupOrDefault
         (
@@ -1643,8 +1639,6 @@ volPyrolysis::volPyrolysis
     Info << "replenish                " << replenishSwitch_    << endl;
     Info << "collapseMovesSolidMass   " << collapseMovesSolidMass_ << endl;
     Info << "emptyFlippedCells        " << emptyFlippedCells_  << endl;
-    Info << "gasTemperatureBelowCriticalPorosity  "
-         << gasTemperatureBelowCriticalPorosity_ << endl;
     // Constructed here because it carries the last banner lines.
     solidStateChecker_.reset
     (

@@ -169,14 +169,9 @@ protected:
     Switch collapseMovesSolidMass_;
 
     //- Switch for emptying a flipped cell rather than leaving its solid
-    //  A flip candidate: above criticalPorosity with Us pointing inward. Set,
+    //  A flip candidate: dispersed or trace, inside or on a receding edge. Set,
     //  it is emptied for real; mass destroyed, charged to cumulativeFlipMass_.
     Switch emptyFlippedCells_;
-
-    //- Switch for taking a nearly-empty cell's solid temperature from the gas
-    //  Above criticalPorosity, Ts = solidH/(totalYm*Cp) is a frozen numerator
-    //  over a vanishing denominator. Set, energy lost this way is uncharged.
-    Switch gasTemperatureBelowCriticalPorosity_;
 
     //- Absolute tolerance for detecting incoming solid flux [kg/m3/s]
     scalar poroProtectSolidInflowFluxTolerance_;

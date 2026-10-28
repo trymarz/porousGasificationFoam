@@ -64,7 +64,8 @@ Description
     The thresholds are read under the keys they always had:
     solidStateTolerance (the trace threshold, and checkTolerance),
     criticalPorosity (1 - connectedAboveSolidFraction) and minPorosity
-    (1 - maxSolidFraction).
+    (1 - maxSolidFraction); the dispersed temperature rule under
+    gasTemperatureBelowCriticalPorosity.
 
     Owned directly by volPyrolysis (like SolidStateChecker and
     SolidFluxLimiter) - no runtime selection.
@@ -113,6 +114,10 @@ class SolidState
 
         //- Lowest porosity a cell may be packed to [-]
         scalar minPorosity_;
+
+        //- Whether dispersed solid takes the gas temperature
+        //  Energy the solid loses this way is not charged anywhere.
+        bool dispersedTakesGasTemperature_;
 
         //- 1 where the cell holds any solid (porosity < 1), else 0
         volScalarField solidPresent_;
@@ -228,6 +233,15 @@ public:
             //- Solid volume fraction alpha = 1 - porosity [-]
             tmp<volScalarField> solidFraction() const;
 
+            //- Whether the cell holds dispersed or trace solid
+            //  Read on the porosity as it stands, not on a snapshot.
+            bool isDispersedOrTrace(const label cellI) const
+            {
+                return
+                    porosity_[cellI] > connectedBelowPorosity_
+                 && porosity_[cellI] < 1.0;
+            }
+
             //- Positive only where the cell holds more than trace
             //  dispersedAboveSolidFraction of what a packed cell would
             //  hold, floored by SMALL too, since rho is zero where empty.
@@ -245,14 +259,22 @@ public:
             ) const;
 
 
-        // Solid temperature
+        // Solid temperature, one rule per regime
 
-            //- Ts: TsFromEnthalpy where solid is present, Tgas where trace
+            //- Ts with the dispersed rule applied: Tgas where dispersed, if
+            //  gasTemperatureBelowCriticalPorosity is set; otherwise Ts as given
+            tmp<volScalarField> withDispersedRule
+            (
+                const volScalarField& Ts,
+                const volScalarField& Tgas
+            ) const;
+
+            //- Ts with the trace rule applied: Tgas where the cell holds trace
             //  solidH/rhoCp is scale-invariant in the mass, so a trace cell
             //  would echo its donor's Ts at full strength.
-            tmp<volScalarField> recoverTs
+            tmp<volScalarField> withTraceRule
             (
-                const volScalarField& TsFromEnthalpy,
+                const volScalarField& Ts,
                 const volScalarField& totalYm,
                 const volScalarField& rho,
                 const volScalarField& Tgas
