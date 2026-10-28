@@ -64,7 +64,7 @@ tutorials/cases/canonical/conservation/radiationReservoir           fast
 tutorials/cases/canonical/conservation/chemistryGateCrossing        fast
 
 # gatedBandSources starts every cell dispersed, so
-# solidSourceTermsAdmissible is 0 from t = 0 while solidOccupiesCell is still
+# solidConnectedAtStepStart is 0 from t = 0 while solidPresent is still
 # 1. Five columns of
 # exact zeros - radiationSh, solidChemistrySh, heatTransfer, heatUpGas and
 # Srho - say no solid source and no interphase term reaches an energy

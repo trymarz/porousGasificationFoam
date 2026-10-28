@@ -58,7 +58,7 @@ Foam::radiationModels::heterogeneousP1::heterogeneousP1
     const volScalarField& porosityF,
     const volScalarField& cellOnBedBorder,
     const volScalarField& Ts,
-    const volScalarField& solidSourceTermsAdmissible
+    const volScalarField& solidConnectedAtStepStart
 )
 :
     heterogeneousRadiationModel(typeName, T, Ts),
@@ -148,7 +148,7 @@ Foam::radiationModels::heterogeneousP1::heterogeneousP1
     (
         cellOnBedBorder
     ),
-    solidSourceTermsAdmissible_(solidSourceTermsAdmissible),
+    solidConnectedAtStepStart_(solidConnectedAtStepStart),
     bedBorderSurfaceAreaDensity_
     (
         IOobject
@@ -335,8 +335,8 @@ void Foam::radiationModels::heterogeneousP1::calculate()
     // The solid's share of the radiation reservoir, gated by what TEqn will
     // accept: emission, absorption and the booked source all carry the same
     // factor, so a cell the solid equation refuses neither emits nor absorbs.
-    const volScalarField solidAs(as_ * radiatingCellHasSolid_ * solidSourceTermsAdmissible_);
-    const volScalarField borderAsEff(borderAs_ * bedBorderSurfaceAreaDensity_ * solidSourceTermsAdmissible_);
+    const volScalarField solidAs(as_ * radiatingCellHasSolid_ * solidConnectedAtStepStart_);
+    const volScalarField borderAsEff(borderAs_ * bedBorderSurfaceAreaDensity_ * solidConnectedAtStepStart_);
 
     // eqZx2uHGn013
     volScalarField solidRadiation = (solidAs + borderAsEff) * physicoChemical::sigma * pow4(Ts_);

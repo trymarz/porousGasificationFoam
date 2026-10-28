@@ -214,10 +214,10 @@ public:
                 //- Return list of cells in surface layer inside solid
                 virtual const volScalarField& surf() const = 0;
 
-                //- Cells holding enough solid for a volumetric source to mean
-                //  anything. Emptier than that, rhoCp collapses to its SMALL
-                //  floor and a full-strength source gives an unbounded step.
-                virtual const volScalarField& solidSourceTermsAdmissible() const = 0;
+                //- Cells whose solid was connected when the step started: the
+                //  gate on volumetric sources. Emptier, rhoCp collapses to its
+                //  SMALL floor and a full-strength source gives an unbounded step.
+                virtual const volScalarField& solidConnectedAtStepStart() const = 0;
 
 
         // Evolution

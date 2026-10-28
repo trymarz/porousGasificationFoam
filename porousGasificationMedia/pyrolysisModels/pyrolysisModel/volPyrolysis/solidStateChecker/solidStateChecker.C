@@ -244,7 +244,7 @@ void SolidStateChecker::checkConsistency
             << "porosity and solid mass disagree by " << maxResidual
             << " in cell " << worstCell << " at "
             << mesh_.C()[worstCell] << ": porosity = "
-            << porosity[worstCell] << ", solidOccupiesCell = "
+            << porosity[worstCell] << ", solidPresent = "
             << solidState_.solidPresent()[worstCell]
             << ". A porosity written after the recovery cannot be"
             << " reconciled with the mass the cell holds." << endl;

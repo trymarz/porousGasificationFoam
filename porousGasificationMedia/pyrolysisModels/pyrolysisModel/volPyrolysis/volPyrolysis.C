@@ -801,6 +801,14 @@ void volPyrolysis::recoverPorosity()
 
         // porosity_ has just been rewritten; the gate is derived from it.
         solidState_->freezeConnectedAtStepStart();
+
+        // On the mass the bed motion left, for the written regime record.
+        volScalarField totalYmAfterMotion = 0*Ym_[0];
+        forAll(Ym_, i)
+        {
+            totalYmAfterMotion += Ym_[i];
+        }
+        solidState_->classify(totalYmAfterMotion, rho_);
     }
     else
     {}
@@ -1025,10 +1033,9 @@ void volPyrolysis::preSolveEnergy()
             T_.correctBoundaryConditions();
 
             solidState_->correctSolidPresentBoundaryConditions();
-            solidState_->correctAbsentBoundaryConditions();
             surfaceScalarField  solidPresenceAtFaces  = fvc::interpolate(solidState_->solidPresent());
 
-            const volScalarField& sourceTermsAdmissible = solidSourceTermsAdmissible();
+            const volScalarField& connectedAtStepStart = solidConnectedAtStepStart();
 
             // Evaluated once and stored, so the gas EEqn adds back the same
             // joules after TEqn has moved T_. heatTransferCalc() gates
@@ -1039,12 +1046,12 @@ void volPyrolysis::preSolveEnergy()
             // radiationSh_ carries no connected gate of its own: as a cell
             // empties, rhoCp collapses toward its SMALL floor while the T^4
             // radiative sink stays full strength.
-            volScalarField solidRadiationSource = sourceTermsAdmissible*radiationSh_;
+            volScalarField solidRadiationSource = connectedAtStepStart*radiationSh_;
 
             // Same collapsing-rhoCp gap as solidRadiationSource, for the
             // reaction heat: chemistrySh_ is set from RRs_/RRg_ (nonzero
             // wherever there is solid) with no connected gate of its own.
-            volScalarField solidChemistrySource = sourceTermsAdmissible*chemistrySh_;
+            volScalarField solidChemistrySource = connectedAtStepStart*chemistrySh_;
 
             // Simplistic immersed boundary for heat transport in solid phase.
             fvScalarMatrix TLap
@@ -1339,7 +1346,7 @@ void volPyrolysis::calculateMassTransfer()
     }
 }
 
-const volScalarField& volPyrolysis::solidSourceTermsAdmissible() const
+const volScalarField& volPyrolysis::solidConnectedAtStepStart() const
 {
     return solidState_->connectedAtStepStart();
 }
@@ -1792,6 +1799,13 @@ volPyrolysis::volPyrolysis
     // after the first recoverPorosity().
     solidState_->freezeConnectedAtStepStart();
 
+    volScalarField totalYm = 0*Ym_[0];
+    forAll(Ym_, i)
+    {
+        totalYm += Ym_[i];
+    }
+    solidState_->classify(totalYm, rho_);
+
     // porosity_ is assigned in recoverPorosity(), not solved; storeOldTimes()
     // is a no-op on the first call, so seed oldTime() here or the gas-side
     // fvm::ddt(porosityF, rho) loses a step of d(porosity)/dt.
@@ -2204,7 +2218,7 @@ Foam::tmp<Foam::volScalarField> volPyrolysis::heatTransferCalc() const
         // Gate the emitted exchange at the producer so the solid TEqn and the
         // gas EEqn consume the same field: an ungated gas side would exchange
         // heat with a solid whose own equation refuses it, creating energy.
-        const volScalarField& sourceTermsAdmissible = solidSourceTermsAdmissible();
+        const volScalarField& connectedAtStepStart = solidConnectedAtStepStart();
 
         if (subintegrateSwitch_)
         {
@@ -2256,7 +2270,7 @@ Foam::tmp<Foam::volScalarField> volPyrolysis::heatTransferCalc() const
 
             forAll(Sh_(),cellI)
             {
-                Sh_.ref()[cellI] = deltaTemp[cellI] * rhoCpG[cellI] * sourceTermsAdmissible[cellI] / deltaTime;
+                Sh_.ref()[cellI] = deltaTemp[cellI] * rhoCpG[cellI] * connectedAtStepStart[cellI] / deltaTime;
             }
 
             volScalarField HT(CONV_*(T_-Tgas));
@@ -2269,7 +2283,7 @@ Foam::tmp<Foam::volScalarField> volPyrolysis::heatTransferCalc() const
             // This works only for small CONV otherwise oscillations appear.
             volScalarField Tgas = gasThermo_.T();
             volScalarField HT(CONV_*(T_-Tgas));
-            Sh_ = HT * sourceTermsAdmissible;
+            Sh_ = HT * connectedAtStepStart;
         }
     }
     return Sh_;

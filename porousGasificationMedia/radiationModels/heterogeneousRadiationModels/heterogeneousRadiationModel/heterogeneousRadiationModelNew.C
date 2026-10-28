@@ -79,7 +79,7 @@ Foam::heterogeneousRadiationModel::New
     const volScalarField& porosityF,
     const volScalarField& cellOnBedBorder,
     const volScalarField& Ts,
-    const volScalarField& solidSourceTermsAdmissible
+    const volScalarField& solidConnectedAtStepStart
 )
 {
     // get model name, but do not register the dictionary
@@ -116,7 +116,7 @@ Foam::heterogeneousRadiationModel::New
             << exit(FatalError);
     }
 
-    return autoPtr<heterogeneousRadiationModel>(cstrIter()(T,porosityF,cellOnBedBorder,Ts,solidSourceTermsAdmissible));
+    return autoPtr<heterogeneousRadiationModel>(cstrIter()(T,porosityF,cellOnBedBorder,Ts,solidConnectedAtStepStart));
 }
 
 // ************************************************************************* //

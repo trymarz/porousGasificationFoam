@@ -121,9 +121,9 @@ public:
                 const volScalarField& porosityF,
                 const volScalarField& cellOnBedBorder,
                 const volScalarField& Ts,
-                const volScalarField& solidSourceTermsAdmissible
+                const volScalarField& solidConnectedAtStepStart
             ),
-            (T,porosityF,cellOnBedBorder,Ts,solidSourceTermsAdmissible)
+            (T,porosityF,cellOnBedBorder,Ts,solidConnectedAtStepStart)
         );
 
     // Constructors
@@ -155,7 +155,7 @@ public:
             const volScalarField& porosityF,
             const volScalarField& cellOnBedBorder,
             const volScalarField& Ts,
-            const volScalarField& solidSourceTermsAdmissible
+            const volScalarField& solidConnectedAtStepStart
         );
 
 

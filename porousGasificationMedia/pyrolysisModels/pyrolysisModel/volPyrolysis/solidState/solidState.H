@@ -49,6 +49,11 @@ Description
     regime with what else they know (motion, fluxes) to decide, e.g.,
     which cells to empty.
 
+    Written fields: solidPresent (1 where alpha > 0) and solidRegime
+    (0 empty, 1 trace, 2 dispersed, 3 connected), both as at the step's
+    start. solidConnectedAtStepStart, the source gate, is registered but
+    not written.
+
     Two snapshots, at the points of the step the solver has always taken
     them at:
 
@@ -104,6 +109,20 @@ namespace heterogeneousPyrolysisModels
 
 class SolidState
 {
+public:
+
+    //- The solid regimes, in order of rising solid fraction
+    enum class Regime : label
+    {
+        empty = 0,
+        trace = 1,
+        dispersed = 2,
+        connected = 3
+    };
+
+
+private:
+
     // Private data
 
         //- Mesh the solid fields live on
@@ -138,8 +157,8 @@ class SolidState
         //- 1 where the cell holds any solid (porosity < 1), else 0
         volScalarField solidPresent_;
 
-        //- Complement of solidPresent_
-        volScalarField absent_;
+        //- Each cell's Regime, as a number, for output only
+        volScalarField solidRegime_;
 
         //- 1 where the solid was connected when the step started, else 0
         //  The gate on the volumetric solid sources. Stored rather than
@@ -240,10 +259,10 @@ public:
                 return solidPresent_;
             }
 
-            //- 1 where the cell holds no solid, else 0
-            const volScalarField& absent() const
+            //- Each cell's Regime, as a number, for output only
+            const volScalarField& solidRegime() const
             {
-                return absent_;
+                return solidRegime_;
             }
 
             //- 1 where the solid was connected when the step started, else 0
@@ -314,11 +333,16 @@ public:
             //- Freeze the source gate the next step's explicit sources read
             void freezeConnectedAtStepStart();
 
+            //- Record each cell's regime in solidRegime
+            //  The trace test reads the mass passed in, as withTraceRule does.
+            void classify
+            (
+                const volScalarField& totalYm,
+                const volScalarField& rho
+            );
+
             //- Refresh solidPresent's patch values
             void correctSolidPresentBoundaryConditions();
-
-            //- Refresh the absence mask's patch values
-            void correctAbsentBoundaryConditions();
 };
 
 

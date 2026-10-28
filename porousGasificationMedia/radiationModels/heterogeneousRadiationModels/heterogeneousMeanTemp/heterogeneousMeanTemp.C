@@ -58,7 +58,7 @@ Foam::radiationModels::heterogeneousMeanTemp::heterogeneousMeanTemp
     const volScalarField& porosityF,
     const volScalarField& cellOnBedBorder,
     const volScalarField& Ts,
-    const volScalarField& solidSourceTermsAdmissible
+    const volScalarField& solidConnectedAtStepStart
 )
 :
     heterogeneousRadiationModel(typeName, T, Ts),
@@ -109,7 +109,7 @@ Foam::radiationModels::heterogeneousMeanTemp::heterogeneousMeanTemp
     (
         cellOnBedBorder
     ),
-    solidSourceTermsAdmissible_(solidSourceTermsAdmissible),
+    solidConnectedAtStepStart_(solidConnectedAtStepStart),
     bedBorderSurfaceAreaDensity_
     (
         IOobject
@@ -267,7 +267,7 @@ void Foam::radiationModels::heterogeneousMeanTemp::calculate()
             // a cell whose solid is not connected, and G_ here is prescribed
             // from a wall temperature, so there is no reservoir to unbalance.
             solidSh_[cellI] = 4.0 * (G_[cellI] * borderAs_[cellI] - solidRadiation[cellI]) * bedBorderSurfaceAreaDensity_[cellI]
-                            * solidSourceTermsAdmissible_[cellI];
+                            * solidConnectedAtStepStart_[cellI];
         }
     }
 }

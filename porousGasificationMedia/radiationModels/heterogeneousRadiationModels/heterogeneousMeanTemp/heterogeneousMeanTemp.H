@@ -80,7 +80,7 @@ class heterogeneousMeanTemp
             const volScalarField& cellOnBedBorder_;
 
             //- Cells the solid energy equation will pay for a source in
-            const volScalarField& solidSourceTermsAdmissible_;
+            const volScalarField& solidConnectedAtStepStart_;
 
             //- Radiating border area per unit cell volume [1/m]
             volScalarField bedBorderSurfaceAreaDensity_;
@@ -104,7 +104,7 @@ public:
             const volScalarField& porosityF,
             const volScalarField& cellOnBedBorder,
             const volScalarField& Ts,
-            const volScalarField& solidSourceTermsAdmissible
+            const volScalarField& solidConnectedAtStepStart
         );
 
         //- Disallow default bitwise copy construction

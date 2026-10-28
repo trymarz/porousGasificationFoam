@@ -393,7 +393,7 @@ public:
                 virtual const volScalarField& surf() const;
 
                 //- Return the solid-source gate
-                virtual const volScalarField& solidSourceTermsAdmissible() const;
+                virtual const volScalarField& solidConnectedAtStepStart() const;
 
         // Parametrs from main region
 

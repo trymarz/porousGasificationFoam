@@ -25,7 +25,7 @@ regressionBase
 }
 
 // The assertions. Every cell is dispersed from t = 0, so
-// solidSourceTermsAdmissible is 0 everywhere and none of these terms may be anything
+// solidConnectedAtStepStart is 0 everywhere and none of these terms may be anything
 // but zero - in the solid TEqn or in the gas EEqn. All four are columns of
 // exact zeros; movement in any of them is a source escaping its bound.
 regressionRadiationSh

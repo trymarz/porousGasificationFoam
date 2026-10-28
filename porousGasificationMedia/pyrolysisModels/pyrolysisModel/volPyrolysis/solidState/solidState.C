@@ -25,6 +25,7 @@ License
 
 #include "solidState.H"
 #include "OStringStream.H"
+#include "IOmanip.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -184,13 +185,13 @@ void SolidState::printRegimes() const
     Info<< "Solid regimes by solid fraction alpha = 1 - porosity"
         << " (each threshold ends the regime below it):" << nl
         << "    empty      alpha = 0" << nl
-        << "    trace      alpha <= " << dispersedAboveSolidFraction()
-        << "    Ts follows the gas" << nl
-        << "    dispersed  alpha <= " << connectedAboveSolidFraction()
-        << "    no solid sources; may be emptied; Ts from the "
+        << "    trace      alpha <= " << setw(10) << dispersedAboveSolidFraction()
+        << "  Ts follows the gas" << nl
+        << "    dispersed  alpha <= " << setw(10) << connectedAboveSolidFraction()
+        << "  no solid sources; may be emptied; Ts from the "
         << (dispersedTakesGasTemperature_ ? "gas" : "solid") << nl
-        << "    connected  alpha <= " << maxSolidFraction()
-        << "    full model" << nl
+        << "    connected  alpha <= " << setw(10) << maxSolidFraction()
+        << "  full model" << nl
         << "Solid state check tolerance " << checkTolerance() << nl
         << endl;
 }
@@ -235,7 +236,7 @@ SolidState::SolidState
     (
         IOobject
         (
-            "solidOccupiesCell",
+            "solidPresent",
             mesh_.time().timeName(),
             mesh_,
             IOobject::NO_READ,
@@ -244,24 +245,24 @@ SolidState::SolidState
         mesh_,
         dimensionedScalar("zero", dimless, 0.0)
     ),
-    absent_
+    solidRegime_
     (
         IOobject
         (
-            "solidAbsentFromCell",
+            "solidRegime",
             mesh_.time().timeName(),
             mesh_,
             IOobject::NO_READ,
             IOobject::AUTO_WRITE
         ),
         mesh_,
-        dimensionedScalar("one", dimless, 1.0)
+        dimensionedScalar("empty", dimless, scalar(label(Regime::empty)))
     ),
     connectedAtStepStart_
     (
         IOobject
         (
-            "solidSourceTermsAdmissible",
+            "solidConnectedAtStepStart",
             mesh_.time().timeName(),
             mesh_,
             IOobject::NO_READ,
@@ -361,7 +362,6 @@ tmp<volScalarField> SolidState::withTraceRule
 void SolidState::classifyInitialState()
 {
     solidPresent_ = neg(porosity_ - 1);
-    absent_ = pos0(porosity_ - 1);
 }
 
 
@@ -372,12 +372,10 @@ void SolidState::refreshSolidPresent()
         if (porosity_[cellI] < 1.0)
         {
             solidPresent_[cellI] = 1.0;
-            absent_[cellI] = 0.0;
         }
         else
         {
             solidPresent_[cellI] = 0.0;
-            absent_[cellI] = 1.0;
         }
     }
 }
@@ -392,15 +390,41 @@ void SolidState::freezeConnectedAtStepStart()
 }
 
 
-void SolidState::correctSolidPresentBoundaryConditions()
+void SolidState::classify
+(
+    const volScalarField& totalYm,
+    const volScalarField& rho
+)
 {
-    solidPresent_.correctBoundaryConditions();
+    const volScalarField beyondTrace(massBeyondTrace(totalYm, rho));
+
+    forAll(solidRegime_, cellI)
+    {
+        Regime regime = Regime::connected;
+
+        if (solidPresent_[cellI] == 0)
+        {
+            regime = Regime::empty;
+        }
+        else if (pos(beyondTrace[cellI]) == 0)
+        {
+            regime = Regime::trace;
+        }
+        else if (porosity_[cellI] > connectedBelowPorosity_)
+        {
+            regime = Regime::dispersed;
+        }
+
+        solidRegime_[cellI] = scalar(label(regime));
+    }
+
+    solidRegime_.correctBoundaryConditions();
 }
 
 
-void SolidState::correctAbsentBoundaryConditions()
+void SolidState::correctSolidPresentBoundaryConditions()
 {
-    absent_.correctBoundaryConditions();
+    solidPresent_.correctBoundaryConditions();
 }
 
 

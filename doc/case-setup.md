@@ -199,7 +199,10 @@ gaps between them too. Only the values are case-specific.
   report allow, in solid fraction. It changes no result, only whether a run
   warns or aborts.
 
-The log prints the regimes with their values at start-up. The keys these
+The log prints the regimes with their values at start-up, and every write
+time holds `solidRegime` (0 empty, 1 trace, 2 dispersed, 3 connected) and
+`solidPresent` (1 where α > 0), both as at the start of the step: colour by
+`solidRegime` in ParaView to see the regimes. The keys these
 replace (`criticalPorosity`, `minPorosity`, `solidStateTolerance`,
 `gasTemperatureBelowCriticalPorosity`) stop the run with the exact
 replacement; `connectedAboveSolidFraction` is 1 − `criticalPorosity` and
