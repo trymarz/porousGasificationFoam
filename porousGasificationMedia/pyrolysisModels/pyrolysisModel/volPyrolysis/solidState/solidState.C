@@ -359,6 +359,19 @@ tmp<volScalarField> SolidState::withTraceRule
 }
 
 
+tmp<volScalarField> SolidState::withSolidHeatCapacityFloor
+(
+    const volScalarField& rhoCp
+) const
+{
+    return max
+    (
+        rhoCp,
+        dimensionedScalar("minRhoCp", dimEnergy/dimTemperature/dimVolume, SMALL)
+    );
+}
+
+
 void SolidState::classifyInitialState()
 {
     solidPresent_ = neg(porosity_ - 1);

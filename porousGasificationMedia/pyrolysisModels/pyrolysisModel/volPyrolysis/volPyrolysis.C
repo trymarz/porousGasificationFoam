@@ -991,11 +991,7 @@ void volPyrolysis::preSolveEnergy()
             // masking one and not the other is a temperature of any size.
             volScalarField rhoCp
             (
-                max
-                (
-                    totalYm * solidThermo_.Cp(),
-                    dimensionedScalar("minRhoCp",dimEnergy/dimTemperature/dimVolume,SMALL)
-                )
+                solidState_->withSolidHeatCapacityFloor(totalYm*solidThermo_.Cp())
             );
 
             // Solid, but only trace: follow the gas.
@@ -1226,14 +1222,10 @@ void volPyrolysis::postSolveEnergy()
             }
             solidThermo_.correct();
 
-            const dimensionedScalar minRhoCp
+            volScalarField rhoCp
             (
-                "minRhoCp",
-                dimEnergy/dimTemperature/dimVolume,
-                SMALL
+                solidState_->withSolidHeatCapacityFloor(totalYm*solidThermo_.Cp())
             );
-
-            volScalarField rhoCp(max(totalYm*solidThermo_.Cp(), minRhoCp));
 
             // The mass solveSpeciesMass() has just converted to gas. Ym_
             // carries the loss, solidH_ does not: it was built in
@@ -1249,7 +1241,10 @@ void volPyrolysis::postSolveEnergy()
 
             const volScalarField rhoCpPreReaction
             (
-                max(preReactionYm*solidThermo_.Cp(), minRhoCp)
+                solidState_->withSolidHeatCapacityFloor
+                (
+                    preReactionYm*solidThermo_.Cp()
+                )
             );
 
             // Divided by the mass that carried the enthalpy, not by what
@@ -2237,13 +2232,12 @@ Foam::tmp<Foam::volScalarField> volPyrolysis::heatTransferCalc() const
             );
             volScalarField Tgas = gasThermo_.T();
             volScalarField rhoCpS
+            (
+                solidState_->withSolidHeatCapacityFloor
                 (
-                        max
-                        (
-                            rho_ * solidThermo_.Cp() * solidState_->solidFraction(),
-                            dimensionedScalar("minRhoCp",dimEnergy/dimTemperature/dimVolume,SMALL)
-                        )
-                );
+                    rho_ * solidThermo_.Cp() * solidState_->solidFraction()
+                )
+            );
             volScalarField deltaTemp(T_ * 0);
             scalar deltaTime = time_.deltaTValue();
 
