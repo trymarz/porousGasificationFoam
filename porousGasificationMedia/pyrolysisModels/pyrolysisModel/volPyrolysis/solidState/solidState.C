@@ -372,6 +372,16 @@ tmp<volScalarField> SolidState::withSolidHeatCapacityFloor
 }
 
 
+tmp<volScalarField> SolidState::gasFractionWithFloor() const
+{
+    return max
+    (
+        porosity_,
+        dimensionedScalar("gasPorosityFloor", dimless, 1e-4)
+    );
+}
+
+
 void SolidState::classifyInitialState()
 {
     solidPresent_ = neg(porosity_ - 1);

@@ -45,8 +45,9 @@ Description
     there and SolidStateChecker aborts past it. The regimes hold at any
     scale - a cell may be a piece of one pellet or hold many pellets.
 
-    The class owns what depends on the regime alone, and the floor that
-    keeps an empty cell's solid heat capacity finite. Callers combine the
+    The class owns what depends on the regime alone, and the two floors
+    that keep heat capacities finite at the ends of the axis: the solid's
+    in an empty cell, the gas's in a fully solid one. Callers combine the
     regime with what else they know (motion, fluxes) to decide, e.g.,
     which cells to empty.
 
@@ -323,7 +324,7 @@ public:
             ) const;
 
 
-        // Heat-capacity floor
+        // Heat-capacity floors
 
             //- rhoCp, floored at SMALL so Ts = H/rhoCp stays defined
             //  An empty cell holds no solid and so no heat capacity.
@@ -331,6 +332,11 @@ public:
             (
                 const volScalarField& rhoCp
             ) const;
+
+            //- Gas volume fraction (the porosity), floored at 1e-4
+            //  A fully solid cell holds no gas; the floor keeps the gas
+            //  heat capacity in the subintegrated exchange finite.
+            tmp<volScalarField> gasFractionWithFloor() const;
 
 
         // Snapshots

@@ -2224,11 +2224,7 @@ Foam::tmp<Foam::volScalarField> volPyrolysis::heatTransferCalc() const
             (
                 gasThermo_.rho()
               * gasThermo_.Cp()
-              * max
-                (
-                    porosity_,
-                    dimensionedScalar("gasPorosityFloor", dimless, 1e-4)
-                )
+              * solidState_->gasFractionWithFloor()
             );
             volScalarField Tgas = gasThermo_.T();
             volScalarField rhoCpS
