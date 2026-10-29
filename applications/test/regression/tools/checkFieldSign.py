@@ -14,8 +14,8 @@ checked fields share the same decomposition), and checks:
     to be exactly 0.0, not just a small mean -- the code paths this guards
     produce a hard zero, not a cancellation).
 
---threshold defaults to 0.9999, the criticalPorosity these fixtures set in
-constant/pyrolysisProperties; pass it explicitly for a case that differs.
+--threshold defaults to 0.9999, the porosity below which these fixtures' solid
+is connected (1 - solidRegimes/connectedAboveSolidFraction); pass it explicitly for a case that differs.
 
 Usage:
   checkFieldSign.py <caseDir> [--mask FIELD] [--threshold VALUE]

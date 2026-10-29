@@ -63,6 +63,8 @@ class Time;
 namespace heterogeneousPyrolysisModels
 {
 
+class SolidState;
+
 /*---------------------------------------------------------------------------*\
                         heterogeneousPyrolysisModel
 \*---------------------------------------------------------------------------*/
@@ -214,10 +216,8 @@ public:
                 //- Return list of cells in surface layer inside solid
                 virtual const volScalarField& surf() const = 0;
 
-                //- Cells holding enough solid for a volumetric source to mean
-                //  anything. Emptier than that, rhoCp collapses to its SMALL
-                //  floor and a full-strength source gives an unbounded step.
-                virtual const volScalarField& solidSourceTermsAdmissible() const = 0;
+                //- The solid regimes of every cell, and their thresholds
+                virtual const SolidState& solidState() const = 0;
 
 
         // Evolution

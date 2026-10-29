@@ -23,7 +23,7 @@ private:
     volScalarField& lambdaDEM_;   // raw per-cell average of the particles' lambda
     volScalarField& lambda_;      // interpolated particle length scale
     volScalarField& porosityF_;   // from the main solver
-    scalar criticalPorosity_;     // from constant/pyrolysisProperties
+    scalar connectedBelowPorosity_; // from constant/pyrolysisProperties
 
     FoamYade& yade_;
 

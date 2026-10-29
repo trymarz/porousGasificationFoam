@@ -58,7 +58,7 @@ Foam::radiationModels::heterogeneousMeanTemp::heterogeneousMeanTemp
     const volScalarField& porosityF,
     const volScalarField& cellOnBedBorder,
     const volScalarField& Ts,
-    const volScalarField& solidSourceTermsAdmissible
+    const heterogeneousPyrolysisModels::SolidState& solidState
 )
 :
     heterogeneousRadiationModel(typeName, T, Ts),
@@ -109,7 +109,7 @@ Foam::radiationModels::heterogeneousMeanTemp::heterogeneousMeanTemp
     (
         cellOnBedBorder
     ),
-    solidSourceTermsAdmissible_(solidSourceTermsAdmissible),
+    solidState_(solidState),
     bedBorderSurfaceAreaDensity_
     (
         IOobject
@@ -264,10 +264,10 @@ void Foam::radiationModels::heterogeneousMeanTemp::calculate()
         if (bedBorderSurfaceAreaDensity_[cellI] != 0)
         {
             // Gated like every other solid source: TEqn refuses this term in
-            // a cell emptier than criticalPorosity, and G_ here is prescribed
+            // a cell whose solid is not connected, and G_ here is prescribed
             // from a wall temperature, so there is no reservoir to unbalance.
             solidSh_[cellI] = 4.0 * (G_[cellI] * borderAs_[cellI] - solidRadiation[cellI]) * bedBorderSurfaceAreaDensity_[cellI]
-                            * solidSourceTermsAdmissible_[cellI];
+                            * solidState_.connectedAtStepStart()[cellI];
         }
     }
 }

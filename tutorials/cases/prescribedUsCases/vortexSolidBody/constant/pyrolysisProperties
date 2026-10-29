@@ -26,8 +26,18 @@ pyrolysisCoeffs
 {
     subintegrateHeatTransfer true;
     bedCollapse      false;
-    criticalPorosity 0.9999;
     replenish        false;
+
+    // Solid regimes, by solid volume fraction alpha = 1 - porosityF.
+    // Each threshold ends the regime below it:
+    // empty (alpha = 0) | trace | dispersed | connected | maxSolidFraction
+    solidRegimes
+    {
+        dispersedAboveSolidFraction  1e-8;    // below: trace, Ts follows the gas
+        connectedAboveSolidFraction  0.0001;  // below: dispersed, no solid sources, may be emptied
+        maxSolidFraction             0.9999;  // connected up to here; never exceeded
+        dispersedSolidTemperature    solid;   // solid | gas
+    }
 }
 
 infoOutput      true;

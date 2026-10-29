@@ -80,8 +80,8 @@ void LaplaceSetValuesInterpolation<Type>::interpolate()
     // Cells containing particles already hold the values YADE sent.
     this->field_ = this->fieldDEM_;
 
-    // Mask of the solid region (porosityF below criticalPorosity).
-    volScalarField solidOccupiesCell
+    // Mask of the connected solid (porosityF below the connected threshold).
+    volScalarField connectedSolid
     (
         IOobject
         (
@@ -96,7 +96,7 @@ void LaplaceSetValuesInterpolation<Type>::interpolate()
 
     // Interpolated to faces so interface faces can be detected: a face with
     // 0 < value < 1 has one solid and one non-solid side.
-    surfaceScalarField solidOccupancyAtFaces = fvc::interpolate(solidOccupiesCell);
+    surfaceScalarField connectedSolidAtFaces = fvc::interpolate(connectedSolid);
 
     // Diffusivity of the interpolation Laplacian. Only the matrix structure
     // affects the converged solution, not this magnitude.
@@ -131,25 +131,25 @@ void LaplaceSetValuesInterpolation<Type>::interpolate()
         // Disconnect solid-region interface faces. Only upper() is zeroed:
         // upper()/lower() share storage on this symmetric matrix, so zeroing
         // both would flip it asymmetric.
-        forAll(solidOccupancyAtFaces, faceI)
+        forAll(connectedSolidAtFaces, faceI)
         {
-            if ((solidOccupancyAtFaces[faceI] > 0) && (solidOccupancyAtFaces[faceI] < 1))
+            if ((connectedSolidAtFaces[faceI] > 0) && (connectedSolidAtFaces[faceI] < 1))
             {
                 fieldLap.upper()[faceI] = 0.0;
             }
         }
 
         // Same treatment on processor boundaries, for parallel runs.
-        forAll(solidOccupancyAtFaces.boundaryField(), patchI)
+        forAll(connectedSolidAtFaces.boundaryField(), patchI)
         {
             if (isA<processorPolyPatch>(this->mesh_.boundaryMesh()[patchI]))
             {
-                forAll(solidOccupancyAtFaces.boundaryField()[patchI], faceI)
+                forAll(connectedSolidAtFaces.boundaryField()[patchI], faceI)
                 {
                     if
                     (
-                        (solidOccupancyAtFaces.boundaryField()[patchI][faceI] > 0)
-                     && (solidOccupancyAtFaces.boundaryField()[patchI][faceI] < 1)
+                        (connectedSolidAtFaces.boundaryField()[patchI][faceI] > 0)
+                     && (connectedSolidAtFaces.boundaryField()[patchI][faceI] < 1)
                     )
                     {
                         fieldLap.boundaryCoeffs()[patchI][faceI] =
@@ -183,7 +183,7 @@ void LaplaceSetValuesInterpolation<Type>::interpolate()
                 valueList.append(this->fieldDEM_[cellI]);
             }
             // Cells outside the solid region hold the background value.
-            else if (solidOccupiesCell[cellI] < 0.5)
+            else if (connectedSolid[cellI] < 0.5)
             {
                 cellList.append(cellI);
                 valueList.append(this->backgroundValue_);
@@ -248,24 +248,24 @@ void LaplaceSetValuesInterpolation<Type>::interpolate()
             fvm::laplacian(coeffD, this->field_)
         );
 
-        forAll(solidOccupancyAtFaces, faceI)
+        forAll(connectedSolidAtFaces, faceI)
         {
-            if ((solidOccupancyAtFaces[faceI] > 0) && (solidOccupancyAtFaces[faceI] < 1))
+            if ((connectedSolidAtFaces[faceI] > 0) && (connectedSolidAtFaces[faceI] < 1))
             {
                 fieldLap.upper()[faceI] = 0.0;
             }
         }
 
-        forAll(solidOccupancyAtFaces.boundaryField(), patchI)
+        forAll(connectedSolidAtFaces.boundaryField(), patchI)
         {
             if (isA<processorPolyPatch>(this->mesh_.boundaryMesh()[patchI]))
             {
-                forAll(solidOccupancyAtFaces.boundaryField()[patchI], faceI)
+                forAll(connectedSolidAtFaces.boundaryField()[patchI], faceI)
                 {
                     if
                     (
-                        (solidOccupancyAtFaces.boundaryField()[patchI][faceI] > 0)
-                     && (solidOccupancyAtFaces.boundaryField()[patchI][faceI] < 1)
+                        (connectedSolidAtFaces.boundaryField()[patchI][faceI] > 0)
+                     && (connectedSolidAtFaces.boundaryField()[patchI][faceI] < 1)
                     )
                     {
                         fieldLap.boundaryCoeffs()[patchI][faceI] =

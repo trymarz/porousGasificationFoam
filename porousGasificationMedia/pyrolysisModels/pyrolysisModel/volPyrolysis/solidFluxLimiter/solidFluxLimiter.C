@@ -239,7 +239,7 @@ void SolidFluxLimiter::solidReceiverLimit
 {
     const scalarField& V = mesh_.V();
     const scalar rDeltaT = 1.0/time_.deltaTValue();
-    const scalar alphaSMax = 1.0 - minPorosity_;
+    const scalar alphaSMax = solidState_.maxSolidFraction();
 
     scalarField sumOut(mesh_.nCells(), Zero);
     scalarField sumIn(mesh_.nCells(), Zero);
@@ -344,7 +344,7 @@ void SolidFluxLimiter::reportSolidFluxLimiter
 {
     const scalarField& V = mesh_.V();
     const scalar deltaT = time_.deltaTValue();
-    const scalar alphaSMax = 1.0 - minPorosity_;
+    const scalar alphaSMax = solidState_.maxSolidFraction();
 
     const scalarField& fluxScaleIn = fluxScale;
     const surfaceScalarField::Boundary& fluxScaleBf = fluxScale.boundaryField();
@@ -450,8 +450,8 @@ void SolidFluxLimiter::reportSolidFluxLimiter
 
         if
         (
-            maxOvershoot > solidStateTolerance_
-         || maxUndershoot > solidStateTolerance_*YmScale
+            maxOvershoot > solidState_.checkTolerance()
+         || maxUndershoot > solidState_.checkTolerance()*YmScale
         )
         {
             Info<< ", NOT converged in " << nSolidFluxLimiterCorrectors_
@@ -475,7 +475,8 @@ SolidFluxLimiter::SolidFluxLimiter
     const volScalarField& rho,
     const volScalarField& T,
     const porousThermoSolidChemistryModel<HGSSolidThermo>& chemistry,
-    const Switch& active
+    const Switch& active,
+    const SolidState& solidState
 )
 :
     mesh_(mesh),
@@ -491,29 +492,11 @@ SolidFluxLimiter::SolidFluxLimiter
     (
         coeffs.lookupOrDefault<label>("nSolidFluxLimiterCorrectors", 3)
     ),
-    minPorosity_(coeffs.lookupOrDefault<scalar>("minPorosity", 1e-4)),
-    solidStateTolerance_
-    (
-        coeffs.lookupOrDefault<scalar>("solidStateTolerance", 1e-8)
-    )
+    solidState_(solidState)
 {
-    if (minPorosity_ <= 0.0)
-    {
-        FatalIOErrorInFunction(coeffs)
-            << "minPorosity must be positive, but is " << minPorosity_
-            << "." << nl
-            << "Every gas equation multiplies porosityF straight into its"
-            << " ddt coefficient, so a cell packed to zero gas volume leaves"
-            << " that matrix with a zero diagonal and the solve divides by"
-            << " zero. Pick the smallest gas fraction the case is meant to"
-            << " reach, not zero."
-            << exit(FatalIOError);
-    }
-
     Info << "advectSolidFields        " << advectSolidFields_  << endl;
     Info << "nSolidFluxLimiterCorrectors " << nSolidFluxLimiterCorrectors_
          << endl;
-    Info << "minPorosity              " << minPorosity_ << endl;
 }
 
 

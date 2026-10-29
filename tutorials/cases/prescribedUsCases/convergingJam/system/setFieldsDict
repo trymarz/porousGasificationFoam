@@ -27,7 +27,7 @@ FoamFile
 // sits centred ON the convergence plane x = 0.01, so the three 1 mm cells on
 // each side of it, each half solid, drive 1.5 cell volumes of solid into the
 // receiving cell. That cannot fit, and the cap is reached before the first
-// write: min(porosityF) is flat at minPorosity across all five writes.
+// write: min(porosityF) is flat at 1 - maxSolidFraction across all five writes.
 //
 // Mass note. volIntegrate(Ycharm) rises 4.2e-08 kg per 0.1 s over the run.
 // That is inflow, not fabrication -- Us points INTO the domain at both the left

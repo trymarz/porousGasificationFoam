@@ -36,6 +36,7 @@ SourceFiles
 #define heterogeneousRadiationModel_H
 
 #include "radiationModel.H"
+#include "solidState.H"
 #include "autoPtr.H"
 #include "runTimeSelectionTables.H"
 #include "volFields.H"
@@ -121,9 +122,9 @@ public:
                 const volScalarField& porosityF,
                 const volScalarField& cellOnBedBorder,
                 const volScalarField& Ts,
-                const volScalarField& solidSourceTermsAdmissible
+                const heterogeneousPyrolysisModels::SolidState& solidState
             ),
-            (T,porosityF,cellOnBedBorder,Ts,solidSourceTermsAdmissible)
+            (T,porosityF,cellOnBedBorder,Ts,solidState)
         );
 
     // Constructors
@@ -155,7 +156,7 @@ public:
             const volScalarField& porosityF,
             const volScalarField& cellOnBedBorder,
             const volScalarField& Ts,
-            const volScalarField& solidSourceTermsAdmissible
+            const heterogeneousPyrolysisModels::SolidState& solidState
         );
 
 

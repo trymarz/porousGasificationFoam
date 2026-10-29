@@ -18,7 +18,7 @@ FoamFile
 scale 0.001;
 
 // Two 1 mm cells, every face a wall. One starts near-empty and is reacted
-// across criticalPorosity during the run; the other holds enough solid to
+// from connected to dispersed during the run; the other holds enough solid to
 // keep reacting throughout, so the gate is exercised and not just switched.
 vertices
 (

@@ -30,7 +30,7 @@
 //   min(porosityF)        densest cell: how hard a compressive Us packs the bed.
 //                         In this case the compressive Us saturates the bed, so
 //                         volPyrolysis::solidReceiverLimit() pins this at
-//                         minPorosity from before the first write. A flat value
+//                         1 - maxSolidFraction from before the first write. A flat value
 //                         equal to the packing limit IS the assertion that the
 //                         receiver half of the flux limiter ran.
 //   max(porosityF)        loosest cell. A void fraction above 1 is a cell

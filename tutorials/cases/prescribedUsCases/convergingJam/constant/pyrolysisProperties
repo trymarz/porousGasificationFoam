@@ -26,23 +26,31 @@ pyrolysisCoeffs
 {
     subintegrateHeatTransfer true;
     bedCollapse      false;
-    criticalPorosity 0.9999;
     replenish        false;
 
-    // Packing limit -- the largest solid volume fraction a cell may hold.
-    // volPyrolysis::solidReceiverLimit() refuses any solid flux that would
-    // carry a cell past porosityF = minPorosity, and this case exists to make
-    // that cap bind: at 0.4 a cell is stopped at 60 % solid, the limiter
-    // reports on 240 of the run's 250 steps, and it withholds up to
-    // 1.77e-10 m3 -- 17.7 % of the 1e-09 m3 cell volume.
-    //
-    // The key has to be set to something. The default 0 admits a cell with no
-    // void left at all, and the gas continuity equation's
-    // fvm::ddt(porosityF, rho) diagonal then goes to zero: the run dies with a
-    // SIGFPE inside Foam::diagonalSolver rather than through any solver
-    // diagnostic. convergingJamTight is this case at minPorosity 0.1 -- 90 %
-    // solid allowed, nearer that cliff and correspondingly limiting less.
-    minPorosity      0.4;
+    // Solid regimes, by solid volume fraction alpha = 1 - porosityF.
+    // Each threshold ends the regime below it:
+    // empty (alpha = 0) | trace | dispersed | connected | maxSolidFraction
+    solidRegimes
+    {
+        dispersedAboveSolidFraction  1e-8;    // below: trace, Ts follows the gas
+        connectedAboveSolidFraction  0.0001;  // below: dispersed, no solid sources, may be emptied
+        // Packing limit -- the largest solid volume fraction a cell may hold.
+        // volPyrolysis::solidReceiverLimit() refuses any solid flux that would
+        // carry a cell past maxSolidFraction, and this case exists to make that
+        // cap bind: at 0.6 a cell is stopped at 60 % solid, the limiter
+        // reports on 240 of the run's 250 steps, and it withholds up to
+        // 1.77e-10 m3 -- 17.7 % of the 1e-09 m3 cell volume.
+        //
+        // The cap has to stay below 1. A cell with no void left at all gives the
+        // gas continuity equation's fvm::ddt(porosityF, rho) a zero diagonal, and
+        // the run would die with a SIGFPE inside Foam::diagonalSolver; SolidState
+        // refuses maxSolidFraction >= 1 for that reason.
+        // convergingJamTight is this case at maxSolidFraction 0.9, nearer that
+        // cliff and correspondingly limiting less.
+        maxSolidFraction             0.6;     // connected up to here; never exceeded
+        dispersedSolidTemperature    solid;   // solid | gas
+    }
 }
 
 infoOutput      true;

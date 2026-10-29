@@ -26,13 +26,21 @@ pyrolysisCoeffs
 {
     subintegrateHeatTransfer true;
     bedCollapse      false;
-    criticalPorosity 0.9999;
     replenish        false;
 
-    // Falling columns land and stack, so cells fill from the bottom up until
-    // the receiver cap stops them. 0.3 is loose enough that the cap binds well
-    // before the gas equations run out of gas volume to divide by.
-    minPorosity      0.3;
+    // Solid regimes, by solid volume fraction alpha = 1 - porosityF.
+    // Each threshold ends the regime below it:
+    // empty (alpha = 0) | trace | dispersed | connected | maxSolidFraction
+    solidRegimes
+    {
+        dispersedAboveSolidFraction  1e-8;    // below: trace, Ts follows the gas
+        connectedAboveSolidFraction  0.0001;  // below: dispersed, no solid sources, may be emptied
+        // Falling columns land and stack, so cells fill from the bottom up until
+        // the receiver cap stops them. 0.7 is loose enough that the cap binds well
+        // before the gas equations run out of gas volume to divide by.
+        maxSolidFraction             0.7;     // connected up to here; never exceeded
+        dispersedSolidTemperature    solid;   // solid | gas
+    }
 }
 
 infoOutput      true;

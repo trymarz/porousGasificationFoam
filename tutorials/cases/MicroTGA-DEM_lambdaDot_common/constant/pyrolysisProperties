@@ -23,10 +23,19 @@ pyrolysisCoeffs
 {
     subintegrateHeatTransfer true;
 
-    // Required by the DEM coupling: lambdaDot is switched off in cells whose
-    // porosity has reached this value, as they hold too little solid to carry
-    // the sphere skeleton.
-    criticalPorosity 0.9999;
+    // Solid regimes, by solid volume fraction alpha = 1 - porosityF.
+    // Each threshold ends the regime below it:
+    // empty (alpha = 0) | trace | dispersed | connected | maxSolidFraction
+    solidRegimes
+    {
+        dispersedAboveSolidFraction  1e-8;    // below: trace, Ts follows the gas
+        // Required by the DEM coupling: lambdaDot is switched off in cells whose
+        // porosity has reached this value, as they hold too little solid to carry
+        // the sphere skeleton.
+        connectedAboveSolidFraction  0.0001;  // below: dispersed, no solid sources, may be emptied
+        maxSolidFraction             0.9999;  // connected up to here; never exceeded
+        dispersedSolidTemperature    solid;   // solid | gas
+    }
 }
 
 infoOutput      true;

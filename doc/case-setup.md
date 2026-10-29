@@ -153,10 +153,62 @@ pyrolysisCoeffs
 {
     subintegrateHeatTransfer true;
     bedCollapse             false;       // enable bed motion
-    criticalPorosity        0.9999;      // porosity threshold for bed collapse
     replenish               false;       // fuel replenishment model
+
+    solidRegimes                         // optional; the defaults are shown
+    {
+        dispersedAboveSolidFraction  1e-8;
+        connectedAboveSolidFraction  1e-4;
+        maxSolidFraction             0.9999;
+        dispersedSolidTemperature    solid;   // solid | gas
+    }
+    solidStateCheckTolerance 1e-8;       // optional
 }
 ```
+
+#### Solid regimes
+
+Every cell is in one of four solid regimes, ordered by its solid volume
+fraction α = 1 − `porosityF`. The `solidRegimes` thresholds are solid
+fractions, and each one ends the regime below it:
+
+| Regime | Solid fraction | What the solver does |
+|---|---|---|
+| empty | α = 0 | gas only |
+| trace | α ≤ `dispersedAboveSolidFraction` | too little solid to trust its own temperature: Ts is the gas temperature |
+| dispersed | α ≤ `connectedAboveSolidFraction` | the solid no longer forms a connected matrix: no solid source terms, and the cell may be emptied (`bedCollapse`, `emptyFlippedCells`) |
+| connected | α ≤ `maxSolidFraction` | the full model |
+
+The thresholds must nest, `dispersedAboveSolidFraction` <
+`connectedAboveSolidFraction` < `maxSolidFraction` < 1, or the run stops at
+start-up. The regimes hold at any scale: a cell may be a piece of one pellet,
+where α counts the pores inside it, or hold many pellets, where α counts the
+gaps between them too. Only the values are case-specific.
+
+- `dispersedAboveSolidFraction` changes results. Below it, Ts = solidH/(ρ Cp)
+  is a ratio of two vanishing numbers whose errors do not shrink with them.
+  `heterogeneousP1` uses the same threshold: only cells above it attenuate
+  radiation as solid.
+- `connectedAboveSolidFraction` is also the threshold the DEM coupling uses:
+  `lambdaDot` is switched off, and the interpolation models treat the cell as
+  outside the solid, where the solid is not connected. DEM cases must set it.
+- `maxSolidFraction` is the packing cap: the solid flux limiter refuses any
+  flux that would carry a cell past it. It must stay below 1, since the gas
+  equations divide by the gas volume.
+- `dispersedSolidTemperature gas` takes the gas temperature in dispersed cells
+  too. The energy the solid loses that way is not charged anywhere.
+- `solidStateCheckTolerance` is the slack the fail-fast checks and the limiter
+  report allow, in solid fraction. It changes no result, only whether a run
+  warns or aborts.
+
+The log prints the regimes with their values at start-up, and every write
+time holds `solidRegime` (0 empty, 1 trace, 2 dispersed, 3 connected) and
+`solidPresent` (1 where α > 0), both as at the start of the step: colour by
+`solidRegime` in ParaView to see the regimes. The keys these
+replace (`criticalPorosity`, `minPorosity`, `solidStateTolerance`,
+`gasTemperatureBelowCriticalPorosity`) stop the run with the exact
+replacement; `connectedAboveSolidFraction` is 1 − `criticalPorosity` and
+`maxSolidFraction` is 1 − `minPorosity`.
 
 ### `constant/lambdaDict` (required by `WITH_YADE` builds running a DEM case)
 

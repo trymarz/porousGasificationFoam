@@ -2,6 +2,7 @@
 #include "laplaceAnchored.H"
 #include "laplaceSetValues.H"
 #include "IOdictionary.H"
+#include "connectedBelowPorosity.H"
 
 namespace Foam
 {
@@ -28,7 +29,7 @@ InterpolationModel<Type>::InterpolationModel
 {
     (void)dict;
 
-    // criticalPorosity lives in pyrolysisProperties, not lambdaDict, so both
+    // The threshold lives in pyrolysisProperties, not lambdaDict, so both
     // interpolation models and lambdaDotModel agree on where the solid ends.
     IOdictionary pyrolysisProperties
     (
@@ -43,14 +44,9 @@ InterpolationModel<Type>::InterpolationModel
     );
 
     solidPorosityCutoff_ =
-        readScalar
-        (
-            pyrolysisProperties
-                .subDict("pyrolysisCoeffs")
-                .lookup("criticalPorosity")
-        );
+        connectedBelowPorosity(pyrolysisProperties.subDict("pyrolysisCoeffs"));
 
-    Info<< "criticalPorosity = " << solidPorosityCutoff_ << nl << endl;
+    Info<< "connected below porosity = " << solidPorosityCutoff_ << nl << endl;
 }
 
 

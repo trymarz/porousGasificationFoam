@@ -26,15 +26,26 @@ pyrolysisCoeffs
 {
     subintegrateHeatTransfer false;
     bedCollapse      false;
-    criticalPorosity 0.9999;
     replenish        false;
 
-    // Solid arrives at porosity 0.5 and piles against the right wall, so the
-    // first half of the run is inlet-driven filling and the receiver cap only
-    // binds once the wall cells have packed down to 0.1.
-    minPorosity      0.1;
-    solidStateTolerance 1e-10;
     nSolidFluxLimiterCorrectors 8;
+
+    // Solid regimes, by solid volume fraction alpha = 1 - porosityF.
+    // Each threshold ends the regime below it:
+    // empty (alpha = 0) | trace | dispersed | connected | maxSolidFraction
+    solidRegimes
+    {
+        dispersedAboveSolidFraction  1e-10;   // below: trace, Ts follows the gas
+        connectedAboveSolidFraction  0.0001;  // below: dispersed, no solid sources, may be emptied
+        // Solid arrives at porosity 0.5 and piles against the right wall, so the
+        // first half of the run is inlet-driven filling and the receiver cap only
+        // binds once the wall cells have packed up to 0.9.
+        maxSolidFraction             0.9;     // connected up to here; never exceeded
+        dispersedSolidTemperature    solid;   // solid | gas
+    }
+
+    // Slack the fail-fast checks allow, in solid fraction; changes no result.
+    solidStateCheckTolerance 1e-10;
 }
 
 infoOutput      true;

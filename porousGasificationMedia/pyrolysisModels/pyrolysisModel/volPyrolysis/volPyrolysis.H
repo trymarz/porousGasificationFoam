@@ -41,6 +41,7 @@ SourceFiles
 #include "surfaceFields.H"
 #include "solidFluxLimiter.H"
 #include "solidStateChecker.H"
+#include "solidState.H"
 
 #ifdef WITH_YADE
     // liblambdaDotModel links YADE, so it is referenced only here.
@@ -83,7 +84,7 @@ private:
         //  stores the result in phiSolid_, the flux every solid field rides.
         void limitSolidVolFlux();
 
-        //- Abort if any cell's porosity left [minPorosity, 1]
+        //- Abort if any cell's solid fraction left [0, maxSolidFraction]
         //  Below the floor a cell has no gas volume, and every gas equation
         //  divides by it. Called each time recoverPorosity() writes porosity_.
         void guardPorosity
@@ -168,17 +169,9 @@ protected:
     Switch collapseMovesSolidMass_;
 
     //- Switch for emptying a flipped cell rather than leaving its solid
-    //  A flip candidate: above critPorosity_ with Us pointing inward. Set,
+    //  A flip candidate: dispersed or trace, inside or on a receding edge. Set,
     //  it is emptied for real; mass destroyed, charged to cumulativeFlipMass_.
     Switch emptyFlippedCells_;
-
-    //- Switch for taking a nearly-empty cell's solid temperature from the gas
-    //  Above critPorosity_, Ts = solidH/(totalYm*Cp) is a frozen numerator
-    //  over a vanishing denominator. Set, energy lost this way is uncharged.
-    Switch gasTemperatureBelowCriticalPorosity_;
-
-    //- Criterion for bed motion porosity model
-    scalar critPorosity_;
 
     //- Absolute tolerance for detecting incoming solid flux [kg/m3/s]
     scalar poroProtectSolidInflowFluxTolerance_;
@@ -216,17 +209,11 @@ protected:
         //  Reported, never applied: porosity is recovered from Ym_ instead.
         volScalarField porositySource_;
 
-        //- Masks for equations
-        volScalarField solidOccupiesCell_;
+        //- The solid regimes of each cell, and their thresholds
+        autoPtr<SolidState> solidState_;
 
-        volScalarField solidAbsentFromCell_;
-
+        //- Bed-motion scratch, zeroed before each use; not a solid mask
         volScalarField solidOccupiedCellLastStep_;
-
-        //- Cells holding enough solid for a volumetric source to be meaningful
-        //  Stored rather than recomputed so the radiation model can hold a
-        //  reference to it. Refreshed wherever porosity_ is written.
-        volScalarField solidSourceTermsAdmissible_;
 
         volScalarField cellVolume_;
 
@@ -340,9 +327,6 @@ protected:
         //- Mass check
         void calculateMassTransfer();
 
-        //- Rebuild solidSourceTermsAdmissible_ from the porosity just written
-        void updateSolidSourceTermsAdmissible();
-
         // Equations
 
             //- Solve solid species mass conservation
@@ -408,8 +392,8 @@ public:
                 //- Return list of cells in surface layer inside solid
                 virtual const volScalarField& surf() const;
 
-                //- Return the solid-source gate
-                virtual const volScalarField& solidSourceTermsAdmissible() const;
+                //- The solid regimes of every cell, and their thresholds
+                virtual const SolidState& solidState() const;
 
         // Parametrs from main region
 
