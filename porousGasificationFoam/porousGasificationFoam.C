@@ -163,6 +163,9 @@ int main(int argc, char *argv[])
         }
 
         rho = thermo.rho();
+        // Next step's porosityRho.oldTime() must be the porosityF*rho that
+        // rhoEqn's ddt starts from, or YEqn/EEqn break continuity.
+        porosityRho = porosityF * rho;
 
         Info<< "rho max/min : " << max(rho).value()
             << " " << min(rho).value() << endl;

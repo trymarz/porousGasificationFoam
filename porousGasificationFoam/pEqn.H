@@ -60,17 +60,21 @@ else
     // Update the pressure BCs to ensure flux consistency
     constrainPressure(p, rho, U, phiHbyA, rhorAUf, MRF);
 
+    // d(porosityF*rho)/dt in full (porosityF and psi change within the step),
+    // implicit only in p; built once so correction() and rho share one p.
+    fvScalarMatrix pDDtEqn
+    (
+        fvc::ddt(porosityF, rho)
+      + porosityF*psi*correction(fvm::ddt(p))
+      + fvc::div(phiHbyA)
+     ==
+        fvOptions(psi * porosityF, p, rho.name())
+      + Srho
+    );
+
     while (pimple.correctNonOrthogonal())
     {
-        fvScalarMatrix pEqn
-        (
-            fvm::ddt(porosityF * psi, p)
-          + fvc::div(phiHbyA)
-          - fvm::laplacian(rhorAUf, p)
-         ==
-            fvOptions(psi * porosityF, p, rho.name())
-          + Srho
-        );
+        fvScalarMatrix pEqn(pDDtEqn - fvm::laplacian(rhorAUf, p));
 
         pEqn.solve();
 
