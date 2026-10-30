@@ -30,7 +30,7 @@ divSchemes
     default         none;
 
     // Solid-species advection by the prescribed Us field: the operator
-    // under test (volPyrolysis::solveSpeciesMass -> div(phiUs, Ym)).
+    // under test (SolidSpeciesTransport::solve -> div(phiUs, Ym)).
     div(phiSolid)   Gauss upwind;
     div(phiRhoCp)   Gauss SuperBee;
     div(phi,U)      Gauss linearUpwindV default;

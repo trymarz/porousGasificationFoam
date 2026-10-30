@@ -113,7 +113,7 @@ lambdaDotModel::lambdaDotModel
 void lambdaDotModel::updateLambdaDot()
 {
     // lambdaDot drives deformation of the DEM skeleton, so it must not stay
-    // active outside the solid region. volPyrolysis::solveSpeciesMass()
+    // active outside the solid region. SolidSpeciesTransport::solve()
     // assembles it later in the step, so the value gated and pushed to
     // particles here is the previous step's.
     forAll(lambdaDot_, cellI)

@@ -347,7 +347,7 @@ void SolidEnergy::advectSolidH
 
     // Enthalpy rides the solid MASS flux, not phiSolid: div(phiSolid)
     // is nonlinear, so it would give solidH and Ym different face
-    // values. phiYm here matches solveSpeciesMass()'s own flux.
+    // values. phiYm here matches SolidSpeciesTransport::solve()'s own flux.
     surfaceScalarField phiYm
     (
         fvc::flux(solidFlux, Ym_[0], "div(phiSolid)")
@@ -505,7 +505,7 @@ void SolidEnergy::recoverTemperatureAfterReaction()
 
     const volScalarField rhoCp(solidHeatCapacity(totalYm));
 
-    // The mass solveSpeciesMass() has just converted to gas. Ym_
+    // The mass SolidSpeciesTransport::solve() has just converted to gas. Ym_
     // carries the loss, solidH_ does not: it was built in
     // solve() on what the cell held before the reaction.
     const volScalarField preReactionYm(preReactionMass(totalYm));

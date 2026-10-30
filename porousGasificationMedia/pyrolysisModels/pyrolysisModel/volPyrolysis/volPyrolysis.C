@@ -94,120 +94,18 @@ void volPyrolysis::limitSolidFlux()
     phiSolid_ = solidFluxLimiter_->limit();
 }
 
-void volPyrolysis::checkSpecieMass
-(
-    const label i,
-    const volScalarField& divYmFlux,
-    const volScalarField& sRhoSi
-) const
+void volPyrolysis::reportSolidMassBudget()
 {
-    const label badCell =
-        solidStateChecker_->firstInvalidExtensive(Ym_[i]);
-
-    if (badCell != -1)
-    {
-        OStringStream context;
-        context
-            << "    specie       = " << Ys_[i].name() << nl
-            << "    Us           = " << Us_[badCell] << nl
-            << "    div(phiUs Ym)= " << divYmFlux[badCell] << nl
-            << "    RRs          = " << sRhoSi[badCell] << nl
-            << "    porosity     = " << porosity_[badCell];
-
-        solidStateChecker_->abort
-        (
-            "the solid specie mass equation in solveSpeciesMass()",
-            Ym_[i],
-            badCell,
-            context.str()
-        );
-    }
-}
-
-void volPyrolysis::clipNegativeSpecieMass(volScalarField& Ym_i)
-{
-    cumulativeYmClip_ +=
-        gSum(max(-Ym_i.field(), 0.0)*mesh_.V());
-
-    Ym_i.max(0.0);                       // mass concentration >= 0
-}
-
-void volPyrolysis::solveSpecieMass(const label i)
-{
-    volScalarField& Ym_i = Ym_[i];
-    volScalarField sRhoSi = solidChemistry_->RRs(i);
-
-    // lambdaDot only reads sRhoSi, which the Ym equation uses unchanged.
-    lambdaDot_->addChemistryTerm
-    (
-        sRhoSi,
-        solidThermo_.composition().components()[i]
-    );
-
-    Ym_i.correctBoundaryConditions();
-
-    // The already-limited flux, settled once per step so every solid
-    // field rides the same value at each face.
-    volScalarField divYmFlux
-    (
-        fvc::div(phiSolid_, Ym_i, "div(phiSolid)")
-    );
-
-    fvScalarMatrix YmEqn
-    (
-        fvm::ddt(Ym_i)
-     ==
-        sRhoSi
-      - divYmFlux
-    );
-
-    YmEqn.relax();
-    YmEqn.solve("Ys");
-
-    checkSpecieMass(i, divYmFlux, sRhoSi);
-    clipNegativeSpecieMass(Ym_i);
-
-    Info<< "solid " << Ys_[i].name()
-        << " equation solved. Sources min/max   = " << gMin(sRhoSi)
-        << ", " << gMax(sRhoSi)
-        << "; values min Ym = " << gMin(Ym_[i])
-        << " max Ym = " << gMax(Ym_[i]) << endl;
-}
-
-void volPyrolysis::solveSpeciesMass()
-{
-// eqZx2uHGn045
-// eqZx2uHGn046
-
-    if (debug)
-    {
-        Info<< "volPyrolysis:+solveSpeciesMass()" << endl;
-    }
-
     if (!active_)
     {
         return;
     }
 
-    // Reset lambdaDot and add its temperature term; the chemistry
-    // term accumulates per specie in solveSpecieMass().
-    lambdaDot_->beginStep();
-
-    for (label i = 0; i < Ys_.size(); ++i)
-    {
-        solveSpecieMass(i);
-    }
-
-    SolidState::deriveYiFromYm(Ym_, Ys_);
-
-    // lambdaDot is complete once every specie has contributed.
-    lambdaDot_->finishStep();
-
     solidStateChecker_->reportMassBudget
     (
         Ym_,
         initialTotalYmMass_,
-        cumulativeYmClip_,
+        speciesTransport_->clippedMass(),
         porosityRecovery_->flippedMass(),
         bedCollapse_->collapsedMass()
     );
@@ -561,8 +459,7 @@ volPyrolysis::volPyrolysis
     totalGasMassFlux_(dimensionedScalar("zero", dimMass/dimTime, 0.0)),
     totalHeatRR_(dimensionedScalar("zero", dimEnergy/dimTime, 0.0)),
     chemistryTimeStep_(1.0),
-    initialTotalYmMass_(0.0),
-    cumulativeYmClip_(0.0)
+    initialTotalYmMass_(0.0)
 {
 
     mesh.setFluxRequired(T_.name());
@@ -716,6 +613,24 @@ volPyrolysis::volPyrolysis
 
     // Last in the constructor, so its active/inactive line ends the banner.
     lambdaDot_.reset(new LambdaDotCoupling(mesh_));
+
+    speciesTransport_.reset
+    (
+        new SolidSpeciesTransport
+        (
+            mesh_,
+            solidThermo_,
+            solidChemistry_(),
+            Ym_,
+            Ys_,
+            porosity_,
+            Us_,
+            phiSolid_,
+            lambdaDot_(),
+            solidStateChecker_(),
+            active_
+        )
+    );
 }
 
 // * * * * * * * * * * * * * * * * Destructor  * * * * * * * * * * * * * * * //
@@ -869,7 +784,8 @@ void volPyrolysis::evolveRegion()
     // Energy before species: solidH_ holds the pre-reaction solid until
     // recoverTemperatureAfterReaction() restates it on the mass that remains.
     solidEnergy_->solve();
-    solveSpeciesMass();
+    speciesTransport_->solve();
+    reportSolidMassBudget();
     solidEnergy_->recoverTemperatureAfterReaction();
 
     porosityRecovery_->recover();

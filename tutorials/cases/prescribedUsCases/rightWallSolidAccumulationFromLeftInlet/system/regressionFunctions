@@ -11,7 +11,7 @@
 // Two families of reduction, over the two fields the solid state is made of.
 //
 // Ycharm [kg/m3] is the solid-species mass concentration, advected by Us in
-// volPyrolysis::solveSpeciesMass() as div(phiUs, Ym). That operator is
+// SolidSpeciesTransport::solve() as div(phiUs, Ym). That operator is
 // conservative, so these reductions cleanly capture the transport under test:
 //
 //   volIntegrate(Ycharm)  total solid mass [kg] — a pure-transport run has no

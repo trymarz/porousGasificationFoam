@@ -15,8 +15,9 @@ FoamFile
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-// Chemistry off: the solid-species source term is zero, so solveSpeciesMass()
-// reduces to pure advection of Ym by the prescribed Us field.
+// Chemistry off: the solid-species source term is zero, so
+// SolidSpeciesTransport::solve() reduces to pure advection of Ym by the
+// prescribed Us field.
 chemistry           off;
 
 chemistryType

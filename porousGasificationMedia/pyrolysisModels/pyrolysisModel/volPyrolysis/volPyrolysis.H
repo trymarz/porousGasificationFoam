@@ -47,6 +47,7 @@ SourceFiles
 #include "gasSolidHeatExchange.H"
 #include "solidEnergy.H"
 #include "porosityRecovery.H"
+#include "solidSpeciesTransport.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -210,7 +211,7 @@ protected:
 
         //- The solid volumetric face flux the transport stages ride [m3/s]
         //  Set by limitSolidFlux() from solidFluxLimiter_. Owned here,
-        //  not by the limiter: solveSpeciesMass() and SolidEnergy read it too.
+        //  not by the limiter: SolidSpeciesTransport and SolidEnergy read it.
         surfaceScalarField phiSolid_;
 
         //- Reference to the solid flux limiter
@@ -227,8 +228,11 @@ protected:
 
     // DEM (YADE) coupling — lambdaDot
 
-        //- Computes lambdaDot in solveSpeciesMass(); a no-op without DEM
+        //- Computes lambdaDot in SolidSpeciesTransport; a no-op without DEM
         autoPtr<LambdaDotCoupling> lambdaDot_;
+
+        //- The solid species mass equations, Ym_ transported
+        autoPtr<SolidSpeciesTransport> speciesTransport_;
 
     // Checks
 
@@ -252,11 +256,6 @@ protected:
         //  so conservation is checked from the restart onward.
         scalar initialTotalYmMass_;
 
-        //- Cumulative mass created by the max(0) clip on Ym [kg]
-        //  Reported with the mass budget, so the budget cannot look closed
-        //  while the clip is quietly paying for it.
-        scalar cumulativeYmClip_;
-
 
     // Protected member functions
 
@@ -266,29 +265,11 @@ protected:
         //- Read control parameters from dict
         bool read(const dictionary& dict);
 
+        //- Report the solid mass budget and the derived mass fractions
+        void reportSolidMassBudget();
+
         //- Add this step's gas produced and solid lost to the run totals
         void accumulateMassBudget();
-
-        // Species mass helpers
-
-            //- Abort if Ym_i is invalid after its equation
-            void checkSpecieMass
-            (
-                const label i,
-                const volScalarField& divYmFlux,
-                const volScalarField& sRhoSi
-            ) const;
-
-            //- Clip negative Ym_i to zero; the mass added is booked
-            void clipNegativeSpecieMass(volScalarField& Ym_i);
-
-            //- Solve the mass equation of solid specie i
-            void solveSpecieMass(const label i);
-
-        // Equations
-
-            //- Solve solid species mass conservation
-            void solveSpeciesMass();
 
 public:
 

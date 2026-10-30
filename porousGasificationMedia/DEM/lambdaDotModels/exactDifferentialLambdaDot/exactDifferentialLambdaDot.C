@@ -94,10 +94,10 @@ void exactDifferentialLambdaDot::calculateTemperatureDriven()
         mesh_.lookupObject<volScalarField>("Ts");
 
     // Ts is already solved for this step: SolidEnergy::solve() runs
-    // before solveSpeciesMass(), so TsField is Ts^n. The previous value is
-    // kept here rather than read from Ts.oldTime(), which is only refreshed
-    // where the energy path takes fvm::ddt on Ts -- the equilibrium branch
-    // never does.
+    // before SolidSpeciesTransport::solve(), so TsField is Ts^n. The
+    // previous value is kept here rather than read from Ts.oldTime(), which
+    // is only refreshed where the energy path takes fvm::ddt on Ts -- the
+    // equilibrium branch never does.
     //
     // Both samples are taken at the same point of the step, so consecutive
     // ones are exactly one step apart:

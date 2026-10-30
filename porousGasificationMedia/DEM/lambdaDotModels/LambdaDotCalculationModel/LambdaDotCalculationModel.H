@@ -11,7 +11,7 @@ namespace Foam
 
 // Strategy interface for the DEM particle length-scale rate lambdaDot [m/s].
 // Owned by volPyrolysis, selected via lambdaMode in constant/lambdaDict, and
-// driven in solveSpeciesMass(): beginStep() once per step, then
+// driven in SolidSpeciesTransport::solve(): beginStep() once per step, then
 // calculateTemperatureDriven() once, then calculateChemistryDriven() per
 // solid specie. PGF owns only the rate; YADE integrates lambda itself
 // (State::lambda_) and no model here reads it.
