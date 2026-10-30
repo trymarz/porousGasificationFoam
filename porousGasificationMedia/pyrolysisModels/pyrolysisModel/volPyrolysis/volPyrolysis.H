@@ -44,6 +44,7 @@ SourceFiles
 #include "solidState.H"
 #include "bedCollapse.H"
 #include "lambdaDotCoupling.H"
+#include "gasSolidHeatExchange.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -149,9 +150,6 @@ protected:
     //- Switch for equilibrium/nonequilibrium model
     Switch equilibrium_;
 
-    //- Switch for temporal subintegration of heatTransfer model
-    Switch subintegrateSwitch_;
-
     //- Switch for emptying a flipped cell rather than leaving its solid
     //  A flip candidate: dispersed or trace, inside or on a receding edge. Set,
     //  it is emptied for real; mass destroyed, charged to cumulativeFlipMass_.
@@ -192,17 +190,8 @@ protected:
 
         volScalarField cellVolume_;
 
-        volScalarField heatUpGas_;
-
-        //- Interphase exchange as the solid TEqn consumed it, stored so the
-        //  gas EEqn adds back the same joules rather than a fresh evaluation
-        //  against a temperature the solid solve has since moved.
-        volScalarField heatTransferSh_;
-
-        //- Reference to heat transport model
-        autoPtr<porousHeatTransferModel> HTmodel_;
-
-        volScalarField CONV_;
+        //- CONV, the interphase exchange and heatUpGas
+        autoPtr<GasSolidHeatExchange> heatExchange_;
 
         volScalarField radiationSh_;
 
@@ -499,17 +488,8 @@ public:
                 const label i
             ) const;
 
-            //- Compute the interphase exchange from the current state
-            virtual Foam::tmp<Foam::volScalarField> heatTransferCalc() const;
-
             //- Return enthalpy source - Eulerian phase only
             virtual Foam::tmp<Foam::volScalarField> heatTransfer() const;
-
-            //- Return CONV
-            virtual Foam::tmp<Foam::volScalarField> CONV() const;
-
-            //- Return enthalpy needed to heat up gas
-            virtual Foam::tmp<Foam::volScalarField> heatUpGasCalc() const;
 
             //- Return enthalpy needed to heat up gas
             virtual Foam::tmp<Foam::volScalarField> heatUpGas() const;

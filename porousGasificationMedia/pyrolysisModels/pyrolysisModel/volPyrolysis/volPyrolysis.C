@@ -719,10 +719,11 @@ void volPyrolysis::solveTsEquation
     const volScalarField& connectedAtStepStart = solidState_->connectedAtStepStart();
 
     // Evaluated once and stored, so the gas EEqn adds back the same
-    // joules after TEqn has moved T_. heatTransferCalc() gates
-    // itself; gating again here would be a no-op, not a safeguard.
-    heatTransferSh_ = heatTransferCalc()();
-    const volScalarField& interphaseHeatTransfer = heatTransferSh_;
+    // joules after TEqn has moved T_. The exchange gates itself;
+    // gating again here would be a no-op, not a safeguard.
+    const volScalarField& interphaseHeatTransfer =
+        heatExchange_->updateHeatTransfer();
+    const volScalarField& heatUpGas = heatExchange_->heatUpGas();
 
     // radiationSh_ carries no connected gate of its own: as a cell
     // empties, rhoCp collapses toward its SMALL floor while the T^4
@@ -743,7 +744,7 @@ void volPyrolysis::solveTsEquation
     ==
         solidChemistrySource // eqZx2uHGn004, eqZx2uHGn017
       - interphaseHeatTransfer // eqZx2uHGn005
-      - heatUpGas_
+      - heatUpGas
       + solidRadiationSource
     );
 
@@ -766,7 +767,7 @@ void volPyrolysis::solveTsEquation
             << solidChemistrySource[badTEqnCell] << nl
             << "    heatTransfer = "
             << interphaseHeatTransfer[badTEqnCell] << nl
-            << "    heatUpGas    = " << heatUpGas_[badTEqnCell] << nl
+            << "    heatUpGas    = " << heatUpGas[badTEqnCell] << nl
             << "    radiationSh  = "
             << solidRadiationSource[badTEqnCell] << nl
             << "    porosity     = " << porosity_[badTEqnCell];
@@ -1114,7 +1115,6 @@ volPyrolysis::volPyrolysis
     T_(solidThermo_.T()),
     solidH_(nullptr),
     equilibrium_(false),
-    subintegrateSwitch_(false),
     emptyFlippedCells_(false),
     poroProtectSolidInflowFluxTolerance_(1e-12),
     nNonOrthCorr_(-1),
@@ -1162,45 +1162,22 @@ volPyrolysis::volPyrolysis
         mesh_,
         dimensionedScalar("zero", dimless, 0.0)
     ),
-    heatUpGas_
+    heatExchange_
     (
-        IOobject
+        new GasSolidHeatExchange
         (
-            "heatUpGas",
-            time_.timeName(),
+            coeffs(),
             mesh_,
-            IOobject::NO_READ,
-            IOobject::AUTO_WRITE
-        ),
-        mesh_,
-        dimensionedScalar("zero", dimEnergy/dimTime/dimVolume, 0.0)
-    ),
-    heatTransferSh_
-    (
-        IOobject
-        (
-            "pyrolysisSh",
-            time_.timeName(),
-            mesh_,
-            IOobject::NO_READ,
-            IOobject::NO_WRITE
-        ),
-        mesh_,
-        dimensionedScalar("zero", dimEnergy/dimTime/dimVolume, 0.0)
-    ),
-    HTmodel_(porousHeatTransferModel::New(porosity_,porosityArch_)),
-    CONV_
-    (
-        IOobject
-        (
-            "CONVvol",
-            time_.timeName(),
-            mesh_,
-            IOobject::NO_READ,
-            IOobject::AUTO_WRITE
-        ),
-        mesh_,
-        dimensionedScalar("zero",dimEnergy/dimTime/dimTemperature/dimVolume , 0.0)
+            porosity_,
+            porosityArch_,
+            gasThermo_,
+            solidThermo_,
+            T_,
+            rho_,
+            solidState_(),
+            equilibrium_,
+            active_
+        )
     ),
     radiationSh_
     (
@@ -1276,10 +1253,9 @@ volPyrolysis::volPyrolysis
     mesh.setFluxRequired(T_.name());
 
     ST_ = STmodel_->ST()();
-    CONV_ = CONV();
+    heatExchange_->updateCONV();
     rho0_.ref() = rho_.ref();
 
-    subintegrateSwitch_ = coeffs().lookupOrDefault("subintegrateHeatTransfer",false);
     bedCollapse_.reset
     (
         new BedCollapse
@@ -1307,7 +1283,7 @@ volPyrolysis::volPyrolysis
         );
 
     Info << endl;
-    Info << "subintegrateHeatTransfer " << subintegrateSwitch_ << endl;
+    Info << "subintegrateHeatTransfer " << heatExchange_->subintegrate() << endl;
     Info << "bedCollapse              " << bedCollapse_->active()    << endl;
     Info << "poroProtectSolidInflowFluxTolerance  "
          << poroProtectSolidInflowFluxTolerance_
@@ -1656,7 +1632,7 @@ void volPyrolysis::evolveRegion()
 
     if (!equilibrium_)
     {
-        CONV_ = CONV();
+        heatExchange_->updateCONV();
     }
 
     ST_ = STmodel_->ST()();
@@ -1668,7 +1644,7 @@ void volPyrolysis::evolveRegion()
     );
 
     chemistrySh_ = solidChemistry_->Sh()(); // eqZx2uHGn004
-    heatUpGas_ = heatUpGasCalc()();
+    heatExchange_->updateHeatUpGas(Srho()());
 
     // Settle how much solid each face may carry before any solid field is
     // transported. Needs the chemistry rates, so it follows their solve.
@@ -1787,172 +1763,14 @@ Foam::tmp<Foam::volScalarField> volPyrolysis::Srho(const label i) const
     }
 }
 
-Foam::tmp<Foam::volScalarField> volPyrolysis::heatTransferCalc() const
-{
-// eqZx2uHGn005
-    Foam::tmp<Foam::volScalarField> Sh_ = Foam::tmp<Foam::volScalarField>
-    (
-        new volScalarField
-        (
-            IOobject
-            (
-                "pyrolysisSh",
-                time_.timeName(),
-                mesh_,
-                IOobject::NO_READ,
-                IOobject::AUTO_WRITE,
-                false
-            ),
-            mesh_,
-            dimensionedScalar("zero", dimEnergy/dimVolume/dimTime, 0.0)
-        )
-    );
-
-    if (!equilibrium_)
-    {
-        // Gate the emitted exchange at the producer so the solid TEqn and the
-        // gas EEqn consume the same field: an ungated gas side would exchange
-        // heat with a solid whose own equation refuses it, creating energy.
-        const volScalarField& connectedAtStepStart = solidState_->connectedAtStepStart();
-
-        if (subintegrateSwitch_)
-        {
-            // Keep the subintegrated gas/solid exchange defined in a fully
-            // solid cell. The physical gas capacity vanishes there, while
-            // the finite floor prevents an ill-conditioned analytic update.
-            volScalarField rhoCpG
-            (
-                gasThermo_.rho()
-              * gasThermo_.Cp()
-              * solidState_->gasFractionWithFloor()
-            );
-            volScalarField Tgas = gasThermo_.T();
-            volScalarField rhoCpS
-            (
-                solidState_->withSolidHeatCapacityFloor
-                (
-                    rho_ * solidThermo_.Cp() * solidState_->solidFraction()
-                )
-            );
-            volScalarField deltaTemp(T_ * 0);
-            scalar deltaTime = time_.deltaTValue();
-
-            forAll(deltaTemp,cellI)
-            {
-                if (solidState_->solidPresent()[cellI] == 1.0 && CONV_[cellI] > 0.0)
-                {
-                    deltaTemp[cellI] =
-                        (Tgas[cellI]
-                         * (rhoCpG[cellI]
-                           +rhoCpS[cellI]
-                           *exp(-(CONV_[cellI] * deltaTime*(rhoCpS[cellI]+rhoCpG[cellI]))
-                                /(rhoCpS[cellI]*rhoCpG[cellI])))
-                           +rhoCpS[cellI]*T_[cellI]
-                           *(1 - exp( -(CONV_[cellI]*deltaTime*(rhoCpS[cellI]+rhoCpG[cellI]))/(rhoCpS[cellI]*rhoCpG[cellI])))
-                        )
-                        / (rhoCpS[cellI]+rhoCpG[cellI]) - Tgas[cellI];
-                }
-                else
-                {
-                    deltaTemp[cellI] = 0;
-                }
-            }
-
-            forAll(Sh_(),cellI)
-            {
-                Sh_.ref()[cellI] = deltaTemp[cellI] * rhoCpG[cellI] * connectedAtStepStart[cellI] / deltaTime;
-            }
-
-            volScalarField HT(CONV_*(T_-Tgas));
-            Info << "The heat transfer subintegration info:" << nl
-                 << " no subintegration min, max:" << gMin(HT) << " " << gMax(HT) << nl
-                 << " subintegration    min, max:" << gMin(Sh_()) << " " << gMax(Sh_()) << endl;
-        }
-        else
-        {
-            // This works only for small CONV otherwise oscillations appear.
-            volScalarField Tgas = gasThermo_.T();
-            volScalarField HT(CONV_*(T_-Tgas));
-            Sh_ = HT * connectedAtStepStart;
-        }
-    }
-    return Sh_;
-}
-
-Foam::tmp<Foam::volScalarField> volPyrolysis::CONV() const
-{
-    Foam::tmp<Foam::volScalarField> CONVloc_ = Foam::tmp<Foam::volScalarField>
-    (
-        new volScalarField
-        (
-            IOobject
-            (
-                "CONV",
-                time_.timeName(),
-                mesh_,
-                IOobject::NO_READ,
-                IOobject::AUTO_WRITE,
-                false
-            ),
-            mesh_,
-            dimensionedScalar("zero", dimEnergy/dimTemperature/dimTime/dimVolume, 0.0)
-        )
-    );
-
-    if (!equilibrium_)
-    {
-        CONVloc_ = HTmodel_->CONV()*solidState_->solidPresent();
-    }
-    return CONVloc_;
-}
-
-Foam::tmp<Foam::volScalarField> volPyrolysis::heatUpGasCalc() const
-{
-
-    Foam::tmp<Foam::volScalarField> hSh_ = Foam::tmp<Foam::volScalarField>
-    (
-        new volScalarField
-        (
-            IOobject
-            (
-                "hSh_",
-                time_.timeName(),
-                mesh_,
-                IOobject::NO_READ,
-                IOobject::AUTO_WRITE,
-                false
-            ),
-            mesh_,
-            dimensionedScalar("zero", dimEnergy/dimVolume/dimTime, 0.0)
-        )
-    );
-
-    if (active_)
-    {
-        volScalarField gasCp = gasThermo_.Cp();
-
-        if (!equilibrium_) // eqZx2uHGn018
-        {
-            // Gated at the producer, so both consumers keep seeing one field.
-            // The pair already conserved; what the gate adds is a bound, the
-            // same one its three siblings in TEqn have.
-            volScalarField tempSh = hSh_();
-            tempSh = gasThermo_.Cp() * (T_ - gasThermo_.T()) * Srho();
-            hSh_ = tempSh * solidState_->connectedAtStepStart() * solidState_->solidFraction();
-        }
-    }
-
-    return hSh_;
-}
-
 Foam::tmp<Foam::volScalarField> volPyrolysis::heatUpGas() const
 {
-    return heatUpGas_;
+    return heatExchange_->heatUpGas();
 }
 
 Foam::tmp<Foam::volScalarField> volPyrolysis::heatTransfer() const
 {
-    return heatTransferSh_;
+    return heatExchange_->heatTransfer();
 }
 
 Foam::tmp<Foam::volScalarField> volPyrolysis::solidChemistrySh() const
