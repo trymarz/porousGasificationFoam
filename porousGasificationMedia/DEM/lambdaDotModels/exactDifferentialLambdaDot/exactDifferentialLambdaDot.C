@@ -93,7 +93,7 @@ void exactDifferentialLambdaDot::calculateTemperatureDriven()
     const volScalarField& TsField =
         mesh_.lookupObject<volScalarField>("Ts");
 
-    // Ts is already solved for this step: volPyrolysis::preSolveEnergy() runs
+    // Ts is already solved for this step: volPyrolysis::solveSolidEnergy() runs
     // before solveSpeciesMass(), so TsField is Ts^n. The previous value is
     // kept here rather than read from Ts.oldTime(), which is only refreshed
     // where the energy path takes fvm::ddt on Ts -- the equilibrium branch
