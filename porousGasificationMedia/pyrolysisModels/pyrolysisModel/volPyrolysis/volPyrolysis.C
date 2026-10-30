@@ -888,6 +888,148 @@ void volPyrolysis::recoverPorosity()
     solidState_->classify(totalSolidMass()(), rho_);
 }
 
+void volPyrolysis::beginLambdaDotStep()
+{
+#ifdef WITH_YADE
+    if (demActive_)
+    {
+        lamDotCalc_->beginStep();
+        lamDotCalc_->calculateTemperatureDriven();
+    }
+#endif
+}
+
+void volPyrolysis::addChemistryLambdaDot
+(
+    const volScalarField& sRhoSi,
+    const label i
+)
+{
+    // A no-op under lambdaMode constant. The name is the bare
+    // solidComponents one ("char", not "Ychar"), as dlambdaOverDYmi is keyed.
+#ifdef WITH_YADE
+    if (demActive_)
+    {
+        lamDotCalc_->calculateChemistryDriven
+        (
+            sRhoSi,
+            solidThermo_.composition().components()[i]
+        );
+    }
+#endif
+}
+
+void volPyrolysis::checkSpecieMass
+(
+    const label i,
+    const volScalarField& divYmFlux,
+    const volScalarField& sRhoSi
+) const
+{
+    const label badCell =
+        solidStateChecker_->firstInvalidExtensive(Ym_[i]);
+
+    if (badCell != -1)
+    {
+        OStringStream context;
+        context
+            << "    specie       = " << Ys_[i].name() << nl
+            << "    Us           = " << Us_[badCell] << nl
+            << "    div(phiUs Ym)= " << divYmFlux[badCell] << nl
+            << "    RRs          = " << sRhoSi[badCell] << nl
+            << "    porosity     = " << porosity_[badCell];
+
+        solidStateChecker_->abort
+        (
+            "the solid specie mass equation in solveSpeciesMass()",
+            Ym_[i],
+            badCell,
+            context.str()
+        );
+    }
+}
+
+void volPyrolysis::clipNegativeSpecieMass(volScalarField& Ym_i)
+{
+    cumulativeYmClip_ +=
+        gSum(max(-Ym_i.field(), 0.0)*mesh_.V());
+
+    Ym_i.max(0.0);                       // mass concentration >= 0
+}
+
+void volPyrolysis::solveSpecieMass(const label i)
+{
+    volScalarField& Ym_i = Ym_[i];
+    volScalarField sRhoSi = solidChemistry_->RRs(i);
+
+    // lambdaDot only reads sRhoSi, which the Ym equation uses unchanged.
+    addChemistryLambdaDot(sRhoSi, i);
+
+    Ym_i.correctBoundaryConditions();
+
+    // The already-limited flux, settled once per step so every solid
+    // field rides the same value at each face.
+    volScalarField divYmFlux
+    (
+        fvc::div(phiSolid_, Ym_i, "div(phiSolid)")
+    );
+
+    fvScalarMatrix YmEqn
+    (
+        fvm::ddt(Ym_i)
+     ==
+        sRhoSi
+      - divYmFlux
+    );
+
+    YmEqn.relax();
+    YmEqn.solve("Ys");
+
+    checkSpecieMass(i, divYmFlux, sRhoSi);
+    clipNegativeSpecieMass(Ym_i);
+
+    Info<< "solid " << Ys_[i].name()
+        << " equation solved. Sources min/max   = " << gMin(sRhoSi)
+        << ", " << gMax(sRhoSi)
+        << "; values min Ym = " << gMin(Ym_[i])
+        << " max Ym = " << gMax(Ym_[i]) << endl;
+}
+
+void volPyrolysis::finishLambdaDotStep()
+{
+#ifdef WITH_YADE
+    if (demActive_)
+    {
+        lambdaDotPtr_->correctBoundaryConditions();
+    }
+#endif
+}
+
+void volPyrolysis::reportSolidMassBudget() const
+{
+    scalar totalYmMass = 0.0;
+    for (label i = 0; i < Ym_.size(); ++i)
+    {
+        totalYmMass += gSum(Ym_[i].field() * mesh_.V());
+    }
+
+    Info<< "solid mass budget: sum(Ym_i * V) = " << totalYmMass
+        << ", initial = " << initialTotalYmMass_
+        << ", fabricated by clip = " << cumulativeYmClip_
+        << ", destroyed by flip = " << cumulativeFlipMass_
+        << ", destroyed by collapse = " << cumulativeCollapseMass_
+        << endl;
+}
+
+void volPyrolysis::reportDerivedSpecies() const
+{
+    for (label i = 0; i < Ys_.size(); ++i)
+    {
+        Info<< "       derived " << Ys_[i].name()
+            << " min/max = " << gMin(Ys_[i]) << " / " << gMax(Ys_[i]) << endl;
+    }
+}
+
 void volPyrolysis::solveSpeciesMass()
 {
 // eqZx2uHGn045
@@ -898,129 +1040,27 @@ void volPyrolysis::solveSpeciesMass()
         Info<< "volPyrolysis:+solveSpeciesMass()" << endl;
     }
 
-    if (active_)
+    if (!active_)
     {
-
-        // The already-limited flux, not what Us asked for: settled once per
-        // step so every solid field rides the same value at each face.
-        const surfaceScalarField& phiUs = phiSolid_;
-
-        // Reset lambdaDot_, then add its temperature-driven term; the
-        // chemistry-driven part accumulates per specie below.
-#ifdef WITH_YADE
-        if (demActive_)
-        {
-            lamDotCalc_->beginStep();
-            lamDotCalc_->calculateTemperatureDriven();
-        }
-#endif
-
-        for (label i = 0; i < Ys_.size(); ++i)
-        {
-            volScalarField& Ym_i = Ym_[i];
-            volScalarField sRhoSi = solidChemistry_->RRs(i);
-
-            // Chemistry-driven lambdaDot term for this specie; a no-op under
-            // lambdaMode constant. lambdaDot only reads sRhoSi, which the Ym
-            // equation below uses unchanged. The name passed is the bare
-            // solidComponents one ("char", not "Ychar"), as a per-specie
-            // dlambdaOverDYmi subdict is keyed that way.
-#ifdef WITH_YADE
-            if (demActive_)
-            {
-                lamDotCalc_->calculateChemistryDriven
-                (
-                    sRhoSi,
-                    solidThermo_.composition().components()[i]
-                );
-            }
-#endif
-
-            Ym_i.correctBoundaryConditions();
-
-            surfaceScalarField phiUsI(phiUs);
-
-            volScalarField divYmFlux
-            (
-                fvc::div(phiUsI, Ym_i, "div(phiSolid)")
-            );
-
-            fvScalarMatrix YmEqn
-            (
-                fvm::ddt(Ym_i)
-             ==
-                sRhoSi
-              - divYmFlux
-            );
-
-            YmEqn.relax();
-            YmEqn.solve("Ys");
-
-            const label badCell =
-                solidStateChecker_->firstInvalidExtensive(Ym_i);
-
-            if (badCell != -1)
-            {
-                OStringStream context;
-                context
-                    << "    specie       = " << Ys_[i].name() << nl
-                    << "    Us           = " << Us_[badCell] << nl
-                    << "    div(phiUs Ym)= " << divYmFlux[badCell] << nl
-                    << "    RRs          = " << sRhoSi[badCell] << nl
-                    << "    porosity     = " << porosity_[badCell];
-
-                solidStateChecker_->abort
-                (
-                    "the solid specie mass equation in solveSpeciesMass()",
-                    Ym_i,
-                    badCell,
-                    context.str()
-                );
-            }
-
-            cumulativeYmClip_ +=
-                gSum(max(-Ym_i.field(), 0.0)*mesh_.V());
-
-            Ym_i.max(0.0);                       // mass concentration >= 0
-
-            Info<< "solid " << Ys_[i].name()
-                << " equation solved. Sources min/max   = " << gMin(sRhoSi)
-                << ", " << gMax(sRhoSi)
-                << "; values min Ym = " << gMin(Ym_[i])
-                << " max Ym = " << gMax(Ym_[i]) << endl;
-        }
-
-        deriveYiFromYm();
-
-        // lambdaDot is complete for this step once every specie has
-        // contributed.
-#ifdef WITH_YADE
-        if (demActive_)
-        {
-            lambdaDotPtr_->correctBoundaryConditions();
-        }
-#endif
-
-        scalar totalYmMass = 0.0;
-        for (label i = 0; i < Ym_.size(); ++i)
-        {
-            totalYmMass += gSum(Ym_[i].field() * mesh_.V());
-        }
-
-        Info<< "solid mass budget: sum(Ym_i * V) = " << totalYmMass
-            << ", initial = " << initialTotalYmMass_
-            << ", fabricated by clip = " << cumulativeYmClip_
-            << ", destroyed by flip = " << cumulativeFlipMass_
-            << ", destroyed by collapse = " << cumulativeCollapseMass_
-            << endl;
-
-
-        for (label i = 0; i < Ys_.size(); ++i)
-        {
-            Info<< "       derived " << Ys_[i].name()
-                << " min/max = " << gMin(Ys_[i]) << " / " << gMax(Ys_[i]) << endl;
-        }
+        return;
     }
+
+    // Reset lambdaDot and add its temperature term; the chemistry
+    // term accumulates per specie in solveSpecieMass().
+    beginLambdaDotStep();
+
+    for (label i = 0; i < Ys_.size(); ++i)
+    {
+        solveSpecieMass(i);
+    }
+
+    deriveYiFromYm();
+
+    // lambdaDot is complete once every specie has contributed.
+    finishLambdaDotStep();
+
+    reportSolidMassBudget();
+    reportDerivedSpecies();
 }
 
 Foam::tmp<Foam::volScalarField> volPyrolysis::totalSolidMass() const
