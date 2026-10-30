@@ -84,7 +84,7 @@ GasSolidHeatExchange::GasSolidHeatExchange
         dimensionedScalar("zero", dimEnergy/dimTime/dimVolume, 0.0)
     ),
     HTmodel_(porousHeatTransferModel::New(porosity,porosityArch)),
-    CONV_
+    heatTransferCoeff_
     (
         IOobject
         (
@@ -164,16 +164,16 @@ Foam::tmp<Foam::volScalarField> GasSolidHeatExchange::heatTransferCalc() const
 
             forAll(deltaTemp,cellI)
             {
-                if (solidState_.solidPresent()[cellI] == 1.0 && CONV_[cellI] > 0.0)
+                if (solidState_.solidPresent()[cellI] == 1.0 && heatTransferCoeff_[cellI] > 0.0)
                 {
                     deltaTemp[cellI] =
                         (Tgas[cellI]
                          * (rhoCpG[cellI]
                            +rhoCpS[cellI]
-                           *exp(-(CONV_[cellI] * deltaTime*(rhoCpS[cellI]+rhoCpG[cellI]))
+                           *exp(-(heatTransferCoeff_[cellI] * deltaTime*(rhoCpS[cellI]+rhoCpG[cellI]))
                                 /(rhoCpS[cellI]*rhoCpG[cellI])))
                            +rhoCpS[cellI]*T_[cellI]
-                           *(1 - exp( -(CONV_[cellI]*deltaTime*(rhoCpS[cellI]+rhoCpG[cellI]))/(rhoCpS[cellI]*rhoCpG[cellI])))
+                           *(1 - exp( -(heatTransferCoeff_[cellI]*deltaTime*(rhoCpS[cellI]+rhoCpG[cellI]))/(rhoCpS[cellI]*rhoCpG[cellI])))
                         )
                         / (rhoCpS[cellI]+rhoCpG[cellI]) - Tgas[cellI];
                 }
@@ -188,7 +188,7 @@ Foam::tmp<Foam::volScalarField> GasSolidHeatExchange::heatTransferCalc() const
                 Sh_.ref()[cellI] = deltaTemp[cellI] * rhoCpG[cellI] * connectedAtStepStart[cellI] / deltaTime;
             }
 
-            volScalarField HT(CONV_*(T_-Tgas));
+            volScalarField HT(heatTransferCoeff_*(T_-Tgas));
             Info << "The heat transfer subintegration info:" << nl
                  << " no subintegration min, max:" << gMin(HT) << " " << gMax(HT) << nl
                  << " subintegration    min, max:" << gMin(Sh_()) << " " << gMax(Sh_()) << endl;
@@ -197,16 +197,16 @@ Foam::tmp<Foam::volScalarField> GasSolidHeatExchange::heatTransferCalc() const
         {
             // This works only for small CONV otherwise oscillations appear.
             volScalarField Tgas = gasThermo_.T();
-            volScalarField HT(CONV_*(T_-Tgas));
+            volScalarField HT(heatTransferCoeff_*(T_-Tgas));
             Sh_ = HT * connectedAtStepStart;
         }
     }
     return Sh_;
 }
 
-Foam::tmp<Foam::volScalarField> GasSolidHeatExchange::CONV() const
+Foam::tmp<Foam::volScalarField> GasSolidHeatExchange::heatTransferCoeffCalc() const
 {
-    Foam::tmp<Foam::volScalarField> CONVloc_ = Foam::tmp<Foam::volScalarField>
+    Foam::tmp<Foam::volScalarField> tCoeff = Foam::tmp<Foam::volScalarField>
     (
         new volScalarField
         (
@@ -226,9 +226,9 @@ Foam::tmp<Foam::volScalarField> GasSolidHeatExchange::CONV() const
 
     if (!equilibrium_)
     {
-        CONVloc_ = HTmodel_->CONV()*solidState_.solidPresent();
+        tCoeff = HTmodel_->CONV()*solidState_.solidPresent();
     }
-    return CONVloc_;
+    return tCoeff;
 }
 
 Foam::tmp<Foam::volScalarField> GasSolidHeatExchange::heatUpGasCalc
@@ -276,9 +276,9 @@ Foam::tmp<Foam::volScalarField> GasSolidHeatExchange::heatUpGasCalc
 
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
 
-void GasSolidHeatExchange::updateCONV()
+void GasSolidHeatExchange::updateHeatTransferCoeff()
 {
-    CONV_ = CONV();
+    heatTransferCoeff_ = heatTransferCoeffCalc();
 }
 
 

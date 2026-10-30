@@ -25,7 +25,7 @@ The loop is `porousGasificationFoam/porousGasificationFoam.C`; each step is an `
 1. **Time step** — Courant (gas), diffusion (solid) and chemistry limits give one `deltaT` (`setMultiRegionDeltaT.H`, `updateChemistryTimeStep.H`).
 2. **DEM coupling** (only with `WITH_YADE`) — particle state is exchanged with YADE; `Us` and `lambda` are rebuilt from it and `lambdaDot` is pushed back (`DEM/lambdaDotModel.C`).
 3. **Radiation** — updates the solid radiative source (`radiation.H`, `radiationModels/`).
-4. **Solid region, `pyrolysisZone.evolve()`** (`volPyrolysis::evolveRegion()`), in this order: chemistry ODE; solid-flux limit; solid temperature equation and enthalpy transport (`solveSolidEnergy`); solid species transport (`solveSpeciesMass`); `Ts` recovery after the reaction (`recoverTsAfterReaction`); porosity recovery and bed collapse (`recoverPorosity`).
+4. **Solid region, `pyrolysisZone.evolve()`** (`volPyrolysis::evolveRegion()`), in this order: chemistry ODE; solid-flux limit; solid temperature equation and enthalpy transport (`solveSolidEnergy`); solid species transport (`solveSpeciesMass`); `Ts` recovery after the reaction (`recoverTemperatureAfterReaction`); porosity recovery and bed collapse (`recoverPorosity`).
 5. **Gas continuity** — `rhoEqn.H`.
 6. **PIMPLE loop** — momentum `UEqn.H`, species `YEqn.H`, energy `EEqn.H`, pressure `pEqn.H` or `pcEqn.H` (`pimple.consistent()`).
 7. **Turbulence** — `turbulence->correct()`.
@@ -95,7 +95,7 @@ Q_heatUp = cp (Tₛ − T) S_ρ
 1/ρₛ = Σₖ Ysₖ/ρₖ ,    1 − ε = Σₖ Ymₖ/ρₖ
 ```
 
-**Solid energy** (`volPyrolysis::solveSolidEnergy`, `recoverTsAfterReaction`; paper 3c). With `H = (Σₖ Ymₖ) cₚ,ₛ Tₛ`:
+**Solid energy** (`volPyrolysis::solveSolidEnergy`, `recoverTemperatureAfterReaction`; paper 3c). With `H = (Σₖ Ymₖ) cₚ,ₛ Tₛ`:
 
 ```
 ∂(Σₖ Ymₖ cₚ,ₛ Tₛ)/∂t − ∇·((1 − ε) K_s · A ∇Tₛ) = S_chem − Q_conv − Q_heatUp + S_rad,s
