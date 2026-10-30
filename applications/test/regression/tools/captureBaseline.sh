@@ -76,21 +76,15 @@ if [ "${#files[@]}" -eq 0 ]; then
     exit 0
 fi
 
-python3 - "$refDir" "$candDir" "${files[@]}" <<'PY'
+python3 - "$SCRIPT_DIR" "$refDir" "$candDir" "${files[@]}" <<'PY'
 import sys
 from pathlib import Path
 
+sys.path.insert(0, sys.argv.pop(1))
+from compareScalars import parse_dat
+
 def rows(path):
-    out = []
-    for line in open(path):
-        t = line.split()
-        if not t or t[0].startswith("#"):
-            continue
-        try:
-            out.append([float(x) for x in t])
-        except ValueError:
-            pass
-    return out
+    return parse_dat(path)[1]
 
 ref_root, cand_root, files = Path(sys.argv[1]), Path(sys.argv[2]), sys.argv[3:]
 for rel in files:
