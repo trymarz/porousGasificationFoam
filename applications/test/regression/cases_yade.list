@@ -10,10 +10,11 @@
 
 tutorials/cases/MicroTGA-DEM_Us_UsInterp
 
-# lambdaMode exactDifferential fixtures. Each starts the packed bed hot
-# (Ts=800 K, T=850 K) so heat transfer and chemistry are both active, and
-# asserts lambdaDot's sign over solid cells via checkFieldSign.py in its own
-# Allrun. ...Off leaves every coefficient at its 0.0 default.
+# lambdaMode exactDifferential fixtures. Each starts the packed bed at
+# Ts=650 K under 850 K gas with insulated walls, so heating and slow pyrolysis
+# are both active (#139), and asserts lambdaDot's sign over solid cells via
+# checkFieldSign.py in its own Allrun. ...Off leaves every coefficient at its
+# 0.0 default.
 #
 # They also exercise the reverse YADE->PGF lambda channel, which needs
 # Foam-Yade and PGF built from matching revisions: the buffer stride is a

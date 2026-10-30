@@ -12,8 +12,9 @@ FoamFile
 // leaves untouched -- laplaceAnchored interpolation, a per-specie
 // dlambdaOverDYmi subdict, and a non-default lambdaBackgroundValue.
 // exactDifferential reads dlambdaOverDTs/dlambdaOverDYmi (default 0.0);
-// setFieldsDict seeds the packed bed, domain starts hot (Ts=800, T=850) so
-// both terms are active from t=0.
+// setFieldsDict seeds the packed bed: solid at 650 K, gas at 850 K, walls
+// insulated, so the gas heats a slowly pyrolysing bed and both terms are
+// active from t=0. Pyrolysis gas stays slow against gas-solid relaxation (#139).
 lambdaMode exactDifferential;
 
 dlambdaOverDTs 0.0;
