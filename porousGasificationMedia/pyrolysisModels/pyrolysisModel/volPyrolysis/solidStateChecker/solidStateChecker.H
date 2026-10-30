@@ -41,7 +41,8 @@ Description
 
     Thresholds and masks come from SolidState, which the switch cannot
     reach: turning the guards off leaves every physics mask as it is.
-    Also owns the porosity/solid-mass consistency check.
+    Also owns the porosity/solid-mass consistency check and the per-step
+    solid reports: mass budget, derived mass fractions, temperature range.
 
     Owned directly by volPyrolysis (like SolidFluxLimiter) - no runtime
     selection, since only one checking policy exists.
@@ -180,6 +181,22 @@ public:
             const PtrList<volScalarField>& Ym,
             const volScalarField& rho
         ) const;
+
+        //- Info: transported solid mass against the booked losses
+        void reportMassBudget
+        (
+            const PtrList<volScalarField>& Ym,
+            const scalar initialMass,
+            const scalar clipped,
+            const scalar flipped,
+            const scalar collapsed
+        ) const;
+
+        //- Info: range of each derived solid mass fraction
+        void reportDerivedSpecies(const PtrList<volScalarField>& Ys) const;
+
+        //- Print min/max Ts over the cells holding solid
+        void reportTemperatureRange(const volScalarField& T) const;
 };
 
 

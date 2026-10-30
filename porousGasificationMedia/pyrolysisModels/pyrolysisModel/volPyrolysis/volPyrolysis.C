@@ -501,31 +501,6 @@ void volPyrolysis::solveSpecieMass(const label i)
         << " max Ym = " << gMax(Ym_[i]) << endl;
 }
 
-void volPyrolysis::reportSolidMassBudget() const
-{
-    scalar totalYmMass = 0.0;
-    for (label i = 0; i < Ym_.size(); ++i)
-    {
-        totalYmMass += gSum(Ym_[i].field() * mesh_.V());
-    }
-
-    Info<< "solid mass budget: sum(Ym_i * V) = " << totalYmMass
-        << ", initial = " << initialTotalYmMass_
-        << ", fabricated by clip = " << cumulativeYmClip_
-        << ", destroyed by flip = " << cumulativeFlipMass_
-        << ", destroyed by collapse = " << bedCollapse_->collapsedMass()
-        << endl;
-}
-
-void volPyrolysis::reportDerivedSpecies() const
-{
-    for (label i = 0; i < Ys_.size(); ++i)
-    {
-        Info<< "       derived " << Ys_[i].name()
-            << " min/max = " << gMin(Ys_[i]) << " / " << gMax(Ys_[i]) << endl;
-    }
-}
-
 void volPyrolysis::solveSpeciesMass()
 {
 // eqZx2uHGn045
@@ -555,8 +530,15 @@ void volPyrolysis::solveSpeciesMass()
     // lambdaDot is complete once every specie has contributed.
     lambdaDot_->finishStep();
 
-    reportSolidMassBudget();
-    reportDerivedSpecies();
+    solidStateChecker_->reportMassBudget
+    (
+        Ym_,
+        initialTotalYmMass_,
+        cumulativeYmClip_,
+        cumulativeFlipMass_,
+        bedCollapse_->collapsedMass()
+    );
+    solidStateChecker_->reportDerivedSpecies(Ys_);
 }
 
 Foam::tmp<Foam::volScalarField> volPyrolysis::totalSolidMass() const
@@ -848,39 +830,6 @@ void volPyrolysis::advectSolidH
     solidH_().correctBoundaryConditions();
 }
 
-void volPyrolysis::reportSolidTemperatureRange() const
-{
-    scalar minTemp = GREAT;
-    scalar maxTemp = -GREAT;
-    scalar areThere = 0;
-    forAll(T_,cellI)
-    {
-        if (solidState_->solidPresent()[cellI] == 1 )
-        {
-            areThere = 1;
-            if (T_[cellI] < minTemp)
-            {
-                minTemp = T_[cellI];
-            }
-            if (T_[cellI] > maxTemp)
-            {
-                maxTemp = T_[cellI];
-            }
-        }
-    }
-    reduce(maxTemp, maxOp<scalar>());
-    reduce(minTemp, minOp<scalar>());
-    reduce(areThere, maxOp<scalar>());
-    if (areThere == 1)
-    {
-        Info<< " pyrolysis min/max(T) = " << minTemp << ", " << maxTemp << endl;
-    }
-    else
-    {
-        Info<< " no solid phase " << endl;
-    }
-}
-
 void volPyrolysis::solveSolidEnergy()
 {
 // eqZx2uHGn047
@@ -1020,7 +969,7 @@ void volPyrolysis::recoverTsAfterReaction()
     storeH(rhoCp);
     T_.correctBoundaryConditions();
 
-    reportSolidTemperatureRange();
+    solidStateChecker_->reportTemperatureRange(T_);
 }
 
 void volPyrolysis::calculateMassTransfer()

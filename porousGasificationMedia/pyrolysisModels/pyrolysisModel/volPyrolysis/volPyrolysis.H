@@ -327,9 +327,6 @@ protected:
                 const volScalarField& totalYm
             );
 
-            //- Print min/max Ts over the cells holding solid
-            void reportSolidTemperatureRange() const;
-
         // Porosity recovery helpers
 
             //- porosity = 1 - totalYm/rho on the internal field, then guarded
@@ -370,12 +367,6 @@ protected:
 
             //- Solve the mass equation of solid specie i
             void solveSpecieMass(const label i);
-
-            //- Info: transported solid mass against the booked losses
-            void reportSolidMassBudget() const;
-
-            //- Info: range of each derived solid mass fraction
-            void reportDerivedSpecies() const;
 
         // Equations
 
