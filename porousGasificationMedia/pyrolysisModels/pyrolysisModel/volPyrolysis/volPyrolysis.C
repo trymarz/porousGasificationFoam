@@ -421,37 +421,6 @@ void volPyrolysis::recoverPorosity()
     solidState_->classify(totalSolidMass()(), rho_);
 }
 
-void volPyrolysis::beginLambdaDotStep()
-{
-#ifdef WITH_YADE
-    if (demActive_)
-    {
-        lamDotCalc_->beginStep();
-        lamDotCalc_->calculateTemperatureDriven();
-    }
-#endif
-}
-
-void volPyrolysis::addChemistryLambdaDot
-(
-    const volScalarField& sRhoSi,
-    const label i
-)
-{
-    // A no-op under lambdaMode constant. The name is the bare
-    // solidComponents one ("char", not "Ychar"), as dlambdaOverDYmi is keyed.
-#ifdef WITH_YADE
-    if (demActive_)
-    {
-        lamDotCalc_->calculateChemistryDriven
-        (
-            sRhoSi,
-            solidThermo_.composition().components()[i]
-        );
-    }
-#endif
-}
-
 void volPyrolysis::checkSpecieMass
 (
     const label i,
@@ -496,7 +465,11 @@ void volPyrolysis::solveSpecieMass(const label i)
     volScalarField sRhoSi = solidChemistry_->RRs(i);
 
     // lambdaDot only reads sRhoSi, which the Ym equation uses unchanged.
-    addChemistryLambdaDot(sRhoSi, i);
+    lambdaDot_->addChemistryTerm
+    (
+        sRhoSi,
+        solidThermo_.composition().components()[i]
+    );
 
     Ym_i.correctBoundaryConditions();
 
@@ -526,16 +499,6 @@ void volPyrolysis::solveSpecieMass(const label i)
         << ", " << gMax(sRhoSi)
         << "; values min Ym = " << gMin(Ym_[i])
         << " max Ym = " << gMax(Ym_[i]) << endl;
-}
-
-void volPyrolysis::finishLambdaDotStep()
-{
-#ifdef WITH_YADE
-    if (demActive_)
-    {
-        lambdaDotPtr_->correctBoundaryConditions();
-    }
-#endif
 }
 
 void volPyrolysis::reportSolidMassBudget() const
@@ -580,7 +543,7 @@ void volPyrolysis::solveSpeciesMass()
 
     // Reset lambdaDot and add its temperature term; the chemistry
     // term accumulates per specie in solveSpecieMass().
-    beginLambdaDotStep();
+    lambdaDot_->beginStep();
 
     for (label i = 0; i < Ys_.size(); ++i)
     {
@@ -590,7 +553,7 @@ void volPyrolysis::solveSpeciesMass()
     deriveYiFromYm();
 
     // lambdaDot is complete once every specie has contributed.
-    finishLambdaDotStep();
+    lambdaDot_->finishStep();
 
     reportSolidMassBudget();
     reportDerivedSpecies();
@@ -1300,8 +1263,6 @@ volPyrolysis::volPyrolysis
     ),
     solidFluxLimiter_(nullptr),
     solidStateChecker_(nullptr),
-    demActive_(false),
-    lambdaDotPtr_(nullptr),
     lostSolidMass_(dimensionedScalar("zero", dimMass, 0.0)),
     addedGasMass_(dimensionedScalar("zero", dimMass, 0.0)),
     totalGasMassFlux_(dimensionedScalar("zero", dimMass/dimTime, 0.0)),
@@ -1573,75 +1534,8 @@ volPyrolysis::volPyrolysis
     }
     cellVolume_.correctBoundaryConditions();
 
-    // DEM counts as active only when both signals agree: yadeProperties asks
-    // for it, and the lambdaDot/lambda fields exist. Either alone misleads --
-    // a WITH_YADE solver registers the fields even with DEM off, and a
-    // non-YADE solver can still read active=true.
-    {
-        IOdictionary yadeProperties
-        (
-            IOobject
-            (
-                "yadeProperties",
-                time_.constant(),
-                mesh_,
-                IOobject::READ_IF_PRESENT,
-                IOobject::NO_WRITE,
-                false // unregistered: the solver may own this object name
-            )
-        );
-
-        const Switch demRequested
-        (
-            yadeProperties.lookupOrDefault<Switch>("active", false)
-        );
-
-        const bool demFieldsRegistered =
-            mesh_.foundObject<volScalarField>("lambdaDot")
-         && mesh_.foundObject<volScalarField>("lambda");
-
-        demActive_ = demRequested && demFieldsRegistered;
-
-        if (demActive_)
-        {
-            lambdaDotPtr_ =
-                &mesh_.lookupObjectRef<volScalarField>("lambdaDot");
-
-#ifdef WITH_YADE
-            // lambdaMode and its coefficients. Opened unregistered, as
-            // lambdaDotModel reads the same dictionary for its interpolation
-            // entries.
-            IOdictionary lambdaDict
-            (
-                IOobject
-                (
-                    "lambdaDict",
-                    time_.constant(),
-                    mesh_,
-                    IOobject::MUST_READ,
-                    IOobject::NO_WRITE,
-                    false
-                )
-            );
-
-            lamDotCalc_ = LambdaDotCalculationModel::New
-            (
-                lambdaDict, mesh_, *lambdaDotPtr_
-            );
-#endif
-        }
-        else if (demRequested)
-        {
-            WarningInFunction
-                << "yadeProperties requests DEM coupling (active=true) but "
-                << "the solver did not register the lambdaDot/lambda fields "
-                << "(built without WITH_YADE?); "
-                << "lambdaDot calculation disabled" << endl;
-        }
-
-        Info<< "volPyrolysis: DEM lambdaDot calculation "
-            << (demActive_ ? "active" : "inactive") << endl;
-    }
+    // Last in the constructor, so its active/inactive line ends the banner.
+    lambdaDot_.reset(new LambdaDotCoupling(mesh_));
 }
 
 // * * * * * * * * * * * * * * * * Destructor  * * * * * * * * * * * * * * * //

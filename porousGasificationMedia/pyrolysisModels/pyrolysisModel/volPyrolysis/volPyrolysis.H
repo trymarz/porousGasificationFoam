@@ -43,11 +43,8 @@ SourceFiles
 #include "solidStateChecker.H"
 #include "solidState.H"
 #include "bedCollapse.H"
+#include "lambdaDotCoupling.H"
 
-#ifdef WITH_YADE
-    // liblambdaDotModel links YADE, so it is referenced only here.
-    #include "LambdaDotCalculationModel.H"
-#endif
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 namespace Foam
@@ -237,22 +234,8 @@ protected:
 
     // DEM (YADE) coupling — lambdaDot
 
-        //- DEM coupling is active for this case: yadeProperties active=true
-        //  and lambdaDot/lambda registered. Resolved once at construction,
-        //  and always false without WITH_YADE. A WITH_YADE build can still
-        //  run a non-DEM case.
-        bool demActive_;
-
-        //- Rate of change of the DEM particle length scale [m/s], from
-        //  createDEMFields.H. Computed in solveSpeciesMass() and pushed to
-        //  the YADE particles by lambdaDotModel. Null when !demActive_.
-        volScalarField* lambdaDotPtr_;
-
-#ifdef WITH_YADE
-        //- lambdaDot strategy, selected by lambdaMode in constant/lambdaDict.
-        //  Created only when demActive_.
-        autoPtr<LambdaDotCalculationModel> lamDotCalc_;
-#endif
+        //- Computes lambdaDot in solveSpeciesMass(); a no-op without DEM
+        autoPtr<LambdaDotCoupling> lambdaDot_;
 
     // Checks
 
@@ -385,16 +368,6 @@ protected:
 
         // Species mass helpers
 
-            //- DEM: reset lambdaDot and add its temperature-driven term
-            void beginLambdaDotStep();
-
-            //- DEM: add the chemistry-driven lambdaDot term of specie i
-            void addChemistryLambdaDot
-            (
-                const volScalarField& sRhoSi,
-                const label i
-            );
-
             //- Abort if Ym_i is invalid after its equation
             void checkSpecieMass
             (
@@ -408,9 +381,6 @@ protected:
 
             //- Solve the mass equation of solid specie i
             void solveSpecieMass(const label i);
-
-            //- DEM: update lambdaDot boundary values once complete
-            void finishLambdaDotStep();
 
             //- Info: transported solid mass against the booked losses
             void reportSolidMassBudget() const;
