@@ -23,7 +23,7 @@ License
 
 \*---------------------------------------------------------------------------*/
 
-#include "lambdaDotCoupling.H"
+#include "demCoupling.H"
 
 #include "IOdictionary.H"
 #include "Switch.H"
@@ -37,7 +37,7 @@ namespace heterogeneousPyrolysisModels
 
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
-LambdaDotCoupling::LambdaDotCoupling(const fvMesh& mesh)
+DemCoupling::DemCoupling(const fvMesh& mesh)
 :
     demActive_(false),
     lambdaDotPtr_(nullptr)
@@ -114,13 +114,13 @@ LambdaDotCoupling::LambdaDotCoupling(const fvMesh& mesh)
 
 // * * * * * * * * * * * * * * * * Destructor  * * * * * * * * * * * * * * * //
 
-LambdaDotCoupling::~LambdaDotCoupling()
+DemCoupling::~DemCoupling()
 {}
 
 
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
 
-void LambdaDotCoupling::beginStep()
+void DemCoupling::beginStep()
 {
 #ifdef WITH_YADE
     if (demActive_)
@@ -131,7 +131,7 @@ void LambdaDotCoupling::beginStep()
 #endif
 }
 
-void LambdaDotCoupling::addChemistryTerm
+void DemCoupling::addChemistryTerm
 (
     const volScalarField& sRhoSi,
     const word& specie
@@ -151,7 +151,7 @@ void LambdaDotCoupling::addChemistryTerm
 #endif
 }
 
-void LambdaDotCoupling::finishStep()
+void DemCoupling::finishStep()
 {
 #ifdef WITH_YADE
     if (demActive_)

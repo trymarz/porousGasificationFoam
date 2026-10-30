@@ -53,8 +53,8 @@ SolidSpeciesTransport::SolidSpeciesTransport
     const volScalarField& porosity,
     const volVectorField& Us,
     const surfaceScalarField& phiSolid,
-    LambdaDotCoupling& lambdaDot,
-    const SolidStateChecker& solidStateChecker,
+    DemCoupling& demCoupling,
+    const SolidDiagnostics& solidDiagnostics,
     const Switch& active
 )
 :
@@ -66,8 +66,8 @@ SolidSpeciesTransport::SolidSpeciesTransport
     porosity_(porosity),
     Us_(Us),
     phiSolid_(phiSolid),
-    lambdaDot_(lambdaDot),
-    solidStateChecker_(solidStateChecker),
+    demCoupling_(demCoupling),
+    solidDiagnostics_(solidDiagnostics),
     active_(active),
     cumulativeYmClip_(0.0)
 {}
@@ -89,7 +89,7 @@ void SolidSpeciesTransport::checkSpecieMass
 ) const
 {
     const label badCell =
-        solidStateChecker_.firstInvalidExtensive(Ym_[i]);
+        solidDiagnostics_.firstInvalidExtensive(Ym_[i]);
 
     if (badCell != -1)
     {
@@ -101,7 +101,7 @@ void SolidSpeciesTransport::checkSpecieMass
             << "    RRs          = " << sRhoSi[badCell] << nl
             << "    porosity     = " << porosity_[badCell];
 
-        solidStateChecker_.abort
+        solidDiagnostics_.abort
         (
             "the solid specie mass equation in SolidSpeciesTransport::solve()",
             Ym_[i],
@@ -125,7 +125,7 @@ void SolidSpeciesTransport::solveSpecieMass(const label i)
     volScalarField sRhoSi = chemistry_.RRs(i);
 
     // lambdaDot only reads sRhoSi, which the Ym equation uses unchanged.
-    lambdaDot_.addChemistryTerm
+    demCoupling_.addChemistryTerm
     (
         sRhoSi,
         solidThermo_.composition().components()[i]
@@ -181,7 +181,7 @@ void SolidSpeciesTransport::solve()
 
     // Reset lambdaDot and add its temperature term; the chemistry
     // term accumulates per specie in solveSpecieMass().
-    lambdaDot_.beginStep();
+    demCoupling_.beginStep();
 
     for (label i = 0; i < Ys_.size(); ++i)
     {
@@ -191,7 +191,7 @@ void SolidSpeciesTransport::solve()
     SolidState::deriveYiFromYm(Ym_, Ys_);
 
     // lambdaDot is complete once every specie has contributed.
-    lambdaDot_.finishStep();
+    demCoupling_.finishStep();
 }
 
 

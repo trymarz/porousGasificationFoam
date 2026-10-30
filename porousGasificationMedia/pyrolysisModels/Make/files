@@ -6,9 +6,9 @@ pyrolysisModel/heterogeneousPyrolysisModel/heterogeneousPyrolysisModel.C
 pyrolysisModel/heterogeneousPyrolysisModel/heterogeneousPyrolysisModelNew.C
 pyrolysisModel/volPyrolysis/volPyrolysis.C
 pyrolysisModel/volPyrolysis/solidFluxLimiter/solidFluxLimiter.C
-pyrolysisModel/volPyrolysis/solidStateChecker/solidStateChecker.C
+pyrolysisModel/volPyrolysis/solidDiagnostics/solidDiagnostics.C
 pyrolysisModel/volPyrolysis/bedCollapse/bedCollapse.C
-pyrolysisModel/volPyrolysis/lambdaDotCoupling/lambdaDotCoupling.C
+pyrolysisModel/volPyrolysis/demCoupling/demCoupling.C
 pyrolysisModel/volPyrolysis/gasSolidHeatExchange/gasSolidHeatExchange.C
 pyrolysisModel/volPyrolysis/solidEnergy/solidEnergy.C
 pyrolysisModel/volPyrolysis/porosityRecovery/porosityRecovery.C

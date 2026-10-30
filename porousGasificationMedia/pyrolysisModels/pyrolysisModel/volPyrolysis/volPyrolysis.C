@@ -101,7 +101,7 @@ void volPyrolysis::reportSolidMassBudget()
         return;
     }
 
-    solidStateChecker_->reportMassBudget
+    solidDiagnostics_->reportMassBudget
     (
         Ym_,
         initialTotalYmMass_,
@@ -109,7 +109,7 @@ void volPyrolysis::reportSolidMassBudget()
         porosityRecovery_->flippedMass(),
         bedCollapse_->collapsedMass()
     );
-    solidStateChecker_->reportDerivedSpecies(Ys_);
+    solidDiagnostics_->reportDerivedSpecies(Ys_);
 }
 
 void volPyrolysis::accumulateMassBudget()
@@ -453,7 +453,7 @@ volPyrolysis::volPyrolysis
         dimensionedScalar("zero", dimVolume/dimTime, 0.0)
     ),
     solidFluxLimiter_(nullptr),
-    solidStateChecker_(nullptr),
+    solidDiagnostics_(nullptr),
     lostSolidMass_(dimensionedScalar("zero", dimMass, 0.0)),
     addedGasMass_(dimensionedScalar("zero", dimMass, 0.0)),
     totalGasMassFlux_(dimensionedScalar("zero", dimMass/dimTime, 0.0)),
@@ -485,7 +485,7 @@ volPyrolysis::volPyrolysis
             solidState_()
         )
     );
-    // Binds solidH_ and solidStateChecker_ by reference: both are
+    // Binds solidH_ and solidDiagnostics_ by reference: both are
     // created further down.
     porosityRecovery_.reset
     (
@@ -505,7 +505,7 @@ volPyrolysis::volPyrolysis
             cellOnBedBorder_,
             solidState_(),
             bedCollapse_(),
-            solidStateChecker_,
+            solidDiagnostics_,
             active_,
             infoOutput_
         )
@@ -521,9 +521,9 @@ volPyrolysis::volPyrolysis
     Info << "collapseMovesSolidMass   " << bedCollapse_->movesSolidMass() << endl;
     Info << "emptyFlippedCells        " << porosityRecovery_->emptyFlippedCells()  << endl;
     // Constructed here because it carries the last banner lines.
-    solidStateChecker_.reset
+    solidDiagnostics_.reset
     (
-        new SolidStateChecker(coeffs(), solidState_(), mesh_, time_)
+        new SolidDiagnostics(coeffs(), solidState_(), mesh_, time_)
     );
 
     // Reads its own keys and logs them where the rest are reported. Binds
@@ -562,7 +562,7 @@ volPyrolysis::volPyrolysis
             chemistrySh_,
             solidState_(),
             heatExchange_(),
-            solidStateChecker_(),
+            solidDiagnostics_(),
             equilibrium_,
             active_
         )
@@ -612,7 +612,7 @@ volPyrolysis::volPyrolysis
     cellVolume_.correctBoundaryConditions();
 
     // Last in the constructor, so its active/inactive line ends the banner.
-    lambdaDot_.reset(new LambdaDotCoupling(mesh_));
+    demCoupling_.reset(new DemCoupling(mesh_));
 
     speciesTransport_.reset
     (
@@ -626,8 +626,8 @@ volPyrolysis::volPyrolysis
             porosity_,
             Us_,
             phiSolid_,
-            lambdaDot_(),
-            solidStateChecker_(),
+            demCoupling_(),
+            solidDiagnostics_(),
             active_
         )
     );

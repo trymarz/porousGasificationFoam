@@ -54,7 +54,7 @@ PorosityRecovery::PorosityRecovery
     volScalarField& cellOnBedBorder,
     SolidState& solidState,
     BedCollapse& bedCollapse,
-    const autoPtr<SolidStateChecker>& solidStateChecker,
+    const autoPtr<SolidDiagnostics>& solidDiagnostics,
     const Switch& active,
     const Switch& infoOutput
 )
@@ -72,7 +72,7 @@ PorosityRecovery::PorosityRecovery
     cellOnBedBorder_(cellOnBedBorder),
     solidState_(solidState),
     bedCollapse_(bedCollapse),
-    solidStateChecker_(solidStateChecker),
+    solidDiagnostics_(solidDiagnostics),
     active_(active),
     infoOutput_(infoOutput),
     emptyFlippedCells_
@@ -119,7 +119,7 @@ void PorosityRecovery::guardPorosity
     const surfaceScalarField& phiUs
 ) const
 {
-    const label badCell = solidStateChecker_->firstInvalidPorosity(por);
+    const label badCell = solidDiagnostics_->firstInvalidPorosity(por);
 
     if (badCell == -1)
     {
@@ -143,7 +143,7 @@ void PorosityRecovery::guardPorosity
         << "    rho          = " << rho_[badCell] << nl
         << "    solidPresent = " << solidState_.solidPresent()[badCell];
 
-    solidStateChecker_->abort(stage, por, badCell, context.str());
+    solidDiagnostics_->abort(stage, por, badCell, context.str());
 }
 
 void PorosityRecovery::porosityFromSolidMass(const volScalarField& totalYm)
@@ -396,7 +396,7 @@ void PorosityRecovery::recover()
         porosity_,
         phiSolid_
     );
-    solidStateChecker_->checkConsistency(porosity_, Ym_, rho_);
+    solidDiagnostics_->checkConsistency(porosity_, Ym_, rho_);
 
     markBedBorderCells();
 

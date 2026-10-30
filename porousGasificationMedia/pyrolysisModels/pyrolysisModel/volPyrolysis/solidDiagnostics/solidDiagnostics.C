@@ -23,7 +23,7 @@ License
 
 \*---------------------------------------------------------------------------*/
 
-#include "solidStateChecker.H"
+#include "solidDiagnostics.H"
 
 #include "PstreamReduceOps.H"
 
@@ -38,7 +38,7 @@ namespace heterogeneousPyrolysisModels
 
 // * * * * * * * * * * * * * Private Member Functions  * * * * * * * * * * * //
 
-label SolidStateChecker::firstInvalidCell
+label SolidDiagnostics::firstInvalidCell
 (
     const volScalarField& fld,
     const scalar lower,
@@ -67,7 +67,7 @@ label SolidStateChecker::firstInvalidCell
 
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
-SolidStateChecker::SolidStateChecker
+SolidDiagnostics::SolidDiagnostics
 (
     const dictionary& coeffs,
     const SolidState& solidState,
@@ -94,13 +94,13 @@ SolidStateChecker::SolidStateChecker
 
 // * * * * * * * * * * * * * * * * Destructor  * * * * * * * * * * * * * * * //
 
-SolidStateChecker::~SolidStateChecker()
+SolidDiagnostics::~SolidDiagnostics()
 {}
 
 
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
 
-label SolidStateChecker::firstInvalidPorosity
+label SolidDiagnostics::firstInvalidPorosity
 (
     const volScalarField& por
 ) const
@@ -119,7 +119,7 @@ label SolidStateChecker::firstInvalidPorosity
 }
 
 
-label SolidStateChecker::firstInvalidExtensive
+label SolidDiagnostics::firstInvalidExtensive
 (
     const volScalarField& fld
 ) const
@@ -135,7 +135,7 @@ label SolidStateChecker::firstInvalidExtensive
 }
 
 
-label SolidStateChecker::firstInvalidTemperature
+label SolidDiagnostics::firstInvalidTemperature
 (
     const volScalarField& T,
     const scalarField& mask
@@ -156,7 +156,7 @@ label SolidStateChecker::firstInvalidTemperature
 }
 
 
-label SolidStateChecker::firstInvalidTemperature
+label SolidDiagnostics::firstInvalidTemperature
 (
     const volScalarField& T
 ) const
@@ -170,7 +170,7 @@ label SolidStateChecker::firstInvalidTemperature
 }
 
 
-void SolidStateChecker::abort
+void SolidDiagnostics::abort
 (
     const word& stage,
     const volScalarField& fld,
@@ -196,7 +196,7 @@ void SolidStateChecker::abort
 }
 
 
-void SolidStateChecker::checkConsistency
+void SolidDiagnostics::checkConsistency
 (
     const volScalarField& porosity,
     const PtrList<volScalarField>& Ym,
@@ -252,7 +252,7 @@ void SolidStateChecker::checkConsistency
 }
 
 
-void SolidStateChecker::reportMassBudget
+void SolidDiagnostics::reportMassBudget
 (
     const PtrList<volScalarField>& Ym,
     const scalar initialMass,
@@ -276,7 +276,7 @@ void SolidStateChecker::reportMassBudget
 }
 
 
-void SolidStateChecker::reportDerivedSpecies
+void SolidDiagnostics::reportDerivedSpecies
 (
     const PtrList<volScalarField>& Ys
 ) const
@@ -289,7 +289,7 @@ void SolidStateChecker::reportDerivedSpecies
 }
 
 
-void SolidStateChecker::reportTemperatureRange(const volScalarField& T) const
+void SolidDiagnostics::reportTemperatureRange(const volScalarField& T) const
 {
     scalar minTemp = GREAT;
     scalar maxTemp = -GREAT;
