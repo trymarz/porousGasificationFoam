@@ -45,6 +45,7 @@ SourceFiles
 #include "bedCollapse.H"
 #include "lambdaDotCoupling.H"
 #include "gasSolidHeatExchange.H"
+#include "solidEnergy.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -219,9 +220,8 @@ protected:
         //- CONV, the interphase exchange and heatUpGas
         autoPtr<GasSolidHeatExchange> heatExchange_;
 
-        volScalarField radiationSh_;
-
-        volTensorField anisotropyK_;
+        //- Ts equation and solidH transport
+        autoPtr<SolidEnergy> solidEnergy_;
 
         //- border cells inside solid body
         volScalarField cellOnBedBorder_;
@@ -235,7 +235,7 @@ protected:
 
         //- The solid volumetric face flux the transport stages ride [m3/s]
         //  Set by limitSolidFlux() from solidFluxLimiter_. Owned here,
-        //  not by the limiter: solveSpeciesMass()/advectSolidH() read it too.
+        //  not by the limiter: solveSpeciesMass() and SolidEnergy read it too.
         surfaceScalarField phiSolid_;
 
         //- Reference to the solid flux limiter
@@ -296,63 +296,6 @@ protected:
         //- Add this step's gas produced and solid lost to the run totals
         void accumulateMassBudget();
 
-        // Solid energy helpers
-
-            //- sum_i Ym_i per cell [kg/m^3]
-            tmp<volScalarField> totalSolidMass() const;
-
-            //- Floored heat capacity of the solid a cell holds [J/m^3/K]
-            tmp<volScalarField> solidHeatCapacity
-            (
-                const volScalarField& totalYm
-            ) const;
-
-            //- sum_i Ym_i before this step's reaction [kg/m^3]
-            //  Ym_ must already carry the reaction.
-            tmp<volScalarField> preReactionMass
-            (
-                const volScalarField& totalYm
-            ) const;
-
-            //- Floored sum_i Ym_i*Cp_i of that pre-reaction solid [J/m^3/K]
-            tmp<volScalarField> preReactionHeatCapacity
-            (
-                const volScalarField& preReactionYm
-            );
-
-            //- Ts = solidH/rhoCp, then the dispersed rule (if asked) and
-            //  the trace rule
-            void recoverTsFromH
-            (
-                const volScalarField& rhoCp,
-                const volScalarField& totalYm,
-                const bool dispersedRule
-            );
-
-            //- solidH = rhoCp*Ts
-            void storeH(const volScalarField& rhoCp);
-
-            //- Solid conduction, cut at faces on the edge of the solid
-            tmp<fvScalarMatrix> conductionWithinSolid
-            (
-                const volTensorField& composedK
-            );
-
-            //- Ts equation: conduction, reaction heat, gas exchange, radiation
-            void solveTsEquation
-            (
-                const volTensorField& composedK,
-                const volScalarField& rhoCp,
-                const volScalarField& solidBeyondTrace
-            );
-
-            //- Advect solidH with the solid mass flux
-            void advectSolidH
-            (
-                const volScalarField& rhoCp,
-                const volScalarField& totalYm
-            );
-
         // Porosity recovery helpers
 
             //- porosity = 1 - totalYm/rho on the internal field, then guarded
@@ -398,13 +341,6 @@ protected:
 
             //- Solve solid species mass conservation
             void solveSpeciesMass();
-
-            //- Ts from solidH, the Ts equation, then solidH advected
-            void solveSolidEnergy();
-
-            //- Ts recovered after the reaction changed the mass, and
-            //  solidH restated on the mass that remains
-            void recoverTemperatureAfterReaction();
 
             //- Recover the porosity from the transported solid mass
             //  1 - porosity = sum_i Ym_i/rho_i, exactly. Last stage of

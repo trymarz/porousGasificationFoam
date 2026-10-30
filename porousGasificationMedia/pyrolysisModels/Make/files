@@ -10,6 +10,7 @@ pyrolysisModel/volPyrolysis/solidStateChecker/solidStateChecker.C
 pyrolysisModel/volPyrolysis/bedCollapse/bedCollapse.C
 pyrolysisModel/volPyrolysis/lambdaDotCoupling/lambdaDotCoupling.C
 pyrolysisModel/volPyrolysis/gasSolidHeatExchange/gasSolidHeatExchange.C
+pyrolysisModel/volPyrolysis/solidEnergy/solidEnergy.C
 pyrolysisModel/volPyrolysis/solidState/solidState.C
 
 LIB = $(FOAM_USER_LIBBIN)/libHGSheterogeneousPyrolysisModels

@@ -37,8 +37,6 @@ License
 #include "fvCFD.H"
 #include "DynamicList.H"
 #include "processorPolyPatch.H"
-#include "processorCyclicPolyPatch.H"
-#include "upwind.H"
 
 #include "BCs/fixedSolidH/fixedSolidHFvPatchScalarField.H"
 #include "BCs/fixedYm/fixedYmFvPatchScalarField.H"
@@ -378,7 +376,7 @@ void volPyrolysis::recoverPorosity()
 
     porositySource_ = solidChemistry_->RRpor(T_)();
 
-    const volScalarField totalYm(totalSolidMass());
+    const volScalarField totalYm(SolidState::totalMass(Ym_));
 
     porosityFromSolidMass(totalYm);
 
@@ -418,7 +416,7 @@ void volPyrolysis::recoverPorosity()
     solidState_->freezeConnectedAtStepStart();
 
     // On the mass the bed motion left, for the written regime record.
-    solidState_->classify(totalSolidMass()(), rho_);
+    solidState_->classify(SolidState::totalMass(Ym_)(), rho_);
 }
 
 void volPyrolysis::checkSpecieMass
@@ -539,437 +537,6 @@ void volPyrolysis::solveSpeciesMass()
         bedCollapse_->collapsedMass()
     );
     solidStateChecker_->reportDerivedSpecies(Ys_);
-}
-
-Foam::tmp<Foam::volScalarField> volPyrolysis::totalSolidMass() const
-{
-    tmp<volScalarField> tTotalYm(new volScalarField(0*Ym_[0]));
-    forAll(Ym_, i)
-    {
-        tTotalYm.ref() += Ym_[i];
-    }
-    return tTotalYm;
-}
-
-Foam::tmp<Foam::volScalarField> volPyrolysis::solidHeatCapacity
-(
-    const volScalarField& totalYm
-) const
-{
-    return solidState_->withSolidHeatCapacityFloor(totalYm*solidThermo_.Cp());
-}
-
-Foam::tmp<Foam::volScalarField> volPyrolysis::preReactionMass
-(
-    const volScalarField& totalYm
-) const
-{
-    return max
-    (
-        totalYm - time_.deltaT()*solidChemistry_->RRs()(),
-        dimensionedScalar("zero", dimDensity, 0.0)
-    );
-}
-
-Foam::tmp<Foam::volScalarField> volPyrolysis::preReactionHeatCapacity
-(
-    const volScalarField& preReactionYm
-)
-{
-    volScalarField rhoCp(preReactionYm*solidThermo_.Cp());
-
-    // Cp() is sum_i Ys_i*Cp_i, so with Ys_ holding the pre-reaction masses
-    // instead of fractions it returns sum_i Ym_i*Cp_i. Ys_ is restored after.
-    List<scalarField> postReactionYs(Ys_.size());
-    forAll(Ys_, i)
-    {
-        postReactionYs[i] = Ys_[i].primitiveField();
-        Ys_[i].primitiveFieldRef() = max
-        (
-            Ym_[i].primitiveField()
-          - time_.deltaTValue()*solidChemistry_->RRs(i)().primitiveField(),
-            scalar(0)
-        );
-    }
-
-    const scalarField exactRhoCp(solidThermo_.Cp()().primitiveField());
-
-    forAll(Ys_, i)
-    {
-        Ys_[i].primitiveFieldRef() = postReactionYs[i];
-    }
-
-    // preReactionYm*Cp() pairs the old mass with the new composition,
-    // scaling Ts by Cp_pre/Cp_post each step. Below SMALL, Ys_ is
-    // deriveYiFromYm()'s placeholder, so those cells keep it.
-    forAll(rhoCp, cellI)
-    {
-        if (preReactionYm[cellI] > SMALL)
-        {
-            rhoCp[cellI] = exactRhoCp[cellI];
-        }
-    }
-
-    return solidState_->withSolidHeatCapacityFloor(rhoCp);
-}
-
-void volPyrolysis::recoverTsFromH
-(
-    const volScalarField& rhoCp,
-    const volScalarField& totalYm,
-    const bool dispersedRule
-)
-{
-    if (dispersedRule)
-    {
-        T_ = solidState_->withDispersedRule(solidH_()/rhoCp, gasThermo_.T());
-        T_ = solidState_->withTraceRule(T_, totalYm, rho_, gasThermo_.T());
-    }
-    else
-    {
-        T_ = solidState_->withTraceRule
-        (
-            solidH_()/rhoCp,
-            totalYm,
-            rho_,
-            gasThermo_.T()
-        );
-    }
-}
-
-void volPyrolysis::storeH(const volScalarField& rhoCp)
-{
-    solidH_().ref() = rhoCp*T_;
-    solidH_().correctBoundaryConditions();
-}
-
-Foam::tmp<Foam::fvScalarMatrix> volPyrolysis::conductionWithinSolid
-(
-    const volTensorField& composedK
-)
-{
-    const surfaceScalarField solidPresenceAtFaces
-    (
-        fvc::interpolate(solidState_->solidPresent())
-    );
-
-    // Simplistic immersed boundary for heat transport in solid phase.
-    tmp<fvScalarMatrix> tTLap(new fvScalarMatrix(fvm::laplacian(composedK, T_)));
-    fvScalarMatrix& TLap = tTLap.ref();
-
-    // Setting face fluxes on the border of porous media to 0.
-    // this should be instead flux due to the macroscopic motion to smooth at the edges
-    forAll(solidPresenceAtFaces,faceI)
-    {
-       if ( (solidPresenceAtFaces[faceI] > 0) and (solidPresenceAtFaces[faceI] < 1) )
-       {
-           TLap.upper()[faceI] = 0.;
-       }
-    }
-    forAll(solidPresenceAtFaces.boundaryField(),patchI)
-    {
-       if (isA<processorPolyPatch>(mesh_.boundaryMesh()[patchI]) or isA<cyclicPolyPatch>(mesh_.boundaryMesh()[patchI]) or isA<processorCyclicPolyPatch>(mesh_.boundaryMesh()[patchI]) )
-       {
-           forAll(solidPresenceAtFaces.boundaryField()[patchI],faceI)
-           {
-               if ( (solidPresenceAtFaces.boundaryField()[patchI][faceI] > 0) and (solidPresenceAtFaces.boundaryField()[patchI][faceI] < 1) )
-               {
-                   TLap.boundaryCoeffs()[patchI][faceI] = 0;
-                   TLap.internalCoeffs()[patchI][faceI] = 0;
-               }
-           }
-       }
-    }
-
-    TLap.diag() = 0;
-    TLap.negSumDiag();
-    // Exact on orthogonal meshes. On non-orthogonal ones, zeroing the source
-    // drops the correction from div(composedK): spurious at the solid edge,
-    // negligible inside the bed in relevant cases.
-    TLap.source() = 0.;
-
-    return tTLap;
-}
-
-void volPyrolysis::solveTsEquation
-(
-    const volTensorField& composedK,
-    const volScalarField& rhoCp,
-    const volScalarField& solidBeyondTrace
-)
-{
-    const volScalarField& connectedAtStepStart = solidState_->connectedAtStepStart();
-
-    // Evaluated once and stored, so the gas EEqn adds back the same
-    // joules after TEqn has moved T_. The exchange gates itself;
-    // gating again here would be a no-op, not a safeguard.
-    const volScalarField& interphaseHeatTransfer =
-        heatExchange_->updateHeatTransfer();
-    const volScalarField& heatUpGas = heatExchange_->heatUpGas();
-
-    // radiationSh_ carries no connected gate of its own: as a cell
-    // empties, rhoCp collapses toward its SMALL floor while the T^4
-    // radiative sink stays full strength.
-    volScalarField solidRadiationSource = connectedAtStepStart*radiationSh_;
-
-    // Same collapsing-rhoCp gap as solidRadiationSource, for the
-    // reaction heat: chemistrySh_ is set from RRs_/RRg_ (nonzero
-    // wherever there is solid) with no connected gate of its own.
-    volScalarField solidChemistrySource = connectedAtStepStart*chemistrySh_;
-
-    const tmp<fvScalarMatrix> tTLap(conductionWithinSolid(composedK));
-
-    fvScalarMatrix TEqn
-    (
-        fvm::ddt(rhoCp,T_)
-      - tTLap()
-    ==
-        solidChemistrySource // eqZx2uHGn004, eqZx2uHGn017
-      - interphaseHeatTransfer // eqZx2uHGn005
-      - heatUpGas
-      + solidRadiationSource
-    );
-
-    TEqn.relax();
-    TEqn.solve();
-
-    const label badTEqnCell =
-        solidStateChecker_->firstInvalidTemperature
-        (
-            T_,
-            solidBeyondTrace.primitiveField()
-        );
-
-    if (badTEqnCell != -1)
-    {
-        OStringStream context;
-        context
-            << "    rhoCp        = " << rhoCp[badTEqnCell] << nl
-            << "    chemistrySh  = "
-            << solidChemistrySource[badTEqnCell] << nl
-            << "    heatTransfer = "
-            << interphaseHeatTransfer[badTEqnCell] << nl
-            << "    heatUpGas    = " << heatUpGas[badTEqnCell] << nl
-            << "    radiationSh  = "
-            << solidRadiationSource[badTEqnCell] << nl
-            << "    porosity     = " << porosity_[badTEqnCell];
-
-        solidStateChecker_->abort
-        (
-            "the solid energy equation in solveTsEquation()",
-            T_,
-            badTEqnCell,
-            context.str()
-        );
-    }
-}
-
-void volPyrolysis::advectSolidH
-(
-    const volScalarField& rhoCp,
-    const volScalarField& totalYm
-)
-{
-    const surfaceScalarField& solidFlux = phiSolid_;
-
-    // Enthalpy rides the solid MASS flux, not phiSolid: div(phiSolid)
-    // is nonlinear, so it would give solidH and Ym different face
-    // values. phiYm here matches solveSpeciesMass()'s own flux.
-    surfaceScalarField phiYm
-    (
-        fvc::flux(solidFlux, Ym_[0], "div(phiSolid)")
-    );
-    for (label i = 1; i < Ym_.size(); ++i)
-    {
-        phiYm += fvc::flux(solidFlux, Ym_[i], "div(phiSolid)");
-    }
-
-    // hs upwinds on the mass flux: a receiver ends up holding the
-    // convex combination (solidH + m_in*hs_donor)/(totalYm + m_in).
-    // Cp*T_, not solidH/totalYm, to match rhoCp's own floor.
-    volScalarField hs(solidThermo_.Cp()*T_);
-
-    dimensionedScalar ovDt = pow(time_.deltaT(),-1);
-    fvScalarMatrix sHEqn
-    (
-        fvm::Sp(ovDt,solidH_()) - ovDt*solidH_()
-      + fvc::surfaceIntegrate
-        (
-            phiYm*upwind<scalar>(mesh_, phiYm).interpolate(hs)
-        )
-    );
-
-    sHEqn.relax();
-    sHEqn.solve();
-
-    const volScalarField& sH = solidH_();
-
-    const label badSolidHCell =
-        solidStateChecker_->firstInvalidExtensive(sH);
-
-    if (badSolidHCell != -1)
-    {
-        OStringStream context;
-        context
-            << "    Us           = " << Us_[badSolidHCell] << nl
-            << "    Ts           = " << T_[badSolidHCell] << nl
-            << "    rhoCp        = " << rhoCp[badSolidHCell] << nl
-            << "    sum(Ym)      = " << totalYm[badSolidHCell] << nl
-            << "    porosity     = " << porosity_[badSolidHCell];
-
-        solidStateChecker_->abort
-        (
-            "the solid enthalpy advection in advectSolidH()",
-            sH,
-            badSolidHCell,
-            context.str()
-        );
-    }
-
-    solidH_().max(0);
-    solidH_().correctBoundaryConditions();
-}
-
-void volPyrolysis::solveSolidEnergy()
-{
-// eqZx2uHGn047
-
-    if (debug)
-    {
-        Info<< "volPyrolysis::solveSolidEnergy()" << endl;
-    }
-
-    if (!active_)
-    {
-        return;
-    }
-
-    radiationSh_ = radiation_;
-
-    if (equilibrium_)
-    {
-        return;
-    }
-
-    const volTensorField composedK(K_ * solidState_->solidFraction() * anisotropyK_);
-
-    forAll(Ym_, i)
-    {
-        Ym_[i].correctBoundaryConditions();
-    }
-
-    const volScalarField totalYm(totalSolidMass());
-
-    // What the two Ts guards below are judged on.
-    const volScalarField solidBeyondTrace
-    (
-        solidState_->massBeyondTrace(totalYm, rho_)
-    );
-
-    // The heat capacity of the solid the cell actually holds. No
-    // solidPresent factor: solidH_ carries none either, and
-    // masking one and not the other is a temperature of any size.
-    const volScalarField rhoCp(solidHeatCapacity(totalYm));
-
-    // Only the trace rule: the dispersed rule was applied at the end
-    // of the last step, and solidH_ was restated from that Ts.
-    recoverTsFromH(rhoCp, totalYm, false);
-
-    const label badTsCell =
-        solidStateChecker_->firstInvalidTemperature
-        (
-            T_,
-            solidBeyondTrace.primitiveField()
-        );
-
-    if (badTsCell != -1)
-    {
-        OStringStream context;
-        context
-            << "    solidH       = "
-            << solidH_()[badTsCell] << nl
-            << "    sum(Ym)      = " << totalYm[badTsCell] << nl
-            << "    rhoCp        = " << rhoCp[badTsCell] << nl
-            << "    porosity     = " << porosity_[badTsCell] << nl
-            << "    solidPresent = " << solidState_->solidPresent()[badTsCell];
-
-        solidStateChecker_->abort
-        (
-            "Ts = solidH/rhoCp at the head of solveSolidEnergy()",
-            T_,
-            badTsCell,
-            context.str()
-        );
-    }
-
-    T_.correctBoundaryConditions();
-    solidState_->correctSolidPresentBoundaryConditions();
-
-    solveTsEquation(composedK, rhoCp, solidBeyondTrace);
-    storeH(rhoCp);
-    advectSolidH(rhoCp, totalYm);
-}
-
-void volPyrolysis::recoverTemperatureAfterReaction()
-{
-// eqZx2uHGn047
-
-    if (debug)
-    {
-        Info<< "volPyrolysis::recoverTemperatureAfterReaction()" << endl;
-    }
-
-    if (!active_ || equilibrium_)
-    {
-        return;
-    }
-
-    const volScalarField totalYm(totalSolidMass());
-    solidThermo_.correct();
-
-    const volScalarField rhoCp(solidHeatCapacity(totalYm));
-
-    // The mass solveSpeciesMass() has just converted to gas. Ym_
-    // carries the loss, solidH_ does not: it was built in
-    // solveSolidEnergy() on what the cell held before the reaction.
-    const volScalarField preReactionYm(preReactionMass(totalYm));
-
-    // Divided by the mass that carried the enthalpy: gas-bound solid takes
-    // its sensible enthalpy with it, so losing mass must not raise Ts. No
-    // solidPresent factor: it lags a stage, and would start the cell at 0 K.
-    const volScalarField rhoCpPreReaction(preReactionHeatCapacity(preReactionYm));
-    recoverTsFromH(rhoCpPreReaction, totalYm, true);
-
-    const label badCell =
-        solidStateChecker_->firstInvalidTemperature(T_);
-
-    if (badCell != -1)
-    {
-        OStringStream context;
-        context
-            << "    solidH       = "
-            << solidH_()[badCell] << nl
-            << "    sum(Ym)      = " << totalYm[badCell] << nl
-            << "    sum(Ym) pre  = " << preReactionYm[badCell] << nl
-            << "    rhoCp        = " << rhoCp[badCell] << nl
-            << "    porosity     = " << porosity_[badCell] << nl
-            << "    solidPresent = " << solidState_->solidPresent()[badCell];
-
-        solidStateChecker_->abort
-        (
-            "the Ts recovery in recoverTemperatureAfterReaction()",
-            T_,
-            badCell,
-            context.str()
-        );
-    }
-
-    // Restated on the mass that remains, so solveSolidEnergy() reads
-    // back this Ts next step instead of re-inflating it.
-    storeH(rhoCp);
-    T_.correctBoundaryConditions();
-
-    solidStateChecker_->reportTemperatureRange(T_);
 }
 
 void volPyrolysis::accumulateMassBudget()
@@ -1293,32 +860,7 @@ volPyrolysis::volPyrolysis
             active_
         )
     ),
-    radiationSh_
-    (
-        IOobject
-        (
-            "radiationSh",
-            time_.timeName(),
-            mesh_,
-            IOobject::NO_READ,
-            IOobject::AUTO_WRITE
-        ),
-        mesh_,
-        dimensionedScalar("zero", dimEnergy/dimVolume/dimTime, 0.0)
-    ),
-    anisotropyK_
-    (
-        IOobject
-        (
-            "anisotropyK",
-            time_.timeName(),
-            mesh_,
-            IOobject::READ_IF_PRESENT,
-            IOobject::AUTO_WRITE
-        ),
-        mesh_,
-        dimensionedTensor("one", dimless, tensor(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0))
-    ),
+    solidEnergy_(nullptr),
     cellOnBedBorder_
     (
         IOobject
@@ -1429,6 +971,30 @@ volPyrolysis::volPyrolysis
         )
     );
 
+    // Binds solidH_ by reference: it is created by createSolidH() below.
+    solidEnergy_.reset
+    (
+        new SolidEnergy
+        (
+            mesh_,
+            solidThermo_,
+            gasThermo_,
+            solidChemistry_(),
+            Ym_,
+            solidH_,
+            porosity_,
+            Us_,
+            phiSolid_,
+            radiation_,
+            chemistrySh_,
+            solidState_(),
+            heatExchange_(),
+            solidStateChecker_(),
+            equilibrium_,
+            active_
+        )
+    );
+
     Info << endl;
 
     createYm();
@@ -1442,7 +1008,7 @@ volPyrolysis::volPyrolysis
     // after the first recoverPorosity().
     solidState_->freezeConnectedAtStepStart();
 
-    solidState_->classify(totalSolidMass()(), rho_);
+    solidState_->classify(SolidState::totalMass(Ym_)(), rho_);
 
     // porosity_ is assigned in recoverPorosity(), not solved; storeOldTimes()
     // is a no-op on the first call, so seed oldTime() here or the gas-side
@@ -1626,9 +1192,9 @@ void volPyrolysis::evolveRegion()
 
     // Energy before species: solidH_ holds the pre-reaction solid until
     // recoverTemperatureAfterReaction() restates it on the mass that remains.
-    solveSolidEnergy();
+    solidEnergy_->solve();
     solveSpeciesMass();
-    recoverTemperatureAfterReaction();
+    solidEnergy_->recoverTemperatureAfterReaction();
 
     recoverPorosity();
 

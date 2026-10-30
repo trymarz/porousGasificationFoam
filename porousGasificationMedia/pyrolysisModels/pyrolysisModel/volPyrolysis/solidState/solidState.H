@@ -304,6 +304,12 @@ public:
                  || porosity_[cellI] >= 1.0;
             }
 
+            //- sum_i Ym_i per cell [kg/m^3]
+            static tmp<volScalarField> totalMass
+            (
+                const PtrList<volScalarField>& Ym
+            );
+
             //- Positive only where the cell holds more than trace
             //  dispersedAboveSolidFraction of what a packed cell would
             //  hold, floored by SMALL too, since rho is zero where empty.

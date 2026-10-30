@@ -293,6 +293,20 @@ tmp<volScalarField> SolidState::solidFraction() const
 }
 
 
+tmp<volScalarField> SolidState::totalMass
+(
+    const PtrList<volScalarField>& Ym
+)
+{
+    tmp<volScalarField> tTotalYm(new volScalarField(0*Ym[0]));
+    forAll(Ym, i)
+    {
+        tTotalYm.ref() += Ym[i];
+    }
+    return tTotalYm;
+}
+
+
 tmp<volScalarField> SolidState::massBeyondTrace
 (
     const volScalarField& totalYm,
