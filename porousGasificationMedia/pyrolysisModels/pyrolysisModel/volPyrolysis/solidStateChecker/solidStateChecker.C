@@ -252,6 +252,77 @@ void SolidStateChecker::checkConsistency
 }
 
 
+void SolidStateChecker::reportMassBudget
+(
+    const PtrList<volScalarField>& Ym,
+    const scalar initialMass,
+    const scalar clipped,
+    const scalar flipped,
+    const scalar collapsed
+) const
+{
+    scalar totalYmMass = 0.0;
+    for (label i = 0; i < Ym.size(); ++i)
+    {
+        totalYmMass += gSum(Ym[i].field() * mesh_.V());
+    }
+
+    Info<< "solid mass budget: sum(Ym_i * V) = " << totalYmMass
+        << ", initial = " << initialMass
+        << ", fabricated by clip = " << clipped
+        << ", destroyed by flip = " << flipped
+        << ", destroyed by collapse = " << collapsed
+        << endl;
+}
+
+
+void SolidStateChecker::reportDerivedSpecies
+(
+    const PtrList<volScalarField>& Ys
+) const
+{
+    for (label i = 0; i < Ys.size(); ++i)
+    {
+        Info<< "       derived " << Ys[i].name()
+            << " min/max = " << gMin(Ys[i]) << " / " << gMax(Ys[i]) << endl;
+    }
+}
+
+
+void SolidStateChecker::reportTemperatureRange(const volScalarField& T) const
+{
+    scalar minTemp = GREAT;
+    scalar maxTemp = -GREAT;
+    scalar areThere = 0;
+    forAll(T,cellI)
+    {
+        if (solidState_.solidPresent()[cellI] == 1 )
+        {
+            areThere = 1;
+            if (T[cellI] < minTemp)
+            {
+                minTemp = T[cellI];
+            }
+            if (T[cellI] > maxTemp)
+            {
+                maxTemp = T[cellI];
+            }
+        }
+    }
+    reduce(maxTemp, maxOp<scalar>());
+    reduce(minTemp, minOp<scalar>());
+    reduce(areThere, maxOp<scalar>());
+    if (areThere == 1)
+    {
+        Info<< " pyrolysis min/max(T) = " << minTemp << ", " << maxTemp << endl;
+    }
+    else
+    {
+        Info<< " no solid phase " << endl;
+    }
+}
+
+
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 } // End namespace heterogeneousPyrolysisModels
