@@ -36,7 +36,6 @@ License
 #include "fvMatrices.H"
 #include "fvCFD.H"
 #include "DynamicList.H"
-#include "processorPolyPatch.H"
 
 #include "BCs/fixedSolidH/fixedSolidHFvPatchScalarField.H"
 #include "BCs/fixedYm/fixedYmFvPatchScalarField.H"
@@ -90,333 +89,9 @@ bool volPyrolysis::read(const dictionary& dict)
     }
 }
 
-void volPyrolysis::deriveYiFromYm()
-{
-    // rho_ = 1/sum_i(Ys_i/rho_i) is a density only where sum_i Ys_i = 1;
-    // a fixedYm patch beside an empty cell injects at that density.
-    forAll(Ym_[0], cellI)
-    {
-        scalar Ysum = 0.0;
-        forAll(Ys_, i)
-        {
-            Ysum += Ym_[i][cellI];
-        }
-
-        if (Ysum > SMALL)
-        {
-            forAll(Ys_, i)
-            {
-                Ys_[i][cellI] = Ym_[i][cellI] / Ysum;
-            }
-        }
-        else
-        {
-            // The cell carries no mass, so nothing it holds depends on the
-            // choice - only a fixedYm patch beside it reads this density.
-            forAll(Ys_, i)
-            {
-                Ys_[i][cellI] = 0.0;
-            }
-            Ys_[0][cellI] = 1.0;
-        }
-    }
-}
-
 void volPyrolysis::limitSolidFlux()
 {
     phiSolid_ = solidFluxLimiter_->limit();
-}
-
-void volPyrolysis::guardPorosity
-(
-    const word& stage,
-    const volScalarField& por,
-    const surfaceScalarField& phiUs
-) const
-{
-    const label badCell = solidStateChecker_->firstInvalidPorosity(por);
-
-    if (badCell == -1)
-    {
-        return;
-    }
-
-    // Read from Ym_ here rather than taken as an argument, so a caller
-    // after the bed motion reports the mass it actually left behind.
-    scalar sumYm = 0.0;
-    forAll(Ym_, i)
-    {
-        sumYm += Ym_[i][badCell];
-    }
-
-    OStringStream context;
-    context
-        << "    maxSolidFraction = " << solidState_->maxSolidFraction() << nl
-        << "    Us           = " << Us_[badCell] << nl
-        << "    div(phiUs)   = " << fvc::div(phiUs)()[badCell] << nl
-        << "    sum(Ym)      = " << sumYm << nl
-        << "    rho          = " << rho_[badCell] << nl
-        << "    solidPresent = " << solidState_->solidPresent()[badCell];
-
-    solidStateChecker_->abort(stage, por, badCell, context.str());
-}
-
-void volPyrolysis::porosityFromSolidMass(const volScalarField& totalYm)
-{
-    volScalarField& por = porosity_;
-
-    // por is not transported: 1 - por = sum_i Ym_i/rho_i = totalYm/rho_,
-    // an identity from multiComponentSolidMixture's 1/rho_ = sum Ys_i/rho_i.
-    // Internal field only: a fixedValue porosity patch keeps its value.
-    const dimensionedScalar rhoSolidFloor
-    (
-        "rhoSolidFloor",
-        dimDensity,
-        SMALL
-    );
-
-    const volScalarField voidFraction
-    (
-        1.0 - totalYm/max(rho_, rhoSolidFloor)
-    );
-
-    por.primitiveFieldRef() = voidFraction.primitiveField();
-
-    // On the mass the transport just produced, before the bed motion or
-    // the emptying of flipped cells writes porosity_ again.
-    guardPorosity
-    (
-        "the porosity recovery in recoverPorosity()",
-        por,
-        phiSolid_
-    );
-
-    Info<< "porosity recovered from solid mass. Chemistry source (not"
-        << " applied) min/max   = " << gMin(porositySource_)
-        << ", " << gMax(porositySource_);
-
-    Info<< "; values min Y = " << gMin(por)
-        <<" max Y = " << gMax(por) << endl;
-}
-
-labelList volPyrolysis::cellsToEmpty
-(
-    const volScalarField& totalYm,
-    label& nFlips
-)
-{
-    FIFOStack<label> candidateStack = {};
-
-    volVectorField solidPresenceGrad = fvc::grad(solidState_->solidPresent());
-
-    // A dispersed or trace cell may be emptied where solid surrounds it
-    // or is everywhere absent around it (interior), or where the solid
-    // is moving away from the gas (receding edge).
-    forAll(porosity_,cellI)
-    {
-        const vector& presenceGrad = solidPresenceGrad[cellI];
-        const bool interior = mag(presenceGrad) == 0;
-        const bool recedingEdge =
-            mag(presenceGrad) > 0 && (Us_[cellI] & presenceGrad) > 0;
-
-        if
-        (
-            solidState_->isDispersedOrTrace(cellI)
-         && (interior || recedingEdge)
-        )
-        {
-            candidateStack.push(cellI);
-        }
-    }
-
-    // After the candidates: they read the gradient of last step's mask.
-    solidState_->refreshSolidPresent();
-
-    // Do not empty a cell while solid is still filling it through the
-    // advective transport equation (an advancing edge).
-    volScalarField divPhiYm
-    (
-        fvc::div(phiSolid_, totalYm, "div(phiSolid)")
-    );
-
-    label nCandidates = candidateStack.size();
-    label nProtected = 0;
-    FIFOStack<label> flipStack = {};
-
-    while (!candidateStack.empty())
-    {
-        const label cellI = candidateStack.pop();
-
-        if
-        (
-            divPhiYm[cellI]
-          < -poroProtectSolidInflowFluxTolerance_
-        )
-        {
-            ++nProtected;
-        }
-        else
-        {
-            flipStack.push(cellI);
-        }
-    }
-
-    nFlips = flipStack.size();
-
-    reduce(nCandidates, sumOp<label>());
-    reduce(nProtected, sumOp<label>());
-    reduce(nFlips, sumOp<label>());
-
-    if (infoOutput_ && Pstream::master() && nCandidates > 0)
-    {
-        Info<< "solid flip guard: candidates=" << nCandidates
-            << " vetoed(incoming-solid)=" << nProtected
-            << " flipped=" << nFlips
-            << endl;
-    }
-
-    return labelList(flipStack);
-}
-
-List<Field<label>> volPyrolysis::gatherFlipLists
-(
-    const labelList& flipCells
-) const
-{
-    List<Field<label>> procFlipList(Pstream::nProcs());
-    procFlipList[Pstream::myProcNo()] = flipCells;
-    Pstream::gatherList(procFlipList);
-    Pstream::scatterList(procFlipList);
-
-    return procFlipList;
-}
-
-void volPyrolysis::emptyCells(const labelList& flipCells, const label nFlips)
-{
-    // Emptying a cell removes its solid outright rather than just
-    // rewriting porosity; the mass is destroyed (no destination) and
-    // charged to cumulativeFlipMass_. T_ zeroed to match solidH_.
-    const scalarField& V = mesh_.V();
-    scalar flippedMass = 0.0;
-
-    forAll(flipCells,entI)
-    {
-        const label cellI = flipCells[entI];
-
-        forAll(Ym_, i)
-        {
-            flippedMass += Ym_[i][cellI]*V[cellI];
-            Ym_[i][cellI] = 0.0;
-        }
-
-        solidH_()[cellI] = 0.0;
-        T_[cellI] = 0.0;
-        porosity_[cellI] = 1.0;
-    }
-
-    reduce(flippedMass, sumOp<scalar>());
-    cumulativeFlipMass_ += flippedMass;
-
-    if (nFlips > 0)
-    {
-        // Ym_ has changed, so the mass fractions the mixture density
-        // is built from have to follow it - the same refresh the
-        // bed collapse does after relocating mass.
-        deriveYiFromYm();
-    }
-}
-
-void volPyrolysis::markBedBorderCells()
-{
-    cellOnBedBorder_= cellOnBedBorder_*0;
-    porosity_.correctBoundaryConditions();
-    solidState_->correctSolidPresentBoundaryConditions();
-
-    const volScalarField& solidPresent = solidState_->solidPresent();
-    surfaceScalarField solidPresenceAtFaces = fvc::interpolate(solidPresent);
-    forAll(solidPresenceAtFaces,faceI)
-    {
-        if ( (solidPresenceAtFaces[faceI] > 0) and (solidPresenceAtFaces[faceI] < 1) )
-        {
-            if (solidPresent[mesh_.owner()[faceI]] == 1)
-            {
-                cellOnBedBorder_[mesh_.owner()[faceI]] = 1;
-            }
-            if (solidPresent[mesh_.neighbour()[faceI]] == 1)
-            {
-                cellOnBedBorder_[mesh_.neighbour()[faceI]] = 1;
-            }
-        }
-    }
-    forAll(solidPresenceAtFaces.boundaryField(),patchI)
-    {
-        if (isA<processorPolyPatch>(mesh_.boundaryMesh()[patchI]))
-        {
-            const label start = mesh_.boundaryMesh()[patchI].start();
-            forAll(solidPresenceAtFaces.boundaryField()[patchI],faceI)
-            {
-                if ( (solidPresenceAtFaces.boundaryField()[patchI][faceI] > 0) and (solidPresenceAtFaces.boundaryField()[patchI][faceI] < 1) )
-                {
-                    if (solidPresent[mesh_.owner()[faceI + start]] == 1)
-                    {
-                        cellOnBedBorder_[mesh_.owner()[faceI + start]] = 1;
-                    }
-                }
-            }
-        }
-    }
-}
-
-void volPyrolysis::recoverPorosity()
-{
-    if (!active_)
-    {
-        return;
-    }
-
-    porositySource_ = solidChemistry_->RRpor(T_)();
-
-    const volScalarField totalYm(SolidState::totalMass(Ym_));
-
-    porosityFromSolidMass(totalYm);
-
-    label nFlips = 0;
-    const labelList flipCells(cellsToEmpty(totalYm, nFlips));
-    const List<Field<label>> procFlipList(gatherFlipLists(flipCells));
-
-    if (bedCollapse_->active())
-    {
-        if (bedCollapse_->collapseOnto(procFlipList))
-        {
-            // Bed motion moved Ym_ between cells; rebuild the mass
-            // fractions Ys_ from the relocated mass concentrations.
-            deriveYiFromYm();
-        }
-    }
-    else if (emptyFlippedCells_)
-    {
-        emptyCells(flipCells, nFlips);
-    }
-
-    solidState_->refreshSolidPresent();
-
-    // Here, after everything above that writes porosity_ directly: the
-    // bed collapse and the emptying of flipped cells.
-    guardPorosity
-    (
-        "the bed motion in recoverPorosity()",
-        porosity_,
-        phiSolid_
-    );
-    solidStateChecker_->checkConsistency(porosity_, Ym_, rho_);
-
-    markBedBorderCells();
-
-    // porosity_ has just been rewritten; the gate is derived from it.
-    solidState_->freezeConnectedAtStepStart();
-
-    // On the mass the bed motion left, for the written regime record.
-    solidState_->classify(SolidState::totalMass(Ym_)(), rho_);
 }
 
 void volPyrolysis::checkSpecieMass
@@ -523,7 +198,7 @@ void volPyrolysis::solveSpeciesMass()
         solveSpecieMass(i);
     }
 
-    deriveYiFromYm();
+    SolidState::deriveYiFromYm(Ym_, Ys_);
 
     // lambdaDot is complete once every specie has contributed.
     lambdaDot_->finishStep();
@@ -533,7 +208,7 @@ void volPyrolysis::solveSpeciesMass()
         Ym_,
         initialTotalYmMass_,
         cumulativeYmClip_,
-        cumulativeFlipMass_,
+        porosityRecovery_->flippedMass(),
         bedCollapse_->collapsedMass()
     );
     solidStateChecker_->reportDerivedSpecies(Ys_);
@@ -796,8 +471,6 @@ volPyrolysis::volPyrolysis
     T_(solidThermo_.T()),
     solidH_(nullptr),
     equilibrium_(false),
-    emptyFlippedCells_(false),
-    poroProtectSolidInflowFluxTolerance_(1e-12),
     nNonOrthCorr_(-1),
     maxDiff_(10),
     porosity0_(porosity),
@@ -815,19 +488,6 @@ volPyrolysis::volPyrolysis
         ),
         mesh_,
         dimensionedScalar("zero", dimEnergy/dimTime/dimVolume, 0.0)
-    ),
-    porositySource_
-    (
-        IOobject
-        (
-            "porosityS",
-            time_.timeName(),
-            mesh_,
-            IOobject::NO_READ,
-            IOobject::AUTO_WRITE
-        ),
-        mesh_,
-        dimensionedScalar("zero", dimless/dimTime, 0.0)
     ),
     solidState_(new SolidState(coeffs(), porosity_)),
     cellVolume_
@@ -902,8 +562,7 @@ volPyrolysis::volPyrolysis
     totalHeatRR_(dimensionedScalar("zero", dimEnergy/dimTime, 0.0)),
     chemistryTimeStep_(1.0),
     initialTotalYmMass_(0.0),
-    cumulativeYmClip_(0.0),
-    cumulativeFlipMass_(0.0)
+    cumulativeYmClip_(0.0)
 {
 
     mesh.setFluxRequired(T_.name());
@@ -929,24 +588,41 @@ volPyrolysis::volPyrolysis
             solidState_()
         )
     );
-    emptyFlippedCells_ =
-        coeffs().lookupOrDefault("emptyFlippedCells",false);
-    poroProtectSolidInflowFluxTolerance_ =
-        coeffs().lookupOrDefault
+    // Binds solidH_ and solidStateChecker_ by reference: both are
+    // created further down.
+    porosityRecovery_.reset
+    (
+        new PorosityRecovery
         (
-            "poroProtectSolidInflowFluxTolerance",
-            1e-12
-        );
+            coeffs(),
+            mesh_,
+            porosity_,
+            T_,
+            rho_,
+            Ym_,
+            Ys_,
+            solidH_,
+            Us_,
+            phiSolid_,
+            solidChemistry_(),
+            cellOnBedBorder_,
+            solidState_(),
+            bedCollapse_(),
+            solidStateChecker_,
+            active_,
+            infoOutput_
+        )
+    );
 
     Info << endl;
     Info << "subintegrateHeatTransfer " << heatExchange_->subintegrate() << endl;
     Info << "bedCollapse              " << bedCollapse_->active()    << endl;
     Info << "poroProtectSolidInflowFluxTolerance  "
-         << poroProtectSolidInflowFluxTolerance_
+         << porosityRecovery_->poroProtectSolidInflowFluxTolerance()
          << " [kg/m3/s]" << endl;
     Info << "replenish                " << bedCollapse_->replenish()    << endl;
     Info << "collapseMovesSolidMass   " << bedCollapse_->movesSolidMass() << endl;
-    Info << "emptyFlippedCells        " << emptyFlippedCells_  << endl;
+    Info << "emptyFlippedCells        " << porosityRecovery_->emptyFlippedCells()  << endl;
     // Constructed here because it carries the last banner lines.
     solidStateChecker_.reset
     (
@@ -1005,12 +681,12 @@ volPyrolysis::volPyrolysis
 
     // The radiation model is constructed next and holds a reference to the
     // gate, so it has to be valid before the first correct() rather than
-    // after the first recoverPorosity().
+    // after the first porosity recovery.
     solidState_->freezeConnectedAtStepStart();
 
     solidState_->classify(SolidState::totalMass(Ym_)(), rho_);
 
-    // porosity_ is assigned in recoverPorosity(), not solved; storeOldTimes()
+    // porosity_ is assigned by porosityRecovery_, not solved; storeOldTimes()
     // is a no-op on the first call, so seed oldTime() here or the gas-side
     // fvm::ddt(porosityF, rho) loses a step of d(porosity)/dt.
     porosity_.oldTime();
@@ -1196,7 +872,7 @@ void volPyrolysis::evolveRegion()
     solveSpeciesMass();
     solidEnergy_->recoverTemperatureAfterReaction();
 
-    recoverPorosity();
+    porosityRecovery_->recover();
 
     accumulateMassBudget();
     info();

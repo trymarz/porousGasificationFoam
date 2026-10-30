@@ -310,6 +310,14 @@ public:
                 const PtrList<volScalarField>& Ym
             );
 
+            //- Ys_i = Ym_i/sum_j Ym_j; a cell with no mass gets Ys_0 = 1,
+            //  the density a fixedYm patch beside it injects at
+            static void deriveYiFromYm
+            (
+                const PtrList<volScalarField>& Ym,
+                PtrList<volScalarField>& Ys
+            );
+
             //- Positive only where the cell holds more than trace
             //  dispersedAboveSolidFraction of what a packed cell would
             //  hold, floored by SMALL too, since rho is zero where empty.

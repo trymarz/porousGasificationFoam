@@ -20,7 +20,7 @@
 //   min(Ycharm)           bounded-ness: an overshooting scheme drives this < 0.
 //   max(Ycharm)           blob peak — sensitive to where the mass goes.
 //
-// porosityF is the void fraction. volPyrolysis::recoverPorosity() derives it
+// porosityF is the void fraction. PorosityRecovery::recover() derives it
 // from the mass as 1 - sum_i(Ym_i/rho_i) rather than transporting it, so it
 // carries no error of its own and cannot contradict Ycharm. What these
 // reductions assert is the bed structure that transport produces:

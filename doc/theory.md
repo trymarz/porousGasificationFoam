@@ -25,7 +25,7 @@ The loop is `porousGasificationFoam/porousGasificationFoam.C`; each step is an `
 1. **Time step** — Courant (gas), diffusion (solid) and chemistry limits give one `deltaT` (`setMultiRegionDeltaT.H`, `updateChemistryTimeStep.H`).
 2. **DEM coupling** (only with `WITH_YADE`) — particle state is exchanged with YADE; `Us` and `lambda` are rebuilt from it and `lambdaDot` is pushed back (`DEM/lambdaDotModel.C`).
 3. **Radiation** — updates the solid radiative source (`radiation.H`, `radiationModels/`).
-4. **Solid region, `pyrolysisZone.evolve()`** (`volPyrolysis::evolveRegion()`), in this order: chemistry ODE; solid-flux limit; solid temperature equation and enthalpy transport (`SolidEnergy::solve`); solid species transport (`solveSpeciesMass`); `Ts` recovery after the reaction (`recoverTemperatureAfterReaction`); porosity recovery and bed collapse (`recoverPorosity`).
+4. **Solid region, `pyrolysisZone.evolve()`** (`volPyrolysis::evolveRegion()`), in this order: chemistry ODE; solid-flux limit; solid temperature equation and enthalpy transport (`SolidEnergy::solve`); solid species transport (`solveSpeciesMass`); `Ts` recovery after the reaction (`recoverTemperatureAfterReaction`); porosity recovery and bed collapse (`PorosityRecovery::recover`).
 5. **Gas continuity** — `rhoEqn.H`.
 6. **PIMPLE loop** — momentum `UEqn.H`, species `YEqn.H`, energy `EEqn.H`, pressure `pEqn.H` or `pcEqn.H` (`pimple.consistent()`).
 7. **Turbulence** — `turbulence->correct()`.
@@ -37,7 +37,7 @@ The loop is `porousGasificationFoam/porousGasificationFoam.C`; each step is an `
 | Gas continuity, momentum, species, energy | `constant/thermophysicalProperties`, `turbulenceProperties`, `0/` fields | `porousGasificationFoam/{rhoEqn,UEqn,YEqn,EEqn,pEqn,pcEqn}.H` |
 | Darcy–Forchheimer resistance | `0/Df`, `constant/porosityProperties` (optional) | `fieldPorosityModel/` |
 | Solid chemistry (sources `R`) | `constant/chemistryProperties`, `reactions`, `solidThermophysicalProperties` | `thermophysicalModels/porousSolidChemistryModel/`, `volPyrolysis.C` |
-| Solid transport, porosity | `0/Us`, `div(phiSolid)` in `system/fvSchemes` | `volPyrolysis.C` (`solveSpeciesMass`, `recoverPorosity`), `solidFluxLimiter/` |
+| Solid transport, porosity | `0/Us`, `div(phiSolid)` in `system/fvSchemes` | `volPyrolysis.C` (`solveSpeciesMass`), `porosityRecovery/`, `solidFluxLimiter/` |
 | Solid energy, gas–solid heat exchange | `solidThermophysicalProperties`, `heatTransferProperties` | `volPyrolysis/solidEnergy/solidEnergy.C`, `thermophysicalModels/solid/heatTransfer/` |
 | Radiation | `constant/radiationProperties` | `radiationModels/heterogeneousRadiationModels/` |
 | DEM coupling | `constant/lambdaDict` | `porousGasificationMedia/DEM/lambdaDotModel.C` |
@@ -89,7 +89,7 @@ Q_heatUp = cp (Tₛ − T) S_ρ
 
 `φₛ` is the solid flux after limiting (`solidFluxLimiter`), so Ym stays physical when solid moves.
 
-**Porosity** (`volPyrolysis::recoverPorosity`). Not transported; derived from the solid mass each step, then cells that are nearly empty are cleared (bed collapse).
+**Porosity** (`PorosityRecovery::recover`). Not transported; derived from the solid mass each step, then cells that are nearly empty are cleared (bed collapse).
 
 ```
 1/ρₛ = Σₖ Ysₖ/ρₖ ,    1 − ε = Σₖ Ymₖ/ρₖ

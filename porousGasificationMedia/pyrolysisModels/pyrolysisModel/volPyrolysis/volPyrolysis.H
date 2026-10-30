@@ -46,6 +46,7 @@ SourceFiles
 #include "lambdaDotCoupling.H"
 #include "gasSolidHeatExchange.H"
 #include "solidEnergy.H"
+#include "porosityRecovery.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -76,23 +77,10 @@ private:
         //- Read model controls
         void readReactingOneDimControls();
 
-        //- Derive mass fractions Ys_ from mass concentrations Ym_
-        void deriveYiFromYm();
-
         //- Scale the shared solid flux to what the cells can supply and take
         //  Delegates to solidFluxLimiter_ (two-sided saturation limit) and
         //  stores the result in phiSolid_, the flux every solid field rides.
         void limitSolidFlux();
-
-        //- Abort if any cell's solid fraction left [0, maxSolidFraction]
-        //  Below the floor a cell has no gas volume, and every gas equation
-        //  divides by it. Called each time recoverPorosity() writes porosity_.
-        void guardPorosity
-        (
-            const word& stage,
-            const volScalarField& por,
-            const surfaceScalarField& phiUs
-        ) const;
 
         //- Ym_i = Yi*rho*(1 - porosity), and the initial solid mass. Patches
         //  where Yi is fixedValue become fixedYm, which keeps Ym current as
@@ -165,7 +153,7 @@ protected:
        //- List of solid component mass concentrations [kg/m3]
         //  Ym_i = Yi * rho_s * (1 - porosity) = mass of solid specie i per
         //  unit total cell volume. This is the primary transported variable;
-        //  the mass fractions Ys_ are derived from it (see deriveYiFromYm()).
+        //  SolidState::deriveYiFromYm() derives the mass fractions Ys_ from it.
         PtrList<volScalarField> Ym_;
 
         // Non-const access to temperature
@@ -176,14 +164,6 @@ protected:
 
     //- Switch for equilibrium/nonequilibrium model
     Switch equilibrium_;
-
-    //- Switch for emptying a flipped cell rather than leaving its solid
-    //  A flip candidate: dispersed or trace, inside or on a receding edge. Set,
-    //  it is emptied for real; mass destroyed, charged to cumulativeFlipMass_.
-    Switch emptyFlippedCells_;
-
-    //- Absolute tolerance for detecting incoming solid flux [kg/m3/s]
-    scalar poroProtectSolidInflowFluxTolerance_;
 
     // Solution parameters
 
@@ -206,11 +186,6 @@ protected:
 
         //- Heat release [J/s/m3]
         volScalarField chemistrySh_;
-
-        //- Porosity growth from chemistry [1/s], diagnostic only
-        //  -sum_i RRs_i/rho_i, the rate chemistry removes solid volume at.
-        //  Reported, never applied: porosity is recovered from Ym_ instead.
-        volScalarField porositySource_;
 
         //- The solid regimes of each cell, and their thresholds
         autoPtr<SolidState> solidState_;
@@ -247,6 +222,9 @@ protected:
         //- Bed collapse: moves the solid above each emptied cell down
         autoPtr<BedCollapse> bedCollapse_;
 
+        //- Porosity from the solid mass, emptied cells and the masks after
+        autoPtr<PorosityRecovery> porosityRecovery_;
+
     // DEM (YADE) coupling — lambdaDot
 
         //- Computes lambdaDot in solveSpeciesMass(); a no-op without DEM
@@ -279,11 +257,6 @@ protected:
         //  while the clip is quietly paying for it.
         scalar cumulativeYmClip_;
 
-        //- Cumulative solid mass destroyed by emptying flipped cells [kg]
-        //  Nonzero only under emptyFlippedCells_; reported with the mass
-        //  budget so it isn't hidden in a conserved-looking total.
-        scalar cumulativeFlipMass_;
-
 
     // Protected member functions
 
@@ -295,31 +268,6 @@ protected:
 
         //- Add this step's gas produced and solid lost to the run totals
         void accumulateMassBudget();
-
-        // Porosity recovery helpers
-
-            //- porosity = 1 - totalYm/rho on the internal field, then guarded
-            void porosityFromSolidMass(const volScalarField& totalYm);
-
-            //- Dispersed or trace cells to empty, less those solid is still
-            //  flowing into; nFlips returns their global count
-            labelList cellsToEmpty
-            (
-                const volScalarField& totalYm,
-                label& nFlips
-            );
-
-            //- Every rank's cells to empty, on every rank
-            List<Field<label>> gatherFlipLists
-            (
-                const labelList& flipCells
-            ) const;
-
-            //- Remove the solid of the cells to empty; mass destroyed
-            void emptyCells(const labelList& flipCells, const label nFlips);
-
-            //- Flag solid cells that face a partly solid face
-            void markBedBorderCells();
 
         // Species mass helpers
 
@@ -341,11 +289,6 @@ protected:
 
             //- Solve solid species mass conservation
             void solveSpeciesMass();
-
-            //- Recover the porosity from the transported solid mass
-            //  1 - porosity = sum_i Ym_i/rho_i, exactly. Last stage of
-            //  evolveRegion(): divides by the rho_ recoverTemperatureAfterReaction() sets.
-            void recoverPorosity();
 
 public:
 
