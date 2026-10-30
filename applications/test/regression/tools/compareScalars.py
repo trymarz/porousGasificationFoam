@@ -129,13 +129,8 @@ def within_tol(a: float, b: float, rtol: float, atol: float) -> bool:
 def compare_file(
     ref_path: Path, cand_path: Path, rtol: float, atol: float
 ) -> list[str]:
-    """Return numerical failure descriptions; raise for invalid file shapes."""
+    """Return numerical failure descriptions; raise for unparseable or empty files."""
     failures: list[str] = []
-    if not ref_path.is_file():
-        raise ComparisonError(f"reference file not found: {ref_path}")
-    if not cand_path.is_file():
-        raise ComparisonError(f"candidate file not found: {cand_path}")
-
     try:
         ref_cols, ref_rows = parse_dat(ref_path)
     except ComparisonError as exc:
@@ -151,16 +146,18 @@ def compare_file(
         raise ComparisonError(f"candidate {cand_path} contains no data rows")
 
     if len(ref_rows) != len(cand_rows):
-        raise ComparisonError(
+        failures.append(
             f"row count differs: ref={len(ref_rows)} vs cand={len(cand_rows)}"
         )
+        # Continue with min length so we still report numeric divergence.
 
-    n = len(ref_rows)
+    n = min(len(ref_rows), len(cand_rows))
     ncols = len(ref_rows[0])
     if len(cand_rows[0]) != ncols:
-        raise ComparisonError(
+        failures.append(
             f"column count differs: ref={ncols} vs cand={len(cand_rows[0])}"
         )
+        return failures
 
     col_names = (
         ref_cols
@@ -243,7 +240,7 @@ def main() -> int:
         rel = ref_path.relative_to(ref_root)
         cand_path = cand_root / rel
         if not cand_path.is_file():
-            print(f"ERROR {rel} (no candidate file)", file=sys.stderr)
+            print(f"MISS  {rel} (no candidate file)", file=sys.stderr)
             missing += 1
             continue
         try:
@@ -276,9 +273,9 @@ def main() -> int:
     if invalid:
         print(f"compareScalars.py: {invalid} file(s) had invalid data", file=sys.stderr)
 
-    if missing > 0 or invalid > 0:
+    if invalid > 0:
         return 2
-    if failed > 0:
+    if failed > 0 or missing > 0:
         return 1
     return 0
 

@@ -85,25 +85,27 @@ class CompareScalarsTests(unittest.TestCase):
         self.assertEqual(len(failures), 1)
         self.assertIn("volAverage(U)[1]", failures[0])
 
-    def test_row_count_mismatch_is_an_infrastructure_error(self) -> None:
+    def test_row_count_mismatch_is_a_numeric_failure(self) -> None:
         reference = self.write_dat("reference/value.dat", "# Time value\n0.1 1\n")
         candidate = self.write_dat(
             "candidate/value.dat", "# Time value\n0.1 1\n0.2 2\n"
         )
 
-        with self.assertRaisesRegex(compareScalars.ComparisonError, "row count"):
-            compareScalars.compare_file(reference, candidate, 1e-4, 1e-12)
+        failures = compareScalars.compare_file(reference, candidate, 1e-4, 1e-12)
+        self.assertEqual(len(failures), 1)
+        self.assertIn("row count differs", failures[0])
 
-    def test_expanded_shape_mismatch_is_an_infrastructure_error(self) -> None:
+    def test_expanded_shape_mismatch_is_a_numeric_failure(self) -> None:
         reference = self.write_dat(
             "reference/value.dat", "# Time value\n0.1 (1 2 3)\n"
         )
         candidate = self.write_dat("candidate/value.dat", "# Time value\n0.1 (1 2)\n")
 
-        with self.assertRaisesRegex(compareScalars.ComparisonError, "column count"):
-            compareScalars.compare_file(reference, candidate, 1e-4, 1e-12)
+        failures = compareScalars.compare_file(reference, candidate, 1e-4, 1e-12)
+        self.assertEqual(len(failures), 1)
+        self.assertIn("column count differs", failures[0])
 
-    def test_missing_candidate_file_returns_infrastructure_exit_code(self) -> None:
+    def test_missing_candidate_file_is_reported_as_miss(self) -> None:
         reference_root = self.root / "reference"
         candidate_root = self.root / "candidate"
         self.write_dat("reference/value.dat", "# Time value\n0.1 1\n")
@@ -123,8 +125,8 @@ class CompareScalarsTests(unittest.TestCase):
             check=False,
         )
 
-        self.assertEqual(result.returncode, 2)
-        self.assertIn("no candidate file", result.stderr)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("MISS  value.dat (no candidate file)", result.stderr)
 
 
 if __name__ == "__main__":
