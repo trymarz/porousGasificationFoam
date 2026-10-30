@@ -81,7 +81,7 @@ private:
         //- Scale the shared solid flux to what the cells can supply and take
         //  Delegates to solidFluxLimiter_ (two-sided saturation limit) and
         //  stores the result in phiSolid_, the flux every solid field rides.
-        void limitSolidVolFlux();
+        void limitSolidFlux();
 
         //- Abort if any cell's solid fraction left [0, maxSolidFraction]
         //  Below the floor a cell has no gas volume, and every gas equation
@@ -108,6 +108,16 @@ private:
         //- Flag solid cells with an empty neighbour cell
         void markInitialBedBorderCells();
 
+        //- Let only cells active and connected at step start react, so
+        //  every reaction heat is booked by the solid energy equation
+        void markReactingCells();
+
+        //- Re-evaluate the gas-solid heat and specie transfer coefficients
+        void updateTransferCoefficients();
+
+        //- Solve the solid chemistry: rates, reaction heat, time step
+        void solveChemistry();
+
 
 protected:
 
@@ -117,9 +127,10 @@ protected:
     volScalarField porosityArch_;
 
     //- Reference to specie transport model
-    autoPtr<specieTransferModel> STmodel_;
+    autoPtr<specieTransferModel> specieTransfer_;
 
-    volScalarField ST_;
+    //- Gas-solid specie transfer coefficient, registered as STvol
+    volScalarField specieTransferCoeff_;
 
     //- Thermophysical properties of gaseous species.
     psiReactionThermo& gasThermo_;
@@ -223,7 +234,7 @@ protected:
         const volVectorField& Us_;
 
         //- The solid volumetric face flux the transport stages ride [m3/s]
-        //  Set by limitSolidVolFlux() from solidFluxLimiter_. Owned here,
+        //  Set by limitSolidFlux() from solidFluxLimiter_. Owned here,
         //  not by the limiter: solveSpeciesMass()/advectSolidH() read it too.
         surfaceScalarField phiSolid_;
 
@@ -255,8 +266,8 @@ protected:
         //- Total heat release rate [J/s]
         dimensionedScalar totalHeatRR_;
 
-        //- scalar chemistryTime
-        scalar timeChem_;
+        //- Time step suggested by the last chemistry solve [s]
+        scalar chemistryTimeStep_;
 
         //- Total Ym mass integral at construction, for the conservation
         //  diagnostic [kg]. On restart this holds the restart inventory,
@@ -282,8 +293,8 @@ protected:
         //- Read control parameters from dict
         bool read(const dictionary& dict);
 
-        //- Mass check
-        void calculateMassTransfer();
+        //- Add this step's gas produced and solid lost to the run totals
+        void accumulateMassBudget();
 
         // Solid energy helpers
 
@@ -393,11 +404,11 @@ protected:
 
             //- Ts recovered after the reaction changed the mass, and
             //  solidH restated on the mass that remains
-            void recoverTsAfterReaction();
+            void recoverTemperatureAfterReaction();
 
             //- Recover the porosity from the transported solid mass
             //  1 - porosity = sum_i Ym_i/rho_i, exactly. Last stage of
-            //  evolveRegion(): divides by the rho_ recoverTsAfterReaction() sets.
+            //  evolveRegion(): divides by the rho_ recoverTemperatureAfterReaction() sets.
             void recoverPorosity();
 
 public:

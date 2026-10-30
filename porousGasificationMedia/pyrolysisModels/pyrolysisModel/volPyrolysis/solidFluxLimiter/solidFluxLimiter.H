@@ -30,7 +30,7 @@ Description
     (receiver limit). See solidDonorLimit(), solidReceiverLimit() and
     limit() for the two bounds and how the sweeps combine them.
 
-    Owned directly by volPyrolysis (like STmodel_, HTmodel_) - no runtime
+    Owned directly by volPyrolysis (like specieTransfer_, HTmodel_) - no runtime
     selection, since only one limiter algorithm exists.
 
 SourceFiles

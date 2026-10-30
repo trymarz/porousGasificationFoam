@@ -102,7 +102,8 @@ class GasSolidHeatExchange
         //- Reference to heat transport model
         autoPtr<porousHeatTransferModel> HTmodel_;
 
-        volScalarField CONV_;
+        //- Volumetric heat transfer coefficient CONV [W/m3/K]
+        volScalarField heatTransferCoeff_;
 
         //- Switch for temporal subintegration of heatTransfer model
         Switch subintegrateSwitch_;
@@ -114,7 +115,7 @@ class GasSolidHeatExchange
         tmp<volScalarField> heatTransferCalc() const;
 
         //- CONV from the heat transfer model, zero where there is no solid
-        tmp<volScalarField> CONV() const;
+        tmp<volScalarField> heatTransferCoeffCalc() const;
 
         //- Enthalpy needed to heat up the released gas
         tmp<volScalarField> heatUpGasCalc(const volScalarField& Srho) const;
@@ -160,8 +161,8 @@ public:
             return subintegrateSwitch_;
         }
 
-        //- Re-evaluate CONV from the heat transfer model
-        void updateCONV();
+        //- Re-evaluate the coefficient (CONV) from the heat transfer model
+        void updateHeatTransferCoeff();
 
         //- Evaluate and store the exchange for this step
         const volScalarField& updateHeatTransfer();

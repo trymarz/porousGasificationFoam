@@ -124,7 +124,7 @@ void volPyrolysis::deriveYiFromYm()
     }
 }
 
-void volPyrolysis::limitSolidVolFlux()
+void volPyrolysis::limitSolidFlux()
 {
     phiSolid_ = solidFluxLimiter_->limit();
 }
@@ -910,13 +910,13 @@ void volPyrolysis::solveSolidEnergy()
     advectSolidH(rhoCp, totalYm);
 }
 
-void volPyrolysis::recoverTsAfterReaction()
+void volPyrolysis::recoverTemperatureAfterReaction()
 {
 // eqZx2uHGn047
 
     if (debug)
     {
-        Info<< "volPyrolysis::recoverTsAfterReaction()" << endl;
+        Info<< "volPyrolysis::recoverTemperatureAfterReaction()" << endl;
     }
 
     if (!active_ || equilibrium_)
@@ -957,7 +957,7 @@ void volPyrolysis::recoverTsAfterReaction()
 
         solidStateChecker_->abort
         (
-            "the Ts recovery in recoverTsAfterReaction()",
+            "the Ts recovery in recoverTemperatureAfterReaction()",
             T_,
             badCell,
             context.str()
@@ -972,7 +972,7 @@ void volPyrolysis::recoverTsAfterReaction()
     solidStateChecker_->reportTemperatureRange(T_);
 }
 
-void volPyrolysis::calculateMassTransfer()
+void volPyrolysis::accumulateMassBudget()
 {
     if (infoOutput_)
     {
@@ -1182,8 +1182,8 @@ volPyrolysis::volPyrolysis
         ),
         mesh_
     ),
-    STmodel_(specieTransferModel::New(porosity_,porosityArch_)),
-    ST_
+    specieTransfer_(specieTransferModel::New(porosity_,porosityArch_)),
+    specieTransferCoeff_
     (
         IOobject
         (
@@ -1358,7 +1358,7 @@ volPyrolysis::volPyrolysis
     addedGasMass_(dimensionedScalar("zero", dimMass, 0.0)),
     totalGasMassFlux_(dimensionedScalar("zero", dimMass/dimTime, 0.0)),
     totalHeatRR_(dimensionedScalar("zero", dimEnergy/dimTime, 0.0)),
-    timeChem_(1.0),
+    chemistryTimeStep_(1.0),
     initialTotalYmMass_(0.0),
     cumulativeYmClip_(0.0),
     cumulativeFlipMass_(0.0)
@@ -1366,8 +1366,8 @@ volPyrolysis::volPyrolysis
 
     mesh.setFluxRequired(T_.name());
 
-    ST_ = STmodel_->ST()();
-    heatExchange_->updateCONV();
+    specieTransferCoeff_ = specieTransfer_->ST()();
+    heatExchange_->updateHeatTransferCoeff();
     rho0_.ref() = rho_.ref();
 
     bedCollapse_.reset
@@ -1559,7 +1559,7 @@ scalar volPyrolysis::solidRegionDiffNo() const
 
 scalar volPyrolysis::maxTime() const
 {
-return timeChem_;
+return chemistryTimeStep_;
 }
 
 Switch volPyrolysis::equilibrium() const
@@ -1567,13 +1567,10 @@ Switch volPyrolysis::equilibrium() const
     return equilibrium_;
 }
 
-void volPyrolysis::preEvolveRegion() {
-    // Added for completeness
-    heterogeneousPyrolysisModel::preEvolveRegion();
-
-    // Iterates over every cell and sets cells whose solid energy equation
-    // will accept the reaction heat as reacting. A cell whose solid is not
-    // connected converts no mass, so none of its heat goes unbooked.
+void volPyrolysis::markReactingCells()
+{
+    // A cell whose solid is not connected converts no mass, so none of its
+    // heat goes unbooked.
     forAll(T_, cellI)
     {
         if ( active_ && solidState_->connectedAtStepStart()[cellI] != 0)
@@ -1585,42 +1582,57 @@ void volPyrolysis::preEvolveRegion() {
             solidChemistry_->setCellReacting(cellI, false);
         }
     }
-
 }
 
-void volPyrolysis::evolveRegion()
+void volPyrolysis::updateTransferCoefficients()
 {
-    gasVolumeFractionAtStepStart_ = porosity_;
-
     if (!equilibrium_)
     {
-        heatExchange_->updateCONV();
+        heatExchange_->updateHeatTransferCoeff();
     }
 
-    ST_ = STmodel_->ST()();
+    specieTransferCoeff_ = specieTransfer_->ST()();
+}
 
-    timeChem_ = solidChemistry_->solve
+void volPyrolysis::solveChemistry()
+{
+    chemistryTimeStep_ = solidChemistry_->solve
     (
         time_.value() - time_.deltaTValue(),
         time_.deltaTValue()
     );
 
     chemistrySh_ = solidChemistry_->Sh()(); // eqZx2uHGn004
+}
+
+void volPyrolysis::preEvolveRegion() {
+    // Added for completeness
+    heterogeneousPyrolysisModel::preEvolveRegion();
+
+    markReactingCells();
+}
+
+void volPyrolysis::evolveRegion()
+{
+    gasVolumeFractionAtStepStart_ = porosity_;
+
+    updateTransferCoefficients();
+    solveChemistry();
     heatExchange_->updateHeatUpGas(Srho()());
 
     // Settle how much solid each face may carry before any solid field is
     // transported. Needs the chemistry rates, so it follows their solve.
-    limitSolidVolFlux();
+    limitSolidFlux();
 
     // Energy before species: solidH_ holds the pre-reaction solid until
-    // recoverTsAfterReaction() restates it on the mass that remains.
+    // recoverTemperatureAfterReaction() restates it on the mass that remains.
     solveSolidEnergy();
     solveSpeciesMass();
-    recoverTsAfterReaction();
+    recoverTemperatureAfterReaction();
 
     recoverPorosity();
 
-    calculateMassTransfer();
+    accumulateMassBudget();
     info();
 }
 
@@ -1750,10 +1762,10 @@ void volPyrolysis::info() const
         << indent << "Realese rate of pyrolysis gases  [kg/s] = " << totalGasMassFlux_.value() << nl
         << indent << "Heat release rate [J/s] = " << totalHeatRR_.value() << nl;
 
-        if (timeChem_ < GREAT )
+        if (chemistryTimeStep_ < GREAT )
         {
             Info << indent << "Suggested chemical time step from heterogeneous reactions [s] = "
-                 << timeChem_ << nl;
+                 << chemistryTimeStep_ << nl;
         }
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
