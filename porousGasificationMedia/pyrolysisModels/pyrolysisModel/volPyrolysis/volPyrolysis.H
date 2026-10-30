@@ -93,6 +93,21 @@ private:
             const surfaceScalarField& phiUs
         ) const;
 
+        //- Ym_i = Yi*rho*(1 - porosity), and the initial solid mass. Patches
+        //  where Yi is fixedValue become fixedYm, which keeps Ym current as
+        //  rho and porosity change; all other patch types follow Yi.
+        void createYm();
+
+        //- solidH = rho*Cp*(1 - porosity)*Ts; fixedValue Ts patches become
+        //  fixedSolidH, and cyclic patches are rebuilt on solidH
+        void createSolidH();
+
+        //- In solid cells, rebuild Ym from the read-in Yi, then Yi = Ym/sum(Ym)
+        void renormaliseInitialComposition();
+
+        //- Flag solid cells with an empty neighbour cell
+        void markInitialBedBorderCells();
+
 
 protected:
 

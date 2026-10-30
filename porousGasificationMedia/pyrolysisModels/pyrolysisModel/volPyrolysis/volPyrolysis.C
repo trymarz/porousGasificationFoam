@@ -991,6 +991,171 @@ const SolidState& volPyrolysis::solidState() const
     return solidState_();
 }
 
+void volPyrolysis::createYm()
+{
+    forAll(Ys_, fieldI)
+    {
+        const volScalarField::Boundary& ybf = Ys_[fieldI].boundaryField();
+        wordList ymTypes(ybf.types());
+        forAll(ybf, patchi)
+        {
+            if (isA<fixedValueFvPatchScalarField>(ybf[patchi]))
+            {
+                ymTypes[patchi] = fixedYmFvPatchScalarField::typeName;
+            }
+        }
+
+        Ym_.set
+        (
+            fieldI,
+            new volScalarField
+            (
+                IOobject
+                (
+                    Ys_[fieldI].name() + "m",
+                    time_.timeName(),
+                    mesh_,
+                    IOobject::NO_READ,
+                    IOobject::AUTO_WRITE
+                ),
+                mesh_,
+                dimensionedScalar("zero",dimMass/dimVolume,0.0),
+                ymTypes
+            )
+        );
+        // Ym_i = Yi * rho_s * (1 - porosity): mass per unit total volume.
+        Ym_[fieldI].ref() =
+            Ys_[fieldI].ref() * rho_.ref() * (1.0 - porosity_.ref());
+
+        // Set initial boundary values from Yi, scaled to Ym units;
+        // updateCoeffs() keeps the fixedYm patches current thereafter.
+        forAll(Ym_[fieldI].boundaryField(), patchI)
+        {
+            Ym_[fieldI].boundaryFieldRef()[patchI] ==
+                Ys_[fieldI].boundaryField()[patchI]
+              * rho_.boundaryField()[patchI]
+              * (1.0 - porosity_.boundaryField()[patchI]);
+        }
+
+        initialTotalYmMass_ += gSum(Ym_[fieldI].field() * mesh_.V());
+    }
+}
+
+void volPyrolysis::createSolidH()
+{
+    const volScalarField::Boundary& tbf = T_.boundaryField();
+    wordList tbt(tbf.types());
+
+    forAll(tbf, patchi)
+    {
+        if (isA<fixedValueFvPatchScalarField>(tbf[patchi]))
+        {
+            tbt[patchi] = fixedSolidHFvPatchScalarField::typeName;
+        }
+    }
+
+    solidH_.reset
+    (
+        new volScalarField
+        (
+            IOobject
+            (
+                "solidH",
+                time_.timeName(),
+                mesh_,
+                IOobject::READ_IF_PRESENT,
+                IOobject::AUTO_WRITE
+            ),
+            mesh_,
+            dimensionSet(1, -1, -2, 0, 0),
+            tbt
+        )
+    );
+
+    solidH_() = rho_ * solidThermo_.Cp() * (1 - porosity_) * T_;
+
+    forAll(tbf, patchi)
+    {
+        if (isA<cyclicFvPatch>(mesh_.boundary()[patchi]))
+        {
+            if (isA<fixedValueFvPatchScalarField>(tbf[patchi]))
+            {
+                tmp<fvPatchScalarField> tPatch
+                (
+                    fvPatchScalarField::New
+                    (
+                        fixedSolidHFvPatchScalarField::typeName,
+                        cyclicPolyPatch::typeName,
+                        mesh_.boundary()[patchi],
+                        solidH_().internalField()
+                    )
+                ); 
+                solidH_().boundaryFieldRef().set(patchi, tPatch);
+            }
+            if (isA<zeroGradientFvPatchScalarField>(tbf[patchi]))
+            {
+                tmp<fvPatchScalarField> tPatch
+                (
+                    fvPatchScalarField::New
+                    (
+                        zeroGradientFvPatchScalarField::typeName,
+                        cyclicPolyPatch::typeName,
+                        mesh_.boundary()[patchi],
+                        solidH_().internalField()
+                    )
+                ); 
+                solidH_().boundaryFieldRef().set(patchi, tPatch);
+            }
+        }
+    }
+
+    solidH_().correctBoundaryConditions();
+}
+
+void volPyrolysis::renormaliseInitialComposition()
+{
+    // So that Yi and Ym agree from the first time step.
+    forAll(rho_,cellI)
+    {
+        if (solidState_->solidPresent()[cellI] == 1)
+        {
+            scalar Ytotal = 0.0;
+            for (label i = 0; i < Ys_.size(); ++i)
+            {
+                Ym_[i][cellI] =
+                    Ys_[i][cellI] * rho_[cellI] * (1.0 - porosity_[cellI]);
+                Ytotal += Ym_[i][cellI];
+            }
+            if (Ytotal > SMALL)
+            {
+                for (label i = 0; i < Ys_.size(); ++i)
+                {
+                    Ys_[i][cellI] = Ym_[i][cellI] / Ytotal;
+                }
+            }
+        }
+    }
+}
+
+void volPyrolysis::markInitialBedBorderCells()
+{
+    forAll(solidState_->solidPresent(), cellI)
+    {
+        if (solidState_->solidPresent()[cellI] == 1)
+        {
+            bool surfC = false;
+            forAll(mesh_.cellCells()[cellI],cellJ)
+            {
+                if (solidState_->solidPresent()[mesh_.cellCells()[cellI][cellJ]] == 0)
+                {
+                    surfC = true;
+                }
+            }
+            if (surfC) cellOnBedBorder_[cellI] = 1;
+        }
+    }
+}
+
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
 volPyrolysis::volPyrolysis
@@ -1266,125 +1431,9 @@ volPyrolysis::volPyrolysis
 
     Info << endl;
 
-    forAll(Ys_, fieldI)
-    {
-          // Where the user set a fixedValue condition on Yi, the Ym patch
-          // becomes fixedYm, which keeps Ym = Yi*rho*(1-porosity) current
-          // as rho and porosity evolve at the boundary (mirrors the
-          // fixedSolidH pattern for T/solidH). All other patch types are
-          // inherited from Yi as-is.
-          const volScalarField::Boundary& ybf = Ys_[fieldI].boundaryField();
-          wordList ymTypes(ybf.types());
-          forAll(ybf, patchi)
-          {
-              if (isA<fixedValueFvPatchScalarField>(ybf[patchi]))
-              {
-                  ymTypes[patchi] = fixedYmFvPatchScalarField::typeName;
-              }
-          }
+    createYm();
 
-          Ym_.set
-          (
-                fieldI,
-                new volScalarField
-                (
-                    IOobject
-                    (
-                        Ys_[fieldI].name() + "m",
-                        time_.timeName(),
-                        mesh_,
-                        IOobject::NO_READ,
-                        IOobject::AUTO_WRITE
-                    ),
-                    mesh_,
-                    dimensionedScalar("zero",dimMass/dimVolume,0.0),
-                    ymTypes
-                )
-          );
-          // Ym_i = Yi * rho_s * (1 - porosity): mass per unit total volume.
-          Ym_[fieldI].ref() =
-              Ys_[fieldI].ref() * rho_.ref() * (1.0 - porosity_.ref());
-
-          // Set initial boundary values from Yi, scaled to Ym units;
-          // updateCoeffs() keeps the fixedYm patches current thereafter.
-          forAll(Ym_[fieldI].boundaryField(), patchI)
-          {
-              Ym_[fieldI].boundaryFieldRef()[patchI] ==
-                  Ys_[fieldI].boundaryField()[patchI]
-                * rho_.boundaryField()[patchI]
-                * (1.0 - porosity_.boundaryField()[patchI]);
-          }
-
-          initialTotalYmMass_ += gSum(Ym_[fieldI].field() * mesh_.V());
-    }
-
-    const volScalarField::Boundary& tbf = T_.boundaryField();
-    wordList tbt(tbf.types());
-
-    forAll(tbf, patchi)
-    {
-        if (isA<fixedValueFvPatchScalarField>(tbf[patchi]))
-        {
-            tbt[patchi] = fixedSolidHFvPatchScalarField::typeName;
-        }
-    }
-
-    solidH_.reset
-    (
-        new volScalarField
-        (
-            IOobject
-            (
-                "solidH",
-                time_.timeName(),
-                mesh_,
-                IOobject::READ_IF_PRESENT,
-                IOobject::AUTO_WRITE
-            ),
-            mesh,
-            dimensionSet(1, -1, -2, 0, 0),
-            tbt
-        )
-    );
-
-    solidH_() = rho_ * solidThermo_.Cp() * (1 - porosity_) * T_;
-
-    forAll(tbf, patchi)
-    {
-        if (isA<cyclicFvPatch>(mesh_.boundary()[patchi]))
-        {
-            if (isA<fixedValueFvPatchScalarField>(tbf[patchi]))
-            {
-                tmp<fvPatchScalarField> tPatch
-                (
-                    fvPatchScalarField::New
-                    (
-                        fixedSolidHFvPatchScalarField::typeName,
-                        cyclicPolyPatch::typeName,
-                        mesh.boundary()[patchi],
-                        solidH_().internalField()
-                    )
-                ); 
-                solidH_().boundaryFieldRef().set(patchi, tPatch);
-            }
-            if (isA<zeroGradientFvPatchScalarField>(tbf[patchi]))
-            {
-                tmp<fvPatchScalarField> tPatch
-                (
-                    fvPatchScalarField::New
-                    (
-                        zeroGradientFvPatchScalarField::typeName,
-                        cyclicPolyPatch::typeName,
-                        mesh.boundary()[patchi],
-                        solidH_().internalField()
-                    )
-                ); 
-                solidH_().boundaryFieldRef().set(patchi, tPatch);
-            }
-        }
-    }
-
-    solidH_().correctBoundaryConditions();
+    createSolidH();
 
     solidState_->classifyInitialState();
 
@@ -1408,50 +1457,14 @@ volPyrolysis::volPyrolysis
         }
     }
 
-    // Initial renormalization via Ym: rebuild Ym from the read-in Yi, then
-    // re-derive Yi = Ym / sum(Ym) so the two representations are mutually
-    // consistent from the first time step.
-    forAll(rho_,cellI)
-    {
-        if (solidState_->solidPresent()[cellI] == 1)
-        {
-            scalar Ytotal = 0.0;
-            for (label i = 0; i < Ys_.size(); ++i)
-            {
-                Ym_[i][cellI] =
-                    Ys_[i][cellI] * rho_[cellI] * (1.0 - porosity_[cellI]);
-                Ytotal += Ym_[i][cellI];
-            }
-            if (Ytotal > SMALL)
-            {
-                for (label i = 0; i < Ys_.size(); ++i)
-                {
-                    Ys_[i][cellI] = Ym_[i][cellI] / Ytotal;
-                }
-            }
-        }
-    }
+    renormaliseInitialComposition();
 
     if (active_)
     {
         read();
     }
 
-    forAll(solidState_->solidPresent(), cellI)
-    {
-        if (solidState_->solidPresent()[cellI] == 1)
-        {
-            bool surfC = false;
-            forAll(mesh_.cellCells()[cellI],cellJ)
-            {
-                if (solidState_->solidPresent()[mesh_.cellCells()[cellI][cellJ]] == 0)
-                {
-                    surfC = true;
-                }
-            }
-            if (surfC) cellOnBedBorder_[cellI] = 1;
-        }
-    }
+    markInitialBedBorderCells();
 
     forAll(cellVolume_,cellI)
     {
