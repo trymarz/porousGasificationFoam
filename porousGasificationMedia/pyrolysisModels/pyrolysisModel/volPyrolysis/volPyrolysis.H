@@ -327,6 +327,10 @@ protected:
         //- Mass check
         void calculateMassTransfer();
 
+        //- sum_i Ym_i*Cp_i per cell over what it held before this step's
+        //  reaction [J/m^3/K]. Ym_ must already carry the reaction.
+        tmp<scalarField> preReactionHeatCapacity();
+
         // Equations
 
             //- Solve solid species mass conservation

@@ -1239,12 +1239,22 @@ void volPyrolysis::postSolveEnergy()
                 )
             );
 
-            const volScalarField rhoCpPreReaction
+            volScalarField rhoCpPreReaction(preReactionYm*solidThermo_.Cp());
+
+            // preReactionYm*Cp() pairs the old mass with the new composition,
+            // scaling Ts by Cp_pre/Cp_post each step. Below SMALL, Ys_ is
+            // deriveYiFromYm()'s placeholder, so those cells keep it.
+            const tmp<scalarField> tExactRhoCp(preReactionHeatCapacity());
+            forAll(rhoCpPreReaction, cellI)
+            {
+                if (preReactionYm[cellI] > SMALL)
+                {
+                    rhoCpPreReaction[cellI] = tExactRhoCp()[cellI];
+                }
+            }
+            rhoCpPreReaction = solidState_->withSolidHeatCapacityFloor
             (
-                solidState_->withSolidHeatCapacityFloor
-                (
-                    preReactionYm*solidThermo_.Cp()
-                )
+                rhoCpPreReaction
             );
 
             // Divided by the mass that carried the enthalpy, not by what
@@ -1339,6 +1349,32 @@ void volPyrolysis::calculateMassTransfer()
         lostSolidMass_ +=
             fvc::domainIntegrate(solidChemistry_->RRs()) * time_.deltaT();
     }
+}
+
+Foam::tmp<Foam::scalarField> volPyrolysis::preReactionHeatCapacity()
+{
+    // Cp() is sum_i Ys_i*Cp_i, so with Ys_ holding the pre-reaction masses
+    // instead of fractions it returns sum_i Ym_i*Cp_i. Ys_ is restored after.
+    List<scalarField> postReactionYs(Ys_.size());
+    forAll(Ys_, i)
+    {
+        postReactionYs[i] = Ys_[i].primitiveField();
+        Ys_[i].primitiveFieldRef() = max
+        (
+            Ym_[i].primitiveField()
+          - time_.deltaTValue()*solidChemistry_->RRs(i)().primitiveField(),
+            scalar(0)
+        );
+    }
+
+    tmp<scalarField> tRhoCp(new scalarField(solidThermo_.Cp()().primitiveField()));
+
+    forAll(Ys_, i)
+    {
+        Ys_[i].primitiveFieldRef() = postReactionYs[i];
+    }
+
+    return tRhoCp;
 }
 
 const SolidState& volPyrolysis::solidState() const
