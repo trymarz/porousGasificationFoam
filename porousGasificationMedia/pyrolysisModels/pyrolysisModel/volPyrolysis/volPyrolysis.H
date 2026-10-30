@@ -301,7 +301,7 @@ protected:
 
         //- Cumulative solid mass shed at the foot of a bed-motion route [kg]
         //  Nonzero only under collapseMovesSolidMass_. A route spanning
-        //  processors can also create mass not charged here - see recoverPorosity().
+        //  processors can also create mass not charged here - see walkCollapseRoute().
         scalar cumulativeCollapseMass_;
 
 
@@ -375,6 +375,121 @@ protected:
 
             //- Print min/max Ts over the cells holding solid
             void reportSolidTemperatureRange() const;
+
+        // Porosity recovery helpers
+
+            //- The solid one cell hands to the cell below in a bed collapse
+            struct MovedSolid
+            {
+                scalar porosity;
+                scalar porosityArch;
+                scalar T;
+                scalar rho;
+                scalarList Ym;
+                scalar H;
+            };
+
+            //- porosity = 1 - totalYm/rho on the internal field, then guarded
+            void porosityFromSolidMass(const volScalarField& totalYm);
+
+            //- Dispersed or trace cells to empty, less those solid is still
+            //  flowing into; nFlips returns their global count
+            labelList cellsToEmpty
+            (
+                const volScalarField& totalYm,
+                label& nFlips
+            );
+
+            //- Every rank's cells to empty, on every rank
+            List<Field<label>> gatherFlipLists
+            (
+                const labelList& flipCells
+            ) const;
+
+            //- Bed collapse: the solid above each emptied cell moves down
+            void collapseBedOnto(const List<Field<label>>& procFlipList);
+
+            //- A global index per cell; fills globalIndex per rank
+            tmp<volScalarField> globalCellNumbering
+            (
+                List<Field<scalar>>& globalIndex
+            ) const;
+
+            //- Global index of the solid cell above each solid cell, or -1
+            scalarField upperSolidNeighbour
+            (
+                const volScalarField& globalIndices
+            ) const;
+
+            //- The chains of cells, foot to top, that each collapse moves
+            List<List<label>> collapseRoutes
+            (
+                const List<Field<label>>& procFlipList,
+                const List<Field<scalar>>& globalIndex,
+                const scalarField& takeFrom
+            ) const;
+
+            //- Neighbour values a route reads across processor boundaries
+            void syncCollapseBoundaries();
+
+            //- Move the solid one cell down along this rank's part of a route
+            void walkCollapseRoute
+            (
+                const List<label>& route,
+                const List<Field<scalar>>& globalIndex,
+                const volScalarField& globalIndices,
+                scalar& replenishedMass,
+                scalar& collapsedMass
+            );
+
+            //- The solid of a cell on this rank
+            MovedSolid localSolid(const label cellI) const;
+
+            //- The solid of the cell across a processor face
+            MovedSolid neighbourSolid
+            (
+                const label patchID,
+                const label faceID
+            ) const;
+
+            //- Write the solid from the cell above into cellI
+            void moveSolidInto
+            (
+                const label cellI,
+                const MovedSolid& from,
+                const scalar cellVolumeRatio
+            );
+
+            //- moveSolidInto() from the cell fromGlobalI on another rank
+            void moveSolidFromNeighbourProcessor
+            (
+                const label cellI,
+                const label fromGlobalI,
+                const volScalarField& globalIndices
+            );
+
+            //- Add the mass a route's foot sheds to collapsedMass
+            void chargeRouteFoot
+            (
+                const label footCell,
+                scalar& collapsedMass
+            ) const;
+
+            //- Empty a route's top unless replenishing; add its mass
+            void emptyRouteTop(const label topCell, scalar& replenishedMass);
+
+            //- Reduce and record the mass a bed collapse moved
+            void reportCollapsedMass
+            (
+                scalar replenishedMass,
+                scalar collapsedMass
+            );
+
+            //- Remove the solid of the cells to empty; mass destroyed
+            void emptyCells(const labelList& flipCells, const label nFlips);
+
+            //- Flag solid cells that face a partly solid face
+            void markBedBorderCells();
 
         // Equations
 
