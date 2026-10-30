@@ -163,548 +163,729 @@ void volPyrolysis::guardPorosity
     solidStateChecker_->abort(stage, por, badCell, context.str());
 }
 
-void volPyrolysis::recoverPorosity()
+void volPyrolysis::porosityFromSolidMass(const volScalarField& totalYm)
 {
-    if (active_)
+    volScalarField& por = porosity_;
+
+    // por is not transported: 1 - por = sum_i Ym_i/rho_i = totalYm/rho_,
+    // an identity from multiComponentSolidMixture's 1/rho_ = sum Ys_i/rho_i.
+    // Internal field only: a fixedValue porosity patch keeps its value.
+    const dimensionedScalar rhoSolidFloor
+    (
+        "rhoSolidFloor",
+        dimDensity,
+        SMALL
+    );
+
+    const volScalarField voidFraction
+    (
+        1.0 - totalYm/max(rho_, rhoSolidFloor)
+    );
+
+    por.primitiveFieldRef() = voidFraction.primitiveField();
+
+    // On the mass the transport just produced, before the bed motion or
+    // the emptying of flipped cells writes porosity_ again.
+    guardPorosity
+    (
+        "the porosity recovery in recoverPorosity()",
+        por,
+        phiSolid_
+    );
+
+    Info<< "porosity recovered from solid mass. Chemistry source (not"
+        << " applied) min/max   = " << gMin(porositySource_)
+        << ", " << gMax(porositySource_);
+
+    Info<< "; values min Y = " << gMin(por)
+        <<" max Y = " << gMax(por) << endl;
+}
+
+labelList volPyrolysis::cellsToEmpty
+(
+    const volScalarField& totalYm,
+    label& nFlips
+)
+{
+    FIFOStack<label> candidateStack = {};
+
+    volVectorField solidPresenceGrad = fvc::grad(solidState_->solidPresent());
+
+    // A dispersed or trace cell may be emptied where solid surrounds it
+    // or is everywhere absent around it (interior), or where the solid
+    // is moving away from the gas (receding edge).
+    forAll(porosity_,cellI)
     {
-        porositySource_ = solidChemistry_->RRpor(T_)();
+        const vector& presenceGrad = solidPresenceGrad[cellI];
+        const bool interior = mag(presenceGrad) == 0;
+        const bool recedingEdge =
+            mag(presenceGrad) > 0 && (Us_[cellI] & presenceGrad) > 0;
 
-        volScalarField& por = porosity_;
-
-        const surfaceScalarField& phiUs = phiSolid_;
-
-        const volScalarField totalYm(totalSolidMass());
-
-        // por is not transported: 1 - por = sum_i Ym_i/rho_i = totalYm/rho_,
-        // an identity from multiComponentSolidMixture's 1/rho_ = sum Ys_i/rho_i.
-        // Internal field only: a fixedValue porosity patch keeps its value.
-        const dimensionedScalar rhoSolidFloor
+        if
         (
-            "rhoSolidFloor",
-            dimDensity,
-            SMALL
-        );
-
-        const volScalarField voidFraction
-        (
-            1.0 - totalYm/max(rho_, rhoSolidFloor)
-        );
-
-        por.primitiveFieldRef() = voidFraction.primitiveField();
-
-        // On the mass the transport just produced, before the bed-motion
-        // machinery below writes porosity_ again.
-        guardPorosity
-        (
-            "the porosity recovery in recoverPorosity()",
-            por,
-            phiUs
-        );
-
-        Info<< "porosity recovered from solid mass. Chemistry source (not"
-            << " applied) min/max   = " << gMin(porositySource_)
-            << ", " << gMax(porositySource_);
-
-        Info<< "; values min Y = " << gMin(por)
-            <<" max Y = " << gMax(por) << endl;
-
-        FIFOStack<label> candidateStack = {};
-
-        volVectorField solidPresenceGrad = fvc::grad(solidState_->solidPresent());        
-
-        // A dispersed or trace cell may be emptied where solid surrounds it
-        // or is everywhere absent around it (interior), or where the solid
-        // is moving away from the gas (receding edge).
-        forAll(porosity_,cellI)
+            solidState_->isDispersedOrTrace(cellI)
+         && (interior || recedingEdge)
+        )
         {
-            const vector& presenceGrad = solidPresenceGrad[cellI];
-            const bool interior = mag(presenceGrad) == 0;
-            const bool recedingEdge =
-                mag(presenceGrad) > 0 && (Us_[cellI] & presenceGrad) > 0;
+            candidateStack.push(cellI);
+        }
+    }
 
+    // After the candidates: they read the gradient of last step's mask.
+    solidState_->refreshSolidPresent();
+
+    // Do not empty a cell while solid is still filling it through the
+    // advective transport equation (an advancing edge).
+    volScalarField divPhiYm
+    (
+        fvc::div(phiSolid_, totalYm, "div(phiSolid)")
+    );
+
+    label nCandidates = candidateStack.size();
+    label nProtected = 0;
+    FIFOStack<label> flipStack = {};
+
+    while (!candidateStack.empty())
+    {
+        const label cellI = candidateStack.pop();
+
+        if
+        (
+            divPhiYm[cellI]
+          < -poroProtectSolidInflowFluxTolerance_
+        )
+        {
+            ++nProtected;
+        }
+        else
+        {
+            flipStack.push(cellI);
+        }
+    }
+
+    nFlips = flipStack.size();
+
+    reduce(nCandidates, sumOp<label>());
+    reduce(nProtected, sumOp<label>());
+    reduce(nFlips, sumOp<label>());
+
+    if (infoOutput_ && Pstream::master() && nCandidates > 0)
+    {
+        Info<< "solid flip guard: candidates=" << nCandidates
+            << " vetoed(incoming-solid)=" << nProtected
+            << " flipped=" << nFlips
+            << endl;
+    }
+
+    return labelList(flipStack);
+}
+
+List<Field<label>> volPyrolysis::gatherFlipLists
+(
+    const labelList& flipCells
+) const
+{
+    List<Field<label>> procFlipList(Pstream::nProcs());
+    procFlipList[Pstream::myProcNo()] = flipCells;
+    Pstream::gatherList(procFlipList);
+    Pstream::scatterList(procFlipList);
+
+    return procFlipList;
+}
+
+tmp<volScalarField> volPyrolysis::globalCellNumbering
+(
+    List<Field<scalar>>& globalIndex
+) const
+{
+    globalIndex[Pstream::myProcNo()] =
+        solidOccupiedCellLastStep_.internalField();
+    Pstream::gatherList(globalIndex);
+    if (Pstream::master())
+    {
+        labelList sizes
+        (
+            ListListOps::subSizes(globalIndex,accessOp<Field<scalar>>())
+        );
+
+        label prefix = 0;
+        forAll(globalIndex,gI)
+        {
+            forAll(globalIndex[gI],entI)
+            {
+                globalIndex[gI][entI] = entI + prefix;
+            }
+            prefix = prefix + sizes[gI];
+        }
+    }
+    Pstream::scatter(globalIndex);
+
+    tmp<volScalarField> tglobalIndices(solidState_->solidPresent()*0);
+    volScalarField& globalIndices = tglobalIndices.ref();
+    forAll(globalIndices,cellI)
+    {
+        globalIndices[cellI] = globalIndex[Pstream::myProcNo()][cellI];
+    }
+    globalIndices.correctBoundaryConditions();
+
+    return tglobalIndices;
+}
+
+scalarField volPyrolysis::upperSolidNeighbour
+(
+    const volScalarField& globalIndices
+) const
+{
+    // The face above the cell centre (+z) is the one solid falls through;
+    // a gravity-aligned choice that is unique per cell is still open.
+    const scalar upperFaceTolerance = 1e-6;
+
+    const volScalarField& solidPresent = solidState_->solidPresent();
+
+    scalarField takeFrom(solidPresent.primitiveField());
+    forAll(mesh_.cells(),cellI)
+    {
+        if (solidPresent[cellI] < 1)
+        {
+            takeFrom[cellI] = -1;
+            continue;
+        }
+
+        label takeFromGlobalID = -1;
+        const cell& cellFaces = mesh_.cells()[cellI];
+        forAll(cellFaces,faceI)
+        {
             if
             (
-                solidState_->isDispersedOrTrace(cellI)
-             && (interior || recedingEdge)
+                mesh_.Cf()[cellFaces[faceI]].z()
+              > mesh_.C()[cellI].z() + upperFaceTolerance
             )
             {
-                candidateStack.push(cellI);
-            }
-        }
-
-        // After the candidates: they read the gradient of last step's mask.
-        solidState_->refreshSolidPresent();
-
-        // Do not empty a cell while solid is still filling it through the
-        // advective transport equation (an advancing edge).
-        volScalarField divPhiYm
-        (
-            fvc::div(phiUs, totalYm, "div(phiSolid)")
-        );
-
-        label nCandidates = candidateStack.size();
-        label nProtected = 0;
-        FIFOStack<label> flipStack = {};
-
-        while (!candidateStack.empty())
-        {
-            const label cellI = candidateStack.pop();
-
-            if
-            (
-                divPhiYm[cellI]
-              < -poroProtectSolidInflowFluxTolerance_
-            )
-            {
-                ++nProtected;
-            }
-            else
-            {
-                flipStack.push(cellI);
-            }
-        }
-
-        label nFlips = flipStack.size();
-
-        reduce(nCandidates, sumOp<label>());
-        reduce(nProtected, sumOp<label>());
-        reduce(nFlips, sumOp<label>());
-
-        if (infoOutput_ && Pstream::master() && nCandidates > 0)
-        {
-            Info<< "solid flip guard: candidates=" << nCandidates
-                << " vetoed(incoming-solid)=" << nProtected
-                << " flipped=" << nFlips
-                << endl;
-        }
-
-        List<Field<label>> procFlipList(Pstream::nProcs());
-        procFlipList[Pstream::myProcNo()] = labelList(flipStack);
-        Pstream::gatherList(procFlipList);
-        Pstream::scatterList(procFlipList);
-        bool evaluate = false;
-        forAll(procFlipList,listI)
-        {
-            if (procFlipList[listI].size() > 0)
-            {
-                evaluate = true;
-            }
-        }
-
-        if (bedCollapseSwitch_)
-        {
-            if (evaluate)
-            {
-                solidState_->correctSolidPresentBoundaryConditions();
-                porosity_.correctBoundaryConditions();
-                solidOccupiedCellLastStep_ = solidOccupiedCellLastStep_*0;
-
-                // this part collects global cell numbering
-                List<Field<scalar>> globalIndex(Pstream::nProcs());
-                globalIndex[Pstream::myProcNo()] = solidOccupiedCellLastStep_.internalField();
-                Pstream::gatherList(globalIndex);
-                if (Pstream::master())
+                const label patchID =
+                    mesh_.boundaryMesh().whichPatch(cellFaces[faceI]);
+                if (patchID > -1)
                 {
-                    labelList sizes
-                    (
-                        ListListOps::subSizes(globalIndex,accessOp<Field<scalar>>())
-                    );
-
-                    label prefix = 0;
-                    forAll(globalIndex,gI)
+                    const label faceID =
+                        mesh_.boundaryMesh()[patchID].whichFace(cellFaces[faceI]);
+                    if (isA<processorPolyPatch>(mesh_.boundaryMesh()[patchID]))
                     {
-                        forAll(globalIndex[gI],entI)
+                        takeFromGlobalID = globalIndices.boundaryField()[patchID].patchNeighbourField()()[faceID];
+                        if (solidPresent.boundaryField()[patchID].patchNeighbourField()()[faceID] < 1)
                         {
-                            globalIndex[gI][entI] = entI + prefix;
+                            takeFromGlobalID = -1;
                         }
-                        prefix = prefix + sizes[gI];
                     }
                 }
-                Pstream::scatter(globalIndex);
-                volScalarField globalIndices = solidState_->solidPresent()*0;
-                forAll(globalIndices,cellI)
+                else
                 {
-                    globalIndices[cellI] = globalIndex[Pstream::myProcNo()][cellI];
-                }
-                globalIndices.correctBoundaryConditions();
-
-                // this part determines processor based a possible motion paths using the global numbering
-                // it writes into takeFrom the global adress of cell from which the resources will be taken
-                volScalarField takeFrom = solidState_->solidPresent();
-                forAll(mesh_.cells(),cellI)
-                {
-                    if (solidState_->solidPresent()[cellI] < 1)
+                    if (cellI == mesh_.faceNeighbour()[cellFaces[faceI]])
                     {
-                        takeFrom[cellI] = -1;
+                        takeFromGlobalID = mesh_.faceOwner()[cellFaces[faceI]];
                     }
                     else
-                    { 
-                        label takeFromGlobalID = -1;
-                        forAll(mesh_.cells()[cellI],faceI)
-                        {
-                            if (mesh_.Cf()[mesh_.cells()[cellI][faceI]].z() > mesh_.C()[cellI].z() + 1e-6) // determine the upper face - here more advanced criterion should be in force
-                            {                                                                              // like eg. upwards gravity maybe with some uniqueness cirteria
-                                label faceID = -1;
-                                label patchID = mesh_.boundaryMesh().whichPatch(mesh_.cells()[cellI][faceI]);
-                                if (patchID > -1)
-                                {
-                                    faceID = mesh_.boundaryMesh()[patchID].whichFace(mesh_.cells()[cellI][faceI]);
-                                    if (isA<processorPolyPatch>(mesh_.boundaryMesh()[patchID]))
-                                    {
-                                        takeFromGlobalID = globalIndices.boundaryField()[patchID].patchNeighbourField()()[faceID];
-                                        if (solidState_->solidPresent().boundaryField()[patchID].patchNeighbourField()()[faceID] < 1)
-                                        {
-                                            takeFromGlobalID = -1;
-                                        }
-                                    }
-                                }
-                                else
-                                {
-                                    
-                                    if (cellI == mesh_.faceNeighbour()[mesh_.cells()[cellI][faceI]])
-                                    {
-                                        takeFromGlobalID =  mesh_.faceOwner()[mesh_.cells()[cellI][faceI]]; 
-                                    }
-                                    else
-                                    {
-                                        takeFromGlobalID =  mesh_.faceNeighbour()[mesh_.cells()[cellI][faceI]]; 
-                                    }
-                                    if (solidState_->solidPresent()[takeFromGlobalID] < 1)
-                                    {
-                                        takeFromGlobalID = -1;
-                                    }
-                                    else
-                                    {
-                                        takeFromGlobalID = globalIndices[takeFromGlobalID];
-                                    }
-                                } 
-                            }
-                        }
-                        takeFrom[cellI] = takeFromGlobalID; 
-                    }
-                }
-
-                // this part gets motion paths to be distributed per each processor
-                // from possible routes and initial positions
-                // and maximum reaches of motion paths
-                // convenient way might be to get back the initial cells or whole routes on each processor
-                List<Field<scalar>> routes(Pstream::nProcs());
-                routes[Pstream::myProcNo()] = takeFrom.internalField();
-                Pstream::gatherList(routes);
-
-                // this part calcuates global actual routes of material travel
-                // and distributes them to execution on local processors
-                List<List<label>> realRoutes = {};
-                scalar replenishedMass = 0;
-                scalar collapsedMass = 0;
-                if (Pstream::master())
-                {
-
-                    Field<scalar> routesCombined =
-                    ListListOps::combine<Field<scalar>>
-                    (
-                        routes,
-                        accessOp<Field<scalar>>()
-                    );
-
-                    forAll(procFlipList,lI)
                     {
-                        forAll(procFlipList[lI],entI)
-                        {
-                            label prevStep = globalIndex[lI][procFlipList[lI][entI]];
-                            List<label> realRoute = {prevStep};
-                            while (routesCombined[prevStep] >= 0)
-                            {
-                                prevStep = routesCombined[prevStep];
-                                realRoute.append(prevStep);
-                            }
-                            realRoutes.append(realRoute);
-                        }
+                        takeFromGlobalID = mesh_.faceNeighbour()[cellFaces[faceI]];
                     }
-                }
-                Pstream::scatter(realRoutes);
-
-                //this part will determine processorwise route parts and motions of porous media
-                solidOccupiedCellLastStep_ = solidOccupiedCellLastStep_*0;
-                porosity_.correctBoundaryConditions();
-                porosityArch_.correctBoundaryConditions();
-                T_.correctBoundaryConditions();
-                rho_.correctBoundaryConditions();
-                if (collapseMovesSolidMass_)
-                {
-                    // The solid enthalpy travels with the mass across a
-                    // processor boundary too, so its neighbour values have
-                    // to be current before any route is walked.
-                    solidH_().correctBoundaryConditions();
-                }
-                for (label i = 0; i < Ys_.size(); ++i)
-                {
-                    Ym_[i].correctBoundaryConditions();
-                    Ys_[i].correctBoundaryConditions();
-                }
-                forAll(realRoutes,routeI)
-                {
-                    label minLocalGlobalI = globalIndex[Pstream::myProcNo()][0];
-                    label maxLocalGlobalI = globalIndex[Pstream::myProcNo()][globalIndex[Pstream::myProcNo()].size()-1];
-                    bool currentI = false;
-                    bool previousI = false;
-                    if
-                    (
-                        collapseMovesSolidMass_
-                     && (minLocalGlobalI <= realRoutes[routeI][0])
-                     && (realRoutes[routeI][0] <= maxLocalGlobalI)
-                     && (realRoutes[routeI].size() > 1 || !replenishSwitch_)
-                    )
+                    if (solidPresent[takeFromGlobalID] < 1)
                     {
-                        // The route's foot is where the collapse was called;
-                        // what it holds leaves the domain (or stays, if the
-                        // route is length one and replenishing). Charged here.
-                        const label footCell =
-                            realRoutes[routeI][0] - minLocalGlobalI;
-
-                        forAll(Ym_, i)
-                        {
-                            collapsedMass +=
-                                Ym_[i][footCell]*cellVolume_[footCell];
-                        }
+                        takeFromGlobalID = -1;
                     }
-                    for (label stepI = 0; stepI < realRoutes[routeI].size(); stepI++)
+                    else
                     {
-                        if ( (minLocalGlobalI <= realRoutes[routeI][stepI]) and (realRoutes[routeI][stepI] <= maxLocalGlobalI))
-                        {
-                            previousI = currentI;
-                            currentI = true;
-                            solidOccupiedCellLastStep_[realRoutes[routeI][stepI] - minLocalGlobalI] = -1;
-                        }
-                        else
-                        {
-                            previousI = currentI;
-                            currentI = false;
-                        }
-                        if (previousI and currentI)
-                        {
-                            scalar cellVolumeRatio = cellVolume_[realRoutes[routeI][stepI] - minLocalGlobalI]/cellVolume_[realRoutes[routeI][stepI-1] - minLocalGlobalI];
-                            // this 0.001 is a guardian for too large skewness in cells. It introduces error and will be solved in the future.
-                            porosity_[realRoutes[routeI][stepI-1] - minLocalGlobalI] = max(1. - (1. - porosity_[realRoutes[routeI][stepI] - minLocalGlobalI])*cellVolumeRatio
-                                                                                          ,0.001);
-                            porosityArch_[realRoutes[routeI][stepI-1] - minLocalGlobalI] = max(1. - (1. - porosityArch_[realRoutes[routeI][stepI] - minLocalGlobalI])*cellVolumeRatio
-                                                                                          ,0.001);
-                            T_[realRoutes[routeI][stepI-1] - minLocalGlobalI] = T_[realRoutes[routeI][stepI] - minLocalGlobalI];
-                            rho_[realRoutes[routeI][stepI-1] - minLocalGlobalI] = rho_[realRoutes[routeI][stepI] - minLocalGlobalI];
-                            // Transfer only the transported Ym_; Ys_ is
-                            // re-derived once after the whole route loop.
-                            // Ym_ (mass per unit volume) takes the same
-                            // ratio; solidH_ travels with it too.
-                            if (collapseMovesSolidMass_)
-                            {
-                                for (label i = 0; i < Ys_.size(); ++i)
-                                {
-                                    Ym_[i][realRoutes[routeI][stepI-1] - minLocalGlobalI] =
-                                        Ym_[i][realRoutes[routeI][stepI] - minLocalGlobalI]*cellVolumeRatio;
-                                }
-
-                                solidH_()[realRoutes[routeI][stepI-1] - minLocalGlobalI] =
-                                    solidH_()[realRoutes[routeI][stepI] - minLocalGlobalI]*cellVolumeRatio;
-                            }
-                            else
-                            {
-                                for (label i = 0; i < Ys_.size(); ++i)
-                                {
-                                    Ym_[i][realRoutes[routeI][stepI-1] - minLocalGlobalI] = Ym_[i][realRoutes[routeI][stepI] - minLocalGlobalI];
-                                }
-                            }
-                        }
-                        if (previousI and (not currentI))
-                        {
-                            forAll(mesh_.cells()[realRoutes[routeI][stepI-1] - minLocalGlobalI],faceI)
-                            {
-                                 label faceID = -1;
-                                 label patchID = mesh_.boundaryMesh().whichPatch(mesh_.cells()[realRoutes[routeI][stepI-1] - minLocalGlobalI][faceI]);
-                                 if (patchID > -1)
-                                 {
-                                     faceID = mesh_.boundaryMesh()[patchID].whichFace(mesh_.cells()[realRoutes[routeI][stepI-1] - minLocalGlobalI][faceI]);
-                                     if (isA<processorPolyPatch>(mesh_.boundaryMesh()[patchID]))
-                                        {
-                                            // Pass values from one subdomain to another.
-                                            label neighbourGlobalID =
-                                                globalIndices.boundaryField()[patchID].patchNeighbourField()()[faceID];
-
-                                            if (neighbourGlobalID != realRoutes[routeI][stepI])
-                                            {
-                                                continue;
-                                            }
-
-                                            scalar cellVolumeRatio =
-                                                cellVolume_.boundaryField()[patchID].patchNeighbourField()()[faceID]
-                                            / cellVolume_[realRoutes[routeI][stepI-1] - minLocalGlobalI];
-
-                                            porosity_[realRoutes[routeI][stepI-1] - minLocalGlobalI] =
-                                                max
-                                                (
-                                                    1. - (1. - porosity_.boundaryField()[patchID].patchNeighbourField()()[faceID])
-                                                    * cellVolumeRatio,
-                                                    0.001
-                                                );
-                                         porosityArch_[realRoutes[routeI][stepI-1] - minLocalGlobalI] = max(1. - (1. - porosityArch_.boundaryField()[patchID].patchNeighbourField()()[faceID])*cellVolumeRatio
-                                                                                                        ,0.001);
-                                         T_[realRoutes[routeI][stepI-1] - minLocalGlobalI] = T_.boundaryField()[patchID].patchNeighbourField()()[faceID];
-                                         rho_[realRoutes[routeI][stepI-1] - minLocalGlobalI] = rho_.boundaryField()[patchID].patchNeighbourField()()[faceID];
-                                         // Transfer only the transported Ym_;
-                                         // Ys_ is re-derived after the loop.
-                                         // Ratio and enthalpy as in the
-                                         // on-processor branch above.
-                                         if (collapseMovesSolidMass_)
-                                         {
-                                             for (label i = 0; i < Ys_.size(); ++i)
-                                             {
-                                                 Ym_[i][realRoutes[routeI][stepI-1] - minLocalGlobalI] = Ym_[i].boundaryField()[patchID].patchNeighbourField()()[faceID]*cellVolumeRatio;
-                                             }
-                                             solidH_()[realRoutes[routeI][stepI-1] - minLocalGlobalI] = solidH_().boundaryField()[patchID].patchNeighbourField()()[faceID]*cellVolumeRatio;
-                                         }
-                                         else
-                                         {
-                                             for (label i = 0; i < Ys_.size(); ++i)
-                                             {
-                                                 Ym_[i][realRoutes[routeI][stepI-1] - minLocalGlobalI] = Ym_[i].boundaryField()[patchID].patchNeighbourField()()[faceID];
-                                             }
-                                         }
-                                     }
-                                 }
-                            }
-                        } 
-                    }
-                    if ( (minLocalGlobalI <= realRoutes[routeI][realRoutes[routeI].size() - 1]) and (realRoutes[routeI][realRoutes[routeI].size() - 1] <= maxLocalGlobalI))
-                    {
-                        if (not replenishSwitch_)
-                        {
-                            // Nothing falls in from above the route's top, so
-                            // under collapseMovesSolidMass_ the mass fields
-                            // are zeroed too; not charged (copied out above).
-                            if (collapseMovesSolidMass_)
-                            {
-                                const label topCell = realRoutes[routeI][realRoutes[routeI].size() - 1] - minLocalGlobalI;
-
-                                forAll(Ym_, i)
-                                {
-                                    Ym_[i][topCell] = 0.0;
-                                }
-
-                                solidH_()[topCell] = 0.0;
-                                T_[topCell] = 0.0;
-                            }
-
-                            porosity_[realRoutes[routeI][realRoutes[routeI].size() - 1] - minLocalGlobalI] = 1.;
-                            porosityArch_[realRoutes[routeI][realRoutes[routeI].size() - 1] - minLocalGlobalI] = 1.;
-                        }
-                        replenishedMass += (1. - porosity_[realRoutes[routeI][realRoutes[routeI].size() - 1] - minLocalGlobalI])*
-                            rho_[realRoutes[routeI][realRoutes[routeI].size() - 1] - minLocalGlobalI]*
-                            cellVolume_[realRoutes[routeI][realRoutes[routeI].size() - 1] - minLocalGlobalI];
-                    }
-                }
-
-                reduce(replenishedMass, sumOp<scalar>());
-                reduce(collapsedMass, sumOp<scalar>());
-                cumulativeCollapseMass_ += collapsedMass;
-                if (Pstream::master())
-                {
-                    totRepMass_ += replenishedMass;
-                    Info << "Total replenished mass in this run is: " << totRepMass_ << " [kg]" <<endl;
-                }
-
-                // Bed motion moved Ym_ between cells; rebuild the mass
-                // fractions Ys_ from the relocated mass concentrations.
-                deriveYiFromYm();
-            }
-        }
-        else if (emptyFlippedCells_)
-        {
-            // Emptying a cell removes its solid outright rather than just
-            // rewriting porosity; the mass is destroyed (no destination) and
-            // charged to cumulativeFlipMass_. T_ zeroed to match solidH_.
-            const scalarField& V = mesh_.V();
-            scalar flippedMass = 0.0;
-
-            List<label> flipStackList = labelList(flipStack);
-            forAll(flipStackList,entI)
-            {
-                const label cellI = flipStackList[entI];
-
-                forAll(Ym_, i)
-                {
-                    flippedMass += Ym_[i][cellI]*V[cellI];
-                    Ym_[i][cellI] = 0.0;
-                }
-
-                solidH_()[cellI] = 0.0;
-                T_[cellI] = 0.0;
-                porosity_[cellI] = 1.0;
-            }
-
-            reduce(flippedMass, sumOp<scalar>());
-            cumulativeFlipMass_ += flippedMass;
-
-            if (nFlips > 0)
-            {
-                // Ym_ has changed, so the mass fractions the mixture density
-                // is built from have to follow it - the same refresh the
-                // bedCollapse branch does after relocating mass.
-                deriveYiFromYm();
-            }
-        }
-
-        solidState_->refreshSolidPresent();
-
-        // Here, after everything above that writes porosity_ directly: the
-        // bed-motion model and the flip to por = 1.
-        guardPorosity
-        (
-            "the bed motion in recoverPorosity()",
-            por,
-            phiUs
-        );
-        solidStateChecker_->checkConsistency(porosity_, Ym_, rho_);
-
-        cellOnBedBorder_= cellOnBedBorder_*0;
-        porosity_.correctBoundaryConditions();
-        solidState_->correctSolidPresentBoundaryConditions();
-        surfaceScalarField  solidPresenceAtFaces  = fvc::interpolate(solidState_->solidPresent());
-        forAll(solidPresenceAtFaces,faceI)
-        {
-            if ( (solidPresenceAtFaces[faceI] > 0) and (solidPresenceAtFaces[faceI] < 1) )
-            {
-                if (solidState_->solidPresent()[mesh_.owner()[faceI]] == 1)
-                {
-                    cellOnBedBorder_[mesh_.owner()[faceI]] = 1;
-                }
-                if (solidState_->solidPresent()[mesh_.neighbour()[faceI]] == 1)
-                {
-                    cellOnBedBorder_[mesh_.neighbour()[faceI]] = 1;
-                }
-            }
-        }
-        forAll(solidPresenceAtFaces.boundaryField(),patchI)
-        {
-            if (isA<processorPolyPatch>(mesh_.boundaryMesh()[patchI]))
-            {
-                forAll(solidPresenceAtFaces.boundaryField()[patchI],faceI)
-                {
-                    if ( (solidPresenceAtFaces.boundaryField()[patchI][faceI] > 0) and (solidPresenceAtFaces.boundaryField()[patchI][faceI] < 1) )
-                    {
-                        if (solidState_->solidPresent()[mesh_.owner()[faceI + mesh_.boundaryMesh()[patchI].start()]] == 1)
-                        {
-                            cellOnBedBorder_[mesh_.owner()[faceI + mesh_.boundaryMesh()[patchI].start()]] = 1;
-                        }
+                        takeFromGlobalID = globalIndices[takeFromGlobalID];
                     }
                 }
             }
         }
-
-        // porosity_ has just been rewritten; the gate is derived from it.
-        solidState_->freezeConnectedAtStepStart();
-
-        // On the mass the bed motion left, for the written regime record.
-        solidState_->classify(totalSolidMass()(), rho_);
+        takeFrom[cellI] = takeFromGlobalID;
     }
+
+    return takeFrom;
+}
+
+List<List<label>> volPyrolysis::collapseRoutes
+(
+    const List<Field<label>>& procFlipList,
+    const List<Field<scalar>>& globalIndex,
+    const scalarField& takeFrom
+) const
+{
+    List<Field<scalar>> routes(Pstream::nProcs());
+    routes[Pstream::myProcNo()] = takeFrom;
+    Pstream::gatherList(routes);
+
+    // The master follows takeFrom upward from each flipped cell until no
+    // solid lies above; every rank then walks the routes it holds cells of.
+    List<List<label>> realRoutes = {};
+    if (Pstream::master())
+    {
+        Field<scalar> routesCombined =
+        ListListOps::combine<Field<scalar>>
+        (
+            routes,
+            accessOp<Field<scalar>>()
+        );
+
+        forAll(procFlipList,lI)
+        {
+            forAll(procFlipList[lI],entI)
+            {
+                label prevStep = globalIndex[lI][procFlipList[lI][entI]];
+                List<label> realRoute = {prevStep};
+                while (routesCombined[prevStep] >= 0)
+                {
+                    prevStep = routesCombined[prevStep];
+                    realRoute.append(prevStep);
+                }
+                realRoutes.append(realRoute);
+            }
+        }
+    }
+    Pstream::scatter(realRoutes);
+
+    return realRoutes;
+}
+
+void volPyrolysis::syncCollapseBoundaries()
+{
+    solidOccupiedCellLastStep_ = solidOccupiedCellLastStep_*0;
+    porosity_.correctBoundaryConditions();
+    porosityArch_.correctBoundaryConditions();
+    T_.correctBoundaryConditions();
+    rho_.correctBoundaryConditions();
+    if (collapseMovesSolidMass_)
+    {
+        // The solid enthalpy travels with the mass across a
+        // processor boundary too, so its neighbour values have
+        // to be current before any route is walked.
+        solidH_().correctBoundaryConditions();
+    }
+    for (label i = 0; i < Ys_.size(); ++i)
+    {
+        Ym_[i].correctBoundaryConditions();
+        Ys_[i].correctBoundaryConditions();
+    }
+}
+
+volPyrolysis::MovedSolid volPyrolysis::localSolid(const label cellI) const
+{
+    MovedSolid solid;
+    solid.porosity = porosity_[cellI];
+    solid.porosityArch = porosityArch_[cellI];
+    solid.T = T_[cellI];
+    solid.rho = rho_[cellI];
+    solid.Ym.setSize(Ym_.size());
+    forAll(Ym_, i)
+    {
+        solid.Ym[i] = Ym_[i][cellI];
+    }
+    solid.H = collapseMovesSolidMass_ ? solidH_()[cellI] : 0.0;
+
+    return solid;
+}
+
+volPyrolysis::MovedSolid volPyrolysis::neighbourSolid
+(
+    const label patchID,
+    const label faceID
+) const
+{
+    MovedSolid solid;
+    solid.porosity =
+        porosity_.boundaryField()[patchID].patchNeighbourField()()[faceID];
+    solid.porosityArch =
+        porosityArch_.boundaryField()[patchID].patchNeighbourField()()[faceID];
+    solid.T = T_.boundaryField()[patchID].patchNeighbourField()()[faceID];
+    solid.rho = rho_.boundaryField()[patchID].patchNeighbourField()()[faceID];
+    solid.Ym.setSize(Ym_.size());
+    forAll(Ym_, i)
+    {
+        solid.Ym[i] =
+            Ym_[i].boundaryField()[patchID].patchNeighbourField()()[faceID];
+    }
+    solid.H =
+        collapseMovesSolidMass_
+      ? solidH_().boundaryField()[patchID].patchNeighbourField()()[faceID]
+      : 0.0;
+
+    return solid;
+}
+
+void volPyrolysis::moveSolidInto
+(
+    const label cellI,
+    const MovedSolid& from,
+    const scalar cellVolumeRatio
+)
+{
+    // Guards against skewed cells (a large volume ratio); the floor itself
+    // introduces an error.
+    const scalar minCollapsedPorosity = 0.001;
+
+    porosity_[cellI] =
+        max(1. - (1. - from.porosity)*cellVolumeRatio, minCollapsedPorosity);
+    porosityArch_[cellI] =
+        max(1. - (1. - from.porosityArch)*cellVolumeRatio, minCollapsedPorosity);
+    T_[cellI] = from.T;
+    rho_[cellI] = from.rho;
+
+    // Only the transported Ym_ moves; Ys_ is re-derived once after all
+    // routes. Ym_ (per unit volume) takes the porosity's volume ratio.
+    if (collapseMovesSolidMass_)
+    {
+        forAll(Ym_, i)
+        {
+            Ym_[i][cellI] = from.Ym[i]*cellVolumeRatio;
+        }
+        solidH_()[cellI] = from.H*cellVolumeRatio;
+    }
+    else
+    {
+        forAll(Ym_, i)
+        {
+            Ym_[i][cellI] = from.Ym[i];
+        }
+    }
+}
+
+void volPyrolysis::moveSolidFromNeighbourProcessor
+(
+    const label cellI,
+    const label fromGlobalI,
+    const volScalarField& globalIndices
+)
+{
+    const cell& cellFaces = mesh_.cells()[cellI];
+    forAll(cellFaces,faceI)
+    {
+        const label patchID =
+            mesh_.boundaryMesh().whichPatch(cellFaces[faceI]);
+        if
+        (
+            patchID == -1
+         || !isA<processorPolyPatch>(mesh_.boundaryMesh()[patchID])
+        )
+        {
+            continue;
+        }
+
+        const label faceID =
+            mesh_.boundaryMesh()[patchID].whichFace(cellFaces[faceI]);
+        const label neighbourGlobalID =
+            globalIndices.boundaryField()[patchID].patchNeighbourField()()[faceID];
+        if (neighbourGlobalID != fromGlobalI)
+        {
+            continue;
+        }
+
+        const scalar cellVolumeRatio =
+            cellVolume_.boundaryField()[patchID].patchNeighbourField()()[faceID]
+          / cellVolume_[cellI];
+
+        moveSolidInto(cellI, neighbourSolid(patchID, faceID), cellVolumeRatio);
+    }
+}
+
+void volPyrolysis::chargeRouteFoot
+(
+    const label footCell,
+    scalar& collapsedMass
+) const
+{
+    forAll(Ym_, i)
+    {
+        collapsedMass += Ym_[i][footCell]*cellVolume_[footCell];
+    }
+}
+
+void volPyrolysis::emptyRouteTop
+(
+    const label topCell,
+    scalar& replenishedMass
+)
+{
+    if (!replenishSwitch_)
+    {
+        // Nothing falls in from above the route's top, so under
+        // collapseMovesSolidMass_ the mass fields are zeroed too; not
+        // charged (copied out already).
+        if (collapseMovesSolidMass_)
+        {
+            forAll(Ym_, i)
+            {
+                Ym_[i][topCell] = 0.0;
+            }
+
+            solidH_()[topCell] = 0.0;
+            T_[topCell] = 0.0;
+        }
+
+        porosity_[topCell] = 1.;
+        porosityArch_[topCell] = 1.;
+    }
+    replenishedMass +=
+        (1. - porosity_[topCell])*rho_[topCell]*cellVolume_[topCell];
+}
+
+void volPyrolysis::walkCollapseRoute
+(
+    const List<label>& route,
+    const List<Field<scalar>>& globalIndex,
+    const volScalarField& globalIndices,
+    scalar& replenishedMass,
+    scalar& collapsedMass
+)
+{
+    const Field<scalar>& localGlobalIndex = globalIndex[Pstream::myProcNo()];
+    const label minLocalGlobalI = localGlobalIndex[0];
+    const label maxLocalGlobalI = localGlobalIndex[localGlobalIndex.size()-1];
+    auto isLocal = [&](const label globalI)
+    {
+        return minLocalGlobalI <= globalI && globalI <= maxLocalGlobalI;
+    };
+
+    // The route's foot is where the collapse was called; what it holds
+    // leaves the domain (or stays, if the route is length one and
+    // replenishing).
+    if
+    (
+        collapseMovesSolidMass_
+     && isLocal(route[0])
+     && (route.size() > 1 || !replenishSwitch_)
+    )
+    {
+        chargeRouteFoot(route[0] - minLocalGlobalI, collapsedMass);
+    }
+
+    // Each step pulls the solid of the cell above into the cell below.
+    bool currentI = false;
+    bool previousI = false;
+    for (label stepI = 0; stepI < route.size(); stepI++)
+    {
+        previousI = currentI;
+        currentI = isLocal(route[stepI]);
+        if (currentI)
+        {
+            solidOccupiedCellLastStep_[route[stepI] - minLocalGlobalI] = -1;
+        }
+
+        if (previousI && currentI)
+        {
+            const label below = route[stepI-1] - minLocalGlobalI;
+            const label above = route[stepI] - minLocalGlobalI;
+            moveSolidInto
+            (
+                below,
+                localSolid(above),
+                cellVolume_[above]/cellVolume_[below]
+            );
+        }
+        if (previousI && !currentI)
+        {
+            moveSolidFromNeighbourProcessor
+            (
+                route[stepI-1] - minLocalGlobalI,
+                route[stepI],
+                globalIndices
+            );
+        }
+    }
+
+    if (isLocal(route[route.size() - 1]))
+    {
+        emptyRouteTop(route[route.size() - 1] - minLocalGlobalI, replenishedMass);
+    }
+}
+
+void volPyrolysis::reportCollapsedMass
+(
+    scalar replenishedMass,
+    scalar collapsedMass
+)
+{
+    reduce(replenishedMass, sumOp<scalar>());
+    reduce(collapsedMass, sumOp<scalar>());
+    cumulativeCollapseMass_ += collapsedMass;
+    if (Pstream::master())
+    {
+        totRepMass_ += replenishedMass;
+        Info << "Total replenished mass in this run is: " << totRepMass_ << " [kg]" <<endl;
+    }
+}
+
+void volPyrolysis::collapseBedOnto(const List<Field<label>>& procFlipList)
+{
+    bool evaluate = false;
+    forAll(procFlipList,listI)
+    {
+        if (procFlipList[listI].size() > 0)
+        {
+            evaluate = true;
+        }
+    }
+    if (!evaluate)
+    {
+        return;
+    }
+
+    solidState_->correctSolidPresentBoundaryConditions();
+    porosity_.correctBoundaryConditions();
+    solidOccupiedCellLastStep_ = solidOccupiedCellLastStep_*0;
+
+    List<Field<scalar>> globalIndex(Pstream::nProcs());
+    const volScalarField globalIndices(globalCellNumbering(globalIndex));
+
+    const scalarField takeFrom(upperSolidNeighbour(globalIndices));
+
+    const List<List<label>> realRoutes
+    (
+        collapseRoutes(procFlipList, globalIndex, takeFrom)
+    );
+
+    syncCollapseBoundaries();
+
+    scalar replenishedMass = 0;
+    scalar collapsedMass = 0;
+    forAll(realRoutes,routeI)
+    {
+        walkCollapseRoute
+        (
+            realRoutes[routeI],
+            globalIndex,
+            globalIndices,
+            replenishedMass,
+            collapsedMass
+        );
+    }
+
+    reportCollapsedMass(replenishedMass, collapsedMass);
+
+    // Bed motion moved Ym_ between cells; rebuild the mass
+    // fractions Ys_ from the relocated mass concentrations.
+    deriveYiFromYm();
+}
+
+void volPyrolysis::emptyCells(const labelList& flipCells, const label nFlips)
+{
+    // Emptying a cell removes its solid outright rather than just
+    // rewriting porosity; the mass is destroyed (no destination) and
+    // charged to cumulativeFlipMass_. T_ zeroed to match solidH_.
+    const scalarField& V = mesh_.V();
+    scalar flippedMass = 0.0;
+
+    forAll(flipCells,entI)
+    {
+        const label cellI = flipCells[entI];
+
+        forAll(Ym_, i)
+        {
+            flippedMass += Ym_[i][cellI]*V[cellI];
+            Ym_[i][cellI] = 0.0;
+        }
+
+        solidH_()[cellI] = 0.0;
+        T_[cellI] = 0.0;
+        porosity_[cellI] = 1.0;
+    }
+
+    reduce(flippedMass, sumOp<scalar>());
+    cumulativeFlipMass_ += flippedMass;
+
+    if (nFlips > 0)
+    {
+        // Ym_ has changed, so the mass fractions the mixture density
+        // is built from have to follow it - the same refresh the
+        // bed collapse does after relocating mass.
+        deriveYiFromYm();
+    }
+}
+
+void volPyrolysis::markBedBorderCells()
+{
+    cellOnBedBorder_= cellOnBedBorder_*0;
+    porosity_.correctBoundaryConditions();
+    solidState_->correctSolidPresentBoundaryConditions();
+
+    const volScalarField& solidPresent = solidState_->solidPresent();
+    surfaceScalarField solidPresenceAtFaces = fvc::interpolate(solidPresent);
+    forAll(solidPresenceAtFaces,faceI)
+    {
+        if ( (solidPresenceAtFaces[faceI] > 0) and (solidPresenceAtFaces[faceI] < 1) )
+        {
+            if (solidPresent[mesh_.owner()[faceI]] == 1)
+            {
+                cellOnBedBorder_[mesh_.owner()[faceI]] = 1;
+            }
+            if (solidPresent[mesh_.neighbour()[faceI]] == 1)
+            {
+                cellOnBedBorder_[mesh_.neighbour()[faceI]] = 1;
+            }
+        }
+    }
+    forAll(solidPresenceAtFaces.boundaryField(),patchI)
+    {
+        if (isA<processorPolyPatch>(mesh_.boundaryMesh()[patchI]))
+        {
+            const label start = mesh_.boundaryMesh()[patchI].start();
+            forAll(solidPresenceAtFaces.boundaryField()[patchI],faceI)
+            {
+                if ( (solidPresenceAtFaces.boundaryField()[patchI][faceI] > 0) and (solidPresenceAtFaces.boundaryField()[patchI][faceI] < 1) )
+                {
+                    if (solidPresent[mesh_.owner()[faceI + start]] == 1)
+                    {
+                        cellOnBedBorder_[mesh_.owner()[faceI + start]] = 1;
+                    }
+                }
+            }
+        }
+    }
+}
+
+void volPyrolysis::recoverPorosity()
+{
+    if (!active_)
+    {
+        return;
+    }
+
+    porositySource_ = solidChemistry_->RRpor(T_)();
+
+    const volScalarField totalYm(totalSolidMass());
+
+    porosityFromSolidMass(totalYm);
+
+    label nFlips = 0;
+    const labelList flipCells(cellsToEmpty(totalYm, nFlips));
+    const List<Field<label>> procFlipList(gatherFlipLists(flipCells));
+
+    if (bedCollapseSwitch_)
+    {
+        collapseBedOnto(procFlipList);
+    }
+    else if (emptyFlippedCells_)
+    {
+        emptyCells(flipCells, nFlips);
+    }
+
+    solidState_->refreshSolidPresent();
+
+    // Here, after everything above that writes porosity_ directly: the
+    // bed collapse and the emptying of flipped cells.
+    guardPorosity
+    (
+        "the bed motion in recoverPorosity()",
+        porosity_,
+        phiSolid_
+    );
+    solidStateChecker_->checkConsistency(porosity_, Ym_, rho_);
+
+    markBedBorderCells();
+
+    // porosity_ has just been rewritten; the gate is derived from it.
+    solidState_->freezeConnectedAtStepStart();
+
+    // On the mass the bed motion left, for the written regime record.
+    solidState_->classify(totalSolidMass()(), rho_);
 }
 
 void volPyrolysis::solveSpeciesMass()
