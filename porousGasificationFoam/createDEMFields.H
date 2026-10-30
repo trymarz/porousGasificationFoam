@@ -70,7 +70,7 @@ volScalarField nParticles
 );
 
 // lambdaDot [m/s]: rate of change of the particle length scale. Assembled by
-// volPyrolysis::solveSpeciesMass(); lambdaDotModel gates it outside the solid
+// SolidSpeciesTransport::solve(); lambdaDotModel gates it outside the solid
 // region and pushes it to the YADE particles.
 volScalarField lambdaDot
 (

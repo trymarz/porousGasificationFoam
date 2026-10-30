@@ -15,7 +15,7 @@ FoamFile
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-// Pyrolysis active so volPyrolysis::solveSpeciesMass() runs and transports the
+// Pyrolysis active so SolidSpeciesTransport::solve() runs and transports the
 // fresh solid from the left inlet by Us. With chemistry off the reaction source
 // is zero, so the species equation is pure advection and accumulation.
 active          true;
