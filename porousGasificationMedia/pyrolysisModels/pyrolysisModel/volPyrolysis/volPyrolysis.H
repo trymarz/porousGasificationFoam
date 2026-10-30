@@ -491,6 +491,41 @@ protected:
             //- Flag solid cells that face a partly solid face
             void markBedBorderCells();
 
+        // Species mass helpers
+
+            //- DEM: reset lambdaDot and add its temperature-driven term
+            void beginLambdaDotStep();
+
+            //- DEM: add the chemistry-driven lambdaDot term of specie i
+            void addChemistryLambdaDot
+            (
+                const volScalarField& sRhoSi,
+                const label i
+            );
+
+            //- Abort if Ym_i is invalid after its equation
+            void checkSpecieMass
+            (
+                const label i,
+                const volScalarField& divYmFlux,
+                const volScalarField& sRhoSi
+            ) const;
+
+            //- Clip negative Ym_i to zero; the mass added is booked
+            void clipNegativeSpecieMass(volScalarField& Ym_i);
+
+            //- Solve the mass equation of solid specie i
+            void solveSpecieMass(const label i);
+
+            //- DEM: update lambdaDot boundary values once complete
+            void finishLambdaDotStep();
+
+            //- Info: transported solid mass against the booked losses
+            void reportSolidMassBudget() const;
+
+            //- Info: range of each derived solid mass fraction
+            void reportDerivedSpecies() const;
+
         // Equations
 
             //- Solve solid species mass conservation
