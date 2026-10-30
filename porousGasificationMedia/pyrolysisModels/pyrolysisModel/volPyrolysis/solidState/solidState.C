@@ -307,6 +307,43 @@ tmp<volScalarField> SolidState::totalMass
 }
 
 
+void SolidState::deriveYiFromYm
+(
+    const PtrList<volScalarField>& Ym,
+    PtrList<volScalarField>& Ys
+)
+{
+    // rho = 1/sum_i(Ys_i/rho_i) is a density only where sum_i Ys_i = 1;
+    // a fixedYm patch beside an empty cell injects at that density.
+    forAll(Ym[0], cellI)
+    {
+        scalar Ysum = 0.0;
+        forAll(Ys, i)
+        {
+            Ysum += Ym[i][cellI];
+        }
+
+        if (Ysum > SMALL)
+        {
+            forAll(Ys, i)
+            {
+                Ys[i][cellI] = Ym[i][cellI] / Ysum;
+            }
+        }
+        else
+        {
+            // The cell carries no mass, so nothing it holds depends on the
+            // choice - only a fixedYm patch beside it reads this density.
+            forAll(Ys, i)
+            {
+                Ys[i][cellI] = 0.0;
+            }
+            Ys[0][cellI] = 1.0;
+        }
+    }
+}
+
+
 tmp<volScalarField> SolidState::massBeyondTrace
 (
     const volScalarField& totalYm,
