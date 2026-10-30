@@ -66,6 +66,14 @@ solvers
         relTol           0;
     }
 
+    Ts
+    {
+        solver           PCG;
+        preconditioner   DIC;
+        tolerance        1e-10;
+        relTol           0;
+    }
+
     rhos
     {
         solver          PCG;
