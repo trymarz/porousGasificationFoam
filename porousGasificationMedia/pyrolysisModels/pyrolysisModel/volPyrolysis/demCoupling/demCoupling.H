@@ -22,7 +22,7 @@ License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
 Class
-    Foam::heterogeneousPyrolysisModels::LambdaDotCoupling
+    Foam::heterogeneousPyrolysisModels::DemCoupling
 
 Description
     The pyrolysis side of the DEM (YADE) coupling: computes lambdaDot, the
@@ -43,12 +43,12 @@ Description
     selection; the lambdaDot model itself is selected at runtime.
 
 SourceFiles
-    lambdaDotCoupling.C
+    demCoupling.C
 
 \*---------------------------------------------------------------------------*/
 
-#ifndef lambdaDotCoupling_H
-#define lambdaDotCoupling_H
+#ifndef demCoupling_H
+#define demCoupling_H
 
 #include "fvMesh.H"
 #include "volFields.H"
@@ -66,10 +66,10 @@ namespace heterogeneousPyrolysisModels
 {
 
 /*---------------------------------------------------------------------------*\
-                     Class LambdaDotCoupling Declaration
+                     Class DemCoupling Declaration
 \*---------------------------------------------------------------------------*/
 
-class LambdaDotCoupling
+class DemCoupling
 {
     // Private data
 
@@ -92,10 +92,10 @@ class LambdaDotCoupling
     // Private member functions
 
         //- Disallow default bitwise copy construct
-        LambdaDotCoupling(const LambdaDotCoupling&);
+        DemCoupling(const DemCoupling&);
 
         //- Disallow default bitwise assignment
-        void operator=(const LambdaDotCoupling&);
+        void operator=(const DemCoupling&);
 
 
 public:
@@ -104,11 +104,11 @@ public:
 
         //- Construct from the mesh; resolves whether coupling is active
         //  and logs the result
-        LambdaDotCoupling(const fvMesh& mesh);
+        DemCoupling(const fvMesh& mesh);
 
 
     //- Destructor
-    ~LambdaDotCoupling();
+    ~DemCoupling();
 
 
     // Member Functions

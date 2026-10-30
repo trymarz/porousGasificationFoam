@@ -67,7 +67,7 @@ SourceFiles
 #include "HGSSolidThermo.H"
 #include "porousThermoSolidChemistryModel.H"
 #include "solidState.H"
-#include "solidStateChecker.H"
+#include "solidDiagnostics.H"
 #include "gasSolidHeatExchange.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
@@ -124,7 +124,7 @@ class SolidEnergy
 
         GasSolidHeatExchange& heatExchange_;
 
-        const SolidStateChecker& solidStateChecker_;
+        const SolidDiagnostics& solidDiagnostics_;
 
         //- The owner's switches, bound so a runtime read() takes effect
         const Switch& equilibrium_;
@@ -222,7 +222,7 @@ public:
             const volScalarField& chemistrySh,
             SolidState& solidState,
             GasSolidHeatExchange& heatExchange,
-            const SolidStateChecker& solidStateChecker,
+            const SolidDiagnostics& solidDiagnostics,
             const Switch& equilibrium,
             const Switch& active
         );

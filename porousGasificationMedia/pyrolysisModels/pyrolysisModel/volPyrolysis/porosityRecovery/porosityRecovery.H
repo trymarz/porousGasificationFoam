@@ -60,7 +60,7 @@ SourceFiles
 #include "HGSSolidThermo.H"
 #include "porousThermoSolidChemistryModel.H"
 #include "solidState.H"
-#include "solidStateChecker.H"
+#include "solidDiagnostics.H"
 #include "bedCollapse.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
@@ -113,7 +113,7 @@ class PorosityRecovery
         BedCollapse& bedCollapse_;
 
         //- Fail-fast guards, owned by volPyrolysis and created after this
-        const autoPtr<SolidStateChecker>& solidStateChecker_;
+        const autoPtr<SolidDiagnostics>& solidDiagnostics_;
 
         //- The owner's switches, bound so a runtime read() takes effect
         const Switch& active_;
@@ -201,7 +201,7 @@ public:
             volScalarField& cellOnBedBorder,
             SolidState& solidState,
             BedCollapse& bedCollapse,
-            const autoPtr<SolidStateChecker>& solidStateChecker,
+            const autoPtr<SolidDiagnostics>& solidDiagnostics,
             const Switch& active,
             const Switch& infoOutput
         );

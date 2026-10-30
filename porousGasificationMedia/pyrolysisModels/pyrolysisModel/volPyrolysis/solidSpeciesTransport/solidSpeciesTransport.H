@@ -59,8 +59,8 @@ SourceFiles
 #include "HGSSolidThermo.H"
 #include "porousThermoSolidChemistryModel.H"
 #include "solidState.H"
-#include "solidStateChecker.H"
-#include "lambdaDotCoupling.H"
+#include "solidDiagnostics.H"
+#include "demCoupling.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -98,9 +98,9 @@ class SolidSpeciesTransport
         const surfaceScalarField& phiSolid_;
 
         //- DEM lambdaDot, assembled during the species step
-        LambdaDotCoupling& lambdaDot_;
+        DemCoupling& demCoupling_;
 
-        const SolidStateChecker& solidStateChecker_;
+        const SolidDiagnostics& solidDiagnostics_;
 
         //- The owner's switch, bound so a runtime read() takes effect
         const Switch& active_;
@@ -153,8 +153,8 @@ public:
             const volScalarField& porosity,
             const volVectorField& Us,
             const surfaceScalarField& phiSolid,
-            LambdaDotCoupling& lambdaDot,
-            const SolidStateChecker& solidStateChecker,
+            DemCoupling& demCoupling,
+            const SolidDiagnostics& solidDiagnostics,
             const Switch& active
         );
 

@@ -22,10 +22,10 @@ License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
 Class
-    Foam::heterogeneousPyrolysisModels::SolidStateChecker
+    Foam::heterogeneousPyrolysisModels::SolidDiagnostics
 
 Description
-    Fail-fast guards on the solid state.
+    Fail-fast guards and per-step reports on the solid state.
 
     The solid transport equations are explicit and unbounded, so an
     out-of-range value is diagnosed at the equation that produced it,
@@ -48,12 +48,12 @@ Description
     selection, since only one checking policy exists.
 
 SourceFiles
-    solidStateChecker.C
+    solidDiagnostics.C
 
 \*---------------------------------------------------------------------------*/
 
-#ifndef solidStateChecker_H
-#define solidStateChecker_H
+#ifndef solidDiagnostics_H
+#define solidDiagnostics_H
 
 #include "fvMesh.H"
 #include "volFields.H"
@@ -70,10 +70,10 @@ namespace heterogeneousPyrolysisModels
 {
 
 /*---------------------------------------------------------------------------*\
-                    Class SolidStateChecker Declaration
+                    Class SolidDiagnostics Declaration
 \*---------------------------------------------------------------------------*/
 
-class SolidStateChecker
+class SolidDiagnostics
 {
     // Private data
 
@@ -102,10 +102,10 @@ class SolidStateChecker
     // Private member functions
 
         //- Disallow default bitwise copy construct
-        SolidStateChecker(const SolidStateChecker&);
+        SolidDiagnostics(const SolidDiagnostics&);
 
         //- Disallow default bitwise assignment
-        void operator=(const SolidStateChecker&);
+        void operator=(const SolidDiagnostics&);
 
         //- First cell that's non-finite or outside [lower, upper], else -1
         //  Skips cells where the optional mask isn't positive. Rank-local.
@@ -124,7 +124,7 @@ public:
 
         //- Construct from the owning model's coefficients, solid state,
         //  mesh and time
-        SolidStateChecker
+        SolidDiagnostics
         (
             const dictionary& coeffs,
             const SolidState& solidState,
@@ -134,7 +134,7 @@ public:
 
 
     //- Destructor
-    ~SolidStateChecker();
+    ~SolidDiagnostics();
 
 
     // Member Functions

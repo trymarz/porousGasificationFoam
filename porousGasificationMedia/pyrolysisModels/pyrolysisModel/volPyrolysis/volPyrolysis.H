@@ -40,10 +40,10 @@ SourceFiles
 #include "porousThermoSolidChemistryModel.H"
 #include "surfaceFields.H"
 #include "solidFluxLimiter.H"
-#include "solidStateChecker.H"
+#include "solidDiagnostics.H"
 #include "solidState.H"
 #include "bedCollapse.H"
-#include "lambdaDotCoupling.H"
+#include "demCoupling.H"
 #include "gasSolidHeatExchange.H"
 #include "solidEnergy.H"
 #include "porosityRecovery.H"
@@ -218,7 +218,7 @@ protected:
         autoPtr<SolidFluxLimiter> solidFluxLimiter_;
 
         //- Reference to the fail-fast guards on the solid state
-        autoPtr<SolidStateChecker> solidStateChecker_;
+        autoPtr<SolidDiagnostics> solidDiagnostics_;
 
         //- Bed collapse: moves the solid above each emptied cell down
         autoPtr<BedCollapse> bedCollapse_;
@@ -229,7 +229,7 @@ protected:
     // DEM (YADE) coupling — lambdaDot
 
         //- Computes lambdaDot in SolidSpeciesTransport; a no-op without DEM
-        autoPtr<LambdaDotCoupling> lambdaDot_;
+        autoPtr<DemCoupling> demCoupling_;
 
         //- The solid species mass equations, Ym_ transported
         autoPtr<SolidSpeciesTransport> speciesTransport_;

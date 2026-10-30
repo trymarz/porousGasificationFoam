@@ -62,7 +62,7 @@ SolidEnergy::SolidEnergy
     const volScalarField& chemistrySh,
     SolidState& solidState,
     GasSolidHeatExchange& heatExchange,
-    const SolidStateChecker& solidStateChecker,
+    const SolidDiagnostics& solidDiagnostics,
     const Switch& equilibrium,
     const Switch& active
 )
@@ -84,7 +84,7 @@ SolidEnergy::SolidEnergy
     chemistrySh_(chemistrySh),
     solidState_(solidState),
     heatExchange_(heatExchange),
-    solidStateChecker_(solidStateChecker),
+    solidDiagnostics_(solidDiagnostics),
     equilibrium_(equilibrium),
     active_(active),
     radiationSh_
@@ -307,7 +307,7 @@ void SolidEnergy::solveTsEquation
     TEqn.solve();
 
     const label badTEqnCell =
-        solidStateChecker_.firstInvalidTemperature
+        solidDiagnostics_.firstInvalidTemperature
         (
             T_,
             solidBeyondTrace.primitiveField()
@@ -327,7 +327,7 @@ void SolidEnergy::solveTsEquation
             << solidRadiationSource[badTEqnCell] << nl
             << "    porosity     = " << porosity_[badTEqnCell];
 
-        solidStateChecker_.abort
+        solidDiagnostics_.abort
         (
             "the solid energy equation in solveTsEquation()",
             T_,
@@ -378,7 +378,7 @@ void SolidEnergy::advectSolidH
     const volScalarField& sH = solidH_();
 
     const label badSolidHCell =
-        solidStateChecker_.firstInvalidExtensive(sH);
+        solidDiagnostics_.firstInvalidExtensive(sH);
 
     if (badSolidHCell != -1)
     {
@@ -390,7 +390,7 @@ void SolidEnergy::advectSolidH
             << "    sum(Ym)      = " << totalYm[badSolidHCell] << nl
             << "    porosity     = " << porosity_[badSolidHCell];
 
-        solidStateChecker_.abort
+        solidDiagnostics_.abort
         (
             "the solid enthalpy advection in advectSolidH()",
             sH,
@@ -452,7 +452,7 @@ void SolidEnergy::solve()
     recoverTsFromH(rhoCp, totalYm, false);
 
     const label badTsCell =
-        solidStateChecker_.firstInvalidTemperature
+        solidDiagnostics_.firstInvalidTemperature
         (
             T_,
             solidBeyondTrace.primitiveField()
@@ -469,7 +469,7 @@ void SolidEnergy::solve()
             << "    porosity     = " << porosity_[badTsCell] << nl
             << "    solidPresent = " << solidState_.solidPresent()[badTsCell];
 
-        solidStateChecker_.abort
+        solidDiagnostics_.abort
         (
             "Ts = solidH/rhoCp at the head of SolidEnergy::solve()",
             T_,
@@ -517,7 +517,7 @@ void SolidEnergy::recoverTemperatureAfterReaction()
     recoverTsFromH(rhoCpPreReaction, totalYm, true);
 
     const label badCell =
-        solidStateChecker_.firstInvalidTemperature(T_);
+        solidDiagnostics_.firstInvalidTemperature(T_);
 
     if (badCell != -1)
     {
@@ -531,7 +531,7 @@ void SolidEnergy::recoverTemperatureAfterReaction()
             << "    porosity     = " << porosity_[badCell] << nl
             << "    solidPresent = " << solidState_.solidPresent()[badCell];
 
-        solidStateChecker_.abort
+        solidDiagnostics_.abort
         (
             "the Ts recovery in recoverTemperatureAfterReaction()",
             T_,
@@ -545,7 +545,7 @@ void SolidEnergy::recoverTemperatureAfterReaction()
     storeH(rhoCp);
     T_.correctBoundaryConditions();
 
-    solidStateChecker_.reportTemperatureRange(T_);
+    solidDiagnostics_.reportTemperatureRange(T_);
 }
 
 

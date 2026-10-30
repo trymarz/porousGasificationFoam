@@ -42,7 +42,7 @@ Description
                    the full model
 
     alpha never exceeds maxSolidFraction: SolidFluxLimiter stops inflow
-    there and SolidStateChecker aborts past it. The regimes hold at any
+    there and SolidDiagnostics aborts past it. The regimes hold at any
     scale - a cell may be a piece of one pellet or hold many pellets.
 
     The class owns what depends on the regime alone, and the two floors
@@ -84,7 +84,7 @@ Description
     gasTemperatureBelowCriticalPorosity) are refused with the exact
     replacement, since two of them were porosities.
 
-    Owned directly by volPyrolysis (like SolidStateChecker and
+    Owned directly by volPyrolysis (like SolidDiagnostics and
     SolidFluxLimiter) - no runtime selection. The radiation models read
     it too, through the inline accessors only: their library builds first.
 
