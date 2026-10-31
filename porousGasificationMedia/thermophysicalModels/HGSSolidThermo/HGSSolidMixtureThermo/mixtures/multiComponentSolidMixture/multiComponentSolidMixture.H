@@ -63,8 +63,58 @@ class multiComponentSolidMixture
         //- Correct the mass fractions to sum to 1
         void correctMassFractions();
 
-        //- Return molar fraction for component i in celli and at T
-        scalar X(label i, label celli, scalar T) const;
+        //- Mass fractions of a cell, or of a patch face normalised by sum
+        class massFractions
+        {
+            const PtrList<volScalarField>& Y_;
+            const label celli_;
+            const label patchi_;
+            const label facei_;
+            const scalar sum_;
+
+        public:
+
+            massFractions(const PtrList<volScalarField>& Y, label celli)
+            :
+                Y_(Y), celli_(celli), patchi_(-1), facei_(-1), sum_(1)
+            {}
+
+            massFractions
+            (
+                const PtrList<volScalarField>& Y,
+                label patchi,
+                label facei,
+                scalar sum
+            )
+            :
+                Y_(Y), celli_(-1), patchi_(patchi), facei_(facei), sum_(sum)
+            {}
+
+            scalar operator[](const label i) const
+            {
+                return patchi_ < 0
+                  ? Y_[i][celli_]
+                  : Y_[i].boundaryField()[patchi_][facei_]/sum_;
+            }
+        };
+
+        //- Composition at face facei of patch patchi: the patch's own where
+        //  every Y_i fixes its value there, else the face cell's
+        massFractions faceY(label patchi, label facei) const;
+
+        //- Return molar fraction for component i of composition Y at T
+        scalar X(label i, const massFractions& Y, scalar T) const;
+
+        // Properties of composition Y
+        scalar rho(scalar T, const massFractions& Y) const;
+        scalar kappa(scalar T, const massFractions& Y) const;
+        scalar sigmaS(scalar T, const massFractions& Y) const;
+        scalar K(scalar T, const massFractions& Y) const;
+        scalar emissivity(scalar T, const massFractions& Y) const;
+        scalar hf(const massFractions& Y) const;
+        scalar hs(scalar T, const massFractions& Y) const;
+        scalar h(scalar T, const massFractions& Y) const;
+        scalar Cp(scalar T, const massFractions& Y) const;
 
 
 public:
@@ -122,6 +172,18 @@ public:
 
             //- Specific heat capacity
             virtual scalar Cp(scalar T, label celli) const;
+
+
+        // Patch-face properties, of the composition faceY() selects
+
+            scalar rho(scalar T, label patchi, label facei) const;
+            scalar kappa(scalar T, label patchi, label facei) const;
+            scalar sigmaS(scalar T, label patchi, label facei) const;
+            scalar K(scalar T, label patchi, label facei) const;
+            scalar emissivity(scalar T, label patchi, label facei) const;
+            scalar hf(scalar T, label patchi, label facei) const;
+            scalar hs(scalar T, label patchi, label facei) const;
+            scalar Cp(scalar T, label patchi, label facei) const;
 };
 
 

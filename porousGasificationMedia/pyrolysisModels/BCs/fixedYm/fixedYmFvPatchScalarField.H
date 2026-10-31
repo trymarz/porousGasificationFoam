@@ -35,6 +35,8 @@ Description
 
     from the current boundary fields on every update, tracking rho and
     porosity as they evolve (mirrors the fixedSolidH pattern for T/solidH).
+    rho_s is the density of the patch's own Yi, not of the face cell
+    (multiComponentSolidMixture::faceY).
     The Yi field is found by stripping the trailing "m" from the Ym name.
 
     A fixedYm patch is impermeable to solid mass: SolidSpeciesTransport::solve()

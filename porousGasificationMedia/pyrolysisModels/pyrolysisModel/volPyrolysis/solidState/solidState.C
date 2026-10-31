@@ -313,8 +313,7 @@ void SolidState::deriveYiFromYm
     PtrList<volScalarField>& Ys
 )
 {
-    // rho = 1/sum_i(Ys_i/rho_i) is a density only where sum_i Ys_i = 1;
-    // a fixedYm patch beside an empty cell injects at that density.
+    // rho = 1/sum_i(Ys_i/rho_i) is a density only where sum_i Ys_i = 1.
     forAll(Ym[0], cellI)
     {
         scalar Ysum = 0.0;
@@ -333,7 +332,7 @@ void SolidState::deriveYiFromYm
         else
         {
             // The cell carries no mass, so nothing it holds depends on the
-            // choice - only a fixedYm patch beside it reads this density.
+            // choice; a fixedYm patch reads its own composition (faceY).
             forAll(Ys, i)
             {
                 Ys[i][cellI] = 0.0;

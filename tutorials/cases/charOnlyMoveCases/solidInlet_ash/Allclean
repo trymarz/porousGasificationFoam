@@ -1,0 +1,4 @@
+#!/bin/sh
+
+rm -rf processor* 0 0.[0-9]* [1-9]* log log.* *.foam postProcessing constant/polyMesh
+rm -f  .foamcli-state/run.pid .foamcli-state/run.json
