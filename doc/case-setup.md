@@ -61,6 +61,10 @@ Cases under `tutorials/cases/`. Run all of them with `cd tutorials && ./TestAllC
 
 `MicroTGA-DEM_lambdaDot_common/` is shared input for the DEM fixtures, not a runnable case.
 
+`./CleanAllCases.sh` runs every case's `Allclean` (nested cases included) and exits non-zero if any fails.
+Cases with a `.foamcli-monitor.toml` save PNG snapshots under `<case>/render/` when run under `foamcli`;
+`foamcli gallery cases` writes `cases/foamcli-gallery.html`, one searchable page over all of them.
+
 ## Input File Reference
 
 ### `constant/chemistryProperties`

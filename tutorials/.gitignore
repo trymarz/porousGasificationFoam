@@ -31,6 +31,9 @@ log.*
 
 # foamcli runtime state — config lives at case root as .foamcli-monitor.toml
 **/.foamcli-state/
+# foamcli snapshot PNGs and the page `foamcli gallery` writes over them
+cases/**/render/
+foamcli-gallery.html
 
 # ParaView touch files created by foam or paraFoam
 *.foam
