@@ -44,6 +44,12 @@ Description
     Also owns the porosity/solid-mass consistency check and the per-step
     solid reports: mass budget, derived mass fractions, temperature range.
 
+    Solid boundary policy (#162): a patch either declares the incoming solid
+    (every solid Yi and Ts fixedValue) or inherits it from the face cell (no
+    Yi fixed). checkBoundaryDeclarations() rejects anything in between at
+    start-up; checkSolidInflow() acts on solid entering an inheriting patch,
+    which would otherwise copy the face cell's mass and enthalpy in.
+
     Owned directly by volPyrolysis (like SolidFluxLimiter) - no runtime
     selection, since only one checking policy exists.
 
@@ -57,6 +63,7 @@ SourceFiles
 
 #include "fvMesh.H"
 #include "volFields.H"
+#include "surfaceFields.H"
 #include "PtrList.H"
 #include "Switch.H"
 #include "Time.H"
@@ -97,6 +104,16 @@ class SolidDiagnostics
         //  Ts = solidH/(totalYm*Cp) is meaningless once totalYm is
         //  near zero.
         scalar maxSolidTemperature_;
+
+        //- Action on solid inflow through an inheriting patch:
+        //  error, warn or ignore
+        word solidInflowPolicy_;
+
+        //- Patches that inherit the solid state from the face cell
+        labelList inheritingPatches_;
+
+        //- Inheriting patches already reported for inflow
+        boolList inflowReported_;
 
 
     // Private member functions
@@ -197,6 +214,23 @@ public:
 
         //- Print min/max Ts over the cells holding solid
         void reportTemperatureRange(const volScalarField& T) const;
+
+        //- Classifies each patch as declaring or inheriting the solid state
+        //  Aborts on a partial or empty composition, or a fixed Yi without a
+        //  fixed Ts; warns when the fixed Yi do not sum to 1.
+        void checkBoundaryDeclarations
+        (
+            const PtrList<volScalarField>& Ys,
+            const volScalarField& Ts
+        );
+
+        //- Applies solidInflowPolicy to solid mass entering an inheriting
+        //  patch. Reports each patch once.
+        void checkSolidInflow
+        (
+            const surfaceScalarField& phiSolid,
+            const PtrList<volScalarField>& Ym
+        );
 };
 
 

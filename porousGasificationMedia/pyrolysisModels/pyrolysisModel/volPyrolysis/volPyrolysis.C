@@ -525,6 +525,7 @@ volPyrolysis::volPyrolysis
     (
         new SolidDiagnostics(coeffs(), solidState_(), mesh_, time_)
     );
+    solidDiagnostics_->checkBoundaryDeclarations(Ys_, T_);
 
     // Reads its own keys and logs them where the rest are reported. Binds
     // Ym_ by reference, so it reads no entries until limit() is first called.
@@ -780,6 +781,7 @@ void volPyrolysis::evolveRegion()
     // Settle how much solid each face may carry before any solid field is
     // transported. Needs the chemistry rates, so it follows their solve.
     limitSolidFlux();
+    solidDiagnostics_->checkSolidInflow(phiSolid_, Ym_);
 
     // Energy before species: solidH_ holds the pre-reaction solid until
     // recoverTemperatureAfterReaction() restates it on the mass that remains.

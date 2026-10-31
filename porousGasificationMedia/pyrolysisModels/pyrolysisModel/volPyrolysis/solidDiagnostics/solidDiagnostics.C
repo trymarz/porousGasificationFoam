@@ -26,6 +26,8 @@ License
 #include "solidDiagnostics.H"
 
 #include "PstreamReduceOps.H"
+#include "fixedValueFvPatchFields.H"
+#include "DynamicList.H"
 
 #include <cmath>
 
@@ -85,10 +87,29 @@ SolidDiagnostics::SolidDiagnostics
     maxSolidTemperature_
     (
         coeffs.lookupOrDefault<scalar>("maxSolidTemperature",1e5)
-    )
+    ),
+    solidInflowPolicy_
+    (
+        coeffs.lookupOrDefault<word>("solidInflowPolicy", "error")
+    ),
+    inheritingPatches_(),
+    inflowReported_()
 {
+    if
+    (
+        solidInflowPolicy_ != "error"
+     && solidInflowPolicy_ != "warn"
+     && solidInflowPolicy_ != "ignore"
+    )
+    {
+        FatalIOErrorInFunction(coeffs)
+            << "solidInflowPolicy " << solidInflowPolicy_
+            << " is not one of error, warn, ignore" << exit(FatalIOError);
+    }
+
     Info << "failOnInvalidSolidState  " << failOnInvalidSolidState_ << endl;
     Info << "maxSolidTemperature      " << maxSolidTemperature_ << endl;
+    Info << "solidInflowPolicy        " << solidInflowPolicy_ << endl;
 }
 
 
@@ -322,6 +343,182 @@ void SolidDiagnostics::reportTemperatureRange(const volScalarField& T) const
     }
 }
 
+
+void SolidDiagnostics::checkBoundaryDeclarations
+(
+    const PtrList<volScalarField>& Ys,
+    const volScalarField& Ts
+)
+{
+    DynamicList<label> inheriting;
+    DynamicList<word> declaring;
+
+    forAll(mesh_.boundary(), patchi)
+    {
+        const polyPatch& pp = mesh_.boundaryMesh()[patchi];
+
+        if (polyPatch::constraintType(pp.type()))
+        {
+            continue;
+        }
+
+        label nFixed = 0;
+        forAll(Ys, i)
+        {
+            if
+            (
+                isA<fixedValueFvPatchScalarField>
+                (
+                    Ys[i].boundaryField()[patchi]
+                )
+            )
+            {
+                ++nFixed;
+            }
+        }
+
+        if (nFixed == 0)
+        {
+            inheriting.append(patchi);
+            continue;
+        }
+
+        if (nFixed < Ys.size())
+        {
+            FatalErrorInFunction
+                << "Patch " << pp.name() << " fixes " << nFixed << " of "
+                << Ys.size() << " solid mass fractions, so the composition"
+                << " of solid entering it is ambiguous." << nl
+                << "    Fix every solid Yi on it (an inlet) or none"
+                << " (a wall or an outlet)." << exit(FatalError);
+        }
+
+        if (!isA<fixedValueFvPatchScalarField>(Ts.boundaryField()[patchi]))
+        {
+            FatalErrorInFunction
+                << "Patch " << pp.name() << " fixes the solid composition"
+                << " but Ts is " << Ts.boundaryField()[patchi].type()
+                << ", so solid entering it takes the face cell's enthalpy."
+                << nl << "    Make Ts fixedValue at the inlet temperature"
+                << " (an inlet), or every solid Yi zeroGradient (a wall)."
+                << exit(FatalError);
+        }
+
+        if (returnReduce(pp.size(), sumOp<label>()) == 0)
+        {
+            continue;
+        }
+
+        scalarField sumY(pp.size(), 0.0);
+        forAll(Ys, i)
+        {
+            sumY += Ys[i].boundaryField()[patchi];
+        }
+        const scalar minSum = gMin(sumY);
+        const scalar maxSum = gMax(sumY);
+
+        if (minSum <= SMALL)
+        {
+            FatalErrorInFunction
+                << "The fixed solid Yi on patch " << pp.name()
+                << " sum to " << minSum << " on some face: it declares no"
+                << " solid, yet fixedSolidH would inject enthalpy." << nl
+                << "    Make every solid Yi on it zeroGradient (a wall)."
+                << exit(FatalError);
+        }
+
+        if (mag(minSum - 1.0) > 1e-6 || mag(maxSum - 1.0) > 1e-6)
+        {
+            WarningInFunction
+                << "The fixed solid Yi on patch " << pp.name()
+                << " sum to " << minSum << " .. " << maxSum
+                << "; they are normalised to 1." << endl;
+        }
+
+        declaring.append(pp.name());
+    }
+
+    inheritingPatches_.transfer(inheriting);
+    inflowReported_.setSize(inheritingPatches_.size(), false);
+
+    wordList inheritingNames(inheritingPatches_.size());
+    forAll(inheritingPatches_, k)
+    {
+        inheritingNames[k] = mesh_.boundaryMesh()[inheritingPatches_[k]].name();
+    }
+    Info<< "solid boundary: declaring " << wordList(declaring)
+        << ", inheriting " << inheritingNames << endl;
+}
+
+
+void SolidDiagnostics::checkSolidInflow
+(
+    const surfaceScalarField& phiSolid,
+    const PtrList<volScalarField>& Ym
+)
+{
+    if (solidInflowPolicy_ == "ignore")
+    {
+        return;
+    }
+
+    // Normal solid speeds below this fraction of the peak are round-off.
+    const scalar tol = 1e-9*max(mag(phiSolid)/mesh_.magSf()).value();
+
+    forAll(inheritingPatches_, k)
+    {
+        if (inflowReported_[k])
+        {
+            continue;
+        }
+
+        const label patchi = inheritingPatches_[k];
+        const scalarField& phiP = phiSolid.boundaryField()[patchi];
+        const scalarField& magSfP = mesh_.magSf().boundaryField()[patchi];
+
+        scalarField YmP(phiP.size(), 0.0);
+        forAll(Ym, i)
+        {
+            YmP += Ym[i].boundaryField()[patchi];
+        }
+
+        // Solid volume entering an empty face cell carries no mass.
+        scalar inflow = 0.0;
+        forAll(phiP, facei)
+        {
+            if (phiP[facei] < -tol*magSfP[facei])
+            {
+                inflow -= phiP[facei]*YmP[facei];
+            }
+        }
+
+        reduce(inflow, sumOp<scalar>());
+        if (inflow <= 0.0)
+        {
+            continue;
+        }
+        inflowReported_[k] = true;
+
+        const word& name = mesh_.boundaryMesh()[patchi].name();
+
+        if (solidInflowPolicy_ == "error")
+        {
+            FatalErrorInFunction
+                << "Solid enters through patch " << name << " ("
+                << inflow << " kg/s at t = " << time_.timeName()
+                << "), which inherits the solid state: it copies the face"
+                << " cell's mass and enthalpy in." << nl
+                << "    Fix every solid Yi and Ts on " << name
+                << " to declare what enters, or set solidInflowPolicy"
+                << " warn or ignore." << exit(FatalError);
+        }
+
+        WarningInFunction
+            << "Solid enters through patch " << name << " (" << inflow
+            << " kg/s at t = " << time_.timeName() << "), which inherits"
+            << " the solid state from the face cell. Reported once." << endl;
+    }
+}
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
