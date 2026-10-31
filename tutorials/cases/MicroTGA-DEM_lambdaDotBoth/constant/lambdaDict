@@ -18,12 +18,12 @@ FoamFile
 lambdaMode exactDifferential;
 
 // [m/K]. Same value as the Temperature fixture, so the two are comparable:
-// it measures as a mean lambdaDot of +5.14e-5 m/s over the 360 solid cells.
+// it measures as a mean lambdaDot of +5.11e-5 m/s over the 360 solid cells.
 dlambdaOverDTs 1e-6;
 
 // [m^4/kg]. Same value as Chemistry (-4.66e-6 m/s there). The terms oppose --
-// heating grows lambda, mass loss shrinks it -- and superpose to within ~1%, so
-// the sum measures +4.61e-5 m/s: the positive sign asserted here, held by the
-// temperature term dominating. Above ~2.8e-5 the chemistry term overtakes it
+// heating grows lambda, mass loss shrinks it -- and superpose to within ~0.2%, so
+// the sum measures +4.64e-5 m/s: the positive sign asserted here, held by the
+// temperature term dominating. Above ~2.7e-5 the chemistry term overtakes it
 // and the sign flips.
 dlambdaOverDYmi 2.5e-6;
