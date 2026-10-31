@@ -142,6 +142,7 @@ tools/runDEMCase.sh tutorials/cases/simple_line_case [--timeout S] [--nsteps N]
 - Serial suite: `Allrun`/`Allclean`, `cases.list`, `tools/runCase.sh`, `tools/compareScalars.py`, `tools/captureBaseline.sh`. DEM suite: `Allrun.yade`, `cases_yade.list`, `tools/runDEMCase.sh`.
 - `tools/regressionLib.sh` holds what both runners must agree on: loading the case list, mapping exit status to outcome, deciding if the suite is green, bounded concurrency, and copying a case into a run root (`reg_stage_case`). `tools/regressionState.py` writes run state as JSON (standard library only).
 - Both runners return the same outcomes as the suite and accept the state flags below.
+- `tools/porousResistanceStudy.py --workdir D` checks the porous resistance against an analytic estimate. It reruns copies of `canonical/darcy` over several `Df` values and inlet velocities, with and without the Forchheimer term. It reports mass closure and the pressure drop next to the isothermal ideal-gas Darcy–Forchheimer estimate. It is not part of the suite; prefix it with `./pgf-env --` to use an isolated build.
 
 ### Machine-readable listing and run state
 
