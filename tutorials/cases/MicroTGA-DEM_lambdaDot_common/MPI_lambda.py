@@ -85,7 +85,9 @@ mn = Vector3(-hx + margin, -hy + margin, -hz + margin)
 mx = Vector3( hx - margin,  hy - margin,  hz - margin)
 
 sp = pack.SpherePack()
-sp.makeCloud(mn, mx, rMean=0.00075, rRelFuzz=0, num=numspheres)
+# Fixed seed: the default (-1) draws from random_device, giving every run and
+# every rank a different packing, so baselines could not reproduce (#139).
+sp.makeCloud(mn, mx, rMean=0.00075, rRelFuzz=0, num=numspheres, seed=1)
 
 O.bodies.append([sphere(c, r, material='spheremat') for c, r in sp])
 
