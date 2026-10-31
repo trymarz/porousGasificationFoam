@@ -128,6 +128,8 @@ TIMEOUT="${OPT_TIMEOUT:-${YADE_TIMEOUT:-3600}}"
 # Grace period between the timeout TERM and the follow-up KILL, to let MPI tear
 # down cleanly before the group is force-killed.
 KILL_GRACE="${YADE_KILL_GRACE:-30}"
+# The run's own TMPDIR, removed by finish (empty until the run phase).
+RUN_TMPDIR=""
 
 # -- run-state plumbing (inert unless --state-dir was given) -------------------
 
@@ -186,6 +188,7 @@ finish() {
         --field "status=$(reg_classify "$rc")" \
         --field "phase=$PHASE" \
         --field "message=$msg"
+    [ -n "$RUN_TMPDIR" ] && rm -rf "$RUN_TMPDIR"
     exit "$rc"
 }
 
@@ -228,12 +231,15 @@ fi
 
 reg_phase run
 echo "  running DEM simulation (NSTEPS=$NSTEPS, timeout=${TIMEOUT}s)..."
+# A killed mpirun leaves $TMPDIR/prterun.<host>.<pid>.<uid> behind, and the next
+# mpirun given that pid (PID namespaces reuse them) fails with PMIX_ERR_EXISTS.
+RUN_TMPDIR="$(mktemp -d "${TMPDIR:-/tmp}/pgf-dem-XXXXXX")" || finish 2 "cannot create the run's TMPDIR"
 # Run the case in its own session/process group (setsid) under timeout, so a
 # hung run and its whole tree (mpirun -> yade -> MPI_Comm_spawn'd solver) are
 # terminated by signalling THAT group only. This replaces a host-wide
 # `pkill -f porousGasificationFoam`, which would kill unrelated solver runs
 # elsewhere on the machine. No `|| true`: the run's exit status is classified.
-YADE_NSTEPS="$NSTEPS" \
+YADE_NSTEPS="$NSTEPS" TMPDIR="$RUN_TMPDIR" \
 setsid timeout --kill-after="$KILL_GRACE" "$TIMEOUT" bash ./Allrun > run.log 2>&1
 rc=$?
 if [ "$rc" -eq 124 ]; then

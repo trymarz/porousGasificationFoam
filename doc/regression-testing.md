@@ -48,7 +48,7 @@ The suite is green only if at least one case ran and every case passed. There is
 |---|---|---|---|---|
 | `fast` | `Allrun --tag fast` | normal | 4 | every push |
 | `convergence` | `Allrun --tag convergence` | normal | 2 | nightly or `--if-stale 7d` |
-| `dem` | `Allrun.yade` | `--yade` | 1 | before DEM-touching merges |
+| `dem` | `Allrun.yade` | `--yade`, `pgf-env --mpi loopback` | 1 | before DEM-touching merges |
 
 ```bash
 ./pgf-test fast                        # build or reuse the prefix, run the tier, record it
@@ -136,6 +136,7 @@ tools/runDEMCase.sh tutorials/cases/simple_line_case [--timeout S] [--nsteps N]
 - Each case is checked for `RUN FINISH`, an active coupling handshake, sphere/spring VTK output and a positive PGF time step in `dtInfo.txt`.
 - Takes the same `--list`, `--json`, `--state-dir` and `--jobs` flags, but defaults to **one** case at a time and warns if you raise it: concurrent DEM runs are unverified, and each spawns its own `mpirun` → Yade → `MPI_Comm_spawn`'d solver tree.
 - A hung run is bounded by `YADE_TIMEOUT` and killed by signalling only its own process group (`setsid` + `timeout --kill-after`). There is no host-wide `pkill`, which would kill unrelated solver runs.
+- Each run gets its own `TMPDIR` (`$TMPDIR/pgf-dem-XXXXXX`, removed when the case finishes). A killed `mpirun` leaves its `prterun.<host>.<pid>.<uid>` session dir behind, and in a PID namespace the next `mpirun` often gets the same pid and fails with `PMIX_ERR_EXISTS` / `prte_session_dir failed`.
 
 ### Scripts
 
