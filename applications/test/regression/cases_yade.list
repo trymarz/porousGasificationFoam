@@ -8,8 +8,6 @@
 # Run with:
 #   applications/test/regression/Allrun.yade
 
-tutorials/cases/MicroTGA-DEM_Us_UsInterp
-
 # lambdaMode exactDifferential fixtures. Each starts the packed bed at
 # Ts=650 K under 850 K gas with insulated walls, so heating and slow pyrolysis
 # are both active (#139), and asserts lambdaDot's sign over solid cells via
@@ -45,3 +43,7 @@ tutorials/cases/MicroTGA-DEM_lambdaDotAltInterp
 # the serial tier at teardown, and under --short Yade stops at the step cap
 # while the solver is still waiting for the next coupling exchange, so
 # "RUN FINISH" is never printed. List it once it exits 0.
+
+# tutorials/cases/MicroTGA-DEM_Us_UsInterp is NOT listed: a long demonstration
+# run (endTime 20 at deltaT 1e-6) that no suite timeout lets finish, with no
+# reference baseline to compare against (#117).
