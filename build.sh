@@ -253,8 +253,12 @@ check_yade_environment() {
     return 1
   fi
 
-  # Link-time deps of the DEM library and the WITH_YADE solver; libYadeComm
-  # is a runtime dep of libYadeFoam. A prefix starts empty, so it is seeded.
+  return 0
+}
+
+# Link-time deps of the DEM library and the WITH_YADE solver; libYadeComm
+# is a runtime dep of libYadeFoam. A prefix starts empty, so it is seeded.
+check_yade_libs() {
   [ "$PREFIX_MODE" = "none" ] || seed_yade_libs || return 1
   local lib missing=()
   for lib in "${YADE_LIBS[@]}"; do
@@ -357,8 +361,7 @@ report_cache_hit() {
 }
 
 # Point wmake's output at the prefix, under a lock so two builds of the same
-# key cannot interleave. The metadata is removed until the build succeeds, so
-# an interrupted build leaves an incomplete prefix that is never reused.
+# key cannot interleave.
 activate_prefix() {
   DEFAULT_USER_LIBBIN="${PGF_DEFAULT_USER_DIR:+$PGF_DEFAULT_USER_DIR/platforms/$WM_OPTIONS/lib}"
   DEFAULT_USER_LIBBIN="${DEFAULT_USER_LIBBIN:-${FOAM_USER_LIBBIN:-}}"
@@ -384,11 +387,17 @@ activate_prefix() {
     exit 0
   fi
 
-  rm -f "$PREFIX/.pgf-build.json"
   mkdir -p "$PREFIX/bin" "$PREFIX/lib" || return 1
   export FOAM_USER_APPBIN="$PREFIX/bin"
   export FOAM_USER_LIBBIN="$PREFIX/lib"
   export LD_LIBRARY_PATH="$FOAM_USER_LIBBIN${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+}
+
+# Removed after the prerequisite checks but before anything in the prefix
+# changes: a refused build keeps a complete prefix, and an interrupted one
+# leaves an incomplete prefix that is never reused.
+invalidate_prefix() {
+  rm -f "$PREFIX/.pgf-build.json"
 }
 
 # Written last: its presence is what marks the prefix complete.
@@ -711,12 +720,17 @@ main() {
   check_foam_environment || exit 1
   print_destination
 
+  local yade=0
   if [ "$MODE" = "build" ] &&
     { [ "$WITH_YADE" -eq 1 ] || [ "${BUILD_TARGETS[DEM]:-0}" -eq 1 ]; }; then
+    yade=1
     check_yade_environment || exit 1
   fi
 
   check_build_variant || exit 1
+
+  [ "$PREFIX_MODE" = "none" ] || invalidate_prefix
+  [ "$yade" -eq 0 ] || check_yade_libs || exit 1
 
   build_all_targets || exit 1
 
