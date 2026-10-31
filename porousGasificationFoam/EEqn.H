@@ -3,8 +3,12 @@ Description
     Gas-phase sensible-enthalpy transport in the porous bed:
 
         d(porosityF*rho*he)/dt + div(phi,he) + d(porosityF*rho*K)/dt
-      + div(phi,K) + div(phiv,p) - laplacian(alphaEff,he)
+      + div(phi,K) - porosityF*dp/dt - laplacian(alphaEff,he)
       = Qdot*porosityF + heatTransfer + heatUpGas + radiation->Sh
+
+    Like the storage term, the pressure work is per unit total volume, so
+    dp/dt carries the gas fraction porosityF. (The he = e form uses
+    div(phiv,p) in its place.)
 
     porosityF is itself time-varying (the solid converts to gas), so the
     accumulation term's product rule has a he*d(porosityF*rho)/dt piece
@@ -49,7 +53,7 @@ if (solveEnergy)
                     p,
                     "div(phiv,p)"
                 )
-              : -dpdt
+              : -porosityF*dpdt
             )
           - fvm::laplacian(turbulence->alphaEff(), he) 
          ==
