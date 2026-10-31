@@ -75,6 +75,12 @@ tutorials/cases/canonical/conservation/chemistryGateCrossing        fast
 # joule, which at h*SAV = 2000 W/m3/K is 1.8e+06 W/m3 refused.
 tutorials/cases/canonical/conservation/gatedBandSources             fast
 
+# gasPressureWork is a sealed box at porosity 0.4 whose solid heats the gas, so
+# p rises with fixed gas mass. regressionGasEnergyResidual is the gas internal
+# energy minus the joules received; it must stay flat. Before #132 it drifted
+# by (1 - porosityF)*dp, 180% of the heat received; now it holds within ~1%.
+tutorials/cases/canonical/conservation/gasPressureWork              fast
+
 # Prescribed-Us solid-transport suite — Ycharm advection under analytic Us
 # fields (asserts the transported Ycharm and the porosityF recovered from it,
 # max(porosityF) included so an unbounded void fraction fails the tier).
