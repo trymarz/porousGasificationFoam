@@ -9,11 +9,11 @@
 ensure_prefix
 tutorials_state >"$TEST_TMP/before"
 
-"$PGF_ENV" -- "$REGRESSION_DIR/Allrun" --case tutorials/cases/canonical/flow \
+"$PGF_ENV" -- "$REGRESSION_DIR/Allrun" --case tutorials/cases/canonical/darcy \
     --run-root "$TEST_TMP/runs" --keep-runs >"$TEST_TMP/fast.log" 2>&1
 rc=$?
-check "fast case canonical/flow passes in copy mode (rc=$rc)" [ "$rc" -eq 0 ]
-copy="$TEST_TMP/runs/tutorials__cases__canonical__flow/tutorials/cases/canonical/flow"
+check "fast case canonical/darcy passes in copy mode (rc=$rc)" [ "$rc" -eq 0 ]
+copy="$TEST_TMP/runs/tutorials__cases__canonical__darcy/tutorials/cases/canonical/darcy"
 check "its output is in the copy" [ -d "$copy/postProcessing" ]
 
 dem="tutorials/cases/MicroTGA-DEM_lambdaDotOff"

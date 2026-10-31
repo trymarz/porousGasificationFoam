@@ -8,7 +8,7 @@
 PGF_TEST="$PGF_ROOT/pgf-test"
 export PGF_RUN_ROOT="$TEST_TMP/runs"
 export PGF_TIERS_CONF="$TEST_TMP/tiers.conf"
-echo 'pgf_tier smoke Allrun yade0 1 - - "--case tutorials/cases/canonical/flow" "test"' >"$PGF_TIERS_CONF"
+echo 'pgf_tier smoke Allrun yade0 1 - - "--case tutorials/cases/canonical/darcy" "test"' >"$PGF_TIERS_CONF"
 record="$PGF_RUN_ROOT/last/smoke.json"
 field() { python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))[sys.argv[2]])' "$record" "$1"; }
 
