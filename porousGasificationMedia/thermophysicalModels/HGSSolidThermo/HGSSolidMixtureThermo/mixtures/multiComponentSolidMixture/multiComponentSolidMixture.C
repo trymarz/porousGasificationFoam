@@ -24,6 +24,7 @@ License
 \*---------------------------------------------------------------------------*/
 
 #include "multiComponentSolidMixture.H"
+#include "fixedValueFvPatchFields.H"
 
 // * * * * * * * * * * * * * Private Member Functions  * * * * * * * * * * * //
 
@@ -53,43 +54,65 @@ void Foam::multiComponentSolidMixture<ThermoSolidType>::correctMassFractions()
 
 
 template<class ThermoSolidType>
-typename Foam::multiComponentSolidMixture<ThermoSolidType>::massFractions
-Foam::multiComponentSolidMixture<ThermoSolidType>::faceY
+bool Foam::multiComponentSolidMixture<ThermoSolidType>::prescribesComposition
 (
-    label patchi, label facei
+    label patchi
 ) const
 {
-    scalar sum = 0.0;
-
     forAll(Y_, i)
     {
-        const fvPatchScalarField& Yp = Y_[i].boundaryField()[patchi];
-        if (!Yp.fixesValue())
+        if (!isA<fixedValueFvPatchScalarField>(Y_[i].boundaryField()[patchi]))
         {
-            sum = 0.0;
-            break;
+            return false;
         }
-        sum += Yp[facei];
     }
-
-    // A patch that prescribes no composition (sum 0) reads the face cell's
-    if (sum > SMALL)
-    {
-        return massFractions(Y_, patchi, facei, sum);
-    }
-
-    return massFractions
-    (
-        Y_,
-        Y_[0].mesh().boundary()[patchi].faceCells()[facei]
-    );
+    return true;
 }
 
 
 template<class ThermoSolidType>
+template<class Property>
+Foam::tmp<Foam::scalarField>
+Foam::multiComponentSolidMixture<ThermoSolidType>::patchProperty
+(
+    const scalarField& Tp,
+    label patchi,
+    const Property& property
+) const
+{
+    const bool fixed = prescribesComposition(patchi);
+    const labelUList& cells = Y_[0].mesh().boundary()[patchi].faceCells();
+
+    tmp<scalarField> tf(new scalarField(Tp.size()));
+    scalarField& f = tf.ref();
+
+    forAll(Tp, facei)
+    {
+        scalar sum = 0.0;
+        if (fixed)
+        {
+            forAll(Y_, i)
+            {
+                sum += Y_[i].boundaryField()[patchi][facei];
+            }
+        }
+
+        // A patch that prescribes no composition (sum 0) reads the face cell's
+        f[facei] =
+            sum > SMALL
+          ? property(Tp[facei], patchFaceY(Y_, patchi, facei, sum))
+          : property(Tp[facei], cellY(Y_, cells[facei]));
+    }
+
+    return tf;
+}
+
+
+template<class ThermoSolidType>
+template<class Composition>
 Foam::scalar Foam::multiComponentSolidMixture<ThermoSolidType>::X
 (
-    label iComp, const massFractions& Y, scalar T
+    label iComp, const Composition& Y, scalar T
 ) const
 {
     scalar rhoInv = 0.0;
@@ -144,9 +167,10 @@ Foam::multiComponentSolidMixture<ThermoSolidType>::multiComponentSolidMixture
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
 
 template<class ThermoSolidType>
-Foam::scalar Foam::multiComponentSolidMixture<ThermoSolidType>::rho
+template<class Composition>
+Foam::scalar Foam::multiComponentSolidMixture<ThermoSolidType>::rhoOf
 (
-    scalar T, const massFractions& Y
+    scalar T, const Composition& Y
 ) const
 {
     scalar tmp = 0.0;
@@ -159,9 +183,10 @@ Foam::scalar Foam::multiComponentSolidMixture<ThermoSolidType>::rho
 
 
 template<class ThermoSolidType>
-Foam::scalar Foam::multiComponentSolidMixture<ThermoSolidType>::hf
+template<class Composition>
+Foam::scalar Foam::multiComponentSolidMixture<ThermoSolidType>::hfOf
 (
-    const massFractions& Y
+    const Composition& Y
 ) const
 {
     scalar tmp = 0.0;
@@ -174,9 +199,10 @@ Foam::scalar Foam::multiComponentSolidMixture<ThermoSolidType>::hf
 
 
 template<class ThermoSolidType>
-Foam::scalar Foam::multiComponentSolidMixture<ThermoSolidType>::hs
+template<class Composition>
+Foam::scalar Foam::multiComponentSolidMixture<ThermoSolidType>::hsOf
 (
-    scalar T, const massFractions& Y
+    scalar T, const Composition& Y
 ) const
 {
     scalar tmp = 0.0;
@@ -189,9 +215,10 @@ Foam::scalar Foam::multiComponentSolidMixture<ThermoSolidType>::hs
 
 
 template<class ThermoSolidType>
-Foam::scalar Foam::multiComponentSolidMixture<ThermoSolidType>::h
+template<class Composition>
+Foam::scalar Foam::multiComponentSolidMixture<ThermoSolidType>::hOf
 (
-    scalar T, const massFractions& Y
+    scalar T, const Composition& Y
 ) const
 {
     scalar tmp = 0.0;
@@ -204,9 +231,10 @@ Foam::scalar Foam::multiComponentSolidMixture<ThermoSolidType>::h
 
 
 template<class ThermoSolidType>
-Foam::scalar Foam::multiComponentSolidMixture<ThermoSolidType>::kappa
+template<class Composition>
+Foam::scalar Foam::multiComponentSolidMixture<ThermoSolidType>::kappaOf
 (
-    scalar T, const massFractions& Y
+    scalar T, const Composition& Y
 ) const
 {
     scalar tmp = 0.0;
@@ -219,9 +247,10 @@ Foam::scalar Foam::multiComponentSolidMixture<ThermoSolidType>::kappa
 
 
 template<class ThermoSolidType>
-Foam::scalar Foam::multiComponentSolidMixture<ThermoSolidType>::sigmaS
+template<class Composition>
+Foam::scalar Foam::multiComponentSolidMixture<ThermoSolidType>::sigmaSOf
 (
-    scalar T, const massFractions& Y
+    scalar T, const Composition& Y
 ) const
 {
     scalar tmp = 0.0;
@@ -234,9 +263,10 @@ Foam::scalar Foam::multiComponentSolidMixture<ThermoSolidType>::sigmaS
 
 
 template<class ThermoSolidType>
-Foam::scalar Foam::multiComponentSolidMixture<ThermoSolidType>::K
+template<class Composition>
+Foam::scalar Foam::multiComponentSolidMixture<ThermoSolidType>::KOf
 (
-    scalar T, const massFractions& Y
+    scalar T, const Composition& Y
 ) const
 {
     scalar tmp = 0.0;
@@ -249,9 +279,10 @@ Foam::scalar Foam::multiComponentSolidMixture<ThermoSolidType>::K
 
 
 template<class ThermoSolidType>
-Foam::scalar Foam::multiComponentSolidMixture<ThermoSolidType>::emissivity
+template<class Composition>
+Foam::scalar Foam::multiComponentSolidMixture<ThermoSolidType>::emissivityOf
 (
-    scalar T, const massFractions& Y
+    scalar T, const Composition& Y
 ) const
 {
     scalar tmp = 0.0;
@@ -264,9 +295,10 @@ Foam::scalar Foam::multiComponentSolidMixture<ThermoSolidType>::emissivity
 
 
 template<class ThermoSolidType>
-Foam::scalar Foam::multiComponentSolidMixture<ThermoSolidType>::Cp
+template<class Composition>
+Foam::scalar Foam::multiComponentSolidMixture<ThermoSolidType>::CpOf
 (
-    scalar T, const massFractions& Y
+    scalar T, const Composition& Y
 ) const
 {
     scalar tmp = 0.0;
@@ -284,7 +316,7 @@ Foam::scalar Foam::multiComponentSolidMixture<ThermoSolidType>::rho
     scalar T, label celli
 ) const
 {
-    return rho(T, massFractions(Y_, celli));
+    return rhoOf(T, cellY(Y_, celli));
 }
 
 
@@ -294,7 +326,7 @@ Foam::scalar Foam::multiComponentSolidMixture<ThermoSolidType>::hf
     scalar, label celli
 ) const
 {
-    return hf(massFractions(Y_, celli));
+    return hfOf(cellY(Y_, celli));
 }
 
 
@@ -304,7 +336,7 @@ Foam::scalar Foam::multiComponentSolidMixture<ThermoSolidType>::hs
     scalar T, label celli
 ) const
 {
-    return hs(T, massFractions(Y_, celli));
+    return hsOf(T, cellY(Y_, celli));
 }
 
 
@@ -314,7 +346,7 @@ Foam::scalar Foam::multiComponentSolidMixture<ThermoSolidType>::h
     scalar T, label celli
 ) const
 {
-    return h(T, massFractions(Y_, celli));
+    return hOf(T, cellY(Y_, celli));
 }
 
 
@@ -324,7 +356,7 @@ Foam::scalar Foam::multiComponentSolidMixture<ThermoSolidType>::kappa
     scalar T, label celli
 ) const
 {
-    return kappa(T, massFractions(Y_, celli));
+    return kappaOf(T, cellY(Y_, celli));
 }
 
 
@@ -334,7 +366,7 @@ Foam::scalar Foam::multiComponentSolidMixture<ThermoSolidType>::sigmaS
     scalar T, label celli
 ) const
 {
-    return sigmaS(T, massFractions(Y_, celli));
+    return sigmaSOf(T, cellY(Y_, celli));
 }
 
 
@@ -344,7 +376,7 @@ Foam::scalar Foam::multiComponentSolidMixture<ThermoSolidType>::K
     scalar T, label celli
 ) const
 {
-    return K(T, massFractions(Y_, celli));
+    return KOf(T, cellY(Y_, celli));
 }
 
 
@@ -354,7 +386,7 @@ Foam::scalar Foam::multiComponentSolidMixture<ThermoSolidType>::emissivity
     scalar T, label celli
 ) const
 {
-    return emissivity(T, massFractions(Y_, celli));
+    return emissivityOf(T, cellY(Y_, celli));
 }
 
 
@@ -364,87 +396,135 @@ Foam::scalar Foam::multiComponentSolidMixture<ThermoSolidType>::Cp
     scalar T, label celli
 ) const
 {
-    return Cp(T, massFractions(Y_, celli));
+    return CpOf(T, cellY(Y_, celli));
 }
 
 
 template<class ThermoSolidType>
-Foam::scalar Foam::multiComponentSolidMixture<ThermoSolidType>::rho
+Foam::tmp<Foam::scalarField>
+Foam::multiComponentSolidMixture<ThermoSolidType>::rho
 (
-    scalar T, label patchi, label facei
+    const scalarField& Tp, label patchi
 ) const
 {
-    return rho(T, faceY(patchi, facei));
+    return patchProperty
+    (
+        Tp,
+        patchi,
+        [this](scalar T, const auto& Y) { return rhoOf(T, Y); }
+    );
 }
 
 
 template<class ThermoSolidType>
-Foam::scalar Foam::multiComponentSolidMixture<ThermoSolidType>::hf
+Foam::tmp<Foam::scalarField>
+Foam::multiComponentSolidMixture<ThermoSolidType>::kappa
 (
-    scalar T, label patchi, label facei
+    const scalarField& Tp, label patchi
 ) const
 {
-    return hf(faceY(patchi, facei));
+    return patchProperty
+    (
+        Tp,
+        patchi,
+        [this](scalar T, const auto& Y) { return kappaOf(T, Y); }
+    );
 }
 
 
 template<class ThermoSolidType>
-Foam::scalar Foam::multiComponentSolidMixture<ThermoSolidType>::hs
+Foam::tmp<Foam::scalarField>
+Foam::multiComponentSolidMixture<ThermoSolidType>::sigmaS
 (
-    scalar T, label patchi, label facei
+    const scalarField& Tp, label patchi
 ) const
 {
-    return hs(T, faceY(patchi, facei));
+    return patchProperty
+    (
+        Tp,
+        patchi,
+        [this](scalar T, const auto& Y) { return sigmaSOf(T, Y); }
+    );
 }
 
 
 template<class ThermoSolidType>
-Foam::scalar Foam::multiComponentSolidMixture<ThermoSolidType>::kappa
+Foam::tmp<Foam::scalarField>
+Foam::multiComponentSolidMixture<ThermoSolidType>::K
 (
-    scalar T, label patchi, label facei
+    const scalarField& Tp, label patchi
 ) const
 {
-    return kappa(T, faceY(patchi, facei));
+    return patchProperty
+    (
+        Tp,
+        patchi,
+        [this](scalar T, const auto& Y) { return KOf(T, Y); }
+    );
 }
 
 
 template<class ThermoSolidType>
-Foam::scalar Foam::multiComponentSolidMixture<ThermoSolidType>::sigmaS
+Foam::tmp<Foam::scalarField>
+Foam::multiComponentSolidMixture<ThermoSolidType>::emissivity
 (
-    scalar T, label patchi, label facei
+    const scalarField& Tp, label patchi
 ) const
 {
-    return sigmaS(T, faceY(patchi, facei));
+    return patchProperty
+    (
+        Tp,
+        patchi,
+        [this](scalar T, const auto& Y) { return emissivityOf(T, Y); }
+    );
 }
 
 
 template<class ThermoSolidType>
-Foam::scalar Foam::multiComponentSolidMixture<ThermoSolidType>::K
+Foam::tmp<Foam::scalarField>
+Foam::multiComponentSolidMixture<ThermoSolidType>::hf
 (
-    scalar T, label patchi, label facei
+    const scalarField& Tp, label patchi
 ) const
 {
-    return K(T, faceY(patchi, facei));
+    return patchProperty
+    (
+        Tp,
+        patchi,
+        [this](scalar, const auto& Y) { return hfOf(Y); }
+    );
 }
 
 
 template<class ThermoSolidType>
-Foam::scalar Foam::multiComponentSolidMixture<ThermoSolidType>::emissivity
+Foam::tmp<Foam::scalarField>
+Foam::multiComponentSolidMixture<ThermoSolidType>::hs
 (
-    scalar T, label patchi, label facei
+    const scalarField& Tp, label patchi
 ) const
 {
-    return emissivity(T, faceY(patchi, facei));
+    return patchProperty
+    (
+        Tp,
+        patchi,
+        [this](scalar T, const auto& Y) { return hsOf(T, Y); }
+    );
 }
 
 
 template<class ThermoSolidType>
-Foam::scalar Foam::multiComponentSolidMixture<ThermoSolidType>::Cp
+Foam::tmp<Foam::scalarField>
+Foam::multiComponentSolidMixture<ThermoSolidType>::Cp
 (
-    scalar T, label patchi, label facei
+    const scalarField& Tp, label patchi
 ) const
 {
-    return Cp(T, faceY(patchi, facei));
+    return patchProperty
+    (
+        Tp,
+        patchi,
+        [this](scalar T, const auto& Y) { return CpOf(T, Y); }
+    );
 }
 
 

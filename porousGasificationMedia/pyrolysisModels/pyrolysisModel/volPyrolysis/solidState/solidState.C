@@ -332,7 +332,7 @@ void SolidState::deriveYiFromYm
         else
         {
             // The cell carries no mass, so nothing it holds depends on the
-            // choice; a fixedYm patch reads its own composition (faceY).
+            // choice; a fixedYm patch reads its own composition.
             forAll(Ys, i)
             {
                 Ys[i][cellI] = 0.0;

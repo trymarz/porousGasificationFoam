@@ -63,23 +63,36 @@ class multiComponentSolidMixture
         //- Correct the mass fractions to sum to 1
         void correctMassFractions();
 
-        //- Mass fractions of a cell, or of a patch face normalised by sum
-        class massFractions
+        //- Mass fractions of a cell
+        class cellY
         {
             const PtrList<volScalarField>& Y_;
             const label celli_;
+
+        public:
+
+            cellY(const PtrList<volScalarField>& Y, label celli)
+            :
+                Y_(Y), celli_(celli)
+            {}
+
+            scalar operator[](const label i) const
+            {
+                return Y_[i][celli_];
+            }
+        };
+
+        //- Mass fractions a patch face prescribes, normalised by their sum
+        class patchFaceY
+        {
+            const PtrList<volScalarField>& Y_;
             const label patchi_;
             const label facei_;
             const scalar sum_;
 
         public:
 
-            massFractions(const PtrList<volScalarField>& Y, label celli)
-            :
-                Y_(Y), celli_(celli), patchi_(-1), facei_(-1), sum_(1)
-            {}
-
-            massFractions
+            patchFaceY
             (
                 const PtrList<volScalarField>& Y,
                 label patchi,
@@ -87,34 +100,51 @@ class multiComponentSolidMixture
                 scalar sum
             )
             :
-                Y_(Y), celli_(-1), patchi_(patchi), facei_(facei), sum_(sum)
+                Y_(Y), patchi_(patchi), facei_(facei), sum_(sum)
             {}
 
             scalar operator[](const label i) const
             {
-                return patchi_ < 0
-                  ? Y_[i][celli_]
-                  : Y_[i].boundaryField()[patchi_][facei_]/sum_;
+                return Y_[i].boundaryField()[patchi_][facei_]/sum_;
             }
         };
 
-        //- Composition at face facei of patch patchi: the patch's own where
-        //  every Y_i fixes its value there, else the face cell's
-        massFractions faceY(label patchi, label facei) const;
+        //- True where every Y_i is fixedValue on patch patchi
+        bool prescribesComposition(label patchi) const;
+
+        //- property(T, Y) on patch patchi: of the patch's own composition
+        //  where it prescribes one, else of the face cell's
+        template<class Property>
+        tmp<scalarField> patchProperty
+        (
+            const scalarField& Tp,
+            label patchi,
+            const Property& property
+        ) const;
 
         //- Return molar fraction for component i of composition Y at T
-        scalar X(label i, const massFractions& Y, scalar T) const;
+        template<class Composition>
+        scalar X(label i, const Composition& Y, scalar T) const;
 
-        // Properties of composition Y
-        scalar rho(scalar T, const massFractions& Y) const;
-        scalar kappa(scalar T, const massFractions& Y) const;
-        scalar sigmaS(scalar T, const massFractions& Y) const;
-        scalar K(scalar T, const massFractions& Y) const;
-        scalar emissivity(scalar T, const massFractions& Y) const;
-        scalar hf(const massFractions& Y) const;
-        scalar hs(scalar T, const massFractions& Y) const;
-        scalar h(scalar T, const massFractions& Y) const;
-        scalar Cp(scalar T, const massFractions& Y) const;
+        // Properties of composition Y (cellY or patchFaceY)
+        template<class Composition>
+        scalar rhoOf(scalar T, const Composition& Y) const;
+        template<class Composition>
+        scalar kappaOf(scalar T, const Composition& Y) const;
+        template<class Composition>
+        scalar sigmaSOf(scalar T, const Composition& Y) const;
+        template<class Composition>
+        scalar KOf(scalar T, const Composition& Y) const;
+        template<class Composition>
+        scalar emissivityOf(scalar T, const Composition& Y) const;
+        template<class Composition>
+        scalar hfOf(const Composition& Y) const;
+        template<class Composition>
+        scalar hsOf(scalar T, const Composition& Y) const;
+        template<class Composition>
+        scalar hOf(scalar T, const Composition& Y) const;
+        template<class Composition>
+        scalar CpOf(scalar T, const Composition& Y) const;
 
 
 public:
@@ -174,16 +204,21 @@ public:
             virtual scalar Cp(scalar T, label celli) const;
 
 
-        // Patch-face properties, of the composition faceY() selects
+        // Patch values at patch temperatures Tp, of the composition
+        // patchProperty() selects
 
-            scalar rho(scalar T, label patchi, label facei) const;
-            scalar kappa(scalar T, label patchi, label facei) const;
-            scalar sigmaS(scalar T, label patchi, label facei) const;
-            scalar K(scalar T, label patchi, label facei) const;
-            scalar emissivity(scalar T, label patchi, label facei) const;
-            scalar hf(scalar T, label patchi, label facei) const;
-            scalar hs(scalar T, label patchi, label facei) const;
-            scalar Cp(scalar T, label patchi, label facei) const;
+            tmp<scalarField> rho(const scalarField& Tp, label patchi) const;
+            tmp<scalarField> kappa(const scalarField& Tp, label patchi) const;
+            tmp<scalarField> sigmaS(const scalarField& Tp, label patchi) const;
+            tmp<scalarField> K(const scalarField& Tp, label patchi) const;
+            tmp<scalarField> emissivity
+            (
+                const scalarField& Tp,
+                label patchi
+            ) const;
+            tmp<scalarField> hf(const scalarField& Tp, label patchi) const;
+            tmp<scalarField> hs(const scalarField& Tp, label patchi) const;
+            tmp<scalarField> Cp(const scalarField& Tp, label patchi) const;
 };
 
 

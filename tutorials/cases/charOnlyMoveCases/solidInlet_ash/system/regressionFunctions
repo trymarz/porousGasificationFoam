@@ -89,16 +89,16 @@ regressionTsMin
     operation       min;
 }
 
-// Ash concentration on the inlet: Yi*rho_ash*(1 - porosityF) = 1*3000*0.5,
-// the patch's own density, not the face cell's (#46).
-regressionInletYashm
+// Solid entering through the inlet, from the patch's own composition (#46):
+// Yashm = 1*3000*0.5 and solidH = 3000*0.5*2400*300 (rho, Cp of ash; Ts).
+regressionInletSolid
 {
     type            surfaceFieldValue;
     libs            (fieldFunctionObjects);
     regionType      patch;
     name            inlet;
     operation       areaAverage;
-    fields          (Yashm);
+    fields          (Yashm solidH);
     writeFields     false;
     writePrecision  10;
     writeToFile     true;
