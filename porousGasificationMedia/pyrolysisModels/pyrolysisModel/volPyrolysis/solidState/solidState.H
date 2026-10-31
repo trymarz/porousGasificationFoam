@@ -310,8 +310,8 @@ public:
                 const PtrList<volScalarField>& Ym
             );
 
-            //- Ys_i = Ym_i/sum_j Ym_j; a cell with no mass gets Ys_0 = 1,
-            //  the density a fixedYm patch beside it injects at
+            //- Ys_i = Ym_i/sum_j Ym_j; a cell with no mass gets the
+            //  placeholder Ys_0 = 1
             static void deriveYiFromYm
             (
                 const PtrList<volScalarField>& Ym,
