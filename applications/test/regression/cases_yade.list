@@ -24,11 +24,9 @@ tutorials/cases/MicroTGA-DEM_Us_UsInterp
 # visibility rather than physical accuracy. A realistic ~1e-3 (see README)
 # would swamp the temperature term and flip ...Both's asserted sign.
 #
-# The coupled solve is not bit-reproducible: two runs of one build differ in
-# the last few digits of the lambda metrics, well inside the comparator's
-# rtol. Issue #85 covers this for ...AltInterp, where the ill-conditioned
-# laplaceAnchored solve drifts far enough that its lambdaAverage/lambdaMin
-# baselines are dropped; the other fixtures keep theirs.
+# MPI_lambda.py seeds the sphere packing, so two runs of one build are
+# byte-identical. Unseeded, the packing changed every run and moved the lambda
+# metrics by up to 34% (#139, #85).
 tutorials/cases/MicroTGA-DEM_lambdaDotOff
 tutorials/cases/MicroTGA-DEM_lambdaDotTemperature
 tutorials/cases/MicroTGA-DEM_lambdaDotChemistry
