@@ -25,9 +25,3 @@ python3 ../../../applications/test/regression/tools/checkFieldSign.py . \
     --dims lambdaDot="0 1 -1 0 0 0 0" \
     --dims lambda="0 1 0 0 0 0 0" \
     --sign lambdaDot=negative
-
-# No lambdaAverage/lambdaMin baseline here, unlike the other four fixtures:
-# lambdaInterpolationMode laplaceAnchored solves an ill-conditioned system
-# (anchor coefficients spanning 1e6 to 1e-12), so its converged lambda drifts
-# with parallel floating-point ordering while lambdaDot*/lambdaMax stay
-# identical. See issue #85.
