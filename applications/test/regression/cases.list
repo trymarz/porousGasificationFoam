@@ -46,6 +46,10 @@ tutorials/cases/canonical/gasification         fast
 tutorials/cases/canonical/radiation            fast
 tutorials/cases/canonical/darcy                fast
 tutorials/cases/canonical/forchheimer          fast
+# pyrolysisE and darcyE: the same fixtures solved for e instead of h. Their gas
+# T and p must match the h form; before #132 the e branch was off by 249 K.
+tutorials/cases/canonical/pyrolysisE           fast
+tutorials/cases/canonical/darcyE               fast
 tutorials/cases/canonical/stoichiometric       fast
 tutorials/cases/canonical/enthalpy             fast
 tutorials/cases/canonical/meanTemp             fast
