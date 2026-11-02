@@ -129,6 +129,17 @@ regressionSolidMassAverage
     operation       volAverage;
 }
 
+// Solid temperature where there is char: the inlet declares Ts = 300, so
+// the accumulated bed stays at 300 (#162; it sagged to ~66 K before).
+regressionTsCharWeighted
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (Ts);
+    operation       weightedVolAverage;
+    weightField     Ycharm;
+}
+
 regressionSolidDensityMin
 {
     ${regressionBase}
