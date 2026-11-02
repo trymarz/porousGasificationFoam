@@ -109,9 +109,6 @@ class multiComponentSolidMixture
             }
         };
 
-        //- True where every Y_i is fixedValue on patch patchi
-        bool prescribesComposition(label patchi) const;
-
         //- property(T, Y) on patch patchi: of the patch's own composition
         //  where it prescribes one, else of the face cell's
         template<class Property>

@@ -36,13 +36,14 @@ Description
     from the current boundary fields on every update, tracking rho and
     porosity as they evolve (mirrors the fixedSolidH pattern for T/solidH).
     rho_s is the density of the patch's own Yi, not of the face cell
-    (multiComponentSolidMixture::patchProperty).
+    (multiComponentSolidMixture::patchProperty). Where every solid Yi is
+    fixed, Yi is divided by their sum on the face, as rho_s and Cp are, so
+    the mass and the enthalpy (fixedSolidH) entering describe the same solid.
     The Yi field is found by stripping the trailing "m" from the Ym name.
 
-    A fixedYm patch is impermeable to solid mass: SolidSpeciesTransport::solve()
-    zeroes the solid flux on it, because an outflow face would drain the pinned
-    value instead of the upwind cell value and thereby remove mass the cell
-    does not hold.  Solid leaves the domain through zeroGradient-Yi patches.
+    Solid crossing the patch carries the pinned Ym either way;
+    SolidFluxLimiter caps inflow by the face cell's room and outflow by its
+    mass. Solid should leave the domain through zeroGradient-Yi patches.
 
 SourceFiles
     fixedYmFvPatchScalarField.C

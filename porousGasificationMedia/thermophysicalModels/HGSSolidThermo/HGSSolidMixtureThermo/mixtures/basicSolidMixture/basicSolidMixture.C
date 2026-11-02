@@ -24,6 +24,7 @@ License
 \*---------------------------------------------------------------------------*/
 
 #include "basicSolidMixture.H"
+#include "fixedValueFvPatchFields.H"
 
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
@@ -100,5 +101,21 @@ Foam::basicSolidMixture::basicSolidMixture
         }
     }
 }
+
+
+// * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
+
+bool Foam::basicSolidMixture::prescribesComposition(label patchi) const
+{
+    forAll(Y_, i)
+    {
+        if (!isA<fixedValueFvPatchScalarField>(Y_[i].boundaryField()[patchi]))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
 
 // ************************************************************************* //

@@ -24,7 +24,6 @@ License
 \*---------------------------------------------------------------------------*/
 
 #include "multiComponentSolidMixture.H"
-#include "fixedValueFvPatchFields.H"
 
 // * * * * * * * * * * * * * Private Member Functions  * * * * * * * * * * * //
 
@@ -50,23 +49,6 @@ void Foam::multiComponentSolidMixture<ThermoSolidType>::correctMassFractions()
     {
         Y_[n].primitiveFieldRef() /= Yt.internalField();
     }
-}
-
-
-template<class ThermoSolidType>
-bool Foam::multiComponentSolidMixture<ThermoSolidType>::prescribesComposition
-(
-    label patchi
-) const
-{
-    forAll(Y_, i)
-    {
-        if (!isA<fixedValueFvPatchScalarField>(Y_[i].boundaryField()[patchi]))
-        {
-            return false;
-        }
-    }
-    return true;
 }
 
 
@@ -98,6 +80,7 @@ Foam::multiComponentSolidMixture<ThermoSolidType>::patchProperty
         }
 
         // A patch that prescribes no composition (sum 0) reads the face cell's
+        // composition instead.
         f[facei] =
             sum > SMALL
           ? property(Tp[facei], patchFaceY(Y_, patchi, facei, sum))
