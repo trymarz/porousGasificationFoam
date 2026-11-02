@@ -126,11 +126,6 @@ void volPyrolysis::accumulateMassBudget()
     }
 }
 
-const SolidState& volPyrolysis::solidState() const
-{
-    return solidState_();
-}
-
 void volPyrolysis::createYm()
 {
     forAll(Ys_, fieldI)
@@ -337,19 +332,16 @@ volPyrolysis::volPyrolysis
         dimensionedScalar("zero",dimless/dimTime, 0.0)
     ),
     gasThermo_(gasThermo),
-    Ygas_(gasThermo.composition().Y()),
     solidThermo_(solidThermo),
     solidChemistry_
     (
         porousThermoSolidChemistryModel<HGSSolidThermo>::New
         (
             solidThermo_,
-            Ygas_,
+            gasThermo_.composition().Y(),
             gasThermo.thermoName()
         )
     ),
-    kappa_(solidThermo_.kappa()),
-    K_(solidThermo_.K()),
     rho_(solidThermo_.rho()),
     rho0_
     (
@@ -371,8 +363,6 @@ volPyrolysis::volPyrolysis
     equilibrium_(false),
     nNonOrthCorr_(-1),
     maxDiff_(10),
-    porosity0_(porosity),
-    gasVolumeFractionAtStepStart_(porosity),
     radiation_(radiation),
     chemistrySh_
     (
@@ -641,46 +631,6 @@ volPyrolysis::~volPyrolysis()
 
 
 // * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * * //
-volScalarField& volPyrolysis::rhoConst() const
-{
-    return rho_;
-}
-
-volScalarField& volPyrolysis::rho()
-{
-    return rho_;
-}
-
-const volScalarField& volPyrolysis::T() const
-{
-    return T_;
-}
-
-const tmp<volScalarField> volPyrolysis::Cp() const
-{
-    return solidThermo_.Cp();
-}
-
-
-const volScalarField& volPyrolysis::kappa() const
-{
-    return kappa_;
-}
-
-const volScalarField& volPyrolysis::K() const
-{
-    return K_;
-}
-
-const volScalarField& volPyrolysis::surf() const
-{
-    return cellOnBedBorder_;
-}
-
-scalar volPyrolysis::maxDiff() const
-{
-    return maxDiff_;
-}
 
 scalar volPyrolysis::solidRegionDiffNo() const
 {
@@ -692,7 +642,7 @@ scalar volPyrolysis::solidRegionDiffNo() const
         surfaceScalarField KrhoCpbyDelta
         (
             mesh_.surfaceInterpolation::deltaCoeffs()
-          * fvc::interpolate(K_)
+          * fvc::interpolate(K())
         );
 
         surfaceScalarField Cprho
@@ -713,16 +663,6 @@ scalar volPyrolysis::solidRegionDiffNo() const
     }
 
     return DiNum;
-}
-
-scalar volPyrolysis::maxTime() const
-{
-return chemistryTimeStep_;
-}
-
-Switch volPyrolysis::equilibrium() const
-{
-    return equilibrium_;
 }
 
 void volPyrolysis::markReactingCells()
@@ -763,6 +703,27 @@ void volPyrolysis::solveChemistry()
     chemistrySh_ = solidChemistry_->Sh()(); // eqZx2uHGn004
 }
 
+tmp<volScalarField> volPyrolysis::zeroSrho(const word& name) const
+{
+    return tmp<volScalarField>
+    (
+        new volScalarField
+        (
+            IOobject
+            (
+                name,
+                time_.timeName(),
+                mesh_,
+                IOobject::NO_READ,
+                IOobject::NO_WRITE,
+                false
+            ),
+            mesh_,
+            dimensionedScalar("zero", dimMass/dimVolume/dimTime, 0.0)
+        )
+    );
+}
+
 void volPyrolysis::preEvolveRegion() {
     // Added for completeness
     heterogeneousPyrolysisModel::preEvolveRegion();
@@ -772,8 +733,6 @@ void volPyrolysis::preEvolveRegion() {
 
 void volPyrolysis::evolveRegion()
 {
-    gasVolumeFractionAtStepStart_ = porosity_;
-
     updateTransferCoefficients();
     solveChemistry();
     heatExchange_->updateHeatUpGas(Srho()());
@@ -799,31 +758,13 @@ void volPyrolysis::evolveRegion()
 
 Foam::tmp<Foam::volScalarField> volPyrolysis::Srho() const
 {
-    Foam::tmp<Foam::volScalarField> tSrho
-    (
-        new volScalarField
-        (
-            IOobject
-            (
-                "thermoSingleLayer::Srho",
-                time_.timeName(),
-                mesh_,
-                IOobject::NO_READ,
-                IOobject::AUTO_WRITE,
-                false
-            ),
-            mesh_,
-            dimensionedScalar("zero", dimMass/dimVolume/dimTime, 0.0)
-        )
-    );
+    tmp<volScalarField> tSrho(zeroSrho("volPyrolysis::Srho"));
 
     if (active_)
     {
-        const speciesTable& gasTable = solidChemistry_->gasTable();
-
-        forAll(gasTable,gasI)
+        forAll(solidChemistry_->gasTable(), gasI)
         {
-            tSrho = tSrho + solidChemistry_->RRg(gasI);
+            tSrho.ref() += solidChemistry_->RRg(gasI);
         }
     }
 
@@ -833,83 +774,15 @@ Foam::tmp<Foam::volScalarField> volPyrolysis::Srho() const
 
 Foam::tmp<Foam::volScalarField> volPyrolysis::Srho(const label i) const
 {
+    const word& gasName = gasThermo_.composition().Y()[i].name();
+    const label gasI = solidChemistry_->gasTable().find(gasName);
 
-    if (active_)
+    if (active_ && gasI != -1)
     {
-        const speciesTable& gasTable = solidChemistry_->gasTable();
-
-        label j = -1;
-        forAll(gasTable,gasI)
-        {
-            if (gasTable[gasI] == Ygas_[i].name())
-            {
-                j = gasI;
-            }
-        }
-
-        if (j > -1)
-        {
-
-            tmp<volScalarField> tRRiGas = solidChemistry_->RRg(j);
-            return tRRiGas;
-        }
-        else
-        {
-            return Foam::tmp<Foam::volScalarField>
-            (
-                new volScalarField
-                (
-                    IOobject
-                    (
-                        "volPyrolysis::Srho(" + Foam::name(i) + ")",
-                        time_.timeName(),
-                        mesh_,
-                        IOobject::NO_READ,
-                        IOobject::NO_WRITE,
-                        false
-                    ),
-                    mesh_,
-                    dimensionedScalar("zero", dimMass/dimVolume/dimTime, 0.0)
-                )
-            );
-
-        }
+        return solidChemistry_->RRg(gasI);
     }
-    else
-    {
-        return Foam::tmp<Foam::volScalarField>
-        (
-            new volScalarField
-            (
-                IOobject
-                (
-                    "volPyrolysis::Srho(" + Foam::name(i) + ")",
-                    time_.timeName(),
-                    mesh_,
-                    IOobject::NO_READ,
-                    IOobject::NO_WRITE,
-                    false
-                ),
-                mesh_,
-                dimensionedScalar("zero", dimMass/dimVolume/dimTime, 0.0)
-            )
-        );
-    }
-}
 
-Foam::tmp<Foam::volScalarField> volPyrolysis::heatUpGas() const
-{
-    return heatExchange_->heatUpGas();
-}
-
-Foam::tmp<Foam::volScalarField> volPyrolysis::heatTransfer() const
-{
-    return heatExchange_->heatTransfer();
-}
-
-Foam::tmp<Foam::volScalarField> volPyrolysis::solidChemistrySh() const
-{
-    return chemistrySh_;
+    return zeroSrho("volPyrolysis::Srho(" + Foam::name(i) + ")");
 }
 
 void volPyrolysis::info() const

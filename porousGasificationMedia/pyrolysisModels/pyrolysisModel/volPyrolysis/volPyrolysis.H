@@ -108,6 +108,9 @@ private:
         //- Solve the solid chemistry: rates, reaction heat, time step
         void solveChemistry();
 
+        //- A zero, unregistered mass source [kg/m3/s]
+        tmp<volScalarField> zeroSrho(const word& name) const;
+
 
 protected:
 
@@ -125,9 +128,6 @@ protected:
     //- Thermophysical properties of gaseous species.
     psiReactionThermo& gasThermo_;
 
-    //- List of gas components
-    PtrList<volScalarField>& Ygas_;
-
     //- Thermophysical properties of solid phase
     HGSSolidThermo& solidThermo_;
 
@@ -135,12 +135,6 @@ protected:
     autoPtr<porousThermoSolidChemistryModel<HGSSolidThermo>> solidChemistry_;
 
     // Reference to solid thermo properties
-
-        //- Absorption coefficient [1/m]
-        const volScalarField& kappa_;
-
-        //- Thermal conductivity [W/m/K]
-        const volScalarField& K_;
 
         //- Density [kg/m3]
         volScalarField& rho_;
@@ -174,11 +168,6 @@ protected:
         scalar maxDiff_;
 
     // Reference to main region fields
-
-        //- InitialPorosity
-        volScalarField porosity0_;
-
-        volScalarField gasVolumeFractionAtStepStart_;
 
         //- Radiation
         volScalarField& radiation_;
@@ -300,28 +289,25 @@ public:
             //- Fields
 
                 //- Return density [kg/m3]
-                virtual volScalarField& rhoConst() const;
-
-                //- Return density [kg/m3]
-                virtual volScalarField& rho();
+                inline virtual volScalarField& rhoConst() const;
 
                 //- Return const temperature [K]
-                virtual const volScalarField& T() const;
+                inline virtual const volScalarField& T() const;
 
                 //- Return specific heat capacity [J/kg/K]
-                virtual const tmp<volScalarField> Cp() const;
+                inline virtual const tmp<volScalarField> Cp() const;
 
                 //- Return the region absorptivity [1/m]
-                virtual const volScalarField& kappa() const;
+                inline virtual const volScalarField& kappa() const;
 
-                //- Return the region thermal conductivity [W/m/k]
-                virtual const volScalarField& K() const;
+                //- Return the region thermal conductivity [W/m/K]
+                inline virtual const volScalarField& K() const;
 
                 //- Return list of cells in surface layer inside solid
-                virtual const volScalarField& surf() const;
+                inline virtual const volScalarField& surf() const;
 
                 //- The solid regimes of every cell, and their thresholds
-                virtual const SolidState& solidState() const;
+                inline virtual const SolidState& solidState() const;
 
         // Parametrs from main region
 
@@ -331,18 +317,18 @@ public:
                 inline label nNonOrthCorr() const;
 
                 //- Return max diffusivity allowed in the solid
-                virtual scalar maxDiff() const;
+                inline virtual scalar maxDiff() const;
 
         // Helper functions
 
             //- Mean diffusion number of the solid region
             virtual scalar solidRegionDiffNo() const;
 
-            //- Returm time modification factor
-            virtual scalar maxTime() const;
+            //- Time step suggested by the last chemistry solve [s]
+            inline virtual scalar maxTime() const;
 
-            //- Returm time modification factor
-            virtual Switch equilibrium() const;
+            //- Whether gas and solid share one temperature
+            inline virtual Switch equilibrium() const;
 
         // Source fields (read/write access)
 
@@ -366,13 +352,13 @@ public:
             ) const;
 
             //- Return enthalpy source - Eulerian phase only
-            virtual Foam::tmp<Foam::volScalarField> heatTransfer() const;
+            inline virtual tmp<volScalarField> heatTransfer() const;
 
             //- Return enthalpy needed to heat up gas
-            virtual Foam::tmp<Foam::volScalarField> heatUpGas() const;
+            inline virtual tmp<volScalarField> heatUpGas() const;
 
-            //- Return enthalpy needed to heat up gas  GK  or to pyrolyse the solid into gas ???
-            virtual Foam::tmp<Foam::volScalarField> solidChemistrySh() const;
+            //- Heat released by the solid reactions [J/s/m3]
+            inline virtual tmp<volScalarField> solidChemistrySh() const;
 
         // I-O
 
