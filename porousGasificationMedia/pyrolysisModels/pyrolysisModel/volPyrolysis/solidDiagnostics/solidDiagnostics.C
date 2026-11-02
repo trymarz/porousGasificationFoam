@@ -367,7 +367,7 @@ void SolidDiagnostics::checkBoundaryDeclarations
             continue;
         }
 
-        if (isA<wallPolyPatch>(pp))
+        if (isWall(patchi))
         {
             walls.append(patchi);
         }
@@ -480,6 +480,12 @@ bool SolidDiagnostics::beyondSlack(const scalar phi, const label celli) const
 }
 
 
+bool SolidDiagnostics::isWall(const label patchi) const
+{
+    return isA<wallPolyPatch>(mesh_.boundaryMesh()[patchi]);
+}
+
+
 scalarField SolidDiagnostics::patchTotalYm
 (
     const PtrList<volScalarField>& Ym,
@@ -525,10 +531,11 @@ void SolidDiagnostics::checkSolidCrossing
         return;
     }
 
+    // Walls are checked in both directions below.
     forAll(inheritingPatches_, k)
     {
         const label patchi = inheritingPatches_[k];
-        if (inflowReported_[patchi])
+        if (inflowReported_[patchi] || isWall(patchi))
         {
             continue;
         }
@@ -572,7 +579,7 @@ void SolidDiagnostics::checkSolidCrossing
     forAll(declaringPatches_, k)
     {
         const label patchi = declaringPatches_[k];
-        if (inflowReported_[patchi])
+        if (inflowReported_[patchi] || isWall(patchi))
         {
             continue;
         }
@@ -617,45 +624,59 @@ void SolidDiagnostics::checkSolidCrossing
         }
     }
 
+    // Solid copied in from a trace or empty cell carries no mass, as above.
     forAll(wallPatches_, k)
     {
         const label patchi = wallPatches_[k];
-        if (outflowReported_[patchi])
-        {
-            continue;
-        }
-
         const scalarField& phiP = phiSolid.boundaryField()[patchi];
         const labelUList& faceCells = mesh_.boundary()[patchi].faceCells();
         const scalarField YmP(patchTotalYm(Ym, patchi));
+        const bool declares =
+            isA<fixedValueFvPatchScalarField>(Ys[0].boundaryField()[patchi]);
 
+        scalar inflow = 0.0;
         scalar outflow = 0.0;
         forAll(phiP, facei)
         {
             const label celli = faceCells[facei];
-            if
-            (
-                beyondSlack(phiP[facei], celli)
-             && !solidState_.isTraceOrEmpty(celli)
-            )
+            const bool holdsSolid = !solidState_.isTraceOrEmpty(celli);
+            if (beyondSlack(-phiP[facei], celli) && (declares || holdsSolid))
+            {
+                inflow -= phiP[facei];
+            }
+            if (beyondSlack(phiP[facei], celli) && holdsSolid)
             {
                 outflow += phiP[facei]*YmP[facei];
             }
         }
-
+        reduce(inflow, sumOp<scalar>());
         reduce(outflow, sumOp<scalar>());
-        if (outflow > 0.0)
+
+        const word& name = mesh_.boundaryMesh()[patchi].name();
+        if (inflow > 0.0 && !inflowReported_[patchi])
+        {
+            inflowReported_[patchi] = true;
+            applyBoundaryPolicy
+            (
+                "Solid enters through wall " + name + " ("
+              + Foam::name(inflow)
+              + " m3/s at t = " + time_.timeName() + "): its Us lets the"
+                " solid cross it.",
+                "Declare " + name + " as type patch if it is an inlet, or"
+                " make its Us slip or fixedValue (0 0 0) to close it"
+            );
+        }
+        if (outflow > 0.0 && !outflowReported_[patchi])
         {
             outflowReported_[patchi] = true;
-            const word& name = mesh_.boundaryMesh()[patchi].name();
             applyBoundaryPolicy
             (
                 "Solid leaves through wall " + name + " ("
               + Foam::name(outflow)
               + " kg/s at t = " + time_.timeName() + "): its Us lets the"
                 " solid cross it.",
-                "Make Us slip or fixedValue (0 0 0) on " + name
-              + " to close it"
+                "Declare " + name + " as type patch if it is an outlet, or"
+                " make its Us slip or fixedValue (0 0 0) to close it"
             );
         }
     }

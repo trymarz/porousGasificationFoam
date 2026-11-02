@@ -57,7 +57,7 @@ face cell:
   than zero. Solid entering an inheriting patch would copy the face cell's
   mass and enthalpy in; solid entering faces whose fixed `Yi` sum to zero
   would bring enthalpy without mass.
-- Solid must not leave through a patch of mesh type `wall` (in
+- Solid must neither enter nor leave through a patch of mesh type `wall` (in
   `blockMeshDict`): give it `Us` `slip` or `fixedValue (0 0 0)`. Declare
   inlets and outlets as `type patch`.
 - `solidBoundaryPolicy` (in `pyrolysisCoeffs`) decides what happens when

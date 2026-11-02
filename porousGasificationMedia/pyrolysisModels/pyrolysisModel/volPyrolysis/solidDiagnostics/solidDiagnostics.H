@@ -50,8 +50,8 @@ Description
     start-up. checkSolidCrossing() acts on solid entering an inheriting patch,
     which would copy the face cell's mass and enthalpy in, and on solid
     entering declaring faces whose Yi sum to zero, which would bring enthalpy
-    without mass, and on solid leaving through a wall-type patch, whose Us
-    should close it. A face counts once the volume crossing it over the step
+    without mass, and on solid entering or leaving through a wall-type patch,
+    whose Us should close it. A face counts once the volume crossing it over the step
     exceeds the check slack of the face cell's volume.
 
     Owned directly by volPyrolysis (like SolidFluxLimiter) - no runtime
@@ -119,7 +119,7 @@ class SolidDiagnostics
         //- Patches that declare the incoming solid (every Yi and Ts fixed)
         labelList declaringPatches_;
 
-        //- Wall-type patches, which solid must not leave through
+        //- Wall-type patches, which solid must neither enter nor leave
         labelList wallPatches_;
 
         //- Patches already reported for inflow, indexed by patch
@@ -153,6 +153,9 @@ class SolidDiagnostics
         //- Whether a face carrying volume flux phi into (or out of) celli
         //  exceeds the check slack of the cell's volume over this step
         bool beyondSlack(const scalar phi, const label celli) const;
+
+        //- Whether patchi has mesh type wall
+        bool isWall(const label patchi) const;
 
         //- sum_i Ym_i on patchi's faces [kg/m3]
         scalarField patchTotalYm
@@ -255,7 +258,7 @@ public:
         );
 
         //- Applies solidBoundaryPolicy to solid entering a patch that does
-        //  not declare it, or leaving through a wall. Reports each once.
+        //  not declare it, or crossing a wall. Reports each once.
         void checkSolidCrossing
         (
             const surfaceScalarField& phiSolid,
