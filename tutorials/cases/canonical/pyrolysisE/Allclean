@@ -1,3 +1,4 @@
 #!/bin/sh
 cd "${0%/*}" || exit
-rm -rf processor* 0 0.[0-9]* [1-9]* log log.* *.foam postProcessing constant/polyMesh
+rm -rf processor* 0 0.[0-9]* [1-9]* log log.* *.foam postProcessing
+rm -rf 0.orig constant system

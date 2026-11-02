@@ -72,4 +72,37 @@ regressionMassOutlet
     name            outlet;
 }
 
+// Gas heating by the pressure work, T - 300 so rtol bites on the rise itself
+// (Allrun checks that 0.orig/T starts at 300 K).
+gasTemperatureRise
+{
+    type            exprField;
+    libs            (fieldFunctionObjects);
+    field           gasTemperatureRise;
+    dimensions      [0 0 0 1 0 0 0];
+    expression      "T - 300";
+    action          new;
+    store           true;
+    autowrite       false;
+    executeControl  timeStep;
+    executeInterval 1;
+    writeControl    writeTime;
+}
+
+regressionTRiseAverage
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (gasTemperatureRise);
+    operation       volAverage;
+}
+
+regressionTRiseMax
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (gasTemperatureRise);
+    operation       max;
+}
+
 // ************************************************************************* //
