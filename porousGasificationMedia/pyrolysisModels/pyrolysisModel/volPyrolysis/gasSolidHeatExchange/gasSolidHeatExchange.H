@@ -60,6 +60,7 @@ SourceFiles
 #include "HGSSolidThermo.H"
 #include "porousHeatTransferModel.H"
 #include "solidState.H"
+#include "solidFields.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -131,21 +132,15 @@ public:
 
     // Constructors
 
-        //- Construct from the owner's coefficients and fields; selects the
-        //  heat transfer model
+        //- Construct from the owner's coefficients and solid fields; selects
+        //  the heat transfer model, which also reads porosityArch
         GasSolidHeatExchange
         (
             const dictionary& coeffs,
-            const fvMesh& mesh,
-            const volScalarField& porosity,
+            const SolidFields& solid,
             const volScalarField& porosityArch,
             const psiReactionThermo& gasThermo,
-            const HGSSolidThermo& solidThermo,
-            const volScalarField& T,
-            const volScalarField& rho,
-            const SolidState& solidState,
-            const Switch& equilibrium,
-            const Switch& active
+            const Switch& equilibrium
         );
 
 

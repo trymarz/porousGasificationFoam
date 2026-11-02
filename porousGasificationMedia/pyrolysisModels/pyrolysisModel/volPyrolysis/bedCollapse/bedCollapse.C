@@ -466,8 +466,7 @@ BedCollapse::BedCollapse
 (
     const dictionary& coeffs,
     const SolidFields& solid,
-    volScalarField& porosityArch,
-    const volScalarField& cellVolume
+    volScalarField& porosityArch
 )
 :
     mesh_(solid.mesh),
@@ -484,7 +483,19 @@ BedCollapse::BedCollapse
     Ym_(solid.Ym),
     Ys_(solid.Ys),
     solidH_(solid.solidH),
-    cellVolume_(cellVolume),
+    cellVolume_
+    (
+        IOobject
+        (
+            "cellVolume",
+            mesh_.time().timeName(),
+            mesh_,
+            IOobject::NO_READ,
+            IOobject::NO_WRITE
+        ),
+        mesh_,
+        dimensionedScalar("zero", dimVolume, 0.0)
+    ),
     solidState_(solid.state),
     solidOccupiedCellLastStep_
     (
@@ -502,6 +513,9 @@ BedCollapse::BedCollapse
     totRepMass_(0.),
     cumulativeCollapseMass_(0.0)
 {
+    cellVolume_.primitiveFieldRef() = mesh_.V();
+    cellVolume_.correctBoundaryConditions();
+
     Info << "bedCollapse              " << bedCollapseSwitch_ << endl;
     Info << "replenish                " << replenishSwitch_ << endl;
     Info << "collapseMovesSolidMass   " << collapseMovesSolidMass_ << endl;
