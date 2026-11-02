@@ -94,6 +94,10 @@ PorosityRecovery::PorosityRecovery
     Info << "poroProtectSolidInflowFluxTolerance  "
          << poroProtectSolidInflowFluxTolerance_ << " [kg/m3/s]" << endl;
     Info << "emptyFlippedCells        " << emptyFlippedCells_ << endl;
+
+    // The radiation model reads the flags before the first recover(). Not
+    // porosity_'s patches: evaluating a coded inlet here would change step 1.
+    markBedBorderCells();
 }
 
 
@@ -307,7 +311,6 @@ void PorosityRecovery::emptyCells(const labelList& flipCells, const label nFlips
 void PorosityRecovery::markBedBorderCells()
 {
     cellOnBedBorder_= cellOnBedBorder_*0;
-    porosity_.correctBoundaryConditions();
     solidState_.correctSolidPresentBoundaryConditions();
 
     const volScalarField& solidPresent = solidState_.solidPresent();
@@ -391,6 +394,7 @@ void PorosityRecovery::recover()
     );
     solidDiagnostics_.checkConsistency(porosity_, Ym_, rho_);
 
+    porosity_.correctBoundaryConditions();
     markBedBorderCells();
 
     // porosity_ has just been rewritten; the gate is derived from it.

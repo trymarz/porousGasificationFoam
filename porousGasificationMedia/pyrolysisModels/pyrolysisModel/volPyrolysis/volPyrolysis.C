@@ -254,25 +254,6 @@ void volPyrolysis::renormaliseInitialComposition()
     }
 }
 
-void volPyrolysis::markInitialBedBorderCells()
-{
-    forAll(solidState_->solidPresent(), cellI)
-    {
-        if (solidState_->solidPresent()[cellI] == 1)
-        {
-            bool surfC = false;
-            forAll(mesh_.cellCells()[cellI],cellJ)
-            {
-                if (solidState_->solidPresent()[mesh_.cellCells()[cellI][cellJ]] == 0)
-                {
-                    surfC = true;
-                }
-            }
-            if (surfC) cellOnBedBorder_[cellI] = 1;
-        }
-    }
-}
-
 void volPyrolysis::createCollaborators()
 {
     Info << endl;
@@ -405,19 +386,6 @@ volPyrolysis::volPyrolysis
         )
     ),
     rho_(solidThermo_.rho()),
-    rho0_
-    (
-        IOobject
-        (
-            "rhos0",
-            time_.timeName(),
-            mesh_,
-            IOobject::NO_READ,
-            IOobject::AUTO_WRITE
-        ),
-        mesh_,
-        dimensionedScalar("zero", dimMass/dimVolume, 0.0)
-    ),
     Ys_(solidThermo_.composition().Y()),
     Ym_(Ys_.size()),
     T_(solidThermo_.T()),
@@ -482,7 +450,6 @@ volPyrolysis::volPyrolysis
     mesh.setFluxRequired(T_.name());
 
     specieTransferCoeff_ = specieTransfer_->ST()();
-    rho0_.ref() = rho_.ref();
 
     createYm();
 
@@ -502,22 +469,12 @@ volPyrolysis::volPyrolysis
     // fvm::ddt(porosityF, rho) loses a step of d(porosity)/dt.
     porosity_.oldTime();
 
-    forAll(rho_,cellI)
-    {
-        if (porosity_[cellI] == 1.)
-        {
-             rho0_[cellI] = 3.14;
-        }
-    }
-
     renormaliseInitialComposition();
 
     if (active_)
     {
         read();
     }
-
-    markInitialBedBorderCells();
 
     createCollaborators();
 }

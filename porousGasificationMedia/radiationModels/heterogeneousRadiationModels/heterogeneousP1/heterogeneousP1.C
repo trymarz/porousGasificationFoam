@@ -316,6 +316,12 @@ void Foam::radiationModels::heterogeneousP1::calculate()
     Info << "Radiation active volume to porous media volume ratio: "
          << totalSurf/max(totalVol,SMALL) << endl;
 
+    // The masks above are set cell by cell; refresh their processor patches
+    // or each rank builds gamma from stale neighbours and G diverges.
+    bedBorderSurfaceAreaDensity_.correctBoundaryConditions();
+    radiatingCellHasSolid_.correctBoundaryConditions();
+    radiatingCellHasNoSolid_.correctBoundaryConditions();
+
     // Construct diffusion. Deliberately ungated: gamma sets where radiation
     // goes, not who pays for it, so the reservoir balances below whatever it
     // is. Whether a gated cell should still attenuate is a separate question.

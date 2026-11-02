@@ -96,9 +96,6 @@ private:
         //- In solid cells, rebuild Ym from the read-in Yi, then Yi = Ym/sum(Ym)
         void renormaliseInitialComposition();
 
-        //- Flag solid cells with an empty neighbour cell
-        void markInitialBedBorderCells();
-
         //- Build the stages that act on the solid fields, in dependency
         //  order; each logs its own settings when constructed
         void createCollaborators();
@@ -143,9 +140,6 @@ protected:
 
         //- Density [kg/m3]
         volScalarField& rho_;
-
-        //- Density for the initial moment
-        volScalarField rho0_;
 
         //- List of solid components
         PtrList<volScalarField>& Ys_;
