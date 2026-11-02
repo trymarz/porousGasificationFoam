@@ -12,6 +12,7 @@
 #   runCase.sh <caseDir> [--no-run] [--rtol R] [--atol A] [--compare PATH]
 #              [--run-dir DIR] [--state-dir DIR] [--suite-events PATH]
 #              [--case-id ID] [--suite-id ID]
+#              [--expect-fail RE | --expect-log RE]
 #
 # Options:
 #   --no-run          Skip cleaning and running; compare existing output only.
@@ -30,6 +31,10 @@
 #                     NDJSON stream at P, so one stream can be tailed.
 #   --case-id ID      Case id recorded in state (default: the case basename).
 #   --suite-id ID     Suite id recorded in state (default: empty).
+#   --expect-fail RE  Pass when Allrun fails and a log.* matches the extended
+#                     regex RE; no baseline is compared.
+#   --expect-log RE   Pass when Allrun succeeds and a log.* matches RE (with a
+#                     leading '!', matches nothing); no baseline is compared.
 #
 # Exit codes (shared outcome taxonomy — see tools/regressionLib.sh):
 #   0      - PASS  (ran, compared, within tolerance)
@@ -60,6 +65,8 @@ STATE_DIR=""
 SUITE_EVENTS=""
 CASE_ID=""
 SUITE_ID=""
+EXPECT_KIND=""
+EXPECT_RE=""
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -97,6 +104,11 @@ while [ $# -gt 0 ]; do
         ;;
     --suite-id)
         SUITE_ID="$2"
+        shift 2
+        ;;
+    --expect-fail|--expect-log)
+        EXPECT_KIND="${1#--expect-}"
+        EXPECT_RE="$2"
         shift 2
         ;;
     -*)
@@ -183,6 +195,34 @@ finish() {
     exit "$rc"
 }
 
+# check_expectation <allrun-rc> — finish an --expect-fail/--expect-log case:
+#   Allrun must have failed (or succeeded) and a log.* must match EXPECT_RE, or
+#   match nothing when it starts with '!'. A signal death stays a CRASH.
+check_expectation() {
+    local rc="$1" re="$EXPECT_RE" negate=false matched=false
+    reg_phase assert
+    if [ "$rc" -gt 128 ]; then
+        finish "$rc" "Allrun died on signal $(( rc - 128 )) ($(reg_signal_name $(( rc - 128 ))))"
+    fi
+    if [ "$EXPECT_KIND" = fail ] && [ "$rc" -eq 0 ]; then
+        finish 1 "expected Allrun to fail, but it succeeded"
+    fi
+    if [ "$EXPECT_KIND" = log ] && [ "$rc" -ne 0 ]; then
+        finish "$rc" "Allrun exited non-zero ($rc)"
+    fi
+    if [ "${re#!}" != "$re" ] && [ "$EXPECT_KIND" = log ]; then
+        negate=true
+        re="${re#!}"
+    fi
+    cat "$workDir"/log.* 2>/dev/null | grep -qE -- "$re" && matched=true
+    if [ "$matched" != "$negate" ]; then
+        echo "[runCase] expect-$EXPECT_KIND: log $( $negate && echo "has no" || echo "matches" ) '$re'"
+        finish 0 ""
+    fi
+    echo "[runCase] expect-$EXPECT_KIND: log $( $negate && echo "matches" || echo "has no" ) '$re'" >&2
+    finish 1 "log $( $negate && echo "matches" || echo "has no match for" ) '$re'"
+}
+
 # -- validation ---------------------------------------------------------------
 
 if [ -z "$caseDir" ] || [ ! -d "$caseDir" ]; then
@@ -192,6 +232,7 @@ fi
 
 caseDir="$(cd "$caseDir" && pwd)"
 RESULT_FIELDS+=(--artifact "case_dir=$caseDir")
+[ -n "$EXPECT_KIND" ] && RESULT_FIELDS+=(--artifact "expect_$EXPECT_KIND=$EXPECT_RE")
 [ -n "$COMPARE_LOG" ] && RESULT_FIELDS+=(--artifact "compare_log=$COMPARE_LOG")
 
 if [ -z "$COMPARE" ]; then
@@ -309,6 +350,7 @@ if [ "$SKIP_RUN" = false ]; then
     echo "[runCase] Running $workDir/Allrun"
     (cd "$workDir" && ./Allrun)
     rc=$?
+    [ -n "$EXPECT_KIND" ] && check_expectation "$rc"
     # Propagate the case's own exit status so the runner can classify it: a
     # signal death (128+N) surfaces as CRASH, any other non-zero as the case's
     # reported failure. Infrastructure problems (a broken/absent clean, a dirty
@@ -323,6 +365,9 @@ if [ "$SKIP_RUN" = false ]; then
         fi
     fi
 fi
+
+# An expectation case was decided on its log (with --no-run, the existing one).
+[ -n "$EXPECT_KIND" ] && check_expectation "$( [ "$EXPECT_KIND" = fail ] && echo 1 || echo 0 )"
 
 # -- output assertions --------------------------------------------------------
 
