@@ -64,4 +64,13 @@ regressionWoodIntegral
     operation       volIntegrate;
 }
 
+// Gas temperature and pressure, which pyrolysisE (solved for e) must match.
+regressionTAverage
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (T p);
+    operation       volAverage;
+}
+
 // ************************************************************************* //

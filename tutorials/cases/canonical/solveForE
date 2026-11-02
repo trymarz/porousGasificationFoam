@@ -10,10 +10,6 @@ foamDictionary system/fvSchemes \
 foamDictionary system/fvSchemes \
     -entry 'divSchemes/div(phiv,p)' -add 'Gauss linear' > /dev/null || exit
 sed -i 's/"(U|h|/"(U|h|e|/' system/fvSolution || exit
-if [ -f regressionFunctions.e ]
-then
-    echo '#include "../regressionFunctions.e"' >> system/regressionFunctions
-fi
 
 . ${WM_PROJECT_DIR:?}/bin/tools/RunFunctions
 restore0Dir
