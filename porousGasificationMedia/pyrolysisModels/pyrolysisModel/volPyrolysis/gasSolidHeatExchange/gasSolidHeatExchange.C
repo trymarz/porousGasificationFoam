@@ -101,7 +101,9 @@ GasSolidHeatExchange::GasSolidHeatExchange
     (
         coeffs.lookupOrDefault("subintegrateHeatTransfer",false)
     )
-{}
+{
+    Info << "subintegrateHeatTransfer " << subintegrateSwitch_ << endl;
+}
 
 
 // * * * * * * * * * * * * * * * * Destructor  * * * * * * * * * * * * * * * //

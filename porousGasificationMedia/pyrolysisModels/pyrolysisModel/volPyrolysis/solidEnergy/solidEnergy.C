@@ -54,7 +54,7 @@ SolidEnergy::SolidEnergy
     const psiReactionThermo& gasThermo,
     const porousThermoSolidChemistryModel<HGSSolidThermo>& chemistry,
     PtrList<volScalarField>& Ym,
-    autoPtr<volScalarField>& solidH,
+    volScalarField& solidH,
     const volScalarField& porosity,
     const volVectorField& Us,
     const surfaceScalarField& phiSolid,
@@ -195,14 +195,14 @@ void SolidEnergy::recoverTsFromH
 {
     if (dispersedRule)
     {
-        T_ = solidState_.withDispersedRule(solidH_()/rhoCp, gasThermo_.T());
+        T_ = solidState_.withDispersedRule(solidH_/rhoCp, gasThermo_.T());
         T_ = solidState_.withTraceRule(T_, totalYm, rho_, gasThermo_.T());
     }
     else
     {
         T_ = solidState_.withTraceRule
         (
-            solidH_()/rhoCp,
+            solidH_/rhoCp,
             totalYm,
             rho_,
             gasThermo_.T()
@@ -212,8 +212,8 @@ void SolidEnergy::recoverTsFromH
 
 void SolidEnergy::storeH(const volScalarField& rhoCp)
 {
-    solidH_().ref() = rhoCp*T_;
-    solidH_().correctBoundaryConditions();
+    solidH_.ref() = rhoCp*T_;
+    solidH_.correctBoundaryConditions();
 }
 
 Foam::tmp<Foam::fvScalarMatrix> SolidEnergy::conductionWithinSolid
@@ -365,7 +365,7 @@ void SolidEnergy::advectSolidH
     dimensionedScalar ovDt = pow(mesh_.time().deltaT(),-1);
     fvScalarMatrix sHEqn
     (
-        fvm::Sp(ovDt,solidH_()) - ovDt*solidH_()
+        fvm::Sp(ovDt,solidH_) - ovDt*solidH_
       + fvc::surfaceIntegrate
         (
             phiYm*upwind<scalar>(mesh_, phiYm).interpolate(hs)
@@ -375,7 +375,7 @@ void SolidEnergy::advectSolidH
     sHEqn.relax();
     sHEqn.solve();
 
-    const volScalarField& sH = solidH_();
+    const volScalarField& sH = solidH_;
 
     const label badSolidHCell =
         solidDiagnostics_.firstInvalidExtensive(sH);
@@ -399,8 +399,8 @@ void SolidEnergy::advectSolidH
         );
     }
 
-    solidH_().max(0);
-    solidH_().correctBoundaryConditions();
+    solidH_.max(0);
+    solidH_.correctBoundaryConditions();
 }
 
 
@@ -463,7 +463,7 @@ void SolidEnergy::solve()
         OStringStream context;
         context
             << "    solidH       = "
-            << solidH_()[badTsCell] << nl
+            << solidH_[badTsCell] << nl
             << "    sum(Ym)      = " << totalYm[badTsCell] << nl
             << "    rhoCp        = " << rhoCp[badTsCell] << nl
             << "    porosity     = " << porosity_[badTsCell] << nl
@@ -524,7 +524,7 @@ void SolidEnergy::recoverTemperatureAfterReaction()
         OStringStream context;
         context
             << "    solidH       = "
-            << solidH_()[badCell] << nl
+            << solidH_[badCell] << nl
             << "    sum(Ym)      = " << totalYm[badCell] << nl
             << "    sum(Ym) pre  = " << preReactionYm[badCell] << nl
             << "    rhoCp        = " << rhoCp[badCell] << nl

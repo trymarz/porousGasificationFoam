@@ -204,7 +204,7 @@ void BedCollapse::syncCollapseBoundaries()
         // The solid enthalpy travels with the mass across a
         // processor boundary too, so its neighbour values have
         // to be current before any route is walked.
-        solidH_().correctBoundaryConditions();
+        solidH_.correctBoundaryConditions();
     }
     for (label i = 0; i < Ys_.size(); ++i)
     {
@@ -225,7 +225,7 @@ BedCollapse::MovedSolid BedCollapse::localSolid(const label cellI) const
     {
         solid.Ym[i] = Ym_[i][cellI];
     }
-    solid.H = collapseMovesSolidMass_ ? solidH_()[cellI] : 0.0;
+    solid.H = collapseMovesSolidMass_ ? solidH_[cellI] : 0.0;
 
     return solid;
 }
@@ -251,7 +251,7 @@ BedCollapse::MovedSolid BedCollapse::neighbourSolid
     }
     solid.H =
         collapseMovesSolidMass_
-      ? solidH_().boundaryField()[patchID].patchNeighbourField()()[faceID]
+      ? solidH_.boundaryField()[patchID].patchNeighbourField()()[faceID]
       : 0.0;
 
     return solid;
@@ -283,7 +283,7 @@ void BedCollapse::moveSolidInto
         {
             Ym_[i][cellI] = from.Ym[i]*cellVolumeRatio;
         }
-        solidH_()[cellI] = from.H*cellVolumeRatio;
+        solidH_[cellI] = from.H*cellVolumeRatio;
     }
     else
     {
@@ -362,7 +362,7 @@ void BedCollapse::emptyRouteTop
                 Ym_[i][topCell] = 0.0;
             }
 
-            solidH_()[topCell] = 0.0;
+            solidH_[topCell] = 0.0;
             T_[topCell] = 0.0;
         }
 
@@ -472,7 +472,7 @@ BedCollapse::BedCollapse
     volScalarField& rho,
     PtrList<volScalarField>& Ym,
     PtrList<volScalarField>& Ys,
-    autoPtr<volScalarField>& solidH,
+    volScalarField& solidH,
     const volScalarField& cellVolume,
     SolidState& solidState
 )
@@ -508,7 +508,11 @@ BedCollapse::BedCollapse
     ),
     totRepMass_(0.),
     cumulativeCollapseMass_(0.0)
-{}
+{
+    Info << "bedCollapse              " << bedCollapseSwitch_ << endl;
+    Info << "replenish                " << replenishSwitch_ << endl;
+    Info << "collapseMovesSolidMass   " << collapseMovesSolidMass_ << endl;
+}
 
 
 // * * * * * * * * * * * * * * * * Destructor  * * * * * * * * * * * * * * * //

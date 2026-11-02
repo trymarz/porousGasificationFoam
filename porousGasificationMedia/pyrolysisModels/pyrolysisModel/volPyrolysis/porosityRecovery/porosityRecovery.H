@@ -95,8 +95,8 @@ class PorosityRecovery
         //- Solid mass fractions, rebuilt from Ym_ after mass moves
         PtrList<volScalarField>& Ys_;
 
-        //- Solid enthalpy, owned by volPyrolysis and created after this
-        autoPtr<volScalarField>& solidH_;
+        //- Solid enthalpy, owned by volPyrolysis
+        volScalarField& solidH_;
 
         const volVectorField& Us_;
 
@@ -112,8 +112,8 @@ class PorosityRecovery
 
         BedCollapse& bedCollapse_;
 
-        //- Fail-fast guards, owned by volPyrolysis and created after this
-        const autoPtr<SolidDiagnostics>& solidDiagnostics_;
+        //- Fail-fast guards, owned by volPyrolysis
+        const SolidDiagnostics& solidDiagnostics_;
 
         //- The owner's switches, bound so a runtime read() takes effect
         const Switch& active_;
@@ -194,14 +194,14 @@ public:
             const volScalarField& rho,
             PtrList<volScalarField>& Ym,
             PtrList<volScalarField>& Ys,
-            autoPtr<volScalarField>& solidH,
+            volScalarField& solidH,
             const volVectorField& Us,
             const surfaceScalarField& phiSolid,
             const porousThermoSolidChemistryModel<HGSSolidThermo>& chemistry,
             volScalarField& cellOnBedBorder,
             SolidState& solidState,
             BedCollapse& bedCollapse,
-            const autoPtr<SolidDiagnostics>& solidDiagnostics,
+            const SolidDiagnostics& solidDiagnostics,
             const Switch& active,
             const Switch& infoOutput
         );
@@ -212,18 +212,6 @@ public:
 
 
     // Member Functions
-
-        //- Whether a flipped cell is emptied rather than left
-        const Switch& emptyFlippedCells() const
-        {
-            return emptyFlippedCells_;
-        }
-
-        //- Incoming solid flux that protects a cell from emptying [kg/m3/s]
-        scalar poroProtectSolidInflowFluxTolerance() const
-        {
-            return poroProtectSolidInflowFluxTolerance_;
-        }
 
         //- Cumulative solid mass destroyed by emptying flipped cells [kg]
         scalar flippedMass() const

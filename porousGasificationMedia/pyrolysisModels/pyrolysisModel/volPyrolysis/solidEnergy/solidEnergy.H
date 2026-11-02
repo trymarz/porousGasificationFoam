@@ -104,8 +104,8 @@ class SolidEnergy
         //- Solid mass concentrations [kg/m3], owned by volPyrolysis
         PtrList<volScalarField>& Ym_;
 
-        //- Solid enthalpy, owned by volPyrolysis and created after this
-        autoPtr<volScalarField>& solidH_;
+        //- Solid enthalpy, owned by volPyrolysis
+        volScalarField& solidH_;
 
         const volScalarField& porosity_;
 
@@ -214,7 +214,7 @@ public:
             const psiReactionThermo& gasThermo,
             const porousThermoSolidChemistryModel<HGSSolidThermo>& chemistry,
             PtrList<volScalarField>& Ym,
-            autoPtr<volScalarField>& solidH,
+            volScalarField& solidH,
             const volScalarField& porosity,
             const volVectorField& Us,
             const surfaceScalarField& phiSolid,
