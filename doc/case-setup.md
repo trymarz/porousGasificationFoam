@@ -53,13 +53,17 @@ face cell:
 | none fixed | not fixed | inherits everything; a wall or an outlet |
 | some fixed, or all fixed without `Ts` | | rejected at start-up |
 
-- Solid may enter only through a declaring patch. Solid entering an inheriting
-  patch would copy the face cell's mass and enthalpy in; `solidInflowPolicy`
-  (in `pyrolysisCoeffs`) decides what happens: `error` (the default) stops the
-  run, `warn` reports it once per patch, `ignore` says nothing. Solid moving
-  in from an empty face cell carries no mass and is not reported.
-- The fixed `Yi` of a declaring patch must sum to more than zero. If they do
-  not sum to 1, the run warns and normalises them.
+- Solid may enter only through a declaring patch whose fixed `Yi` sum to more
+  than zero. Solid entering an inheriting patch would copy the face cell's
+  mass and enthalpy in; solid entering faces whose fixed `Yi` sum to zero
+  would bring enthalpy without mass. `solidInflowPolicy` (in
+  `pyrolysisCoeffs`) decides what happens: `error` (the default) stops the
+  run, `warn` reports it once per patch, `ignore` says nothing.
+- Inflow counts once it exceeds `solidStateCheckTolerance` of the face cell's
+  volume in a step. Solid moving in from a trace or empty face cell carries
+  no mass and is not reported.
+- Fixed `Yi` may sum to zero while no solid enters, e.g. an inlet fed later.
+  If they sum to neither zero nor 1, the run warns and normalises them.
 - A wall the solid does not cross needs no fixed `Yi`: use `zeroGradient`.
 - The log lists the declaring and inheriting patches at start-up.
 

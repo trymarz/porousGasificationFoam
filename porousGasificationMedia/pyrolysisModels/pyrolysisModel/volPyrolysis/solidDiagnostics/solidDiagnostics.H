@@ -47,8 +47,11 @@ Description
     Solid boundary policy (#162): a patch either declares the incoming solid
     (every solid Yi and Ts fixedValue) or inherits it from the face cell (no
     Yi fixed). checkBoundaryDeclarations() rejects anything in between at
-    start-up; checkSolidInflow() acts on solid entering an inheriting patch,
-    which would otherwise copy the face cell's mass and enthalpy in.
+    start-up. checkSolidInflow() acts on solid entering an inheriting patch,
+    which would copy the face cell's mass and enthalpy in, and on solid
+    entering declaring faces whose Yi sum to zero, which would bring enthalpy
+    without mass. A face counts once its inflow over the step exceeds the
+    check slack of the face cell's volume.
 
     Owned directly by volPyrolysis (like SolidFluxLimiter) - no runtime
     selection, since only one checking policy exists.
@@ -112,7 +115,10 @@ class SolidDiagnostics
         //- Patches that inherit the solid state from the face cell
         labelList inheritingPatches_;
 
-        //- Inheriting patches already reported for inflow
+        //- Patches that declare the incoming solid (every Yi and Ts fixed)
+        labelList declaringPatches_;
+
+        //- Patches already reported for inflow, indexed by patch
         boolList inflowReported_;
 
 
@@ -133,6 +139,21 @@ class SolidDiagnostics
             const scalar upper,
             const scalarField* mask = nullptr
         ) const;
+
+        //- Names of the given patches, for the log
+        wordList patchNames(const labelList& patches) const;
+
+        //- Whether solid entering celli through a face of flux phi exceeds
+        //  the check slack of the cell's volume over this step
+        bool solidEnters(const scalar phi, const label celli) const;
+
+        //- Error or warn per solidInflowPolicy, once for patchi
+        void applyInflowPolicy
+        (
+            const label patchi,
+            const string& what,
+            const string& remedy
+        );
 
 
 public:
@@ -216,19 +237,20 @@ public:
         void reportTemperatureRange(const volScalarField& T) const;
 
         //- Classifies each patch as declaring or inheriting the solid state
-        //  Aborts on a partial or empty composition, or a fixed Yi without a
-        //  fixed Ts; warns when the fixed Yi do not sum to 1.
+        //  Aborts on a partial composition, or a fixed Yi without a fixed
+        //  Ts; warns when the fixed Yi do not sum to 1.
         void checkBoundaryDeclarations
         (
             const PtrList<volScalarField>& Ys,
             const volScalarField& Ts
         );
 
-        //- Applies solidInflowPolicy to solid mass entering an inheriting
-        //  patch. Reports each patch once.
+        //- Applies solidInflowPolicy to solid entering a patch that does
+        //  not declare it. Reports each patch once.
         void checkSolidInflow
         (
             const surfaceScalarField& phiSolid,
+            const PtrList<volScalarField>& Ys,
             const PtrList<volScalarField>& Ym
         );
 };
