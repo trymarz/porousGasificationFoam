@@ -1,0 +1,5 @@
+#!/bin/sh
+cd "${0%/*}" || exit
+# canonical/pyrolysis solved for e; its p*d(porosityF)/dt must match h's dp/dt.
+# Gas T and p averages sit up to 0.4% off h's (h lags dp/dt in the heating).
+../solveForE pyrolysis 1e-2
