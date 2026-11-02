@@ -23,8 +23,7 @@ boundaryField
 {
     inlet
     {
-        type            fixedValue;
-        value           uniform 0;
+        type            zeroGradient;
     }
     outlet
     {
@@ -32,8 +31,7 @@ boundaryField
     }
     wall
     {
-        type            fixedValue;
-        value           uniform 0;
+        type            zeroGradient;
     }
     axis
     {

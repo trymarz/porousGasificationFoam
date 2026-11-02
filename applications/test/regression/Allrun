@@ -125,13 +125,29 @@ fi
 
 SEL_IDS=()
 SEL_TAGS=()
+SEL_EXPECT=()
+SEL_PATTERN=()
 
 select_cases() {
-    local line caseRel caseTag
+    local line caseRel caseTag caseExpect casePattern
     for line in "${CASE_LINES[@]}"; do
         caseRel=$(awk '{print $1}' <<< "$line")
         caseTag=$(awk '{print $2}' <<< "$line")
         [ -z "$caseTag" ] && caseTag="fast"
+
+        # Optional expectation: expectFail|expectLog, then the log regex.
+        caseExpect=$(awk '{print $3}' <<< "$line")
+        casePattern=$(sed -E 's/^\s*\S+\s+\S+\s+\S+\s*//' <<< "$line")
+        case "$caseExpect" in
+            "") casePattern="" ;;
+            expectFail|expectLog)
+                if [ -z "$casePattern" ]; then
+                    clog ERROR "$caseRel: $caseExpect needs a log pattern"
+                    exit 2
+                fi ;;
+            *)  clog ERROR "$caseRel: unknown expectation '$caseExpect'"
+                exit 2 ;;
+        esac
 
         # Tag filter (skip unless --tag all or tag matches).
         if [ "$TAG" != "all" ] && [ "$caseTag" != "$TAG" ]; then
@@ -149,6 +165,8 @@ select_cases() {
 
         SEL_IDS+=("$caseRel")
         SEL_TAGS+=("$caseTag")
+        SEL_EXPECT+=("$caseExpect")
+        SEL_PATTERN+=("$casePattern")
     done
 }
 
@@ -288,14 +306,14 @@ done
 
 # -- per-case execution -------------------------------------------------------
 
-# precheck <case-id> — validate what the driver can validate before handing the
+# precheck <case-id> [expectation] — validate what the driver can validate before handing the
 #   case to the runner. Echoes a summary-name suffix and returns 2 on failure.
 #   Its diagnostics name the offending path, so they stand on their own whether
 #   or not a per-case header was printed first. (The runner re-checks both
 #   conditions; keeping them here preserves the suite's own diagnostics and
 #   avoids launching a run that cannot work.)
 precheck() {
-    local id="$1" dir="$REPO_ROOT/$1"
+    local id="$1" dir="$REPO_ROOT/$1" expect="${2:-}"
     if [ ! -d "$dir" ]; then
         clog ERROR "  directory missing: $dir"
         echo " (missing dir)"
@@ -303,8 +321,9 @@ precheck() {
     fi
     # A missing baseline is an ERROR, not a silent skip: a case with no
     # reference/ cannot be compared, so it must not pass unnoticed. (Capture a
-    # baseline locally; see README § Regression Testing.)
-    if [ ! -d "$dir/reference/postProcessing" ]; then
+    # baseline locally; see README § Regression Testing.) An expectation case
+    # is judged on its log instead.
+    if [ -z "$expect" ] && [ ! -d "$dir/reference/postProcessing" ]; then
         clog ERROR "  no reference baseline: $dir/reference/postProcessing"
         echo " (no baseline)"
         return 2
@@ -324,6 +343,10 @@ run_one() {
     [ "$SKIP_RUN" = true ] && args+=(--no-run)
     args+=(--rtol "$RTOL" --atol "$ATOL" --compare "$COMPARE"
            --case-id "$id" --suite-id "$SUITE_ID")
+    case "${SEL_EXPECT[$idx]}" in
+        expectFail) args+=(--expect-fail "${SEL_PATTERN[$idx]}") ;;
+        expectLog)  args+=(--expect-log "${SEL_PATTERN[$idx]}") ;;
+    esac
     local run_dir="" rc
     if [ "$IN_PLACE" = false ]; then
         run_dir="$(case_run_dir "$id")"
@@ -403,7 +426,7 @@ run_sequential() {
         clog INFO "--------------------------------------------------"
         clog INFO "  case: $(basename "$id")  [tag: ${SEL_TAGS[$idx]}]"
 
-        if ! suffix="$(precheck "$id")"; then
+        if ! suffix="$(precheck "$id" "${SEL_EXPECT[$idx]}")"; then
             record_precheck_failure "$idx" "$suffix"
             continue
         fi
@@ -430,7 +453,7 @@ run_concurrent() {
     # Pre-checks run in the parent so their diagnostics stay in one place and a
     # case that cannot run is never handed to a worker.
     for idx in "${!SEL_IDS[@]}"; do
-        if ! suffix="$(precheck "${SEL_IDS[$idx]}")"; then
+        if ! suffix="$(precheck "${SEL_IDS[$idx]}" "${SEL_EXPECT[$idx]}")"; then
             record_precheck_failure "$idx" "$suffix"
             continue
         fi
