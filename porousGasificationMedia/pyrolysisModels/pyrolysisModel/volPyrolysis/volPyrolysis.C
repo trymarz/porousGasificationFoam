@@ -300,7 +300,19 @@ void volPyrolysis::createCollaborators()
 
     bedCollapse_.reset
     (
-        new BedCollapse(coeffs(), solid, porosityArch_, cellVolume_)
+        new BedCollapse(coeffs(), solid, porosityArch_)
+    );
+
+    heatExchange_.reset
+    (
+        new GasSolidHeatExchange
+        (
+            coeffs(),
+            solid,
+            porosityArch_,
+            gasThermo_,
+            equilibrium_
+        )
     );
 
     porosityRecovery_.reset
@@ -427,36 +439,7 @@ volPyrolysis::volPyrolysis
         dimensionedScalar("zero", dimEnergy/dimTime/dimVolume, 0.0)
     ),
     solidState_(new SolidState(coeffs(), porosity_)),
-    cellVolume_
-    (
-        IOobject
-        (
-            "cellVolume",
-            time_.timeName(),
-            mesh_,
-            IOobject::NO_READ,
-            IOobject::NO_WRITE
-        ),
-        mesh_,
-        dimensionedScalar("zero", dimless, 0.0)
-    ),
-    heatExchange_
-    (
-        new GasSolidHeatExchange
-        (
-            coeffs(),
-            mesh_,
-            porosity_,
-            porosityArch_,
-            gasThermo_,
-            solidThermo_,
-            T_,
-            rho_,
-            solidState_(),
-            equilibrium_,
-            active_
-        )
-    ),
+    heatExchange_(nullptr),
     solidEnergy_(nullptr),
     cellOnBedBorder_
     (
@@ -498,7 +481,6 @@ volPyrolysis::volPyrolysis
     mesh.setFluxRequired(T_.name());
 
     specieTransferCoeff_ = specieTransfer_->ST()();
-    heatExchange_->updateHeatTransferCoeff();
     rho0_.ref() = rho_.ref();
 
     createYm();
@@ -535,12 +517,6 @@ volPyrolysis::volPyrolysis
     }
 
     markInitialBedBorderCells();
-
-    forAll(cellVolume_,cellI)
-    {
-        cellVolume_[cellI] = mesh_.V()[cellI];
-    }
-    cellVolume_.correctBoundaryConditions();
 
     createCollaborators();
 }

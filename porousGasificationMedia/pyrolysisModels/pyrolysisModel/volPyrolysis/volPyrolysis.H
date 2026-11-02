@@ -185,8 +185,6 @@ protected:
         //- The solid regimes of each cell, and their thresholds
         autoPtr<SolidState> solidState_;
 
-        volScalarField cellVolume_;
-
         //- CONV, the interphase exchange and heatUpGas
         autoPtr<GasSolidHeatExchange> heatExchange_;
 

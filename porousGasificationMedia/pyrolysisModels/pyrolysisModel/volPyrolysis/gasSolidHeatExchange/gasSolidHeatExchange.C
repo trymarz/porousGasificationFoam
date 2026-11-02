@@ -37,26 +37,20 @@ namespace heterogeneousPyrolysisModels
 GasSolidHeatExchange::GasSolidHeatExchange
 (
     const dictionary& coeffs,
-    const fvMesh& mesh,
-    const volScalarField& porosity,
+    const SolidFields& solid,
     const volScalarField& porosityArch,
     const psiReactionThermo& gasThermo,
-    const HGSSolidThermo& solidThermo,
-    const volScalarField& T,
-    const volScalarField& rho,
-    const SolidState& solidState,
-    const Switch& equilibrium,
-    const Switch& active
+    const Switch& equilibrium
 )
 :
-    mesh_(mesh),
+    mesh_(solid.mesh),
     gasThermo_(gasThermo),
-    solidThermo_(solidThermo),
-    T_(T),
-    rho_(rho),
-    solidState_(solidState),
+    solidThermo_(solid.thermo),
+    T_(solid.T),
+    rho_(solid.rho),
+    solidState_(solid.state),
     equilibrium_(equilibrium),
-    active_(active),
+    active_(solid.active),
     heatUpGas_
     (
         IOobject
@@ -83,7 +77,7 @@ GasSolidHeatExchange::GasSolidHeatExchange
         mesh_,
         dimensionedScalar("zero", dimEnergy/dimTime/dimVolume, 0.0)
     ),
-    HTmodel_(porousHeatTransferModel::New(porosity,porosityArch)),
+    HTmodel_(porousHeatTransferModel::New(solid.porosity,porosityArch)),
     heatTransferCoeff_
     (
         IOobject

@@ -110,7 +110,9 @@ class BedCollapse
         //- Solid enthalpy, owned by volPyrolysis
         volScalarField& solidH_;
 
-        const volScalarField& cellVolume_;
+        //- Cell volumes as a field, so processor patches carry the
+        //  neighbour cell's volume [m3]
+        volScalarField cellVolume_;
 
         //- Solid regimes; supplies the solidPresent mask
         SolidState& solidState_;
@@ -233,8 +235,7 @@ public:
         (
             const dictionary& coeffs,
             const SolidFields& solid,
-            volScalarField& porosityArch,
-            const volScalarField& cellVolume
+            volScalarField& porosityArch
         );
 
 
