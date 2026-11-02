@@ -7,13 +7,15 @@ Description
       = Qdot*porosityF + heatTransfer + heatUpGas + radiation->Sh
 
     Like the storage term, the pressure work is per unit total volume, so
-    dp/dt carries the gas fraction porosityF. (The he = e form uses
-    div(phiv,p) in its place.)
+    dp/dt carries the gas fraction porosityF. The he = e form follows from
+    h = e + p/rho; with phi the superficial mass flux (rhoEqn.H), its
+    pressure work is div(phi/rho, p) + p*d(porosityF)/dt.
 
     porosityF is itself time-varying (the solid converts to gas), so the
     accumulation term's product rule has a he*d(porosityF*rho)/dt piece
-    riding along with porosityF*rho*d(he)/dt. fvm::ddt(weight, he) only
-    assembles that correctly if "weight" is a real field whose oldTime()
+    riding along with porosityF*rho*d(he)/dt (likewise for K).
+    fvm::ddt(weight, he) and fvc::ddt(weight, K) only assemble that
+    correctly if "weight" is a real field whose oldTime()
     holds the true previous-timestep porosityF*rho, not a copy of itself:
     porosityF*rho built inline is a fresh temporary every call, so its
     ddt silently drops (rho-rho_old)*porosityF_old + rho_old*(porosityF-
@@ -43,16 +45,17 @@ if (solveEnergy)
         (
             fvm::ddt(porosityRho, he)
           + fvm::div(phi, he)
-          + fvc::ddt(porosityF * rho, K)
+          + fvc::ddt(porosityRho, K)
           + fvc::div(phi, K)
           + (
                 he.name() == "e"
               ? fvc::div
                 (
-                    fvc::absolute(phi/fvc::interpolate(porosityF * rho), U),
+                    fvc::absolute(phi/fvc::interpolate(rho), U),
                     p,
                     "div(phiv,p)"
                 )
+              + p*fvc::ddt(porosityF)
               : -porosityF*dpdt
             )
           - fvm::laplacian(turbulence->alphaEff(), he) 
