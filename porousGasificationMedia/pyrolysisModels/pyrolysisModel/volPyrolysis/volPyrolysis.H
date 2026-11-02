@@ -96,9 +96,6 @@ private:
         //- In solid cells, rebuild Ym from the read-in Yi, then Yi = Ym/sum(Ym)
         void renormaliseInitialComposition();
 
-        //- Flag solid cells with an empty neighbour cell
-        void markInitialBedBorderCells();
-
         //- Build the stages that act on the solid fields, in dependency
         //  order; each logs its own settings when constructed
         void createCollaborators();

@@ -254,25 +254,6 @@ void volPyrolysis::renormaliseInitialComposition()
     }
 }
 
-void volPyrolysis::markInitialBedBorderCells()
-{
-    forAll(solidState_->solidPresent(), cellI)
-    {
-        if (solidState_->solidPresent()[cellI] == 1)
-        {
-            bool surfC = false;
-            forAll(mesh_.cellCells()[cellI],cellJ)
-            {
-                if (solidState_->solidPresent()[mesh_.cellCells()[cellI][cellJ]] == 0)
-                {
-                    surfC = true;
-                }
-            }
-            if (surfC) cellOnBedBorder_[cellI] = 1;
-        }
-    }
-}
-
 void volPyrolysis::createCollaborators()
 {
     Info << endl;
@@ -515,8 +496,6 @@ volPyrolysis::volPyrolysis
     {
         read();
     }
-
-    markInitialBedBorderCells();
 
     createCollaborators();
 }

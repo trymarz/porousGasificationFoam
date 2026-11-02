@@ -185,7 +185,8 @@ public:
 
     // Constructors
 
-        //- Construct from the owner's coefficients, solid fields and stages
+        //- Construct from the owner's coefficients, solid fields and stages;
+        //  flags the initial bed border
         PorosityRecovery
         (
             const dictionary& coeffs,
