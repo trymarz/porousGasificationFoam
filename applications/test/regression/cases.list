@@ -1,6 +1,10 @@
 # Tutorials run by the regression framework, one path per non-comment line.
 # Paths are relative to the repository root.
 # Optional second column: tag (default: fast).
+# Optional third column: expectFail or expectLog, then an extended regex (the
+# rest of the line). Such a case is judged on its log.* instead of a baseline:
+# expectFail needs Allrun to fail and the regex to match; expectLog needs it to
+# succeed and the regex to match, or with a leading '!' to match nothing.
 #
 # Tags:
 #   fast        — run by default and on every pre-push hook
