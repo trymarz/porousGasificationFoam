@@ -92,6 +92,22 @@ applications/test/regression/tools/captureBaseline.sh $case --run-dir /scratch/r
 
 By default it copies only the reference files that fail the comparison, so files still within tolerance are not rewritten. `--all-files` copies every reference file, and `--dry-run` copies nothing. It never adds a file that is not already in `reference/`. For each file it prints the first, middle and last sample before and after.
 
+### Expected failures and log checks
+
+A case that checks how the solver reacts to a bad input has no baseline. In
+`cases.list`, give it a third column after the tag: `expectFail` or
+`expectLog`, then an extended regex (the rest of the line), matched against
+the case's `log.*` files.
+
+- `expectFail` passes when `Allrun` exits non-zero and the regex matches.
+- `expectLog` passes when `Allrun` succeeds and the regex matches; with a
+  leading `!`, when it matches nothing.
+
+A signal death is still a CRASH. Example:
+`tutorials/cases/charOnlyMoveCases/solidBoundaryPolicy/` copies
+`solidInlet_ash`, changes one boundary setting per case, and expects the
+matching start-up or run-time message.
+
 ## How the comparison works
 
 `tools/compareScalars.py` matches each file under `reference/postProcessing/<funcName>/<time>/` to the fresh one in `postProcessing/` and compares row by row, column by column:

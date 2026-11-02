@@ -46,22 +46,22 @@ boundary
 (
     left
     {
-        type wall;
+        type patch;
         faces ( (0 3 7 4) );
     }
     right
     {
-        type wall;
+        type patch;
         faces ( (1 5 6 2) );
     }
     bottom
     {
-        type wall;
+        type patch;
         faces ( (0 4 5 1) );
     }
     top
     {
-        type wall;
+        type patch;
         faces ( (3 2 6 7) );
     }
     front
