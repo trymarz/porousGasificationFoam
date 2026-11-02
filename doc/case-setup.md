@@ -39,6 +39,38 @@ Other tutorials: [Tutorial Cases](#tutorial-cases). File details: [Input File Re
 - Solid species field names: `Y` + component name from `solidThermophysicalProperties` (e.g. `wood` → `Ywood`).
 - Gas species field names match the `species` list in `chemistryProperties`.
 
+### Solid boundary conditions
+
+Solid crossing a patch carries mass (`Ym`, from the `Y<solidName>` boundary
+conditions) and enthalpy (`solidH`, from the `Ts` boundary condition). A patch
+therefore either **declares** the solid state or **inherits** it from the
+face cell:
+
+| Solid `Yi` on the patch | `Ts` on the patch | Meaning |
+|---|---|---|
+| all fixedValue | fixedValue | declares: solid may enter with this composition and temperature (an inlet) |
+| none fixed | fixedValue | inherits the composition; a heated wall |
+| none fixed | not fixed | inherits everything; a wall or an outlet |
+| some fixed, or all fixed without `Ts` | | rejected at start-up |
+
+- Solid may enter only through a declaring patch whose fixed `Yi` sum to more
+  than zero. Solid entering an inheriting patch would copy the face cell's
+  mass and enthalpy in; solid entering faces whose fixed `Yi` sum to zero
+  would bring enthalpy without mass.
+- Solid must neither enter nor leave through a patch of mesh type `wall` (in
+  `blockMeshDict`): give it `Us` `slip` or `fixedValue (0 0 0)`. Declare
+  inlets and outlets as `type patch`.
+- `solidBoundaryPolicy` (in `pyrolysisCoeffs`) decides what happens when
+  solid crosses a patch it should not: `error` (the default) stops the run,
+  `warn` reports it once per patch, `ignore` says nothing.
+- A crossing counts once it exceeds `solidStateCheckTolerance` of the face cell's
+  volume in a step. Solid moving in from a trace or empty face cell carries
+  no mass and is not reported.
+- Fixed `Yi` may sum to zero while no solid enters, e.g. an inlet fed later.
+  If they sum to neither zero nor 1, the run warns and normalises them.
+- A wall the solid does not cross needs no fixed `Yi`: use `zeroGradient`.
+- The log lists the declaring, inheriting and wall patches at start-up.
+
 ## Tutorial Cases
 
 Cases under `tutorials/cases/`. Run all of them with `cd tutorials && ./TestAllCases.sh`.
@@ -167,6 +199,7 @@ pyrolysisCoeffs
         dispersedSolidTemperature    solid;   // solid | gas
     }
     solidStateCheckTolerance 1e-8;       // optional
+    solidBoundaryPolicy     error;       // optional: error | warn | ignore
 }
 ```
 

@@ -100,102 +100,102 @@ boundary
     }
     top0
     {
-        type wall;
+        type patch;
         faces ( (1 5 7 3) );
     }
     top1
     {
-        type wall;
+        type patch;
         faces ( (5 9 11 7) );
     }
     top2
     {
-        type wall;
+        type patch;
         faces ( (9 13 15 11) );
     }
     top3
     {
-        type wall;
+        type patch;
         faces ( (13 17 19 15) );
     }
     top4
     {
-        type wall;
+        type patch;
         faces ( (17 21 23 19) );
     }
     top5
     {
-        type wall;
+        type patch;
         faces ( (21 25 27 23) );
     }
     top6
     {
-        type wall;
+        type patch;
         faces ( (25 29 31 27) );
     }
     top7
     {
-        type wall;
+        type patch;
         faces ( (29 33 35 31) );
     }
     top8
     {
-        type wall;
+        type patch;
         faces ( (33 37 39 35) );
     }
     top9
     {
-        type wall;
+        type patch;
         faces ( (37 41 43 39) );
     }
     top10
     {
-        type wall;
+        type patch;
         faces ( (41 45 47 43) );
     }
     top11
     {
-        type wall;
+        type patch;
         faces ( (45 49 51 47) );
     }
     top12
     {
-        type wall;
+        type patch;
         faces ( (49 53 55 51) );
     }
     top13
     {
-        type wall;
+        type patch;
         faces ( (53 57 59 55) );
     }
     top14
     {
-        type wall;
+        type patch;
         faces ( (57 61 63 59) );
     }
     top15
     {
-        type wall;
+        type patch;
         faces ( (61 65 67 63) );
     }
     top16
     {
-        type wall;
+        type patch;
         faces ( (65 69 71 67) );
     }
     top17
     {
-        type wall;
+        type patch;
         faces ( (69 73 75 71) );
     }
     top18
     {
-        type wall;
+        type patch;
         faces ( (73 77 79 75) );
     }
     top19
     {
-        type wall;
+        type patch;
         faces ( (77 81 83 79) );
     }
     front
