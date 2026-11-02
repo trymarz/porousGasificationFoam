@@ -59,6 +59,7 @@ SourceFiles
 #include "HGSSolidThermo.H"
 #include "porousThermoSolidChemistryModel.H"
 #include "solidState.H"
+#include "solidFields.H"
 #include "solidDiagnostics.H"
 #include "demCoupling.H"
 
@@ -142,20 +143,12 @@ public:
 
     // Constructors
 
-        //- Construct from the owner's thermo, fields and collaborators
+        //- Construct from the solid fields and the stages it reads
         SolidSpeciesTransport
         (
-            const fvMesh& mesh,
-            const HGSSolidThermo& solidThermo,
-            const porousThermoSolidChemistryModel<HGSSolidThermo>& chemistry,
-            PtrList<volScalarField>& Ym,
-            PtrList<volScalarField>& Ys,
-            const volScalarField& porosity,
-            const volVectorField& Us,
-            const surfaceScalarField& phiSolid,
+            const SolidFields& solid,
             DemCoupling& demCoupling,
-            const SolidDiagnostics& solidDiagnostics,
-            const Switch& active
+            const SolidDiagnostics& solidDiagnostics
         );
 
 

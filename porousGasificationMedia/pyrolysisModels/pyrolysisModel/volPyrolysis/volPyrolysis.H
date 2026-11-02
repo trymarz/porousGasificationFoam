@@ -42,6 +42,7 @@ SourceFiles
 #include "solidFluxLimiter.H"
 #include "solidDiagnostics.H"
 #include "solidState.H"
+#include "solidFields.H"
 #include "bedCollapse.H"
 #include "demCoupling.H"
 #include "gasSolidHeatExchange.H"

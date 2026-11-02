@@ -49,6 +49,7 @@ SourceFiles
 #include "HGSSolidThermo.H"
 #include "porousThermoSolidChemistryModel.H"
 #include "solidState.H"
+#include "solidFields.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -200,19 +201,8 @@ public:
 
     // Constructors
 
-        //- Construct from the owning model's coefficients and fields
-        SolidFluxLimiter
-        (
-            const dictionary& coeffs,
-            const fvMesh& mesh,
-            const volVectorField& Us,
-            PtrList<volScalarField>& Ym,
-            const volScalarField& rho,
-            const volScalarField& T,
-            const porousThermoSolidChemistryModel<HGSSolidThermo>& chemistry,
-            const Switch& active,
-            const SolidState& solidState
-        );
+        //- Construct from the owning model's coefficients and solid fields
+        SolidFluxLimiter(const dictionary& coeffs, const SolidFields& solid);
 
 
     //- Destructor

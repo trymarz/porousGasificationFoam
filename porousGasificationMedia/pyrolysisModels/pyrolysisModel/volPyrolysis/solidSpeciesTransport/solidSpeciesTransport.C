@@ -45,30 +45,22 @@ defineTypeNameAndDebug(SolidSpeciesTransport, 0);
 
 SolidSpeciesTransport::SolidSpeciesTransport
 (
-    const fvMesh& mesh,
-    const HGSSolidThermo& solidThermo,
-    const porousThermoSolidChemistryModel<HGSSolidThermo>& chemistry,
-    PtrList<volScalarField>& Ym,
-    PtrList<volScalarField>& Ys,
-    const volScalarField& porosity,
-    const volVectorField& Us,
-    const surfaceScalarField& phiSolid,
+    const SolidFields& solid,
     DemCoupling& demCoupling,
-    const SolidDiagnostics& solidDiagnostics,
-    const Switch& active
+    const SolidDiagnostics& solidDiagnostics
 )
 :
-    mesh_(mesh),
-    solidThermo_(solidThermo),
-    chemistry_(chemistry),
-    Ym_(Ym),
-    Ys_(Ys),
-    porosity_(porosity),
-    Us_(Us),
-    phiSolid_(phiSolid),
+    mesh_(solid.mesh),
+    solidThermo_(solid.thermo),
+    chemistry_(solid.chemistry),
+    Ym_(solid.Ym),
+    Ys_(solid.Ys),
+    porosity_(solid.porosity),
+    Us_(solid.Us),
+    phiSolid_(solid.phiSolid),
     demCoupling_(demCoupling),
     solidDiagnostics_(solidDiagnostics),
-    active_(active),
+    active_(solid.active),
     cumulativeYmClip_(0.0)
 {}
 
