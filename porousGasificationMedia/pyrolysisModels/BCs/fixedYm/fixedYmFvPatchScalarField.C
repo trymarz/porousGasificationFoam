@@ -120,9 +120,29 @@ void fixedYmFvPatchScalarField::updateCoeffs()
         const_cast<fvPatchScalarField&>(thermo.rho().boundaryField()[patchi]);
     rho.evaluate();
 
+    // Yi normalised by the patch sum, as rho and Cp are
+    // (multiComponentSolidMixture::patchProperty).
+    const basicSolidMixture& mixture = thermo.composition();
+    scalarField Yp(Yi.boundaryField()[patchi]);
+    if (mixture.prescribesComposition(patchi))
+    {
+        scalarField sumY(Yp.size(), 0.0);
+        forAll(mixture.Y(), j)
+        {
+            sumY += mixture.Y()[j].boundaryField()[patchi];
+        }
+        forAll(Yp, facei)
+        {
+            if (sumY[facei] > SMALL)
+            {
+                Yp[facei] /= sumY[facei];
+            }
+        }
+    }
+
     operator==
     (
-        Yi.boundaryField()[patchi]
+        Yp
       * rho
       * (1.0 - porosityF.boundaryField()[patchi])
     );

@@ -107,6 +107,9 @@ public:
         //- Does the mixture include this specie?
         inline bool contains(const word& specieName) const;
 
+        //- True where every Y_i is fixedValue on patch patchi
+        bool prescribesComposition(label patchi) const;
+
 
     // Derived cell based properties.
 
