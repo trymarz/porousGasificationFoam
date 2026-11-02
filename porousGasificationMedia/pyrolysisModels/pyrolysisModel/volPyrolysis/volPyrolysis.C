@@ -103,27 +103,11 @@ void volPyrolysis::reportSolidMassBudget()
 
     solidDiagnostics_->reportMassBudget
     (
-        Ym_,
-        initialTotalYmMass_,
         speciesTransport_->clippedMass(),
         porosityRecovery_->flippedMass(),
         bedCollapse_->collapsedMass()
     );
-    solidDiagnostics_->reportDerivedSpecies(Ys_);
-}
-
-void volPyrolysis::accumulateMassBudget()
-{
-    if (infoOutput_)
-    {
-        totalGasMassFlux_ = fvc::domainIntegrate(solidChemistry_->RRg());
-        totalHeatRR_ = fvc::domainIntegrate(chemistrySh_);
-
-        addedGasMass_ +=
-            fvc::domainIntegrate(solidChemistry_->RRg()) * time_.deltaT();
-        lostSolidMass_ +=
-            fvc::domainIntegrate(solidChemistry_->RRs()) * time_.deltaT();
-    }
+    solidDiagnostics_->reportDerivedSpecies();
 }
 
 void volPyrolysis::createYm()
@@ -171,8 +155,6 @@ void volPyrolysis::createYm()
               * rho_.boundaryField()[patchI]
               * (1.0 - porosity_.boundaryField()[patchI]);
         }
-
-        initialTotalYmMass_ += gSum(Ym_[fieldI].field() * mesh_.V());
     }
 }
 
@@ -312,10 +294,7 @@ void volPyrolysis::createCollaborators()
         active_
     };
 
-    solidDiagnostics_.reset
-    (
-        new SolidDiagnostics(coeffs(), solidState_(), mesh_, time_)
-    );
+    solidDiagnostics_.reset(new SolidDiagnostics(coeffs(), solid));
     solidDiagnostics_->checkBoundaryDeclarations(Ys_, T_);
 
     solidFluxLimiter_.reset(new SolidFluxLimiter(coeffs(), solid));
@@ -515,12 +494,7 @@ volPyrolysis::volPyrolysis
     ),
     solidFluxLimiter_(nullptr),
     solidDiagnostics_(nullptr),
-    lostSolidMass_(dimensionedScalar("zero", dimMass, 0.0)),
-    addedGasMass_(dimensionedScalar("zero", dimMass, 0.0)),
-    totalGasMassFlux_(dimensionedScalar("zero", dimMass/dimTime, 0.0)),
-    totalHeatRR_(dimensionedScalar("zero", dimEnergy/dimTime, 0.0)),
-    chemistryTimeStep_(1.0),
-    initialTotalYmMass_(0.0)
+    chemistryTimeStep_(1.0)
 {
     mesh.setFluxRequired(T_.name());
 
@@ -699,7 +673,10 @@ void volPyrolysis::evolveRegion()
 
     porosityRecovery_->recover();
 
-    accumulateMassBudget();
+    if (infoOutput_)
+    {
+        solidDiagnostics_->accumulateRunTotals(chemistrySh_);
+    }
     info();
 }
 
@@ -737,11 +714,7 @@ void volPyrolysis::info() const
 {
     Info<< "\nPyrolysis: " << endl;
 
-    Info<< indent << "Total gas mass produced  [kg] = " << addedGasMass_.value() << nl
-        << indent << "Total solid mass lost    [kg] = " << lostSolidMass_.value() << nl
-        << indent << "Total mass replenished   [kg] = " << bedCollapse_->replenishedMass() << nl
-        << indent << "Realese rate of pyrolysis gases  [kg/s] = " << totalGasMassFlux_.value() << nl
-        << indent << "Heat release rate [J/s] = " << totalHeatRR_.value() << nl;
+    solidDiagnostics_->reportRunTotals(bedCollapse_->replenishedMass());
 
         if (chemistryTimeStep_ < GREAT )
         {
