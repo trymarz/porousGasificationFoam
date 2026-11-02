@@ -1,6 +1,10 @@
 # Tutorials run by the regression framework, one path per non-comment line.
 # Paths are relative to the repository root.
 # Optional second column: tag (default: fast).
+# Optional third column: expectFail or expectLog, then an extended regex (the
+# rest of the line). Such a case is judged on its log.* instead of a baseline:
+# expectFail needs Allrun to fail and the regex to match; expectLog needs it to
+# succeed and the regex to match, or with a leading '!' to match nothing.
 #
 # Tags:
 #   fast        — run by default and on every pre-push hook
@@ -21,6 +25,18 @@ tutorials/cases/charOnlyMoveCases/serial       fast
 tutorials/cases/charOnlyMoveCases/solidInlet          fast
 tutorials/cases/charOnlyMoveCases/solidInlet_tinyDt   fast
 tutorials/cases/charOnlyMoveCases/solidInlet_ash      fast
+
+# Solid boundary policy (#162): solidInlet_ash with one boundary setting changed
+tutorials/cases/charOnlyMoveCases/solidBoundaryPolicy/tsZeroGradient       fast  expectFail  but Ts is zeroGradient
+tutorials/cases/charOnlyMoveCases/solidBoundaryPolicy/partialYi            fast  expectFail  solid mass fractions, so the composition
+tutorials/cases/charOnlyMoveCases/solidBoundaryPolicy/inheritInflow        fast  expectFail  Solid enters through patch inlet .*which inherits
+tutorials/cases/charOnlyMoveCases/solidBoundaryPolicy/inheritInflowWarn    fast  expectLog   which inherits the solid state.* Reported once
+tutorials/cases/charOnlyMoveCases/solidBoundaryPolicy/inheritInflowIgnore  fast  expectLog   !Solid enters through patch
+tutorials/cases/charOnlyMoveCases/solidBoundaryPolicy/zeroSumInlet         fast  expectFail  sum to zero: fixedSolidH brings enthalpy in
+tutorials/cases/charOnlyMoveCases/solidBoundaryPolicy/unnormalisedYi       fast  expectLog   sum to 0.5 .. 0.5; they are normalised to 1
+tutorials/cases/charOnlyMoveCases/solidBoundaryPolicy/badPolicy            fast  expectFail  solidBoundaryPolicy maybe is not one of error, warn, ignore
+tutorials/cases/charOnlyMoveCases/solidBoundaryPolicy/wallOutflow          fast  expectFail  Solid leaves through wall outlet
+tutorials/cases/charOnlyMoveCases/solidBoundaryPolicy/wallInflow           fast  expectFail  Solid enters through wall inlet
 tutorials/cases/charOnlyMoveCases/serial_m2    convergence
 tutorials/cases/charOnlyMoveCases/serial_m4    convergence
 
