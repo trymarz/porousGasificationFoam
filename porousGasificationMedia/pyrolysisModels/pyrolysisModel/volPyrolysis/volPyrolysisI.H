@@ -27,9 +27,87 @@ License
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
+inline Foam::volScalarField&
+Foam::heterogeneousPyrolysisModels::volPyrolysis::rhoConst() const
+{
+    return rho_;
+}
+
+inline const Foam::volScalarField&
+Foam::heterogeneousPyrolysisModels::volPyrolysis::T() const
+{
+    return T_;
+}
+
+inline const Foam::tmp<Foam::volScalarField>
+Foam::heterogeneousPyrolysisModels::volPyrolysis::Cp() const
+{
+    return solidThermo_.Cp();
+}
+
+inline const Foam::volScalarField&
+Foam::heterogeneousPyrolysisModels::volPyrolysis::kappa() const
+{
+    return solidThermo_.kappa();
+}
+
+inline const Foam::volScalarField&
+Foam::heterogeneousPyrolysisModels::volPyrolysis::K() const
+{
+    return solidThermo_.K();
+}
+
+inline const Foam::volScalarField&
+Foam::heterogeneousPyrolysisModels::volPyrolysis::surf() const
+{
+    return cellOnBedBorder_;
+}
+
+inline const Foam::heterogeneousPyrolysisModels::SolidState&
+Foam::heterogeneousPyrolysisModels::volPyrolysis::solidState() const
+{
+    return solidState_();
+}
+
 inline Foam::label
 Foam::heterogeneousPyrolysisModels::volPyrolysis::nNonOrthCorr() const
 {
     return nNonOrthCorr_;
+}
+
+inline Foam::scalar
+Foam::heterogeneousPyrolysisModels::volPyrolysis::maxDiff() const
+{
+    return maxDiff_;
+}
+
+inline Foam::scalar
+Foam::heterogeneousPyrolysisModels::volPyrolysis::maxTime() const
+{
+    return chemistryTimeStep_;
+}
+
+inline Foam::Switch
+Foam::heterogeneousPyrolysisModels::volPyrolysis::equilibrium() const
+{
+    return equilibrium_;
+}
+
+inline Foam::tmp<Foam::volScalarField>
+Foam::heterogeneousPyrolysisModels::volPyrolysis::heatTransfer() const
+{
+    return heatExchange_->heatTransfer();
+}
+
+inline Foam::tmp<Foam::volScalarField>
+Foam::heterogeneousPyrolysisModels::volPyrolysis::heatUpGas() const
+{
+    return heatExchange_->heatUpGas();
+}
+
+inline Foam::tmp<Foam::volScalarField>
+Foam::heterogeneousPyrolysisModels::volPyrolysis::solidChemistrySh() const
+{
+    return chemistrySh_;
 }
 // ************************************************************************* //
