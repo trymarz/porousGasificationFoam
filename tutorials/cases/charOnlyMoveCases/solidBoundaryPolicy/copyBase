@@ -1,0 +1,5 @@
+#!/bin/sh
+# Copy solidInlet_ash into the calling case, run for endTime $1 (#162 checks).
+base="${0%/*}/../solidInlet_ash"
+cp -r "$base/0.orig" "$base/constant" "$base/system" . || exit
+foamDictionary system/controlDict -entry endTime -set "$1" > /dev/null

@@ -45,7 +45,7 @@ boundary
 (
     left
     {
-        type wall;
+        type patch;
         faces ( (0 3 7 4) );
     }
     right

@@ -276,6 +276,7 @@ void volPyrolysis::createCollaborators()
     };
 
     solidDiagnostics_.reset(new SolidDiagnostics(coeffs(), solid));
+    solidDiagnostics_->checkBoundaryDeclarations(Ys_, T_);
 
     solidFluxLimiter_.reset(new SolidFluxLimiter(coeffs(), solid));
 
@@ -616,6 +617,7 @@ void volPyrolysis::evolveRegion()
     // Settle how much solid each face may carry before any solid field is
     // transported. Needs the chemistry rates, so it follows their solve.
     limitSolidFlux();
+    solidDiagnostics_->checkSolidCrossing(phiSolid_, Ys_, Ym_);
 
     // Energy before species: solidH_ holds the pre-reaction solid until
     // recoverTemperatureAfterReaction() restates it on the mass that remains.

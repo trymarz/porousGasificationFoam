@@ -21,7 +21,12 @@ internalField   uniform 300;
 
 boundaryField
 {
-    "(left|right)"
+    left
+    {
+        type            fixedValue;
+        value           uniform 300;
+    }
+    right
     {
         type            zeroGradient;
     }
