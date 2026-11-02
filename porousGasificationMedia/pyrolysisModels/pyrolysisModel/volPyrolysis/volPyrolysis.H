@@ -228,27 +228,10 @@ protected:
         //- The solid species mass equations, Ym_ transported
         autoPtr<SolidSpeciesTransport> speciesTransport_;
 
-    // Checks
-
-        //- Cumulative lost mass of the condensed phase [kg]
-        dimensionedScalar lostSolidMass_;
-
-        //- Cumulative mass generation of the gas phase [kg]
-        dimensionedScalar addedGasMass_;
-
-        //- Total mass gas flux at the pyrolysing walls [kg/s]
-        dimensionedScalar totalGasMassFlux_;
-
-        //- Total heat release rate [J/s]
-        dimensionedScalar totalHeatRR_;
+    // Chemistry
 
         //- Time step suggested by the last chemistry solve [s]
         scalar chemistryTimeStep_;
-
-        //- Total Ym mass integral at construction, for the conservation
-        //  diagnostic [kg]. On restart this holds the restart inventory,
-        //  so conservation is checked from the restart onward.
-        scalar initialTotalYmMass_;
 
 
     // Protected member functions
@@ -261,9 +244,6 @@ protected:
 
         //- Report the solid mass budget and the derived mass fractions
         void reportSolidMassBudget();
-
-        //- Add this step's gas produced and solid lost to the run totals
-        void accumulateMassBudget();
 
 public:
 

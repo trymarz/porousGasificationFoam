@@ -26,6 +26,7 @@ License
 #include "solidDiagnostics.H"
 
 #include "PstreamReduceOps.H"
+#include "fvcVolumeIntegrate.H"
 
 #include <cmath>
 
@@ -65,23 +66,40 @@ label SolidDiagnostics::firstInvalidCell
 }
 
 
+scalar SolidDiagnostics::totalYmMass() const
+{
+    scalar total = 0.0;
+    for (label i = 0; i < Ym_.size(); ++i)
+    {
+        total += gSum(Ym_[i].field() * mesh_.V());
+    }
+    return total;
+}
+
+
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
 SolidDiagnostics::SolidDiagnostics
 (
     const dictionary& coeffs,
-    const SolidState& solidState,
-    const fvMesh& mesh,
-    const Time& time
+    const SolidFields& solid
 )
 :
-    mesh_(mesh),
-    time_(time),
+    mesh_(solid.mesh),
+    time_(solid.mesh.time()),
     failOnInvalidSolidState_
     (
         coeffs.lookupOrDefault("failOnInvalidSolidState",true)
     ),
-    solidState_(solidState),
+    solidState_(solid.state),
+    Ym_(solid.Ym),
+    Ys_(solid.Ys),
+    chemistry_(solid.chemistry),
+    initialYmMass_(totalYmMass()),
+    lostSolidMass_(dimensionedScalar("zero", dimMass, 0.0)),
+    addedGasMass_(dimensionedScalar("zero", dimMass, 0.0)),
+    totalGasMassFlux_(dimensionedScalar("zero", dimMass/dimTime, 0.0)),
+    totalHeatRR_(dimensionedScalar("zero", dimEnergy/dimTime, 0.0)),
     maxSolidTemperature_
     (
         coeffs.lookupOrDefault<scalar>("maxSolidTemperature",1e5)
@@ -254,21 +272,13 @@ void SolidDiagnostics::checkConsistency
 
 void SolidDiagnostics::reportMassBudget
 (
-    const PtrList<volScalarField>& Ym,
-    const scalar initialMass,
     const scalar clipped,
     const scalar flipped,
     const scalar collapsed
 ) const
 {
-    scalar totalYmMass = 0.0;
-    for (label i = 0; i < Ym.size(); ++i)
-    {
-        totalYmMass += gSum(Ym[i].field() * mesh_.V());
-    }
-
-    Info<< "solid mass budget: sum(Ym_i * V) = " << totalYmMass
-        << ", initial = " << initialMass
+    Info<< "solid mass budget: sum(Ym_i * V) = " << totalYmMass()
+        << ", initial = " << initialYmMass_
         << ", fabricated by clip = " << clipped
         << ", destroyed by flip = " << flipped
         << ", destroyed by collapse = " << collapsed
@@ -276,16 +286,33 @@ void SolidDiagnostics::reportMassBudget
 }
 
 
-void SolidDiagnostics::reportDerivedSpecies
-(
-    const PtrList<volScalarField>& Ys
-) const
+void SolidDiagnostics::reportDerivedSpecies() const
 {
-    for (label i = 0; i < Ys.size(); ++i)
+    for (label i = 0; i < Ys_.size(); ++i)
     {
-        Info<< "       derived " << Ys[i].name()
-            << " min/max = " << gMin(Ys[i]) << " / " << gMax(Ys[i]) << endl;
+        Info<< "       derived " << Ys_[i].name()
+            << " min/max = " << gMin(Ys_[i]) << " / " << gMax(Ys_[i]) << endl;
     }
+}
+
+
+void SolidDiagnostics::accumulateRunTotals(const volScalarField& chemistrySh)
+{
+    totalGasMassFlux_ = fvc::domainIntegrate(chemistry_.RRg());
+    totalHeatRR_ = fvc::domainIntegrate(chemistrySh);
+
+    addedGasMass_ += fvc::domainIntegrate(chemistry_.RRg()) * time_.deltaT();
+    lostSolidMass_ += fvc::domainIntegrate(chemistry_.RRs()) * time_.deltaT();
+}
+
+
+void SolidDiagnostics::reportRunTotals(const scalar replenished) const
+{
+    Info<< indent << "Total gas mass produced  [kg] = " << addedGasMass_.value() << nl
+        << indent << "Total solid mass lost    [kg] = " << lostSolidMass_.value() << nl
+        << indent << "Total mass replenished   [kg] = " << replenished << nl
+        << indent << "Realese rate of pyrolysis gases  [kg/s] = " << totalGasMassFlux_.value() << nl
+        << indent << "Heat release rate [J/s] = " << totalHeatRR_.value() << nl;
 }
 
 

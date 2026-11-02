@@ -42,7 +42,8 @@ Description
     Thresholds and masks come from SolidState, which the switch cannot
     reach: turning the guards off leaves every physics mask as it is.
     Also owns the porosity/solid-mass consistency check and the per-step
-    solid reports: mass budget, derived mass fractions, temperature range.
+    solid reports: mass budget, derived mass fractions, temperature range,
+    and the run totals of gas produced, solid reacted and heat released.
 
     Owned directly by volPyrolysis (like SolidFluxLimiter) - no runtime
     selection, since only one checking policy exists.
@@ -61,6 +62,7 @@ SourceFiles
 #include "Switch.H"
 #include "Time.H"
 #include "solidState.H"
+#include "solidFields.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -93,6 +95,31 @@ class SolidDiagnostics
         //  anything past it is a real overshoot.
         const SolidState& solidState_;
 
+        //- Solid species bulk densities, for the mass budget
+        const PtrList<volScalarField>& Ym_;
+
+        //- Solid mass fractions, for the derived-species report
+        const PtrList<volScalarField>& Ys_;
+
+        //- Solid chemistry, whose rates the run totals integrate
+        const porousThermoSolidChemistryModel<HGSSolidThermo>& chemistry_;
+
+        //- Total Ym mass at construction [kg]. On restart this is the
+        //  restart inventory, so the budget runs from the restart onward.
+        const scalar initialYmMass_;
+
+        //- Cumulative solid mass converted by reaction [kg]
+        dimensionedScalar lostSolidMass_;
+
+        //- Cumulative gas mass produced by reaction [kg]
+        dimensionedScalar addedGasMass_;
+
+        //- Gas release rate at the last accumulation [kg/s]
+        dimensionedScalar totalGasMassFlux_;
+
+        //- Heat release rate at the last accumulation [J/s]
+        dimensionedScalar totalHeatRR_;
+
         //- Bound on a physically credible solid temperature [K]
         //  Ts = solidH/(totalYm*Cp) is meaningless once totalYm is
         //  near zero.
@@ -106,6 +133,9 @@ class SolidDiagnostics
 
         //- Disallow default bitwise assignment
         void operator=(const SolidDiagnostics&);
+
+        //- Total solid mass sum_i(Ym_i * V) over the domain [kg]
+        scalar totalYmMass() const;
 
         //- First cell that's non-finite or outside [lower, upper], else -1
         //  Skips cells where the optional mask isn't positive. Rank-local.
@@ -122,15 +152,9 @@ public:
 
     // Constructors
 
-        //- Construct from the owning model's coefficients, solid state,
-        //  mesh and time
-        SolidDiagnostics
-        (
-            const dictionary& coeffs,
-            const SolidState& solidState,
-            const fvMesh& mesh,
-            const Time& time
-        );
+        //- Construct from the owning model's coefficients and solid fields;
+        //  records the initial solid mass
+        SolidDiagnostics(const dictionary& coeffs, const SolidFields& solid);
 
 
     //- Destructor
@@ -185,15 +209,20 @@ public:
         //- Info: transported solid mass against the booked losses
         void reportMassBudget
         (
-            const PtrList<volScalarField>& Ym,
-            const scalar initialMass,
             const scalar clipped,
             const scalar flipped,
             const scalar collapsed
         ) const;
 
         //- Info: range of each derived solid mass fraction
-        void reportDerivedSpecies(const PtrList<volScalarField>& Ys) const;
+        void reportDerivedSpecies() const;
+
+        //- Add this step's gas produced and solid reacted to the run
+        //  totals, and sample the gas and heat release rates
+        void accumulateRunTotals(const volScalarField& chemistrySh);
+
+        //- Info: the run totals, with the mass the bed replenished [kg]
+        void reportRunTotals(const scalar replenished) const;
 
         //- Print min/max Ts over the cells holding solid
         void reportTemperatureRange(const volScalarField& T) const;
