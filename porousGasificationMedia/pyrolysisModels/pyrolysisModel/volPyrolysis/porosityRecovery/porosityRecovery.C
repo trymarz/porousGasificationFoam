@@ -47,14 +47,14 @@ PorosityRecovery::PorosityRecovery
     const volScalarField& rho,
     PtrList<volScalarField>& Ym,
     PtrList<volScalarField>& Ys,
-    autoPtr<volScalarField>& solidH,
+    volScalarField& solidH,
     const volVectorField& Us,
     const surfaceScalarField& phiSolid,
     const porousThermoSolidChemistryModel<HGSSolidThermo>& chemistry,
     volScalarField& cellOnBedBorder,
     SolidState& solidState,
     BedCollapse& bedCollapse,
-    const autoPtr<SolidDiagnostics>& solidDiagnostics,
+    const SolidDiagnostics& solidDiagnostics,
     const Switch& active,
     const Switch& infoOutput
 )
@@ -101,7 +101,11 @@ PorosityRecovery::PorosityRecovery
         dimensionedScalar("zero", dimless/dimTime, 0.0)
     ),
     cumulativeFlipMass_(0.0)
-{}
+{
+    Info << "poroProtectSolidInflowFluxTolerance  "
+         << poroProtectSolidInflowFluxTolerance_ << " [kg/m3/s]" << endl;
+    Info << "emptyFlippedCells        " << emptyFlippedCells_ << endl;
+}
 
 
 // * * * * * * * * * * * * * * * * Destructor  * * * * * * * * * * * * * * * //
@@ -119,7 +123,7 @@ void PorosityRecovery::guardPorosity
     const surfaceScalarField& phiUs
 ) const
 {
-    const label badCell = solidDiagnostics_->firstInvalidPorosity(por);
+    const label badCell = solidDiagnostics_.firstInvalidPorosity(por);
 
     if (badCell == -1)
     {
@@ -143,7 +147,7 @@ void PorosityRecovery::guardPorosity
         << "    rho          = " << rho_[badCell] << nl
         << "    solidPresent = " << solidState_.solidPresent()[badCell];
 
-    solidDiagnostics_->abort(stage, por, badCell, context.str());
+    solidDiagnostics_.abort(stage, por, badCell, context.str());
 }
 
 void PorosityRecovery::porosityFromSolidMass(const volScalarField& totalYm)
@@ -294,7 +298,7 @@ void PorosityRecovery::emptyCells(const labelList& flipCells, const label nFlips
             Ym_[i][cellI] = 0.0;
         }
 
-        solidH_()[cellI] = 0.0;
+        solidH_[cellI] = 0.0;
         T_[cellI] = 0.0;
         porosity_[cellI] = 1.0;
     }
@@ -396,7 +400,7 @@ void PorosityRecovery::recover()
         porosity_,
         phiSolid_
     );
-    solidDiagnostics_->checkConsistency(porosity_, Ym_, rho_);
+    solidDiagnostics_.checkConsistency(porosity_, Ym_, rho_);
 
     markBedBorderCells();
 

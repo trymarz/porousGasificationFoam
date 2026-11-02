@@ -106,9 +106,8 @@ class BedCollapse
         //- Solid mass fractions; only their neighbour values are refreshed
         PtrList<volScalarField>& Ys_;
 
-        //- Solid enthalpy; bound by owner, since volPyrolysis creates it
-        //  after this object
-        autoPtr<volScalarField>& solidH_;
+        //- Solid enthalpy, owned by volPyrolysis
+        volScalarField& solidH_;
 
         const volScalarField& cellVolume_;
 
@@ -239,7 +238,7 @@ public:
             volScalarField& rho,
             PtrList<volScalarField>& Ym,
             PtrList<volScalarField>& Ys,
-            autoPtr<volScalarField>& solidH,
+            volScalarField& solidH,
             const volScalarField& cellVolume,
             SolidState& solidState
         );
@@ -255,18 +254,6 @@ public:
         const Switch& active() const
         {
             return bedCollapseSwitch_;
-        }
-
-        //- The replenish switch
-        const Switch& replenish() const
-        {
-            return replenishSwitch_;
-        }
-
-        //- The collapseMovesSolidMass switch
-        const Switch& movesSolidMass() const
-        {
-            return collapseMovesSolidMass_;
         }
 
         //- Total replenished mass [kg]; accumulated on the master only

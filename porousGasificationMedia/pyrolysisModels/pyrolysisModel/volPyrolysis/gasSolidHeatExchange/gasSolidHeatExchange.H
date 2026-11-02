@@ -155,12 +155,6 @@ public:
 
     // Member Functions
 
-        //- Whether the exchange is subintegrated over the time step
-        const Switch& subintegrate() const
-        {
-            return subintegrateSwitch_;
-        }
-
         //- Re-evaluate the coefficient (CONV) from the heat transfer model
         void updateHeatTransferCoeff();
 

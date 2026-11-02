@@ -98,6 +98,10 @@ private:
         //- Flag solid cells with an empty neighbour cell
         void markInitialBedBorderCells();
 
+        //- Build the stages that act on the solid fields, in dependency
+        //  order; each logs its own settings when constructed
+        void createCollaborators();
+
         //- Let only cells active and connected at step start react, so
         //  every reaction heat is booked by the solid energy equation
         void markReactingCells();

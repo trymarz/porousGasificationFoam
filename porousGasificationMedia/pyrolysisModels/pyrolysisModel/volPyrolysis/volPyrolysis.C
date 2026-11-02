@@ -291,6 +291,120 @@ void volPyrolysis::markInitialBedBorderCells()
     }
 }
 
+void volPyrolysis::createCollaborators()
+{
+    Info << endl;
+
+    solidDiagnostics_.reset
+    (
+        new SolidDiagnostics(coeffs(), solidState_(), mesh_, time_)
+    );
+    solidDiagnostics_->checkBoundaryDeclarations(Ys_, T_);
+
+    solidFluxLimiter_.reset
+    (
+        new SolidFluxLimiter
+        (
+            coeffs(),
+            mesh_,
+            Us_,
+            Ym_,
+            rho_,
+            T_,
+            solidChemistry_(),
+            active_,
+            solidState_()
+        )
+    );
+
+    bedCollapse_.reset
+    (
+        new BedCollapse
+        (
+            coeffs(),
+            mesh_,
+            porosity_,
+            porosityArch_,
+            T_,
+            rho_,
+            Ym_,
+            Ys_,
+            solidH_(),
+            cellVolume_,
+            solidState_()
+        )
+    );
+
+    porosityRecovery_.reset
+    (
+        new PorosityRecovery
+        (
+            coeffs(),
+            mesh_,
+            porosity_,
+            T_,
+            rho_,
+            Ym_,
+            Ys_,
+            solidH_(),
+            Us_,
+            phiSolid_,
+            solidChemistry_(),
+            cellOnBedBorder_,
+            solidState_(),
+            bedCollapse_(),
+            solidDiagnostics_(),
+            active_,
+            infoOutput_
+        )
+    );
+
+    solidEnergy_.reset
+    (
+        new SolidEnergy
+        (
+            mesh_,
+            solidThermo_,
+            gasThermo_,
+            solidChemistry_(),
+            Ym_,
+            solidH_(),
+            porosity_,
+            Us_,
+            phiSolid_,
+            radiation_,
+            chemistrySh_,
+            solidState_(),
+            heatExchange_(),
+            solidDiagnostics_(),
+            equilibrium_,
+            active_
+        )
+    );
+
+    demCoupling_.reset(new DemCoupling(mesh_));
+
+    speciesTransport_.reset
+    (
+        new SolidSpeciesTransport
+        (
+            mesh_,
+            solidThermo_,
+            solidChemistry_(),
+            Ym_,
+            Ys_,
+            porosity_,
+            Us_,
+            phiSolid_,
+            demCoupling_(),
+            solidDiagnostics_(),
+            active_
+        )
+    );
+
+    Info << endl;
+}
+
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
 volPyrolysis::volPyrolysis
@@ -451,115 +565,11 @@ volPyrolysis::volPyrolysis
     chemistryTimeStep_(1.0),
     initialTotalYmMass_(0.0)
 {
-
     mesh.setFluxRequired(T_.name());
 
     specieTransferCoeff_ = specieTransfer_->ST()();
     heatExchange_->updateHeatTransferCoeff();
     rho0_.ref() = rho_.ref();
-
-    bedCollapse_.reset
-    (
-        new BedCollapse
-        (
-            coeffs(),
-            mesh_,
-            porosity_,
-            porosityArch_,
-            T_,
-            rho_,
-            Ym_,
-            Ys_,
-            solidH_,
-            cellVolume_,
-            solidState_()
-        )
-    );
-    // Binds solidH_ and solidDiagnostics_ by reference: both are
-    // created further down.
-    porosityRecovery_.reset
-    (
-        new PorosityRecovery
-        (
-            coeffs(),
-            mesh_,
-            porosity_,
-            T_,
-            rho_,
-            Ym_,
-            Ys_,
-            solidH_,
-            Us_,
-            phiSolid_,
-            solidChemistry_(),
-            cellOnBedBorder_,
-            solidState_(),
-            bedCollapse_(),
-            solidDiagnostics_,
-            active_,
-            infoOutput_
-        )
-    );
-
-    Info << endl;
-    Info << "subintegrateHeatTransfer " << heatExchange_->subintegrate() << endl;
-    Info << "bedCollapse              " << bedCollapse_->active()    << endl;
-    Info << "poroProtectSolidInflowFluxTolerance  "
-         << porosityRecovery_->poroProtectSolidInflowFluxTolerance()
-         << " [kg/m3/s]" << endl;
-    Info << "replenish                " << bedCollapse_->replenish()    << endl;
-    Info << "collapseMovesSolidMass   " << bedCollapse_->movesSolidMass() << endl;
-    Info << "emptyFlippedCells        " << porosityRecovery_->emptyFlippedCells()  << endl;
-    // Constructed here because it carries the last banner lines.
-    solidDiagnostics_.reset
-    (
-        new SolidDiagnostics(coeffs(), solidState_(), mesh_, time_)
-    );
-    solidDiagnostics_->checkBoundaryDeclarations(Ys_, T_);
-
-    // Reads its own keys and logs them where the rest are reported. Binds
-    // Ym_ by reference, so it reads no entries until limit() is first called.
-    solidFluxLimiter_.reset
-    (
-        new SolidFluxLimiter
-        (
-            coeffs(),
-            mesh_,
-            Us_,
-            Ym_,
-            rho_,
-            T_,
-            solidChemistry_(),
-            active_,
-            solidState_()
-        )
-    );
-
-    // Binds solidH_ by reference: it is created by createSolidH() below.
-    solidEnergy_.reset
-    (
-        new SolidEnergy
-        (
-            mesh_,
-            solidThermo_,
-            gasThermo_,
-            solidChemistry_(),
-            Ym_,
-            solidH_,
-            porosity_,
-            Us_,
-            phiSolid_,
-            radiation_,
-            chemistrySh_,
-            solidState_(),
-            heatExchange_(),
-            solidDiagnostics_(),
-            equilibrium_,
-            active_
-        )
-    );
-
-    Info << endl;
 
     createYm();
 
@@ -602,26 +612,7 @@ volPyrolysis::volPyrolysis
     }
     cellVolume_.correctBoundaryConditions();
 
-    // Last in the constructor, so its active/inactive line ends the banner.
-    demCoupling_.reset(new DemCoupling(mesh_));
-
-    speciesTransport_.reset
-    (
-        new SolidSpeciesTransport
-        (
-            mesh_,
-            solidThermo_,
-            solidChemistry_(),
-            Ym_,
-            Ys_,
-            porosity_,
-            Us_,
-            phiSolid_,
-            demCoupling_(),
-            solidDiagnostics_(),
-            active_
-        )
-    );
+    createCollaborators();
 }
 
 // * * * * * * * * * * * * * * * * Destructor  * * * * * * * * * * * * * * * //
