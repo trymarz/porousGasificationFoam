@@ -141,9 +141,6 @@ protected:
         //- Density [kg/m3]
         volScalarField& rho_;
 
-        //- Density for the initial moment
-        volScalarField rho0_;
-
         //- List of solid components
         PtrList<volScalarField>& Ys_;
 

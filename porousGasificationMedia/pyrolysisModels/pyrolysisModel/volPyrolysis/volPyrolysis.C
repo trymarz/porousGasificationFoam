@@ -386,19 +386,6 @@ volPyrolysis::volPyrolysis
         )
     ),
     rho_(solidThermo_.rho()),
-    rho0_
-    (
-        IOobject
-        (
-            "rhos0",
-            time_.timeName(),
-            mesh_,
-            IOobject::NO_READ,
-            IOobject::AUTO_WRITE
-        ),
-        mesh_,
-        dimensionedScalar("zero", dimMass/dimVolume, 0.0)
-    ),
     Ys_(solidThermo_.composition().Y()),
     Ym_(Ys_.size()),
     T_(solidThermo_.T()),
@@ -463,7 +450,6 @@ volPyrolysis::volPyrolysis
     mesh.setFluxRequired(T_.name());
 
     specieTransferCoeff_ = specieTransfer_->ST()();
-    rho0_.ref() = rho_.ref();
 
     createYm();
 
@@ -482,14 +468,6 @@ volPyrolysis::volPyrolysis
     // is a no-op on the first call, so seed oldTime() here or the gas-side
     // fvm::ddt(porosityF, rho) loses a step of d(porosity)/dt.
     porosity_.oldTime();
-
-    forAll(rho_,cellI)
-    {
-        if (porosity_[cellI] == 1.)
-        {
-             rho0_[cellI] = 3.14;
-        }
-    }
 
     renormaliseInitialComposition();
 
