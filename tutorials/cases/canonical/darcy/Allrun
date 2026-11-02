@@ -2,5 +2,8 @@
 cd "${0%/*}" || exit
 . ${WM_PROJECT_DIR:?}/bin/tools/RunFunctions
 restore0Dir
+# system/regressionFunctions measures gasTemperatureRise as T - 300.
+[ "$(foamDictionary 0/T -entry internalField -value)" = "uniform 300" ] \
+ || { echo "gasTemperatureRise assumes an initial T of 300 K" >&2; exit 1; }
 runApplication blockMesh
 runApplication $(getApplication)

@@ -74,12 +74,12 @@ C = (μ + f ρ |U| √3 / |Df|) · Df
 **Gas energy** (`EEqn.H`; paper 2c). Solved for sensible enthalpy `h` (or internal energy, depending on the thermo type); `K` is kinetic energy.
 
 ```
-∂(ε ρ h)/∂t + ∇·(φ h) + ∂(ε ρ K)/∂t + ∇·(φ K) − ∂p/∂t − ∇·(α_eff ∇h)
+∂(ε ρ h)/∂t + ∇·(φ h) + ∂(ε ρ K)/∂t + ∇·(φ K) − ε ∂p/∂t − ∇·(α_eff ∇h)
     = ε Q̇_chem + Q_conv + Q_heatUp + S_rad
 Q_heatUp = cp (Tₛ − T) S_ρ
 ```
 
-`Q_conv` is the solid-to-gas convective exchange (`heatTransfer()`), `S_rad` the radiation source.
+Solved for internal energy `e`, the pressure work `− ε ∂p/∂t` becomes `∇·(φ/ρ p) + p ∂ε/∂t` (from `h = e + p/ρ`, with `φ` the superficial mass flux; see the `EEqn.H` Description). `Q_conv` is the solid-to-gas convective exchange (`heatTransfer()`), `S_rad` the radiation source.
 
 **Solid species** (`SolidSpeciesTransport::solve`; paper 3a without the transport term)
 

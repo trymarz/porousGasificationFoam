@@ -1,0 +1,21 @@
+[heatmap]
+fields = ["T", "Ts", "porosityF"]
+
+[slice]
+axis = "y"
+position = 0.0
+
+[render]
+
+[[render.slice]]
+axis = "y"
+position = 0.0
+fields = ["T", "p", "U.x"]
+output = "render/snapshots/postrun/{field}_{axis}{position}.png"
+
+[snapshots]
+enabled = true
+automatic = true
+directory = "render/snapshots"
+stride = 1
+fields = ["T"]
