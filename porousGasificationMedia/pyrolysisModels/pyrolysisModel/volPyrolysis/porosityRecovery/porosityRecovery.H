@@ -60,6 +60,7 @@ SourceFiles
 #include "HGSSolidThermo.H"
 #include "porousThermoSolidChemistryModel.H"
 #include "solidState.H"
+#include "solidFields.H"
 #include "solidDiagnostics.H"
 #include "bedCollapse.H"
 
@@ -184,25 +185,14 @@ public:
 
     // Constructors
 
-        //- Construct from the owner's coefficients, fields and collaborators
+        //- Construct from the owner's coefficients, solid fields and stages
         PorosityRecovery
         (
             const dictionary& coeffs,
-            const fvMesh& mesh,
-            volScalarField& porosity,
-            volScalarField& T,
-            const volScalarField& rho,
-            PtrList<volScalarField>& Ym,
-            PtrList<volScalarField>& Ys,
-            volScalarField& solidH,
-            const volVectorField& Us,
-            const surfaceScalarField& phiSolid,
-            const porousThermoSolidChemistryModel<HGSSolidThermo>& chemistry,
+            const SolidFields& solid,
             volScalarField& cellOnBedBorder,
-            SolidState& solidState,
             BedCollapse& bedCollapse,
             const SolidDiagnostics& solidDiagnostics,
-            const Switch& active,
             const Switch& infoOutput
         );
 

@@ -295,44 +295,34 @@ void volPyrolysis::createCollaborators()
 {
     Info << endl;
 
+    const SolidFields solid
+    {
+        mesh_,
+        solidThermo_,
+        solidChemistry_(),
+        solidState_(),
+        T_,
+        rho_,
+        Ys_,
+        Ym_,
+        solidH_(),
+        porosity_,
+        Us_,
+        phiSolid_,
+        active_
+    };
+
     solidDiagnostics_.reset
     (
         new SolidDiagnostics(coeffs(), solidState_(), mesh_, time_)
     );
     solidDiagnostics_->checkBoundaryDeclarations(Ys_, T_);
 
-    solidFluxLimiter_.reset
-    (
-        new SolidFluxLimiter
-        (
-            coeffs(),
-            mesh_,
-            Us_,
-            Ym_,
-            rho_,
-            T_,
-            solidChemistry_(),
-            active_,
-            solidState_()
-        )
-    );
+    solidFluxLimiter_.reset(new SolidFluxLimiter(coeffs(), solid));
 
     bedCollapse_.reset
     (
-        new BedCollapse
-        (
-            coeffs(),
-            mesh_,
-            porosity_,
-            porosityArch_,
-            T_,
-            rho_,
-            Ym_,
-            Ys_,
-            solidH_(),
-            cellVolume_,
-            solidState_()
-        )
+        new BedCollapse(coeffs(), solid, porosityArch_, cellVolume_)
     );
 
     porosityRecovery_.reset
@@ -340,21 +330,10 @@ void volPyrolysis::createCollaborators()
         new PorosityRecovery
         (
             coeffs(),
-            mesh_,
-            porosity_,
-            T_,
-            rho_,
-            Ym_,
-            Ys_,
-            solidH_(),
-            Us_,
-            phiSolid_,
-            solidChemistry_(),
+            solid,
             cellOnBedBorder_,
-            solidState_(),
             bedCollapse_(),
             solidDiagnostics_(),
-            active_,
             infoOutput_
         )
     );
@@ -363,22 +342,13 @@ void volPyrolysis::createCollaborators()
     (
         new SolidEnergy
         (
-            mesh_,
-            solidThermo_,
+            solid,
             gasThermo_,
-            solidChemistry_(),
-            Ym_,
-            solidH_(),
-            porosity_,
-            Us_,
-            phiSolid_,
             radiation_,
             chemistrySh_,
-            solidState_(),
             heatExchange_(),
             solidDiagnostics_(),
-            equilibrium_,
-            active_
+            equilibrium_
         )
     );
 
@@ -386,20 +356,7 @@ void volPyrolysis::createCollaborators()
 
     speciesTransport_.reset
     (
-        new SolidSpeciesTransport
-        (
-            mesh_,
-            solidThermo_,
-            solidChemistry_(),
-            Ym_,
-            Ys_,
-            porosity_,
-            Us_,
-            phiSolid_,
-            demCoupling_(),
-            solidDiagnostics_(),
-            active_
-        )
+        new SolidSpeciesTransport(solid, demCoupling_(), solidDiagnostics_())
     );
 
     Info << endl;

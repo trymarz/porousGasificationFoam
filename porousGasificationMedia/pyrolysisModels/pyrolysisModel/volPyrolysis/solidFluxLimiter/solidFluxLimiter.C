@@ -469,30 +469,23 @@ void SolidFluxLimiter::reportSolidFluxLimiter
 SolidFluxLimiter::SolidFluxLimiter
 (
     const dictionary& coeffs,
-    const fvMesh& mesh,
-    const volVectorField& Us,
-    PtrList<volScalarField>& Ym,
-    const volScalarField& rho,
-    const volScalarField& T,
-    const porousThermoSolidChemistryModel<HGSSolidThermo>& chemistry,
-    const Switch& active,
-    const SolidState& solidState
+    const SolidFields& solid
 )
 :
-    mesh_(mesh),
-    time_(mesh.time()),
-    Us_(Us),
-    Ym_(Ym),
-    rho_(rho),
-    T_(T),
-    chemistry_(chemistry),
-    active_(active),
+    mesh_(solid.mesh),
+    time_(solid.mesh.time()),
+    Us_(solid.Us),
+    Ym_(solid.Ym),
+    rho_(solid.rho),
+    T_(solid.T),
+    chemistry_(solid.chemistry),
+    active_(solid.active),
     advectSolidFields_(coeffs.lookupOrDefault("advectSolidFields", true)),
     nSolidFluxLimiterCorrectors_
     (
         coeffs.lookupOrDefault<label>("nSolidFluxLimiterCorrectors", 3)
     ),
-    solidState_(solidState)
+    solidState_(solid.state)
 {
     Info << "advectSolidFields        " << advectSolidFields_  << endl;
     Info << "nSolidFluxLimiterCorrectors " << nSolidFluxLimiterCorrectors_

@@ -67,6 +67,7 @@ SourceFiles
 #include "HGSSolidThermo.H"
 #include "porousThermoSolidChemistryModel.H"
 #include "solidState.H"
+#include "solidFields.H"
 #include "solidDiagnostics.H"
 #include "gasSolidHeatExchange.H"
 
@@ -206,25 +207,16 @@ public:
 
     // Constructors
 
-        //- Construct from the owner's thermo, fields and collaborators
+        //- Construct from the solid fields, gas thermo, heat sources and stages
         SolidEnergy
         (
-            const fvMesh& mesh,
-            HGSSolidThermo& solidThermo,
+            const SolidFields& solid,
             const psiReactionThermo& gasThermo,
-            const porousThermoSolidChemistryModel<HGSSolidThermo>& chemistry,
-            PtrList<volScalarField>& Ym,
-            volScalarField& solidH,
-            const volScalarField& porosity,
-            const volVectorField& Us,
-            const surfaceScalarField& phiSolid,
             const volScalarField& radiation,
             const volScalarField& chemistrySh,
-            SolidState& solidState,
             GasSolidHeatExchange& heatExchange,
             const SolidDiagnostics& solidDiagnostics,
-            const Switch& equilibrium,
-            const Switch& active
+            const Switch& equilibrium
         );
 
 

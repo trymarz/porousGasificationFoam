@@ -59,6 +59,7 @@ SourceFiles
 #include "PtrList.H"
 #include "Switch.H"
 #include "solidState.H"
+#include "solidFields.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -226,21 +227,14 @@ public:
 
     // Constructors
 
-        //- Construct from the owning model's coefficients, mesh and the
-        //  solid fields it moves
+        //- Construct from the owning model's coefficients and the solid
+        //  fields it moves
         BedCollapse
         (
             const dictionary& coeffs,
-            const fvMesh& mesh,
-            volScalarField& porosity,
+            const SolidFields& solid,
             volScalarField& porosityArch,
-            volScalarField& T,
-            volScalarField& rho,
-            PtrList<volScalarField>& Ym,
-            PtrList<volScalarField>& Ys,
-            volScalarField& solidH,
-            const volScalarField& cellVolume,
-            SolidState& solidState
+            const volScalarField& cellVolume
         );
 
 

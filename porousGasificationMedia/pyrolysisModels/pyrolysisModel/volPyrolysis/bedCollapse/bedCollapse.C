@@ -465,45 +465,38 @@ void BedCollapse::reportCollapsedMass
 BedCollapse::BedCollapse
 (
     const dictionary& coeffs,
-    const fvMesh& mesh,
-    volScalarField& porosity,
+    const SolidFields& solid,
     volScalarField& porosityArch,
-    volScalarField& T,
-    volScalarField& rho,
-    PtrList<volScalarField>& Ym,
-    PtrList<volScalarField>& Ys,
-    volScalarField& solidH,
-    const volScalarField& cellVolume,
-    SolidState& solidState
+    const volScalarField& cellVolume
 )
 :
-    mesh_(mesh),
+    mesh_(solid.mesh),
     bedCollapseSwitch_(coeffs.lookupOrDefault("bedCollapse",false)),
     replenishSwitch_(coeffs.lookupOrDefault("replenish",false)),
     collapseMovesSolidMass_
     (
         coeffs.lookupOrDefault("collapseMovesSolidMass",false)
     ),
-    porosity_(porosity),
+    porosity_(solid.porosity),
     porosityArch_(porosityArch),
-    T_(T),
-    rho_(rho),
-    Ym_(Ym),
-    Ys_(Ys),
-    solidH_(solidH),
+    T_(solid.T),
+    rho_(solid.rho),
+    Ym_(solid.Ym),
+    Ys_(solid.Ys),
+    solidH_(solid.solidH),
     cellVolume_(cellVolume),
-    solidState_(solidState),
+    solidState_(solid.state),
     solidOccupiedCellLastStep_
     (
         IOobject
         (
             "solidOccupiedCellLastStep",
-            mesh.time().timeName(),
-            mesh,
+            mesh_.time().timeName(),
+            mesh_,
             IOobject::NO_READ,
             IOobject::NO_WRITE
         ),
-        mesh,
+        mesh_,
         dimensionedScalar("zero", dimless, 0.0)
     ),
     totRepMass_(0.),
