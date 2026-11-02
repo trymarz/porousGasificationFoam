@@ -1,5 +1,5 @@
 Boundary-policy checks (#162) on copies of ../solidInlet_ash.
 
 Each case copies solidInlet_ash with copyBase, changes one boundary setting
-with foamDictionary and runs briefly. cases.list judges each on its log
-(expectFail / expectLog) rather than against a baseline.
+(or the outlet's mesh type) and runs briefly. cases.list judges each on its
+log (expectFail / expectLog) rather than against a baseline.
