@@ -46,6 +46,11 @@ tutorials/cases/canonical/gasification         fast
 tutorials/cases/canonical/radiation            fast
 tutorials/cases/canonical/darcy                fast
 tutorials/cases/canonical/forchheimer          fast
+# pyrolysisE and darcyE: pyrolysis and darcy solved for e instead of h. Their
+# Allrun (../solveForE) also fails if e drifts from h's committed reference;
+# before #132 the e branch was off by 249 K.
+tutorials/cases/canonical/pyrolysisE           fast
+tutorials/cases/canonical/darcyE               fast
 tutorials/cases/canonical/stoichiometric       fast
 tutorials/cases/canonical/enthalpy             fast
 tutorials/cases/canonical/meanTemp             fast
