@@ -28,6 +28,7 @@ License
 #include "PstreamReduceOps.H"
 #include "fixedValueFvPatchFields.H"
 #include "DynamicList.H"
+#include "wallPolyPatch.H"
 
 #include <cmath>
 
@@ -88,29 +89,31 @@ SolidDiagnostics::SolidDiagnostics
     (
         coeffs.lookupOrDefault<scalar>("maxSolidTemperature",1e5)
     ),
-    solidInflowPolicy_
+    solidBoundaryPolicy_
     (
-        coeffs.lookupOrDefault<word>("solidInflowPolicy", "error")
+        coeffs.lookupOrDefault<word>("solidBoundaryPolicy", "error")
     ),
     inheritingPatches_(),
     declaringPatches_(),
-    inflowReported_()
+    wallPatches_(),
+    inflowReported_(),
+    outflowReported_()
 {
     if
     (
-        solidInflowPolicy_ != "error"
-     && solidInflowPolicy_ != "warn"
-     && solidInflowPolicy_ != "ignore"
+        solidBoundaryPolicy_ != "error"
+     && solidBoundaryPolicy_ != "warn"
+     && solidBoundaryPolicy_ != "ignore"
     )
     {
         FatalIOErrorInFunction(coeffs)
-            << "solidInflowPolicy " << solidInflowPolicy_
+            << "solidBoundaryPolicy " << solidBoundaryPolicy_
             << " is not one of error, warn, ignore" << exit(FatalIOError);
     }
 
     Info << "failOnInvalidSolidState  " << failOnInvalidSolidState_ << endl;
     Info << "maxSolidTemperature      " << maxSolidTemperature_ << endl;
-    Info << "solidInflowPolicy        " << solidInflowPolicy_ << endl;
+    Info << "solidBoundaryPolicy        " << solidBoundaryPolicy_ << endl;
 }
 
 
@@ -353,6 +356,7 @@ void SolidDiagnostics::checkBoundaryDeclarations
 {
     DynamicList<label> inheriting;
     DynamicList<label> declaring;
+    DynamicList<label> walls;
 
     forAll(mesh_.boundary(), patchi)
     {
@@ -361,6 +365,11 @@ void SolidDiagnostics::checkBoundaryDeclarations
         if (polyPatch::constraintType(pp.type()))
         {
             continue;
+        }
+
+        if (isA<wallPolyPatch>(pp))
+        {
+            walls.append(patchi);
         }
 
         label nFixed = 0;
@@ -407,7 +416,7 @@ void SolidDiagnostics::checkBoundaryDeclarations
 
         declaring.append(patchi);
 
-        // Faces summing to zero declare no solid; checkSolidInflow() acts
+        // Faces summing to zero declare no solid; checkSolidCrossing() acts
         // only if solid enters them, so an inlet may be fed later.
         scalarField sumY(pp.size(), 0.0);
         forAll(Ys, i)
@@ -442,10 +451,13 @@ void SolidDiagnostics::checkBoundaryDeclarations
 
     inheritingPatches_.transfer(inheriting);
     declaringPatches_.transfer(declaring);
+    wallPatches_.transfer(walls);
     inflowReported_.setSize(mesh_.boundary().size(), false);
+    outflowReported_.setSize(mesh_.boundary().size(), false);
 
     Info<< "solid boundary: declaring " << patchNames(declaringPatches_)
-        << ", inheriting " << patchNames(inheritingPatches_) << endl;
+        << ", inheriting " << patchNames(inheritingPatches_)
+        << ", closed walls " << patchNames(wallPatches_) << endl;
 }
 
 
@@ -460,42 +472,55 @@ wordList SolidDiagnostics::patchNames(const labelList& patches) const
 }
 
 
-bool SolidDiagnostics::solidEnters(const scalar phi, const label celli) const
+bool SolidDiagnostics::beyondSlack(const scalar phi, const label celli) const
 {
     return
-        -phi*time_.deltaTValue()
+        phi*time_.deltaTValue()
       > solidState_.checkTolerance()*mesh_.V()[celli];
 }
 
 
-void SolidDiagnostics::applyInflowPolicy
+scalarField SolidDiagnostics::patchTotalYm
 (
-    const label patchi,
+    const PtrList<volScalarField>& Ym,
+    const label patchi
+) const
+{
+    scalarField YmP(mesh_.boundary()[patchi].size(), 0.0);
+    forAll(Ym, i)
+    {
+        YmP += Ym[i].boundaryField()[patchi];
+    }
+    return YmP;
+}
+
+
+void SolidDiagnostics::applyBoundaryPolicy
+(
     const string& what,
     const string& remedy
 )
 {
-    inflowReported_[patchi] = true;
-
-    if (solidInflowPolicy_ == "error")
+    if (solidBoundaryPolicy_ == "error")
     {
         FatalErrorInFunction
             << what.c_str() << nl << "    " << remedy.c_str()
-            << ", or set solidInflowPolicy warn or ignore." << exit(FatalError);
+            << ", or set solidBoundaryPolicy warn or ignore."
+            << exit(FatalError);
     }
 
     WarningInFunction << what.c_str() << " Reported once." << endl;
 }
 
 
-void SolidDiagnostics::checkSolidInflow
+void SolidDiagnostics::checkSolidCrossing
 (
     const surfaceScalarField& phiSolid,
     const PtrList<volScalarField>& Ys,
     const PtrList<volScalarField>& Ym
 )
 {
-    if (solidInflowPolicy_ == "ignore")
+    if (solidBoundaryPolicy_ == "ignore")
     {
         return;
     }
@@ -510,12 +535,7 @@ void SolidDiagnostics::checkSolidInflow
 
         const scalarField& phiP = phiSolid.boundaryField()[patchi];
         const labelUList& faceCells = mesh_.boundary()[patchi].faceCells();
-
-        scalarField YmP(phiP.size(), 0.0);
-        forAll(Ym, i)
-        {
-            YmP += Ym[i].boundaryField()[patchi];
-        }
+        const scalarField YmP(patchTotalYm(Ym, patchi));
 
         // A trace or empty face cell has no mass worth copying in.
         scalar inflow = 0.0;
@@ -524,7 +544,7 @@ void SolidDiagnostics::checkSolidInflow
             const label celli = faceCells[facei];
             if
             (
-                solidEnters(phiP[facei], celli)
+                beyondSlack(-phiP[facei], celli)
              && !solidState_.isTraceOrEmpty(celli)
             )
             {
@@ -535,10 +555,10 @@ void SolidDiagnostics::checkSolidInflow
         reduce(inflow, sumOp<scalar>());
         if (inflow > 0.0)
         {
+            inflowReported_[patchi] = true;
             const word& name = mesh_.boundaryMesh()[patchi].name();
-            applyInflowPolicy
+            applyBoundaryPolicy
             (
-                patchi,
                 "Solid enters through patch " + name + " ("
               + Foam::name(inflow)
               + " kg/s at t = " + time_.timeName() + "), which inherits the"
@@ -572,7 +592,7 @@ void SolidDiagnostics::checkSolidInflow
             if
             (
                 sumY[facei] <= SMALL
-             && solidEnters(phiP[facei], faceCells[facei])
+             && beyondSlack(-phiP[facei], faceCells[facei])
             )
             {
                 inflow -= phiP[facei];
@@ -582,10 +602,10 @@ void SolidDiagnostics::checkSolidInflow
         reduce(inflow, sumOp<scalar>());
         if (inflow > 0.0)
         {
+            inflowReported_[patchi] = true;
             const word& name = mesh_.boundaryMesh()[patchi].name();
-            applyInflowPolicy
+            applyBoundaryPolicy
             (
-                patchi,
                 "Solid enters through patch " + name + " ("
               + Foam::name(inflow)
               + " m3/s at t = " + time_.timeName() + ") on faces whose fixed"
@@ -593,6 +613,49 @@ void SolidDiagnostics::checkSolidInflow
                 " without mass.",
                 "Fix a non-zero solid Yi on " + name + " while solid enters it,"
                 " or stop Us there"
+            );
+        }
+    }
+
+    forAll(wallPatches_, k)
+    {
+        const label patchi = wallPatches_[k];
+        if (outflowReported_[patchi])
+        {
+            continue;
+        }
+
+        const scalarField& phiP = phiSolid.boundaryField()[patchi];
+        const labelUList& faceCells = mesh_.boundary()[patchi].faceCells();
+        const scalarField YmP(patchTotalYm(Ym, patchi));
+
+        scalar outflow = 0.0;
+        forAll(phiP, facei)
+        {
+            const label celli = faceCells[facei];
+            if
+            (
+                beyondSlack(phiP[facei], celli)
+             && !solidState_.isTraceOrEmpty(celli)
+            )
+            {
+                outflow += phiP[facei]*YmP[facei];
+            }
+        }
+
+        reduce(outflow, sumOp<scalar>());
+        if (outflow > 0.0)
+        {
+            outflowReported_[patchi] = true;
+            const word& name = mesh_.boundaryMesh()[patchi].name();
+            applyBoundaryPolicy
+            (
+                "Solid leaves through wall " + name + " ("
+              + Foam::name(outflow)
+              + " kg/s at t = " + time_.timeName() + "): its Us lets the"
+                " solid cross it.",
+                "Make Us slip or fixedValue (0 0 0) on " + name
+              + " to close it"
             );
         }
     }

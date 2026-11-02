@@ -56,16 +56,20 @@ face cell:
 - Solid may enter only through a declaring patch whose fixed `Yi` sum to more
   than zero. Solid entering an inheriting patch would copy the face cell's
   mass and enthalpy in; solid entering faces whose fixed `Yi` sum to zero
-  would bring enthalpy without mass. `solidInflowPolicy` (in
-  `pyrolysisCoeffs`) decides what happens: `error` (the default) stops the
-  run, `warn` reports it once per patch, `ignore` says nothing.
-- Inflow counts once it exceeds `solidStateCheckTolerance` of the face cell's
+  would bring enthalpy without mass.
+- Solid must not leave through a patch of mesh type `wall` (in
+  `blockMeshDict`): give it `Us` `slip` or `fixedValue (0 0 0)`. Declare
+  inlets and outlets as `type patch`.
+- `solidBoundaryPolicy` (in `pyrolysisCoeffs`) decides what happens when
+  solid crosses a patch it should not: `error` (the default) stops the run,
+  `warn` reports it once per patch, `ignore` says nothing.
+- A crossing counts once it exceeds `solidStateCheckTolerance` of the face cell's
   volume in a step. Solid moving in from a trace or empty face cell carries
   no mass and is not reported.
 - Fixed `Yi` may sum to zero while no solid enters, e.g. an inlet fed later.
   If they sum to neither zero nor 1, the run warns and normalises them.
 - A wall the solid does not cross needs no fixed `Yi`: use `zeroGradient`.
-- The log lists the declaring and inheriting patches at start-up.
+- The log lists the declaring, inheriting and wall patches at start-up.
 
 ## Tutorial Cases
 
@@ -195,7 +199,7 @@ pyrolysisCoeffs
         dispersedSolidTemperature    solid;   // solid | gas
     }
     solidStateCheckTolerance 1e-8;       // optional
-    solidInflowPolicy       error;       // optional: error | warn | ignore
+    solidBoundaryPolicy     error;       // optional: error | warn | ignore
 }
 ```
 

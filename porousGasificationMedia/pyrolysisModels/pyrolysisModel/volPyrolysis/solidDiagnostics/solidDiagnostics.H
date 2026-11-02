@@ -47,11 +47,12 @@ Description
     Solid boundary policy (#162): a patch either declares the incoming solid
     (every solid Yi and Ts fixedValue) or inherits it from the face cell (no
     Yi fixed). checkBoundaryDeclarations() rejects anything in between at
-    start-up. checkSolidInflow() acts on solid entering an inheriting patch,
+    start-up. checkSolidCrossing() acts on solid entering an inheriting patch,
     which would copy the face cell's mass and enthalpy in, and on solid
     entering declaring faces whose Yi sum to zero, which would bring enthalpy
-    without mass. A face counts once its inflow over the step exceeds the
-    check slack of the face cell's volume.
+    without mass, and on solid leaving through a wall-type patch, whose Us
+    should close it. A face counts once the volume crossing it over the step
+    exceeds the check slack of the face cell's volume.
 
     Owned directly by volPyrolysis (like SolidFluxLimiter) - no runtime
     selection, since only one checking policy exists.
@@ -108,9 +109,9 @@ class SolidDiagnostics
         //  near zero.
         scalar maxSolidTemperature_;
 
-        //- Action on solid inflow through an inheriting patch:
+        //- Action on solid crossing a patch it should not:
         //  error, warn or ignore
-        word solidInflowPolicy_;
+        word solidBoundaryPolicy_;
 
         //- Patches that inherit the solid state from the face cell
         labelList inheritingPatches_;
@@ -118,8 +119,14 @@ class SolidDiagnostics
         //- Patches that declare the incoming solid (every Yi and Ts fixed)
         labelList declaringPatches_;
 
+        //- Wall-type patches, which solid must not leave through
+        labelList wallPatches_;
+
         //- Patches already reported for inflow, indexed by patch
         boolList inflowReported_;
+
+        //- Patches already reported for outflow, indexed by patch
+        boolList outflowReported_;
 
 
     // Private member functions
@@ -143,17 +150,19 @@ class SolidDiagnostics
         //- Names of the given patches, for the log
         wordList patchNames(const labelList& patches) const;
 
-        //- Whether solid entering celli through a face of flux phi exceeds
-        //  the check slack of the cell's volume over this step
-        bool solidEnters(const scalar phi, const label celli) const;
+        //- Whether a face carrying volume flux phi into (or out of) celli
+        //  exceeds the check slack of the cell's volume over this step
+        bool beyondSlack(const scalar phi, const label celli) const;
 
-        //- Error or warn per solidInflowPolicy, once for patchi
-        void applyInflowPolicy
+        //- sum_i Ym_i on patchi's faces [kg/m3]
+        scalarField patchTotalYm
         (
-            const label patchi,
-            const string& what,
-            const string& remedy
-        );
+            const PtrList<volScalarField>& Ym,
+            const label patchi
+        ) const;
+
+        //- Error or warn per solidBoundaryPolicy
+        void applyBoundaryPolicy(const string& what, const string& remedy);
 
 
 public:
@@ -245,9 +254,9 @@ public:
             const volScalarField& Ts
         );
 
-        //- Applies solidInflowPolicy to solid entering a patch that does
-        //  not declare it. Reports each patch once.
-        void checkSolidInflow
+        //- Applies solidBoundaryPolicy to solid entering a patch that does
+        //  not declare it, or leaving through a wall. Reports each once.
+        void checkSolidCrossing
         (
             const surfaceScalarField& phiSolid,
             const PtrList<volScalarField>& Ys,
