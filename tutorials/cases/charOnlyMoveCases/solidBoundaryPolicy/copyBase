@@ -2,4 +2,6 @@
 # Copy solidInlet_ash into the calling case, run for endTime $1 (#162 checks).
 base="${0%/*}/../solidInlet_ash"
 cp -r "$base/0.orig" "$base/constant" "$base/system" . || exit
+# The thermoData #include is relative to the base's constant/, one level up.
+sed -i 's|#include "\.\./|#include "../../|' constant/solidThermophysicalProperties || exit
 foamDictionary system/controlDict -entry endTime -set "$1" > /dev/null
