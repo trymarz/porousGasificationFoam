@@ -37,7 +37,11 @@ namespace heterogeneousPyrolysisModels
 
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
-DemCoupling::DemCoupling(const fvMesh& mesh)
+DemCoupling::DemCoupling
+(
+    const fvMesh& mesh,
+    const basicSolidMixture& composition
+)
 :
     demActive_(false),
     lambdaDotPtr_(nullptr)
@@ -96,6 +100,14 @@ DemCoupling::DemCoupling(const fvMesh& mesh)
         (
             lambdaDict, mesh, *lambdaDotPtr_
         );
+
+        // Only apparentVolume reads these, and it requires every one.
+        scalarList rhoApparent(composition.components().size());
+        forAll(rhoApparent, i)
+        {
+            rhoApparent[i] = composition.rhoApparent(i);
+        }
+        lamDotCalc_->setApparentDensities(composition.components(), rhoApparent);
 #endif
     }
     else if (demRequested)
@@ -134,6 +146,7 @@ void DemCoupling::beginStep()
 void DemCoupling::addChemistryTerm
 (
     const volScalarField& sRhoSi,
+    const volScalarField& Ym_i,
     const word& specie
 )
 {
@@ -145,6 +158,7 @@ void DemCoupling::addChemistryTerm
         lamDotCalc_->calculateChemistryDriven
         (
             sRhoSi,
+            Ym_i,
             specie
         );
     }
@@ -156,6 +170,7 @@ void DemCoupling::finishStep()
 #ifdef WITH_YADE
     if (demActive_)
     {
+        lamDotCalc_->endStep();
         lambdaDotPtr_->correctBoundaryConditions();
     }
 #endif

@@ -324,7 +324,10 @@ void volPyrolysis::createCollaborators()
         )
     );
 
-    demCoupling_.reset(new DemCoupling(mesh_));
+    demCoupling_.reset
+    (
+        new DemCoupling(mesh_, solidThermo_.composition())
+    );
 
     speciesTransport_.reset
     (
