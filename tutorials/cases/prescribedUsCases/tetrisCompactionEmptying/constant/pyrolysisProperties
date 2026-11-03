@@ -1,0 +1,54 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  v2406
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      pyrolysisProperties;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// Pyrolysis active so SolidSpeciesTransport::solve() runs and transports the
+// fresh solid from the top inlet by Us. With chemistry off the reaction source
+// is zero, so the species equation is pure advection and accumulation.
+active          true;
+
+heterogeneousPyrolysisModel  volPyrolysis;
+
+pyrolysisCoeffs
+{
+    subintegrateHeatTransfer true;
+    bedCollapse      false;
+    replenish        false;
+
+    // The #31 inflow guard under test: flipped cells are emptied, and the guard
+    // vetoes those solid is still entering. Set the tolerance to 1e30 (guard off)
+    // and volIntegrate(Ycharm) fails: about 4x as much solid is destroyed.
+    emptyFlippedCells                    true;
+    poroProtectSolidInflowFluxTolerance  1e-12;
+
+    // Solid regimes, by solid volume fraction alpha = 1 - porosityF.
+    // Each threshold ends the regime below it:
+    // empty (alpha = 0) | trace | dispersed | connected | maxSolidFraction
+    solidRegimes
+    {
+        dispersedAboveSolidFraction  1e-8;    // below: trace, Ts follows the gas
+        connectedAboveSolidFraction  0.0001;  // below: dispersed, no solid sources, may be emptied
+        // Falling columns land and stack, so cells fill from the bottom up until
+        // the receiver cap stops them. 0.7 is loose enough that the cap binds well
+        // before the gas equations run out of gas volume to divide by.
+        maxSolidFraction             0.7;     // connected up to here; never exceeded
+        dispersedSolidTemperature    solid;   // solid | gas
+    }
+}
+
+infoOutput      true;
+
+// ************************************************************************* //
