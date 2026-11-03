@@ -29,8 +29,17 @@ License
 
 Foam::constRho::constRho(const dictionary& dict)
 :
-    rho_(readScalar(dict.subDict("density").lookup("rho")))
-{}
+    rho_(readScalar(dict.subDict("density").lookup("rho"))),
+    rhoApparent_(dict.subDict("density").getOrDefault<scalar>("rhoApparent", 0))
+{
+    // Optional here; a model that needs it checks for 0 and names the specie.
+    if (dict.subDict("density").found("rhoApparent") && rhoApparent_ <= 0)
+    {
+        FatalIOErrorInFunction(dict.subDict("density"))
+            << "'rhoApparent' must be positive, got " << rhoApparent_
+            << exit(FatalIOError);
+    }
+}
 
 
 // * * * * * * * * * * * * * * * Ostream Operator  * * * * * * * * * * * * * //

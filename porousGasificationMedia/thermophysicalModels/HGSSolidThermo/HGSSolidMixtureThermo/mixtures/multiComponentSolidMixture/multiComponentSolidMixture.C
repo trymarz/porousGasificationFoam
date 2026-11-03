@@ -150,6 +150,16 @@ Foam::multiComponentSolidMixture<ThermoSolidType>::multiComponentSolidMixture
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
 
 template<class ThermoSolidType>
+Foam::scalar Foam::multiComponentSolidMixture<ThermoSolidType>::rhoApparent
+(
+    const label i
+) const
+{
+    return solidData_[i].rhoApparent();
+}
+
+
+template<class ThermoSolidType>
 template<class Composition>
 Foam::scalar Foam::multiComponentSolidMixture<ThermoSolidType>::rhoOf
 (

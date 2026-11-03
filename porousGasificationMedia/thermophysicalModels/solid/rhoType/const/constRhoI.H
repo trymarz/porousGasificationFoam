@@ -29,10 +29,12 @@ License
 
 inline Foam::constRho::constRho
 (
-    scalar rho
+    scalar rho,
+    scalar rhoApparent
 )
 :
-    rho_(rho)
+    rho_(rho),
+    rhoApparent_(rhoApparent)
 {}
 
 
@@ -40,7 +42,8 @@ inline Foam::constRho::constRho
 
 inline Foam::constRho::constRho(const constRho& pg)
 :
-    rho_(pg.rho_)
+    rho_(pg.rho_),
+    rhoApparent_(pg.rhoApparent_)
 {}
 
 
@@ -61,6 +64,12 @@ inline Foam::autoPtr<Foam::constRho> Foam::constRho::New(const dictionary& is)
 inline Foam::scalar Foam::constRho::rho(scalar) const
 {
     return rho_;
+}
+
+
+inline Foam::scalar Foam::constRho::rhoApparent() const
+{
+    return rhoApparent_;
 }
 
 
