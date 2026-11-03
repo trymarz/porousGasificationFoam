@@ -36,7 +36,7 @@ regressionBase
     writeInterval   -1;
 }
 
-// Domain-average void fraction. Increases as the solid bed burns away.
+// Domain-average void fraction: the solid volume in the domain.
 regressionPorosityAverage
 {
     ${regressionBase}
@@ -60,17 +60,19 @@ regressionSolidSpeciesIntegrals
 {
     ${regressionBase}
     enabled         true;
-    fields          (Ycharm Yashm Yhumm Yrubberwoodm);
+    fields          (Ycharm);
     operation       volIntegrate;
 }
 
-// Solid temperature reductions. Energy-equation-sensitive.
-regressionTsAverage
+// Char-weighted Ts: volAverage/min(Ts) were dropped (#69), as most cells hold
+// no solid and Ts = 0 there by design, which set both.
+regressionTsCharWeighted
 {
     ${regressionBase}
     enabled         true;
     fields          (Ts);
-    operation       volAverage;
+    operation       weightedVolAverage;
+    weightField     Ycharm;
 }
 
 regressionTsMax
@@ -79,14 +81,6 @@ regressionTsMax
     enabled         true;
     fields          (Ts);
     operation       max;
-}
-
-regressionTsMin
-{
-    ${regressionBase}
-    enabled         true;
-    fields          (Ts);
-    operation       min;
 }
 
 // ************************************************************************* //
