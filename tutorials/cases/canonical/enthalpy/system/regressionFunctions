@@ -56,11 +56,13 @@ regressionPorosityAverage
     operation       volAverage;
 }
 
+// Wood mass [kg]: Ywood is 1 in a one-component solid, so its integral was
+// the mesh volume (#69); Ywoodm, the partial density, falls as wood pyrolyses.
 regressionWoodIntegral
 {
     ${regressionBase}
     enabled         true;
-    fields          (Ywood);
+    fields          (Ywoodm);
     operation       volIntegrate;
 }
 

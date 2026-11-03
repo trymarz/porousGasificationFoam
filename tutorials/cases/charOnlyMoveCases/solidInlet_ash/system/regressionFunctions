@@ -36,7 +36,7 @@ regressionBase
     writeInterval   -1;
 }
 
-// Domain-average void fraction. Increases as the solid bed burns away.
+// Domain-average void fraction: the solid volume in the domain.
 regressionPorosityAverage
 {
     ${regressionBase}
@@ -60,7 +60,7 @@ regressionSolidSpeciesIntegrals
 {
     ${regressionBase}
     enabled         true;
-    fields          (Ycharm Yashm Yhumm Yrubberwoodm);
+    fields          (Ycharm Yashm);
     operation       volIntegrate;
 }
 
