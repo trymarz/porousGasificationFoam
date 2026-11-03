@@ -1,0 +1,8 @@
+# Declared invariants, checked by applications/test/regression/tools/checkInvariants.py
+# before the baseline comparison; a run that breaks one is never recaptured.
+# <functionObject> <column> <check> <args>; see doc/regression-testing.md.
+
+# Gas and solid start at 300 K with nothing to drive either: Ts stays there.
+regressionAverage  volAverage(Ts)  ==  300  1e-6
+regressionTsMax    max(Ts)         ==  300  1e-6
+regressionTsMin    min(Ts)         ==  300  1e-6

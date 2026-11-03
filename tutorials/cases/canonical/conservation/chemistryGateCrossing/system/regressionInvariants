@@ -1,0 +1,7 @@
+# Declared invariants, checked by applications/test/regression/tools/checkInvariants.py
+# before the baseline comparison; a run that breaks one is never recaptured.
+# <functionObject> <column> <check> <args>; see doc/regression-testing.md.
+
+# No cell reacts, or sheds mass, while its energy equation refuses the heat.
+regressionChemistryHeatOutsideGate  volIntegrate(chemistryHeatOutsideGate)  zero  1e-12
+regressionGasSourceOutsideGate      volIntegrate(gasSourceOutsideGate)      zero  1e-12
