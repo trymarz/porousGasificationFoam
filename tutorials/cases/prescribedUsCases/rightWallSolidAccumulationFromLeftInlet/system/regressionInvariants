@@ -1,0 +1,24 @@
+# Declared invariants, checked by applications/test/regression/tools/checkInvariants.py
+# before the baseline comparison; a run that breaks one is never recaptured.
+# <functionObject> <column> <check> <args>; see doc/regression-testing.md.
+
+# A void fraction above 1 is a negative volume of solid.
+regressionPorosityMax    max(porosityF)        <=  1
+# The receiver cap: no cell holds more than maxSolidFraction 0.9.
+regressionPorosityMin    min(porosityF)        >=  0.1  1e-9
+# An overshooting advection scheme drives the mass concentration negative.
+regressionYcharmMin      min(Ycharm)           >=  0
+
+# Every injected component stays within [0, its inlet fraction]: mixing one
+# composition with itself cannot overshoot it. Ychar is 1 in empty cells.
+regressionSolidMassMax  max(Ychar)     <=  1    1e-9
+regressionSolidMassMax  max(Yash)      <=  0.2  1e-9
+regressionSolidMassMax  max(Ywood)     <=  0.3  1e-9
+regressionSolidMassMax  max(Ymineral)  <=  0.4  1e-9
+regressionSolidMassMin  min(Ychar)     >=  0
+regressionSolidMassMin  min(Yash)      >=  0
+regressionSolidMassMin  min(Ywood)     >=  0
+regressionSolidMassMin  min(Ymineral)  >=  0
+
+# The inlet declares Ts = 300 and nothing heats the bed (#162).
+regressionTsCharWeighted  weightedVolAverage(Ts)  ==  300  1e-6

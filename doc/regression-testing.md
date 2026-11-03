@@ -90,7 +90,22 @@ The baseline is only as correct as the run that made it. After an intentional mo
 applications/test/regression/tools/captureBaseline.sh $case --run-dir /scratch/r/${case//\//__}/$case [--dry-run] [--all-files]
 ```
 
-By default it copies only the reference files that fail the comparison, so files still within tolerance are not rewritten. `--all-files` copies every reference file, and `--dry-run` copies nothing. It never adds a file that is not already in `reference/`. For each file it prints the first, middle and last sample before and after.
+By default it copies only the reference files that fail the comparison, so files still within tolerance are not rewritten. `--all-files` copies every reference file, and `--dry-run` copies nothing. It never adds a file that is not already in `reference/`. For each file it prints the first, middle and last sample before and after. It refuses (exit 1) a run that breaks the case's invariants.
+
+### Invariants
+
+The baseline says a column reproduced itself. An invariant says what the column must be, whatever the baseline holds: a conserved total, an exact zero, a bound, a prescribed value. Declare them in the case's `system/regressionInvariants`, one per line, with `#` comments:
+
+```
+# <functionObject>        <column>               <check>   <args>
+regressionYcharmIntegral   volIntegrate(Ycharm)   constant  1e-9      # max - min <= 1e-9 * max|x|
+regressionHeatUpGas        volIntegrate(heatUpGas) zero     1e-12     # every |x| <= 1e-12
+regressionPorosityMax      max(porosityF)         <=        1         # every x <= 1 (+ optional tolerance)
+regressionPorosityMin      min(porosityF)         >=        0.3 1e-9  # every x >= 0.3 - 1e-9
+regressionTsMax            max(Ts)                ==        300 1e-6  # every |x - 300| <= 1e-6
+```
+
+`<column>` is the name in the `.dat` header. `tools/checkInvariants.py` checks every row of every start time. `runCase.sh` runs it before the baseline comparison: a broken invariant is a FAIL, and an unknown function object or column is an ERROR. Invariant columns stay in the baseline too, and are never recaptured: a run that moves one has a bug. [regression-ledger.md](regression-ledger.md) lists which metrics are invariants and why.
 
 ### Expected failures and log checks
 

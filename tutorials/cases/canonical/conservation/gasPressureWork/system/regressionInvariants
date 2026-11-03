@@ -1,0 +1,6 @@
+# Declared invariants, checked by applications/test/regression/tools/checkInvariants.py
+# before the baseline comparison; a run that breaks one is never recaptured.
+# <functionObject> <column> <check> <args>; see doc/regression-testing.md.
+
+# What the solid pays and what the gas receives are the same joules.
+regressionHeatTransferResidual  volIntegrate(heatTransferResidual)  zero  1e-12

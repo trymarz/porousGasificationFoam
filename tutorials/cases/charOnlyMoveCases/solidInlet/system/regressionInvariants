@@ -1,0 +1,7 @@
+# Declared invariants, checked by applications/test/regression/tools/checkInvariants.py
+# before the baseline comparison; a run that breaks one is never recaptured.
+# <functionObject> <column> <check> <args>; see doc/regression-testing.md.
+
+# The inlet brings solid at 300 K and nothing heats the bed. The baseline
+# peaks at 300.015 K (advection overshoot at the front); 0.05 K allows that.
+regressionTsMax  max(Ts)  <=  300  0.05
