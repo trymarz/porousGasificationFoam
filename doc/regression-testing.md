@@ -121,6 +121,7 @@ Defaults `rtol=1e-4`, `atol=1e-12`. Column names from the `volFieldValue.dat` he
 ## Limitations
 
 - Only scalar reductions are compared, not full fields; a change that cancels in every selected scalar goes undetected. Add metrics to widen coverage.
+- A passing metric is not necessarily a live one. [regression-ledger.md](regression-ledger.md) records, per case, what each metric can and cannot detect.
 - Results depend on MPI decomposition: rerun with the baseline's `numberOfSubdomains`. The pilot `charOnlyMoveCases/serial` is serial (1 proc) by design, so the suite does not exercise the parallel path. `charOnlyMoveCases/parallel` is not a baseline because its 4-proc run hits a processor-boundary breakdown in the moving-solid immersed boundary.
 
 ---
