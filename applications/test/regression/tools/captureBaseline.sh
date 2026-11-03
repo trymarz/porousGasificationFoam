@@ -13,9 +13,11 @@
 # never added: register a new metric by copying it by hand. For each copied file
 # a before/after table (first, middle and last sample) is printed. --dry-run
 # prints the table and copies nothing. Commit the result yourself, with the
-# reason the baseline moved.
+# reason the baseline moved. A run that breaks the case's declared invariants
+# (system/regressionInvariants) is refused: it has a bug, not a new baseline.
 #
-# Exit: 0 done (or nothing to copy), 2 usage or infrastructure error.
+# Exit: 0 done (or nothing to copy), 1 refused (invariant broken),
+#       2 usage or infrastructure error.
 
 set -u
 
@@ -36,7 +38,7 @@ while [ $# -gt 0 ]; do
     --dry-run) dryRun=true; shift ;;
     --rtol) RTOL="$2"; shift 2 ;;
     --atol) ATOL="$2"; shift 2 ;;
-    -h | --help) sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h | --help) sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     -*) echo "Unknown option: $1" >&2; exit 2 ;;
     *)
         [ -z "$caseDir" ] || { echo "Unexpected positional: $1" >&2; exit 2; }
@@ -53,6 +55,13 @@ candDir="${runDir:-$caseDir}/postProcessing"
 [ -d "$refDir" ] || { echo "No baseline at $refDir" >&2; exit 2; }
 [ -d "$candDir" ] || { echo "No run output at $candDir" >&2; exit 2; }
 [ "$(cd "$candDir" && pwd)" != "$(cd "$refDir" && pwd)" ] || { echo "Candidate and reference are the same directory" >&2; exit 2; }
+
+invariants="$caseDir/system/regressionInvariants"
+if [ -f "$invariants" ]; then
+    python3 "$SCRIPT_DIR/checkInvariants.py" --invariants "$invariants" --postprocessing "$candDir"
+    rc=$?
+    [ "$rc" -eq 0 ] || { echo "captureBaseline: refused, the run breaks a declared invariant (exit $rc)" >&2; [ "$rc" -eq 1 ] && exit 1; exit 2; }
+fi
 
 # compareScalars.py prints one "OK|FAIL|MISS  <rel>" line per reference file.
 report="$(python3 "$COMPARE" --reference "$refDir" --candidate "$candDir" \

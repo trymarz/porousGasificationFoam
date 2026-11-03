@@ -1,0 +1,8 @@
+# Declared invariants, checked by applications/test/regression/tools/checkInvariants.py
+# before the baseline comparison; a run that breaks one is never recaptured.
+# <functionObject> <column> <check> <args>; see doc/regression-testing.md.
+
+# Closed domain, zeroGradient G: what the solid books sums to zero, and so
+# does the wall flux.
+regressionRadiationBookResidual  volIntegrate(radiationBooked)  zero  1e-12
+regressionRadiationWallFlux      areaIntegrate(qr)              zero  1e-12
