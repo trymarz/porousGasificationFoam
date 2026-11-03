@@ -64,4 +64,23 @@ regressionCO2Average
     operation       volAverage;
 }
 
+regressionO2Average
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (O2);
+    operation       volAverage;
+}
+
+// Gas temperature: the exothermic CO oxidation is the only thing that moves it
+// off 1000 K besides the solid, so it is the check that the heat of the gas
+// reaction reaches the gas energy equation.
+regressionTAverage
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (T);
+    operation       volAverage;
+}
+
 // ************************************************************************* //
