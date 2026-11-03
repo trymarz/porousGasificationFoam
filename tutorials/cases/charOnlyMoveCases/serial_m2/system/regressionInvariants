@@ -1,0 +1,9 @@
+# Declared invariants, checked by applications/test/regression/tools/checkInvariants.py
+# before the baseline comparison; a run that breaks one is never recaptured.
+# <functionObject> <column> <check> <args>; see doc/regression-testing.md.
+
+# Nothing moves solid across the boundary. Char oxidation is ~6e-8 1/s at the
+# 529 K peak, so the char integral drifts by ~2e-9 relative over the run.
+regressionSolidSpeciesIntegrals  volIntegrate(Ycharm)   constant  1e-6
+regressionSolidSpeciesIntegrals  volIntegrate(Yashm)    constant  1e-9
+regressionPorosityAverage        volAverage(porosityF)  constant  1e-9

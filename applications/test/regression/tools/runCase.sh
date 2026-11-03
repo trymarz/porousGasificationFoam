@@ -6,7 +6,8 @@
 # or by applications/test/regression/Allrun for a whole suite. Either way this
 # script — not its caller, and not any external tool — owns the serial case
 # lifecycle: the checked Allclean, the clean-slate assertion, the case's own
-# ./Allrun, and the numerical comparison.
+# ./Allrun, the case's declared invariants (system/regressionInvariants, when
+# present; tools/checkInvariants.py) and the numerical comparison.
 #
 # Usage:
 #   runCase.sh <caseDir> [--no-run] [--rtol R] [--atol A] [--compare PATH]
@@ -38,7 +39,7 @@
 #
 # Exit codes (shared outcome taxonomy — see tools/regressionLib.sh):
 #   0      - PASS  (ran, compared, within tolerance)
-#   1      - FAIL  (ran, compared, numerical divergence)
+#   1      - FAIL  (ran, compared, numerical divergence or a broken invariant)
 #   2      - ERROR (infrastructure: missing files, dirty slate, run failure)
 #   128+N  - CRASH (the case Allrun/solver died on signal N; propagated as-is so
 #                   the runner reports e.g. CRASH (SIGABRT) for a 134 abort)
@@ -387,6 +388,24 @@ RESULT_FIELDS+=(
     --artifact "candidate=$workDir/postProcessing"
     --artifact "reference=$refDir"
 )
+
+# -- invariants ---------------------------------------------------------------
+# Checked before the baseline: a broken invariant is a bug whatever the
+# baseline holds, and the more specific diagnosis.
+
+INVARIANTS="$workDir/system/regressionInvariants"
+if [ -f "$INVARIANTS" ]; then
+    reg_phase invariants
+    python3 "$SCRIPT_DIR/checkInvariants.py" \
+        --invariants "$INVARIANTS" \
+        --postprocessing "$workDir/postProcessing"
+    rc=$?
+    case "$rc" in
+        0) ;;
+        1) finish 1 "declared invariant broken (system/regressionInvariants)" ;;
+        *) finish 2 "invariant checker reported an infrastructure error (exit $rc)" ;;
+    esac
+fi
 
 # -- comparison ---------------------------------------------------------------
 

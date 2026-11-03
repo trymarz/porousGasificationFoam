@@ -1,0 +1,7 @@
+# Declared invariants, checked by applications/test/regression/tools/checkInvariants.py
+# before the baseline comparison; a run that breaks one is never recaptured.
+# <functionObject> <column> <check> <args>; see doc/regression-testing.md.
+
+# The patch's own composition (#46): Yashm = 1*3000*0.5, solidH = 3000*0.5*2400*300.
+regressionInletSolid  areaAverage(Yashm)  ==  1500     1e-6
+regressionInletSolid  areaAverage(solidH) ==  1.08e9   1e-3

@@ -1,0 +1,11 @@
+# Declared invariants, checked by applications/test/regression/tools/checkInvariants.py
+# before the baseline comparison; a run that breaks one is never recaptured.
+# <functionObject> <column> <check> <args>; see doc/regression-testing.md.
+
+# Open: solid leaves through the outlet, so its mass is not conserved.
+# A void fraction above 1 is a negative volume of solid.
+regressionPorosityMax    max(porosityF)        <=  1
+# The receiver cap: no cell holds more than maxSolidFraction 0.9999.
+regressionPorosityMin    min(porosityF)        >=  0.0001  1e-9
+# An overshooting advection scheme drives the mass concentration negative.
+regressionYcharmMin      min(Ycharm)           >=  0
