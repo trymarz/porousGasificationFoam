@@ -64,29 +64,25 @@ regressionSolidSpeciesIntegrals
     operation       volIntegrate;
 }
 
-// Solid temperature reductions. Energy-equation-sensitive.
-regressionTsAverage
+// Char-weighted Ts: the inlet holds 300 K and nothing heats the bed. Replaces
+// volAverage/min(Ts) (#69), pinned at 24 K and 0 K by the 175 solid-free cells
+// (Ts = 0 by design). Does not exercise the #31 inflow guard: 0 candidates.
+regressionTsCharWeighted
 {
     ${regressionBase}
     enabled         true;
     fields          (Ts);
-    operation       volAverage;
+    operation       weightedVolAverage;
+    weightField     Ycharm;
 }
 
+// Upper bound on Ts: the bed must not heat above the inlet's 300 K.
 regressionTsMax
 {
     ${regressionBase}
     enabled         true;
     fields          (Ts);
     operation       max;
-}
-
-regressionTsMin
-{
-    ${regressionBase}
-    enabled         true;
-    fields          (Ts);
-    operation       min;
 }
 
 // ************************************************************************* //
