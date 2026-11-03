@@ -188,20 +188,4 @@ regressionPressureMax
     operation       max;
 }
 
-regressionGasN2Min
-{
-    ${regressionBase}
-    enabled         true;
-    fields          (N2);
-    operation       min;
-}
-
-regressionGasN2Max
-{
-    ${regressionBase}
-    enabled         true;
-    fields          (N2);
-    operation       max;
-}
-
 // ************************************************************************* //
