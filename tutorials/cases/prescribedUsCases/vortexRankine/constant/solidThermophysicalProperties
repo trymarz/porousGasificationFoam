@@ -18,23 +18,10 @@ FoamFile
 thermoType solidMixtureThermo<constHeterogeneous>;
 
 // Single inert solid species: the thing the prescribed Us advects.
+#include "../../../../../thermoData/solidThermoData"
+
 solidComponents ( char );
 
-charCoeffs
-{
-    transport
-    {
-        K           0.156;
-    }
-    thermodynamics
-    {
-        Cp          1054;
-        Hf          -2.12e4;
-    }
-    density
-    {
-        rho         1050;
-    }
-};
+charCoeffs { $park2010Char; }
 
 // ************************************************************************* //
