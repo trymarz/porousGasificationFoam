@@ -74,7 +74,7 @@ if [ "$allFiles" = true ]; then
 else
     pattern='^FAIL  '
 fi
-mapfile -t files < <(printf '%s\n' "$report" | grep -E "$pattern" | sed -E 's/^[A-Z]+  //')
+mapfile -t files < <(printf '%s\n' "$report" | grep -E "$pattern" | sed -E 's/^[A-Z]+ +//')
 missing="$(printf '%s\n' "$report" | grep -c '^MISS  ')"
 
 echo "captureBaseline: $caseDir"
