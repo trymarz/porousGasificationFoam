@@ -8,21 +8,24 @@
 #   pgfView <case>                       open the ParaView GUI
 #   pgfView <case> --png <dir>           write <dir>/<view>.png (pvbatch)
 #           [--time T] [--size WxH] [--xvfb]
+#   pgfView <case> --compare <other> ...  <case> | <other> | difference
 #
-# <case> is a tutorial case or a finished run copy of one. --png renders the
-# last mesh time unless --time is given. --xvfb renders under xvfb-run; it is
-# also used automatically when DISPLAY is unset.
+# <case> is a tutorial case or a finished run copy of one; <other> is another
+# one, or a postProcessing-only <case>/reference (charts only). --png renders
+# the last (common) mesh time unless --time is given. --xvfb renders under
+# xvfb-run; it is also used automatically when DISPLAY is unset.
 
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-usage() { sed -n '7,15s/^# \{0,1\}//p' "${BASH_SOURCE[0]}"; exit "${1:-0}"; }
+usage() { sed -n '7,18s/^# \{0,1\}//p' "${BASH_SOURCE[0]}"; exit "${1:-0}"; }
 
-case_dir="" png="" time="" size="1000x750" xvfb=""
+case_dir="" compare="" png="" time="" size="1000x750" xvfb=""
 while [ $# -gt 0 ]; do
     case "$1" in
         --png)  png="${2:?--png needs a directory}"; shift 2 ;;
+        --compare) compare="${2:?--compare needs a case}"; shift 2 ;;
         --time) time="${2:?--time needs a value}"; shift 2 ;;
         --size) size="${2:?--size needs WxH}"; shift 2 ;;
         --xvfb) xvfb=1; shift ;;
@@ -35,6 +38,10 @@ done
 [ -d "$case_dir/system" ] || { echo "pgfView: not a case: $case_dir" >&2; exit 2; }
 
 export PGFVIEW_CASE="$(cd "$case_dir" && pwd)"
+if [ -n "$compare" ]; then
+    [ -d "$compare" ] || { echo "pgfView: not a directory: $compare" >&2; exit 2; }
+    export PGFVIEW_COMPARE="$(cd "$compare" && pwd)"
+fi
 export PGFVIEW_TIME="$time" PGFVIEW_SIZE="$size"
 # Open MPI's UCX probe prints a harmless VFS error under ParaView.
 export UCX_VFS_ENABLE="${UCX_VFS_ENABLE:-n}"

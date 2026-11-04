@@ -77,12 +77,18 @@ def _timeDirs(path):
 class Case:
     """A case directory (source tutorial or a run copy) and its readers."""
 
-    def __init__(self, path):
+    def __init__(self, path, label=None, needSystem=True):
         self.path = os.path.abspath(path)
-        if not os.path.isdir(os.path.join(self.path, "system")):
+        if needSystem and not os.path.isdir(os.path.join(self.path, "system")):
             raise SystemExit("pgfView: not an OpenFOAM case: " + self.path)
         self.name = os.path.basename(self.path)
+        self.label = label or self.name
         self._mesh = None
+
+    def hasMesh(self):
+        """False for a postProcessing-only directory such as <case>/reference."""
+        return any(os.path.isdir(self.file(*d)) for d in
+                   (("constant", "polyMesh"), ("processor0", "constant", "polyMesh")))
 
     def file(self, *parts):
         return os.path.join(self.path, *parts)
@@ -106,7 +112,7 @@ class Case:
             foam = self.file(self.name + ".foam")
             if not os.path.exists(foam):
                 open(foam, "w").close()
-            r = pv.OpenFOAMReader(registrationName=self.name, FileName=foam)
+            r = pv.OpenFOAMReader(registrationName=self.label, FileName=foam)
             r.CaseType = "Decomposed Case" if self.decomposed() else "Reconstructed Case"
             r.MeshRegions = ["internalMesh"]
             r.UpdatePipelineInformation()
@@ -162,7 +168,10 @@ class Case:
 # --------------------------------------------------------------------------
 
 def _renderView(title):
-    v = pv.CreateRenderView(registrationName=title)
+    name, n = title, 2
+    while pv.FindView(name):  # the second case of a comparison
+        name, n = "%s (%d)" % (title, n), n + 1
+    v = pv.CreateRenderView(registrationName=name)
     v.OrientationAxesVisibility = 1
     v.CameraParallelProjection = 1
     return v
@@ -176,7 +185,8 @@ def _color(rep, view, assoc, field, opts):
         lut.RescaleTransferFunction(*rng)
         lut.AutomaticRescaleRangeMode = "Never"
     else:
-        rep.RescaleTransferFunctionToDataRange(False, True)
+        # In a comparison the second case grows the first one's range.
+        rep.RescaleTransferFunctionToDataRange(bool(opts.get("_extend")), True)
     rep.SetScalarBarVisibility(view, True)
     bar = pv.GetScalarBar(lut, view)
     bar.Title, bar.ComponentTitle = field, ""
@@ -187,12 +197,13 @@ def _color(rep, view, assoc, field, opts):
     return lut
 
 
-def _sliced(case, opts):
-    """The mesh, or a slice of it when opts['slice'] = {normal, origin}."""
+def _sliced(case, opts, src=None):
+    """`src` (default: the mesh), or a slice of it when opts['slice'] is set."""
+    src = src or case.mesh()
     sl = opts.get("slice")
     if not sl:
-        return case.mesh()
-    s = pv.Slice(Input=case.mesh())
+        return src
+    s = pv.Slice(Input=src)
     s.SliceType = "Plane"
     b = case.mesh().GetDataInformation().GetBounds()
     n = sl.get("normal", [0, 0, 1])
@@ -383,43 +394,60 @@ def _table(path):
     return t, names
 
 
+def _datFiles(case):
+    """{function: [.dat path, ...]} under the case's postProcessing/."""
+    root = case.file("postProcessing")
+    byFn = {}
+    if os.path.isdir(root):
+        for p in sorted(collect_dat_files(Path(root))):
+            fn = os.path.relpath(str(p), root).split(os.sep)[0]
+            byFn.setdefault(fn, []).append(p)
+    return byFn
+
+
 def overTime(case, opts):
     """postProcessing/<function>/*.dat plotted against time.
 
     opts['groups'] = {title: [function, ...]} puts several in one chart;
     otherwise one chart per function. opts['skip'] lists functions to omit.
     """
-    root = case.file("postProcessing")
-    if not os.path.isdir(root):
-        return []
-    byFn = {}
-    for p in sorted(collect_dat_files(Path(root))):
-        fn = os.path.relpath(str(p), root).split(os.sep)[0]
-        byFn.setdefault(fn, []).append(p)
+    return overTimeCharts([case], opts)
+
+
+def overTimeCharts(cases, opts):
+    """overTime for one case, or overlaid for several: the first solid, the
+    next dashed, a series keeping its colour across cases."""
+    files = [_datFiles(c) for c in cases]
     skip = set(opts.get("skip", ["residuals"]))
-    groups = opts.get("groups") or {fn: [fn] for fn in byFn if fn not in skip}
+    groups = opts.get("groups") or {
+        fn: [fn] for fn in sorted(set().union(*files)) if fn not in skip}
     out = []
     for title, fns in groups.items():
-        if not any(fn in byFn for fn in fns):
+        if not any(fn in byFn for byFn in files for fn in fns):
             continue
         v = pv.CreateView("XYChartView", registrationName="overTime " + title)
         v.ChartTitle = title
         v.BottomAxisTitle = "Time [s]"
         v.LeftAxisLabelNotation, v.LeftAxisLabelPrecision = "Mixed", 6
-        colors = iter(SERIES_COLORS * 4)
-        for fn in fns:
-            for p in byFn.get(fn, []):
-                table, names = _table(p)
-                src = pv.PVTrivialProducer(registrationName=fn)
-                src.GetClientSideObject().SetOutput(table)
-                rep = pv.Show(src, v, "XYChartRepresentation")
-                rep.AttributeType = "Row Data"
-                rep.UseIndexForXAxis = 0
-                rep.XArrayName = names[0]
-                rep.SeriesVisibility = names[1:]
-                rep.SeriesLabel = sum(([n, fn if len(names) == 2 else n] for n in names[1:]), [])
-                rep.SeriesColor = sum(([n] + [str(c) for c in next(colors)] for n in names[1:]), [])
-                rep.SeriesLineThickness = sum(([n, "2"] for n in names[1:]), [])
+        palette, colors = iter(SERIES_COLORS * 4), {}
+        for k, (case, byFn) in enumerate(zip(cases, files)):
+            suffix = " (%s)" % case.label if len(cases) > 1 else ""
+            for fn in fns:
+                for p in byFn.get(fn, []):
+                    table, names = _table(p)
+                    src = pv.PVTrivialProducer(registrationName=fn + suffix)
+                    src.GetClientSideObject().SetOutput(table)
+                    rep = pv.Show(src, v, "XYChartRepresentation")
+                    rep.AttributeType = "Row Data"
+                    rep.UseIndexForXAxis = 0
+                    rep.XArrayName = names[0]
+                    ys = names[1:]
+                    rep.SeriesVisibility = ys
+                    rep.SeriesLabel = sum(([n, (fn if len(names) == 2 else n) + suffix] for n in ys), [])
+                    rgb = [colors.setdefault((fn, n), next(palette)) for n in ys]
+                    rep.SeriesColor = sum(([n] + [str(c) for c in col] for n, col in zip(ys, rgb)), [])
+                    rep.SeriesLineThickness = sum(([n, "2"] for n in ys), [])
+                    rep.SeriesLineStyle = sum(([n, "1" if k == 0 else "2"] for n in ys), [])
         out.append(("overTime_" + title, v))
     return out
 
@@ -471,6 +499,131 @@ def writePngs(case, outDir, time=None, size=(1000, 750)):
         v.ViewTime = t
         path = os.path.join(outDir, re.sub(r"[^\w.-]+", "_", title) + ".png")
         pv.SaveScreenshot(path, v, ImageResolution=list(size), FontScaling="Do not scale fonts")
+        written.append(path)
+        print("pgfView: wrote " + path)
+    return written
+
+
+# --------------------------------------------------------------------------
+# Comparing two cases
+# --------------------------------------------------------------------------
+
+# Views that get a third pane, A - B, when both cases share a mesh.
+DIFF_VIEWS = {"meshFields"}
+
+
+def _sameMesh(a, b):
+    n = [c.mesh().GetDataInformation().GetNumberOfCells() for c in (a, b)]
+    return n[0] == n[1]
+
+
+def _caption(view, text):
+    rep = pv.Show(pv.Text(Text=text), view)
+    rep.WindowLocation = "Upper Left Corner"
+    rep.FontSize = 14
+    rep.Color = [0.1, 0.1, 0.1]
+
+
+def _diffView(a, b, field, opts, time):
+    """A - B of a cell field on A's mesh, on a colour map symmetric about 0."""
+    name = field + " A-B"
+    d = pv.PythonCalculator(registrationName=name, Input=[a.mesh(), b.mesh()])
+    d.ArrayAssociation = "Cell Data"
+    d.Expression = "inputs[0].CellData['%s'] - inputs[1].CellData['%s']" % (field, field)
+    d.ArrayName = name
+    d.UpdatePipeline(time)
+    arr = d.CellData[name]
+    if arr.GetNumberOfComponents() > 1:  # vectors: magnitude of the difference
+        rng = [0.0, arr.GetRange(-1)[1] or 1.0]
+    else:
+        m = max(abs(x) for x in arr.GetRange()) or 1.0
+        rng = [-m, m]
+    v = _renderView(name)
+    rep = pv.Show(_sliced(a, opts, d), v)
+    _color(rep, v, "CELLS", name, {"ranges": {name: rng}})
+    _unlit(rep)
+    if opts.get("slice"):
+        _outline(a, v)
+    _camera(v, opts, _viewAxis(a, opts))
+    return v
+
+
+def buildCompare(a, b, time=None):
+    """[(title, [view A, view B, (A - B)])] for caseA's views, and the time.
+
+    B may hold postProcessing only (a reference/): then only overTime is shown.
+    """
+    pv.LoadPalette("WhiteBackground")
+    meshes = b.hasMesh()
+    if time is None:
+        time = min(a.times()[-1], b.times()[-1]) if meshes else a.times()[-1]
+    scene = pv.GetAnimationScene()
+    scene.UpdateAnimationUsingDataTimeSteps()
+    scene.AnimationTime = time
+    diff = meshes and _sameMesh(a, b)
+    out = []
+    for name, opts in a.viewSpec():
+        if name not in VIEWS:
+            raise SystemExit("pgfView: unknown view %r (have: %s)" % (name, ", ".join(VIEWS)))
+        if name == "overTime":
+            out += [(t, [v]) for t, v in overTimeCharts([a, b], opts)]
+            continue
+        if not meshes:
+            continue
+        viewsB = dict(VIEWS[name](b, dict(opts, _extend=True)))
+        for title, va in VIEWS[name](a, opts):
+            panes = [(va, "A: " + a.label)]
+            if title in viewsB:
+                panes.append((viewsB[title], "B: " + b.label))
+                if diff and name in DIFF_VIEWS:
+                    panes.append((_diffView(a, b, title, opts, time), "A - B"))
+            for i, (v, text) in enumerate(panes):
+                _caption(v, text)
+                if i:
+                    pv.AddCameraLink(panes[0][0], v, "%s %s" % (title, i))
+            out.append((title, [v for v, _ in panes]))
+    if not out:
+        raise SystemExit("pgfView: nothing to compare between %s and %s" % (a.path, b.path))
+    return out, time
+
+
+def _paneLayout(title, views):
+    """A layout tab with the views side by side."""
+    layout = pv.CreateLayout(title)
+    cells = [0]
+    if len(views) > 1:
+        layout.SplitHorizontal(0, 1.0 / len(views))
+        cells = [1, 2]
+    if len(views) > 2:
+        layout.SplitHorizontal(2, 0.5)
+        cells = [1, 5, 6]
+    for c, v in zip(cells, views):
+        layout.AssignView(c, v)
+    return layout
+
+
+def showCompareGui(a, b):
+    first = pv.GetLayout()
+    built, _ = buildCompare(a, b)
+    for title, views in built:
+        _paneLayout(title, views)
+    if first is not None:
+        pv.RemoveLayout(first)
+    pv.SetActiveView(built[0][1][0])
+
+
+def writeComparePngs(a, b, outDir, time=None, size=(1000, 750)):
+    """One PNG per view, its panes side by side, each `size` large."""
+    os.makedirs(outDir, exist_ok=True)
+    built, t = buildCompare(a, b, time)
+    written = []
+    for title, views in built:
+        for v in views:
+            v.ViewTime = t
+        layout = _paneLayout(title, views)
+        path = os.path.join(outDir, re.sub(r"[^\w.-]+", "_", title) + ".png")
+        pv.SaveScreenshot(path, layout, ImageResolution=[size[0] * len(views), size[1]],
+                          FontScaling="Do not scale fonts")
         written.append(path)
         print("pgfView: wrote " + path)
     return written

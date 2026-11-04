@@ -15,6 +15,21 @@ $P <case> --png out/ --time 0.001 --size 1600x1200
 
 `--png` renders the last mesh time unless `--time` is given; each view becomes one PNG named after it. It also works inside `./pgf-env`.
 
+## Compare two cases
+
+```bash
+$P <runDir>/pyrolysis --compare tutorials/cases/canonical/pyrolysis/reference --png out/
+$P <runDir>/pyrolysis --compare <runDir>/pyrolysisE           # GUI, panes side by side
+```
+
+`--compare <other>` shows the first case's views for both cases. `<other>` is a second case or run copy, or a `postProcessing`-only directory such as `<case>/reference`.
+
+- `overTime`: each chart overlays both cases, the first solid and `<other>` dashed in the same colour, labelled `<function> (<case name>)`.
+- Mesh and DEM views, when `<other>` has a mesh: panes `A | B` with linked cameras and one shared colour range. `meshFields` adds a third pane `A - B` when both meshes have the same number of cells: the cell-by-cell difference on a colour map symmetric about 0 (the magnitude of the difference for vectors).
+- Against a `reference/` there are no fields, so only the charts are shown.
+
+The time is the last one both cases have, unless `--time` is given. With `--png` each view is one PNG with its panes side by side, each `--size` large; the GUI opens one layout tab per view.
+
 ## Requirements
 
 - ParaView with Python: on Debian `apt install paraview python3-paraview` (5.13 is what this was written against; it uses `paraview.simple` only).
@@ -56,7 +71,7 @@ A case without the file gets `meshFields`, `solidRegime` and `overTime`. Do not 
 
 A family of cases shares one file the same way it shares its dicts: the MicroTGA-DEM lambdaDot fixtures symlink `system/paraviewViews.py` from `MicroTGA-DEM_lambdaDot_common`, and `charOnlyMoveCases`, `canonical`, `canonical/conservation` and `prescribedUsCases` keep one `paraviewViews.py` in the family directory that each case links as `system/paraviewViews.py` (the regression runner's run copy links the family directory's files too).
 
-To add a new kind of view, write a function `(case, opts) -> [(title, view), ...]` in `pgfViews.py` and add it to `VIEWS`.
+To add a new kind of view, write a function `(case, opts) -> [(title, view), ...]` in `pgfViews.py` and add it to `VIEWS`. `--compare` calls it once per case, so it works there too; pass `opts` on to `_color` so the second case grows the first one's colour range.
 
 ## Relation to foamcli
 
