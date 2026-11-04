@@ -1,0 +1,14 @@
+# Declared invariants, checked by applications/test/regression/tools/checkInvariants.py
+# before the baseline comparison; a run that breaks one is never recaptured.
+# <functionObject> <column> <check> <args>; see doc/regression-testing.md.
+
+# tetrisCompaction with emptyFlippedCells true: the same bounds hold. The inflow
+# guard itself is watched by the volIntegrate(Ycharm) baseline (#175).
+# A void fraction above 1 is a negative volume of solid.
+regressionPorosityMax    max(porosityF)        <=  1
+# The receiver cap: no cell holds more than maxSolidFraction 0.7.
+regressionPorosityMin    min(porosityF)        >=  0.3  1e-9
+# The same cap in mass: 0.7 * rho 1050 kg/m3.
+regressionYcharmMax      max(Ycharm)           <=  735  1e-6
+# Emptying a flipped cell zeroes it; it must never go negative.
+regressionYcharmMin      min(Ycharm)           >=  0
