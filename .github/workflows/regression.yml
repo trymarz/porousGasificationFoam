@@ -91,12 +91,21 @@ jobs:
           path: pgf-builds/${{ steps.key.outputs.key }}
           key: pgf-prefix-${{ steps.key.outputs.key }}
 
+      # OpenFOAM refuses to compile coded boundary conditions as root,
+      # so the build and the cases run as an unprivileged user.
+      - name: Create test user
+        run: |
+          set -eu
+          useradd --create-home pgf
+          mkdir -p "$PGF_BUILD_ROOT" "$PGF_RUN_ROOT"
+          chown -R pgf: "$GITHUB_WORKSPACE"
+
       - name: Build
         working-directory: pgf
         run: |
           set -o pipefail
-          mkdir -p "$PGF_RUN_ROOT"
-          ./pgf-env --bare -- ./build.sh --isolated 2>&1 | tee "$PGF_RUN_ROOT/ci-build.log" | tail -40
+          runuser -u pgf -- ./pgf-env --bare -- ./build.sh --isolated 2>&1 |
+            tee "$PGF_RUN_ROOT/ci-build.log" | tail -40
 
       - name: Save prefix
         if: steps.cache.outputs.cache-hit != 'true'
@@ -107,7 +116,7 @@ jobs:
 
       - name: Run ${{ env.TIER }} tier
         working-directory: pgf
-        run: ./pgf-test "$TIER" --run-root "$PGF_RUN_ROOT/run"
+        run: runuser -u pgf -- ./pgf-test "$TIER" --run-root "$PGF_RUN_ROOT/run"
 
       # Copy only regular files: kept case copies symlink back into the source tree.
       - name: Collect artifacts
