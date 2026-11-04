@@ -8,6 +8,7 @@
 | Fix an error | [troubleshooting.md](troubleshooting.md) |
 | Understand the model: equations, per-step flow, where the code is | [theory.md](theory.md) |
 | Run or extend the regression tests | [regression-testing.md](regression-testing.md) |
+| Look at a case in ParaView, or render its views to PNG | [paraview.md](paraview.md) |
 | Contribute (branches, PRs, doc rules) | [../CONTRIBUTING.md](../CONTRIBUTING.md) |
 | Browse the API | Doxygen — [build.md](build.md#doxygen-documentation) |
 
