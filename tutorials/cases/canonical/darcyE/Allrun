@@ -4,4 +4,8 @@ cd "${0%/*}" || exit
 # T rise is 10% below h's (h lags dp/dt); the old e bug was 10x off.
 [ "$(foamDictionary ../darcy/0.orig/T -entry internalField -value)" = "uniform 300" ] \
  || { echo "gasTemperatureRise assumes an initial T of 300 K" >&2; exit 1; }
-../solveForE darcy 0.2
+../solveForE darcy 0.2 || exit
+# Resistance pinned for the dp invariant: change it with ../darcy/0.orig/Df and
+# ../darcy/constant/porosityProperties, or system/regressionInvariants fails (#179).
+python3 ../../../../applications/test/regression/tools/porousResistanceStudy.py \
+    --expect . --df 1e8 --forchheimer 0 > log.dpExpectation 2>&1 || exit
