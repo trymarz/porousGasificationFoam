@@ -27,7 +27,7 @@ $P <case> --png out/ --time 0.001 --size 1600x1200
 | `meshFields` | One view per field: `Y<specie>` for each entry of `solidComponents` in `constant/solidThermophysicalProperties`, then `porosityF`, `rhos`, `Ts`, `T`, `lambda`, `lambdaDot`. Fields the case does not write are skipped. | `fields`, `slice`, `ranges`, `camera` |
 | `solidRegime` | `solidRegime` with fixed categories: empty, trace, dispersed, connected (`SolidState::Regime`). | `slice`, `camera` |
 | `porosityThreshold` | Cells with `porosityF` below `below` (default 0.999), i.e. where solid is left. | `below`, `ranges`, `camera` |
-| `demSpheres` | YADE spheres (`spheres/vtk-spheres_<iter>.pvtu`) as sphere glyphs scaled by `radii`, one view per colour field. | `colorBy` (default `["radii", "lambda"]`), `ranges`, `camera` |
+| `demSpheres` | YADE spheres (`spheres/vtk-spheres_<iter>.pvtu`, else `spheres/spheres.pvd`) as sphere glyphs scaled by `radii` (or `radius`), one view per colour field. Fields the spheres do not carry are skipped. | `colorBy` (default `["radii", "lambda"]`), `ranges`, `camera` |
 | `demSprings` | Springs (`springs/springs.pvd`) coloured by `springType`, over translucent spheres. | `ranges`, `camera` |
 | `overTime` | `postProcessing/<function>/*/*.dat` against time, parsed with the regression runner's own `compareScalars.parse_dat`. | `groups`, `skip` (default `["residuals"]`) |
 
@@ -35,8 +35,8 @@ Options:
 
 - `slice`: `{"normal": [0, 1, 0], "origin": [x, y, z]}`; the origin defaults to the mesh centre. Without `slice` the whole mesh surface is shown (right for 2D cases).
 - `ranges`: `{"porosityF": [0, 1]}` fixes a colour range; otherwise it fits the data.
-- `camera`: `"+x"`, `"-y"`, … the side to look from (`"+z"` puts the camera on +z). The default looks along the slice normal (`+x`, `-y` or `+z`, so the remaining axes point right and up), or from `+z`.
-- `groups`: `{"chart title": ["functionA", "functionB"]}` puts several function objects in one chart; without it each function gets its own chart.
+- `camera`: `"+x"`, `"-y"`, … the side to look from (`"+z"` puts the camera on +z). The default looks along the slice normal (`+x`, `-y` or `+z`, so the remaining axes point right and up); without a slice it looks along the mesh's thinnest axis, so a 2D case is seen face on.
+- `groups`: `{"chart title": ["functionA", "functionB"]}` puts several function objects in one chart; without it each function gets its own chart. With `groups`, functions not listed are not shown, and a group none of whose functions the case writes is left out, so a family can share one list.
 
 YADE names sphere frames by iteration. `pgfView` writes `spheres/vtk-spheres_.series` that times frame `<iter>` at `iter * deltaT` (from `system/controlDict`), so spheres and mesh share the time bar.
 
@@ -54,7 +54,7 @@ views = [
 
 A case without the file gets `meshFields`, `solidRegime` and `overTime`. Do not list species or field names that come from the case: `meshFields` reads `solidComponents`, so renaming or removing a specie needs no edit to the view file.
 
-A family of cases shares one file the same way it shares its dicts: the MicroTGA-DEM lambdaDot fixtures symlink `system/paraviewViews.py` from `MicroTGA-DEM_lambdaDot_common`.
+A family of cases shares one file the same way it shares its dicts: the MicroTGA-DEM lambdaDot fixtures symlink `system/paraviewViews.py` from `MicroTGA-DEM_lambdaDot_common`, and `charOnlyMoveCases`, `canonical`, `canonical/conservation` and `prescribedUsCases` keep one `paraviewViews.py` in the family directory that each case links as `system/paraviewViews.py` (the regression runner's run copy links the family directory's files too).
 
 To add a new kind of view, write a function `(case, opts) -> [(title, view), ...]` in `pgfViews.py` and add it to `VIEWS`.
 
@@ -62,4 +62,3 @@ To add a new kind of view, write a function `(case, opts) -> [(title, view), ...
 
 foamcli's `render` and `gallery` make 2D matplotlib slices with no ParaView. `pgfView` is the ParaView side: 3D, DEM glyphs, and the views a person would open. A tool that wants ParaView images, foamcli included, calls `pgfView <case> --png <dir>`.
 
-`tutorials/cases/case_line_interpolation/visualize.pvsm` is an older hand-made ParaView 5.10 state file with absolute paths; it is not used by `pgfView`.

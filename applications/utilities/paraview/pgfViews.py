@@ -111,6 +111,7 @@ class Case:
             r.MeshRegions = ["internalMesh"]
             r.UpdatePipelineInformation()
             r.CellArrays = list(r.CellArrays.Available)
+            r.UpdatePipeline((r.TimestepValues or [0.0])[-1])  # bounds for slices
             self._mesh = r
         return self._mesh
 
@@ -244,15 +245,24 @@ def meshFields(case, opts):
         _unlit(rep)
         if opts.get("slice"):
             _outline(case, v)
-        _camera(v, opts, _normalAxis(opts))
+        _camera(v, opts, _viewAxis(case, opts))
         out.append((f, v))
     return out
 
 
-def _normalAxis(opts):
-    """The slice normal's axis, from the side that keeps the axes right-handed."""
-    n = (opts.get("slice") or {}).get("normal", [0, 0, 1])
-    return ("+x", "-y", "+z")[max(range(3), key=lambda k: abs(n[k]))]
+def _viewAxis(case, opts):
+    """Look along the slice normal, else the mesh's thinnest axis (2D cases).
+
+    The side is the one that keeps the remaining axes right-handed.
+    """
+    sl = opts.get("slice")
+    if sl:
+        n = sl.get("normal", [0, 0, 1])
+        k = max(range(3), key=lambda i: abs(n[i]))
+    else:
+        b = case.mesh().GetDataInformation().GetBounds()
+        k = min((2, 1, 0), key=lambda i: b[2 * i + 1] - b[2 * i])
+    return ("+x", "-y", "+z")[k]
 
 
 def solidRegime(case, opts):
@@ -268,7 +278,7 @@ def solidRegime(case, opts):
     lut.IndexedColors = [0.85, 0.85, 0.85, 0.99, 0.75, 0.30, 0.35, 0.65, 0.85, 0.40, 0.20, 0.10]
     if opts.get("slice"):
         _outline(case, v)
-    _camera(v, opts, _normalAxis(opts))
+    _camera(v, opts, _viewAxis(case, opts))
     return [("solidRegime", v)]
 
 
@@ -281,13 +291,34 @@ def porosityThreshold(case, opts):
     rep = pv.Show(t, v)
     _color(rep, v, "CELLS", "porosityF", opts)
     _outline(case, v)
-    _camera(v, opts, "+z")
+    _camera(v, opts, _viewAxis(case, {}))
     return [("porosityThreshold", v)]
 
 
 def _spheres(case):
+    """YADE VTKRecorder frames, else a spheres/spheres.pvd written by the case."""
     series = case.demSeries("spheres", "vtk-spheres_*.pvtu")
-    return pv.OpenDataFile(series) if series else None
+    if series is None and os.path.exists(case.file("spheres", "spheres.pvd")):
+        series = case.file("spheres", "spheres.pvd")
+    if not series:
+        return None
+    src = pv.OpenDataFile(series)
+    src.UpdatePipeline()
+    return src
+
+
+def _radiusArray(src):
+    have = src.PointData.keys()
+    return next((a for a in ("radii", "radius") if a in have), None)
+
+
+def _sphereGlyphs(src):
+    g = pv.Glyph(Input=src, GlyphType="Sphere")
+    g.ScaleArray = ["POINTS", _radiusArray(src)]
+    g.ScaleFactor = 2.0  # unit glyph has radius 0.5
+    g.GlyphMode = "All Points"
+    g.GlyphType.ThetaResolution = g.GlyphType.PhiResolution = 16
+    return g
 
 
 def demSpheres(case, opts):
@@ -295,13 +326,12 @@ def demSpheres(case, opts):
     src = _spheres(case)
     if src is None:
         return []
-    g = pv.Glyph(Input=src, GlyphType="Sphere")
-    g.ScaleArray = ["POINTS", "radii"]
-    g.ScaleFactor = 2.0  # unit glyph has radius 0.5
-    g.GlyphMode = "All Points"
-    g.GlyphType.ThetaResolution = g.GlyphType.PhiResolution = 16
+    g = _sphereGlyphs(src)
+    have = src.PointData.keys()
     out = []
-    for f in opts.get("colorBy", ["radii", "lambda"]):
+    for f in opts.get("colorBy", [_radiusArray(src), "lambda"]):
+        if f not in have:
+            continue
         v = _renderView("spheres " + f)
         rep = pv.Show(g, v)
         _color(rep, v, "POINTS", f, opts)
@@ -328,9 +358,7 @@ def demSprings(case, opts):
         rep.AmbientColor = rep.DiffuseColor = [0.0, 0.45, 0.7]
     src = _spheres(case)
     if src is not None:
-        g = pv.Glyph(Input=src, GlyphType="Sphere")
-        g.ScaleArray, g.ScaleFactor, g.GlyphMode = ["POINTS", "radii"], 2.0, "All Points"
-        s = pv.Show(g, v)
+        s = pv.Show(_sphereGlyphs(src), v)
         s.ColorArrayName = ["POINTS", ""]
         s.Opacity = 0.25
     _outline(case, v)
@@ -372,6 +400,8 @@ def overTime(case, opts):
     groups = opts.get("groups") or {fn: [fn] for fn in byFn if fn not in skip}
     out = []
     for title, fns in groups.items():
+        if not any(fn in byFn for fn in fns):
+            continue
         v = pv.CreateView("XYChartView", registrationName="overTime " + title)
         v.ChartTitle = title
         v.BottomAxisTitle = "Time [s]"
@@ -402,8 +432,14 @@ VIEWS = {f.__name__: f for f in
 # Entry points
 # --------------------------------------------------------------------------
 
-def build(case):
+def build(case, time=None):
+    """Build the case's views at `time` (default: last mesh time)."""
     pv.LoadPalette("WhiteBackground")
+    # Set the time first: colour ranges are fitted to the data shown at build.
+    t = case.times()[-1] if time is None else time
+    scene = pv.GetAnimationScene()
+    scene.UpdateAnimationUsingDataTimeSteps()
+    scene.AnimationTime = t
     out = []
     for name, opts in case.viewSpec():
         if name not in VIEWS:
@@ -423,9 +459,6 @@ def showGui(case):
         if i == 0:
             pv.RenameLayout(title, first)
         pv.AssignViewToLayout(view=v, layout=layout, hint=0)
-    scene = pv.GetAnimationScene()
-    scene.UpdateAnimationUsingDataTimeSteps()
-    scene.AnimationTime = case.times()[-1]
     pv.SetActiveView(built[0][1])
 
 
@@ -434,7 +467,7 @@ def writePngs(case, outDir, time=None, size=(1000, 750)):
     os.makedirs(outDir, exist_ok=True)
     t = case.times()[-1] if time is None else time
     written = []
-    for title, v in build(case):
+    for title, v in build(case, t):
         v.ViewTime = t
         path = os.path.join(outDir, re.sub(r"[^\w.-]+", "_", title) + ".png")
         pv.SaveScreenshot(path, v, ImageResolution=list(size), FontScaling="Do not scale fonts")
