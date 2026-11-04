@@ -18,12 +18,11 @@ export YADE_NSTEPS=2000
 # so it is launched directly here (output captured to log.yade).
 mpirun --allow-run-as-root -n 2 yade MPI_lambda.py 2>&1 | tee log.yade
 
-# Case-specific assertion, beyond runDEMCase.sh's shared DEM checks: under
-# apparentVolume lambdaDot is the dimensionless factor r, in (0, 1) over solid
-# cells while the solid reacts, and lambda (started at 1) has shrunk below 1.
+# Case-specific assertion: lambdaDot is the dimensionless factor r > 0. Per step
+# r is ~1-4e-9, below writePrecision, so shrinkage is checked on lambda instead
+# (started at 1, must end below 1).
 python3 ../../../applications/test/regression/tools/checkFieldSign.py . \
     --dims lambdaDot="0 0 0 0 0 0 0" \
     --dims lambda="0 1 0 0 0 0 0" \
     --sign lambdaDot=positive \
-    --mean-below lambdaDot=1 \
     --mean-below lambda=1
