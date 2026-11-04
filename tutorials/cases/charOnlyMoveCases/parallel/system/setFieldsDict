@@ -22,7 +22,6 @@ defaultFieldValues
     volScalarFieldValue porosityF0 1.
     volScalarFieldValue Yrubberwood  0.
     volScalarFieldValue Ychar   1.  
-    volScalarFieldValue Yhum  0.
     volScalarFieldValue Yash  0.
 );
 

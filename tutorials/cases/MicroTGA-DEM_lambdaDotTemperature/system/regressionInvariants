@@ -1,0 +1,4 @@
+# Direction of lambda (#194): heating only, so lambda grows and never shrinks.
+# The bound is ~1/10 of the first sample (1.2e-7 at t=2e-4).
+lambdaMinusOneAverage  average(lambdaMinusOne)  >=  1e-8
+lambdaMinusOneMin      min(lambdaMinusOne)      >=  0

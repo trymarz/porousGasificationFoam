@@ -1,5 +1,5 @@
 [heatmap]
-fields = ["porosityF", "Ts", "T", "p", "Ychar", "Ycharm", "Yashm", "Yhumm", "Yrubberwoodm"]
+fields = ["porosityF", "Ts", "T", "p", "Ychar", "Ycharm", "Yashm", "Yrubberwoodm"]
 
 [probes]
 labels = ["inlet-mid", "outlet-mid", "inlet-mid-Y", "outlet-mid-Y"]

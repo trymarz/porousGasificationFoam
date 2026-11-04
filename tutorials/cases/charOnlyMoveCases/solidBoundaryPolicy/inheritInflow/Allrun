@@ -4,7 +4,7 @@ cd "${0%/*}" || exit
 # Inlet inherits the solid, yet solid enters it: stops the run.
 
 ../copyBase 0.01 || exit
-for f in Yash Ychar Yhum Yrubberwood; do
+for f in Yash Ychar Yrubberwood; do
     foamDictionary 0.orig/$f -entry boundaryField.inlet.type -set zeroGradient > /dev/null
 done
 restore0Dir

@@ -1,0 +1,4 @@
+# Direction of lambda (#194): conversion only, so lambda shrinks and never grows.
+# The bound is ~1/10 of the first sample (-1.1e-9 at t=2e-4, background masked).
+lambdaMinusOneAverage  average(lambdaMinusOne)  <=  -1e-10
+lambdaMinusOneMax      max(lambdaMinusOne)      <=  0
