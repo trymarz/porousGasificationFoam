@@ -73,7 +73,7 @@ Each side gets its own `git archive` copy of `HEAD` under the work dir (default 
 
 ### CI on GitHub Actions
 
-`.github/workflows/regression.yml` runs one tier with `pgf-test` in the same image, pulled by the same digest as `container/pgf-toolchain.def`. The job installs `python3` and `git` as root, then builds and runs the cases as an unprivileged user `pgf`: OpenFOAM refuses to compile coded boundary conditions (`codedFixedValue`, used by the `tetrisCompaction` cases) as root.
+`.github/workflows/regression.yml` runs one tier with `pgf-test` in the same image as `container/pgf-toolchain.def`. The job installs `python3` and `git` as root, then builds and runs the cases as an unprivileged user `pgf`: OpenFOAM refuses to compile coded boundary conditions (`codedFixedValue`, used by the `tetrisCompaction` cases) as root.
 
 | Event | Tier |
 |---|---|
@@ -81,7 +81,7 @@ Each side gets its own `git archive` copy of `HEAD` under the work dir (default 
 | nightly (02:17 UTC, default branch only) | `convergence` |
 | manual run (`workflow_dispatch`, "Run workflow" on the Actions tab) | `convergence` or `fast`, chosen in the form |
 
-- **Digest.** The digest appears in the workflow and in the `.def`; a step fails the job when the two differ, so change both together.
+- **Image.** The `From:` line of `container/pgf-toolchain.def` is the only place the image is pinned. A first job reads it and the test job runs in it, so changing that line changes both the local container and CI. The job fails unless the line is a digest-pinned `opencfd/openfoam-dev` image.
 - **Build cache.** The job computes the build key (`build.sh --print-key`), restores `pgf-builds/<key>` from the Actions cache, builds with `build.sh --isolated` (a no-op on a hit) and saves the prefix on a miss. A change to any source under the build targets, the OpenFOAM version or the compiler gives a new key; a change to cases, baselines or scripts reuses the prefix.
 - **Artifacts** (`regression-<tier>-<run id>-<attempt>`, kept 14 days): `ci-build.log`, the run's `build.log` and `driver.log`, `last/<tier>.json`, the whole `state/` dir (`result.json` and every case's logs and `compare.log`), and for each failed case the `postProcessing/` and `log.*` files of its kept copy. Only regular files are collected, because the copies symlink back into the source tree.
 - **Jobs.** `--jobs` comes from `applications/test/tiers.conf`, as locally. A hosted `ubuntu-24.04` runner has 4 cores for a public repository and 2 for a private one.

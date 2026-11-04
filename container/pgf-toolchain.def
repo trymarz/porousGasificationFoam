@@ -10,6 +10,7 @@
 # Build (outside the checkout; needs unprivileged user namespaces or root):
 #   apptainer build --fakeroot pgf-toolchain.sif container/pgf-toolchain.def
 # Use: container/compareToolchains.sh --image pgf-toolchain.sif
+# The From: line below is also the image of .github/workflows/regression.yml.
 
 Bootstrap: docker
 From: opencfd/openfoam-dev@sha256:29dd2c73941c1d718655e6ca7a79f466ec57362b534c4d41bd1deffc5b414e0c
