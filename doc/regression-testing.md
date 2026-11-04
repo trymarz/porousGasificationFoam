@@ -38,7 +38,7 @@ Each case ends in one outcome, taken from its exit status; the summary and suite
 
 The suite is green only if at least one case ran and every case passed. There is no skip: a case without a baseline, an empty or unreadable case list, or a `--tag`/`--case` filter matching nothing is an `ERROR` (exit 2). To skip a suite, don't invoke its driver.
 
-**Tiers** (tagged in `cases.list`): `fast` runs by default and is meant as the pre-push gate; `convergence` is a mesh-refinement study, run with `--tag convergence` or `--tag all`. DEM cases are listed separately in `cases_yade.list`.
+**Tiers** (tagged in `cases.list`): `fast` runs by default and in CI on every PR and push to `main` (see [CI on GitHub Actions](#ci-on-github-actions)); `convergence` is a mesh-refinement study, run with `--tag convergence` or `--tag all`. DEM cases are listed separately in `cases_yade.list`.
 
 ### Tiers with `pgf-test`
 
@@ -70,6 +70,23 @@ container/compareToolchains.sh --image /scratch/pgf-toolchain.sif [--tiers "fast
 ```
 
 Each side gets its own `git archive` copy of `HEAD` under the work dir (default `$PGF_RUN_ROOT/toolchains-<time>-<pid>`), so uncommitted changes are not tested. The native side uses your `PGF_BUILD_ROOT`; the image side builds into the work dir. It exits 1 when any case fails in the image. The image has no Yade, so the `dem` tier is not covered.
+
+### CI on GitHub Actions
+
+`.github/workflows/regression.yml` runs one tier with `pgf-test` in the same image as `container/pgf-toolchain.def`. The job installs `python3` and `git` as root, then builds and runs the cases as an unprivileged user `pgf`: OpenFOAM refuses to compile coded boundary conditions (`codedFixedValue`, used by the `tetrisCompaction` cases) as root.
+
+| Event | Tier |
+|---|---|
+| pull request to `main`, push to `main` | `fast` |
+| nightly (02:17 UTC, default branch only) | `convergence` |
+| manual run (`workflow_dispatch`, "Run workflow" on the Actions tab) | `convergence` or `fast`, chosen in the form |
+
+- **Image.** The `From:` line of `container/pgf-toolchain.def` is the only place the image is pinned. A first job reads it and the test job runs in it, so changing that line changes both the local container and CI. The job fails unless the line is a digest-pinned `opencfd/openfoam-dev` image.
+- **Build cache.** The job computes the build key (`build.sh --print-key`), restores `pgf-builds/<key>` from the Actions cache, builds with `build.sh --isolated` (a no-op on a hit) and saves the prefix on a miss. A change to any source under the build targets, the OpenFOAM version or the compiler gives a new key; a change to cases, baselines or scripts reuses the prefix.
+- **Artifacts** (`regression-<tier>-<run id>-<attempt>`, kept 14 days): `ci-build.log`, the run's `build.log` and `driver.log`, `last/<tier>.json`, the whole `state/` dir (`result.json` and every case's logs and `compare.log`), and for each failed case the `postProcessing/` and `log.*` files of its kept copy. Only regular files are collected, because the copies symlink back into the source tree.
+- **Jobs.** `--jobs` comes from `applications/test/tiers.conf`, as locally. A hosted `ubuntu-24.04` runner has 4 cores for a public repository and 2 for a private one.
+- **Not covered.** The `dem` tier is local-only: the image has no Yade, so run `./pgf-test dem` before DEM-touching merges. Parallel decomposition is not covered either, since no case in `cases.list` decomposes.
+- **Baselines.** CI only compares against the committed `reference/`; it never captures one.
 
 ## Add a case
 
