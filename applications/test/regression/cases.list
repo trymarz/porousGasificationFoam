@@ -7,7 +7,7 @@
 # succeed and the regex to match, or with a leading '!' to match nothing.
 #
 # Tags:
-#   fast        — run by default and on every pre-push hook
+#   fast        — run by default and by CI on every PR and push to main
 #   convergence — mesh-refinement study; run manually with --tag convergence
 #                 or --tag all
 #

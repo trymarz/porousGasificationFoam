@@ -9,6 +9,10 @@ average velocity, and an isothermal ideal-gas Darcy-Forchheimer estimate.
 This is a verification study, not a replacement for the registered regression
 cases.  Generated cases and logs are kept in the reported work directory so a
 result can be inspected after the command completes.
+
+``--expect CASE --df DF --forchheimer F`` instead writes the steady measured
+over analytic pressure drop of an already-run case to
+``postProcessing/regressionDarcyForchheimer``, for an ``==`` invariant (#179).
 """
 
 from __future__ import annotations
@@ -16,6 +20,7 @@ from __future__ import annotations
 import argparse
 import math
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -36,6 +41,8 @@ MOLAR_MASS_N2 = 0.0280134
 R_UNIVERSAL = 8.31446261815324
 SUTHERLAND_AS = 1.67212e-6
 SUTHERLAND_TS = 170.672
+
+EXPECTATION_FUNCTION = "regressionDarcyForchheimer"
 
 _NUMERIC_TIME_RE = re.compile(r"^(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$")
 
@@ -128,6 +135,20 @@ def configure_case(case_dir: Path, spec: StudySpec) -> None:
         "U inlet value",
     )
     velocity_path.write_text(velocity_text, encoding="utf-8")
+
+    # The copy is outside the checkout: point its dp expectation here, at this spec.
+    allrun_path = case_dir / "Allrun"
+    expectation = (
+        f"python3 {shlex.quote(str(Path(__file__).resolve()))} \\\n"
+        f"    --expect . --df {spec.df:g} --forchheimer {spec.forchheimer:g}"
+    )
+    allrun_text = replace_required(
+        allrun_path.read_text(encoding="utf-8"),
+        r"python3 \S*porousResistanceStudy\.py \\\n\s*--expect \. --df \S+ --forchheimer \S+",
+        expectation.replace("\\", "\\\\"),
+        "Allrun dp expectation",
+    )
+    allrun_path.write_text(allrun_text, encoding="utf-8")
 
 
 def copy_case(template: Path, destination: Path) -> None:
@@ -225,6 +246,22 @@ def measure(case_dir: Path, spec: StudySpec) -> Measurement:
     return Measurement(spec, *values)
 
 
+def write_expectation(case_dir: Path, df: float, forchheimer: float) -> Path:
+    """Write the last-row measured/analytic pressure-drop ratio of a run case."""
+    result = measure(case_dir, StudySpec(case_dir.name, df, forchheimer, 0.0))
+    time = last_row(case_dir, "regressionPOutlet")[0]
+    out = case_dir / "postProcessing" / EXPECTATION_FUNCTION / "0" / "dpRatio.dat"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(
+        f"# Df {df:g} forchheimerCoeff {forchheimer:g}\n"
+        "# Time dpMeasured dpAnalytic dpRatio\n"
+        f"{time:.10g} {result.measured_drop:.10e} {result.expected_drop:.10e} "
+        f"{result.measured_drop / result.expected_drop:.10e}\n",
+        encoding="utf-8",
+    )
+    return out
+
+
 def build_specs(args: argparse.Namespace) -> list[StudySpec]:
     specs = [
         StudySpec(f"darcy_Df{df:g}", df, 0.0, args.darcy_velocity)
@@ -266,8 +303,17 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--workdir",
         type=Path,
-        required=True,
         help="empty or new directory for the generated study cases (keep it outside the checkout)",
+    )
+    parser.add_argument(
+        "--expect",
+        type=Path,
+        metavar="CASE",
+        help="write CASE's measured/analytic dp ratio instead of running a study",
+    )
+    parser.add_argument("--df", type=float, help="Df in m^-2 for --expect")
+    parser.add_argument(
+        "--forchheimer", type=float, help="forchheimerCoeff for --expect"
     )
     parser.add_argument(
         "--darcy-df",
@@ -313,11 +359,23 @@ def parse_args() -> argparse.Namespace:
         default=0.15,
         help="maximum relative error against the analytical pressure estimate",
     )
-    return parser.parse_args()
+    args = parser.parse_args()
+    if args.expect is None and args.workdir is None:
+        parser.error("one of --workdir or --expect is required")
+    if args.expect is not None and (args.df is None or args.forchheimer is None):
+        parser.error("--expect needs --df and --forchheimer")
+    return args
 
 
 def main() -> int:
     args = parse_args()
+    if args.expect is not None:
+        try:
+            print(write_expectation(args.expect.resolve(), args.df, args.forchheimer))
+        except (OSError, StudyError) as exc:
+            print(f"ERROR: {exc}", file=sys.stderr)
+            return 2
+        return 0
     template = args.template.resolve()
     if not template.is_dir():
         print(f"ERROR: template case not found: {template}", file=sys.stderr)

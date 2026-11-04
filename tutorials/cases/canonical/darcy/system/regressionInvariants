@@ -1,0 +1,8 @@
+# Declared invariants, checked by applications/test/regression/tools/checkInvariants.py
+# before the baseline comparison; a run that breaks one is never recaptured.
+# <functionObject> <column> <check> <args>; see doc/regression-testing.md.
+
+# Steady dp over the analytic Darcy-Forchheimer dp, written by Allrun (#179).
+# Gap 1.09% here and in darcyE (copied by ../solveForE), halving per mesh
+# doubling: the zeroGradient inlet p is the first cell's. Heating is 5 mK.
+regressionDarcyForchheimer  dpRatio  ==  1  0.012

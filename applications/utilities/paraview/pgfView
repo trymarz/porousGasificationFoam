@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+#
+# pgfView -- open a porousGasificationFoam case in ParaView with its views set
+# up, or render those views to PNGs headless. Views come from the case's
+# system/paraviewViews.py (see doc/paraview.md).
+#
+# Usage:
+#   pgfView <case>                       open the ParaView GUI
+#   pgfView <case> --png <dir>           write <dir>/<view>.png (pvbatch)
+#           [--time T] [--size WxH] [--xvfb]
+#   pgfView <case> --compare <other> ...  <case> | <other> | difference
+#
+# <case> is a tutorial case or a finished run copy of one; <other> is another
+# one, or a postProcessing-only <case>/reference (charts only). --png renders
+# the last (common) mesh time unless --time is given. --xvfb renders under
+# xvfb-run; it is also used automatically when DISPLAY is unset.
+
+set -euo pipefail
+
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+usage() { sed -n '7,18s/^# \{0,1\}//p' "${BASH_SOURCE[0]}"; exit "${1:-0}"; }
+
+case_dir="" compare="" png="" time="" size="1000x750" xvfb=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --png)  png="${2:?--png needs a directory}"; shift 2 ;;
+        --compare) compare="${2:?--compare needs a case}"; shift 2 ;;
+        --time) time="${2:?--time needs a value}"; shift 2 ;;
+        --size) size="${2:?--size needs WxH}"; shift 2 ;;
+        --xvfb) xvfb=1; shift ;;
+        -h|--help) usage 0 ;;
+        -*) echo "pgfView: unknown option $1" >&2; usage 2 ;;
+        *)  [ -z "$case_dir" ] || usage 2; case_dir="$1"; shift ;;
+    esac
+done
+[ -n "$case_dir" ] || usage 2
+[ -d "$case_dir/system" ] || { echo "pgfView: not a case: $case_dir" >&2; exit 2; }
+
+export PGFVIEW_CASE="$(cd "$case_dir" && pwd)"
+if [ -n "$compare" ]; then
+    [ -d "$compare" ] || { echo "pgfView: not a directory: $compare" >&2; exit 2; }
+    export PGFVIEW_COMPARE="$(cd "$compare" && pwd)"
+fi
+export PGFVIEW_TIME="$time" PGFVIEW_SIZE="$size"
+# Open MPI's UCX probe prints a harmless VFS error under ParaView.
+export UCX_VFS_ENABLE="${UCX_VFS_ENABLE:-n}"
+
+if [ -z "$png" ]; then
+    exec paraview --script="$here/pgfViewMain.py"
+fi
+
+mkdir -p "$png"
+export PGFVIEW_PNG="$(cd "$png" && pwd)"
+cmd=(pvbatch "$here/pgfViewMain.py")
+# Debian's ParaView renders through X only (no EGL/OSMesa), so headless
+# means a virtual X server.
+if [ -n "$xvfb" ] || [ -z "${DISPLAY:-}" ]; then
+    command -v xvfb-run >/dev/null || {
+        echo "pgfView: no display and no xvfb-run (apt install xvfb)" >&2
+        exit 1
+    }
+    cmd=(xvfb-run -a -s "-screen 0 1920x1080x24" "${cmd[@]}")
+fi
+exec "${cmd[@]}"
