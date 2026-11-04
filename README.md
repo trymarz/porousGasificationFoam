@@ -68,6 +68,7 @@ Next: `tutorials/cases/gasifier` is a full reactive-flow demo. `./Allwclean` cle
 | Fix an error | [doc/troubleshooting.md](doc/troubleshooting.md) |
 | Understand the model: equations, per-step flow, where the code is | [doc/theory.md](doc/theory.md) |
 | Run or extend the regression tests | [doc/regression-testing.md](doc/regression-testing.md) |
+| Look at a case in ParaView, or render its views to PNG | [doc/paraview.md](doc/paraview.md) |
 | Contribute (branches, PRs, doc rules) | [CONTRIBUTING.md](CONTRIBUTING.md) |
 | Browse the API | Doxygen — see [doc/build.md](doc/build.md#doxygen-documentation) |
 
