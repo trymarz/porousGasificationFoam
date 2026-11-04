@@ -1,0 +1,138 @@
+# Regression tiers in the pinned OpenFOAM v2406 image (#130).
+# fast: every PR to main and every push to main; convergence: nightly and on demand.
+# The dem tier stays local-only: the image has no Yade.
+name: regression
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 2 * * *"
+  workflow_dispatch:
+    inputs:
+      tier:
+        description: pgf-test tier to run
+        type: choice
+        options: [convergence, fast]
+        default: convergence
+
+permissions:
+  contents: read
+
+concurrency:
+  group: regression-${{ github.event_name }}-${{ github.ref }}-${{ inputs.tier || '' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  regression:
+    name: ${{ github.event_name == 'schedule' && 'convergence' || inputs.tier || 'fast' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    container:
+      # Same digest as container/pgf-toolchain.def; the "Check image digest" step keeps them equal.
+      image: opencfd/openfoam-dev@sha256:29dd2c73941c1d718655e6ca7a79f466ec57362b534c4d41bd1deffc5b414e0c
+      options: --user root
+    env:
+      TIER: ${{ github.event_name == 'schedule' && 'convergence' || inputs.tier || 'fast' }}
+      PGF_FOAM_BASHRC: /usr/lib/openfoam/openfoam2406/etc/bashrc
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Install python3 and git
+        run: |
+          set -eu
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update -q
+          apt-get install -y --no-install-recommends python3 git ca-certificates zstd
+
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: pgf
+
+      - name: Set work dirs
+        run: |
+          echo "PGF_BUILD_ROOT=$GITHUB_WORKSPACE/pgf-builds" >>"$GITHUB_ENV"
+          echo "PGF_RUN_ROOT=$GITHUB_WORKSPACE/pgf-runs" >>"$GITHUB_ENV"
+
+      - name: Check image digest
+        working-directory: pgf
+        run: |
+          set -eu
+          pat='opencfd/openfoam-dev@sha256:[0-9a-f]\{64\}'
+          wf="$(grep -o "$pat" .github/workflows/regression.yml | sort -u)"
+          def="$(grep -o "$pat" container/pgf-toolchain.def | sort -u)"
+          [ "$wf" = "$def" ] || { echo "::error::image digest differs: workflow '$wf', pgf-toolchain.def '$def'"; exit 1; }
+
+      - name: Toolchain
+        working-directory: pgf
+        run: |
+          . /etc/os-release && echo "os:      $PRETTY_NAME"
+          echo "gcc:     $(gcc -dumpfullversion)"
+          echo "python3: $(python3 --version 2>&1)"
+          echo "cores:   $(nproc)"
+
+      - name: Build key
+        id: key
+        working-directory: pgf
+        run: |
+          set -eu
+          key="$(./pgf-env --bare -- ./build.sh --print-key)"
+          echo "key=$key" >>"$GITHUB_OUTPUT"
+          echo "build key: $key"
+
+      - name: Restore prefix
+        id: cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: pgf-builds/${{ steps.key.outputs.key }}
+          key: pgf-prefix-${{ steps.key.outputs.key }}
+
+      - name: Build
+        working-directory: pgf
+        run: |
+          set -o pipefail
+          mkdir -p "$PGF_RUN_ROOT"
+          ./pgf-env --bare -- ./build.sh --isolated 2>&1 | tee "$PGF_RUN_ROOT/ci-build.log" | tail -40
+
+      - name: Save prefix
+        if: steps.cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: pgf-builds/${{ steps.key.outputs.key }}
+          key: pgf-prefix-${{ steps.key.outputs.key }}
+
+      - name: Run ${{ env.TIER }} tier
+        working-directory: pgf
+        run: ./pgf-test "$TIER" --run-root "$PGF_RUN_ROOT/run"
+
+      # Copy only regular files: kept case copies symlink back into the source tree.
+      - name: Collect artifacts
+        if: always()
+        run: |
+          set -u
+          out="$GITHUB_WORKSPACE/artifacts"
+          mkdir -p "$out"
+          cd "$PGF_RUN_ROOT" || exit 0
+          for f in ci-build.log run/build.log run/driver.log "last/$TIER.json"; do
+            [ -f "$f" ] && cp --parents "$f" "$out/"
+          done
+          [ -d run/state ] && cp -r --parents run/state "$out/"
+          if [ -d run/cases ]; then
+            find run/cases \( -path '*/postProcessing/*' -o -name 'log.*' \) -type f \
+              -exec cp --parents {} "$out/" \;
+          fi
+          [ -f run/state/result.json ] && python3 -c 'import json,sys; r=json.load(open(sys.argv[1])); print(json.dumps({k: r[k] for k in r if k != "cases"}, indent=1))' run/state/result.json
+          exit 0
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: regression-${{ env.TIER }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/
+          if-no-files-found: warn
+          retention-days: 14

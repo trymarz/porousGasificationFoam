@@ -71,6 +71,23 @@ container/compareToolchains.sh --image /scratch/pgf-toolchain.sif [--tiers "fast
 
 Each side gets its own `git archive` copy of `HEAD` under the work dir (default `$PGF_RUN_ROOT/toolchains-<time>-<pid>`), so uncommitted changes are not tested. The native side uses your `PGF_BUILD_ROOT`; the image side builds into the work dir. It exits 1 when any case fails in the image. The image has no Yade, so the `dem` tier is not covered.
 
+### CI on GitHub Actions
+
+`.github/workflows/regression.yml` runs one tier with `pgf-test` in the same image, pulled by the same digest as `container/pgf-toolchain.def`. The job runs as root in the container and installs `python3` and `git` itself.
+
+| Event | Tier |
+|---|---|
+| pull request to `main`, push to `main` | `fast` |
+| nightly (02:17 UTC, default branch only) | `convergence` |
+| manual run (`workflow_dispatch`, "Run workflow" on the Actions tab) | `convergence` or `fast`, chosen in the form |
+
+- **Digest.** The digest appears in the workflow and in the `.def`; a step fails the job when the two differ, so change both together.
+- **Build cache.** The job computes the build key (`build.sh --print-key`), restores `pgf-builds/<key>` from the Actions cache, builds with `build.sh --isolated` (a no-op on a hit) and saves the prefix on a miss. A change to any source under the build targets, the OpenFOAM version or the compiler gives a new key; a change to cases, baselines or scripts reuses the prefix.
+- **Artifacts** (`regression-<tier>-<run id>-<attempt>`, kept 14 days): `ci-build.log`, the run's `build.log` and `driver.log`, `last/<tier>.json`, the whole `state/` dir (`result.json` and every case's logs and `compare.log`), and for each failed case the `postProcessing/` and `log.*` files of its kept copy. Only regular files are collected, because the copies symlink back into the source tree.
+- **Jobs.** `--jobs` comes from `applications/test/tiers.conf`, as locally. A hosted `ubuntu-24.04` runner has 4 cores for a public repository and 2 for a private one.
+- **Not covered.** The `dem` tier is local-only: the image has no Yade, so run `./pgf-test dem` before DEM-touching merges. Parallel decomposition is not covered either, since no case in `cases.list` decomposes. If one is added, note that Open MPI refuses to run as root by default, and `pgf-env` drops `OMPI_ALLOW_RUN_AS_ROOT*` from the environment, so the job would need a non-root user or a pass-through.
+- **Baselines.** CI only compares against the committed `reference/`; it never captures one.
+
 ## Add a case
 
 1. Add `system/regressionFunctions` with the metrics to extract (example: `tutorials/cases/charOnlyMoveCases/serial/system/regressionFunctions`), and `#includeIfPresent "regressionFunctions"` inside `functions { … }` at the bottom of `system/controlDict`.
