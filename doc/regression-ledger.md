@@ -26,7 +26,7 @@ Built from the committed `reference/` files on `main` at 5cec447, each case's `s
 6. **`conservation/gasPressureWork` gas energy residual drifts.** The comment says it "stays at its t = 0 value". From t = 0.05 to 0.5 it moves by 2.8e-06, 0.87% of the 3.3e-04 the gas received, growing steadily. The first-order running mean `heatTransferMean` may explain it; to settle, halve `deltaT` and see whether the drift halves.
 7. **`canonical/pyrolysis` gas pressure** rises from 2.1 bar to 39 bar in 0.5 s. Plausible for a sealed box filling with pyrolysis gas, but no metric or comment says so.
 8. **`canonical/gasification`** (on `main`): `volIntegrate(Ychar)` is flat and `volAverage(CO2)` is exactly 0. #174 makes the gas reaction run and recaptures the baseline; the rows below are `main`'s.
-9. **No case can see the #31 inflow guard.** It fires in `prescribedUsCases/tetrisCompaction`: 36209 candidates, 17243 vetoed. With `poroProtectSolidInflowFluxTolerance 1e30` none are vetoed, and all six metrics still match the baseline. The case sets neither `bedCollapse` nor `emptyFlippedCells`, and `PorosityRecovery::recover()` uses the flip list only under one of them, so the guard decides nothing there. The same case with `emptyFlippedCells true` does see it: the guard lets 231 flips destroy 2.4e-08 kg of solid; off, 7319 flips destroy 9.7e-08 kg, and `volIntegrate(Ycharm)` moves by 5e-04 relative. That variant is the fixture #175 asks for.
+9. **No case can see the #31 inflow guard.** It fires in `prescribedUsCases/tetrisCompaction`: 36209 candidates, 17243 vetoed. With `poroProtectSolidInflowFluxTolerance 1e30` none are vetoed, and all six metrics still match the baseline. The case sets neither `bedCollapse` nor `emptyFlippedCells`, and `PorosityRecovery::recover()` uses the flip list only under one of them, so the guard decides nothing there. The same case with `emptyFlippedCells true` does see it: the guard lets 231 flips destroy 2.4e-08 kg of solid; off, 7319 flips destroy 9.7e-08 kg, and `volIntegrate(Ycharm)` moves by 5e-04 relative. That variant is the fixture #175 asks for; #187 adds it as `prescribedUsCases/tetrisCompactionEmptying`.
 10. **The comparator ignores unreferenced output.** It walks `reference/` and fails on a reference file missing from the run, but a `.dat` with no reference is never read. A newly added metric passes unchecked until someone captures it.
 
 ## Ledger
@@ -57,7 +57,7 @@ Built from the committed `reference/` files on `main` at 5cec447, each case's `s
 | `TsMax` | invariant | heating above the inlet's 300 K | — |
 | `TsMin` | diluted | — | 0 until the domain fills |
 
-`solidInlet_tinyDt` (as in #176): `PorosityAverage`, `PorosityMin`, `Ycharm` live; `Yashm`, `Yhumm`, `Yrubberwoodm` dead; `TsMax` and `TsCharWeighted` invariant at 300 K. It does not exercise the #31 inflow guard: 0 candidates (#175).
+`solidInlet_tinyDt` (as in #176): `PorosityAverage`, `PorosityMin`, `Ycharm` live; `Yashm`, `Yhumm`, `Yrubberwoodm` dead; `TsMax` and `TsCharWeighted` invariant at 300 K, checked as `== 300` (#188). It does not exercise the #31 inflow guard: 0 candidates (#175).
 
 `solidInlet_ash`:
 
@@ -121,7 +121,8 @@ All six metrics in every case: `volIntegrate`, `min`, `max` of `Ycharm`, and `vo
 | `converging`, `shear`, `vortexIrrotational`, `vortexOneOverR2`, `vortexRankine`, `vortexSolidBody` | invariant (closed, 7.224e-07) | invariant | live; `shear` `PorosityMin` moves less than `rtol` |
 | `convergingJam`, `convergingJamTight` | invariant | invariant | `PorosityMin` and `YcharmMax` are flat at the cap (0.4 / 0.1, 630 / 945): invariant bounds; the rest live |
 | `diverging` | live (solid leaves through the `zeroGradient` boundary) | live | live |
-| `tetrisCompaction` | live | live | live; blind to the inflow guard (finding 9) |
+| `tetrisCompaction` | live | live | live; blind to the inflow guard (finding 9): `tetrisCompactionEmptying` is the fixture that sees it |
+| `tetrisCompactionEmptying` (#187) | live; fails with the inflow guard off (finding 9) | live | live |
 | `rightWallSolidAccumulationFromLeftInlet` | live (inlet) | live | see below |
 
 `rightWallSolidAccumulationFromLeftInlet` also records per-component `min/max/volAverage` of `Ychar Yash Ywood Ymineral` (the maxima are flat at the inlet composition: invariant bounds), `TsCharWeighted` (invariant 300 K, #162), `min/max(rhos)`, `min/max(rho)`, `min/max(p)` (live), and `min/max(N2)` (dead, single-species gas).
