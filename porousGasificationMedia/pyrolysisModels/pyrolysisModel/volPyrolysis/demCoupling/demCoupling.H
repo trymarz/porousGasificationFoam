@@ -26,7 +26,8 @@ Class
 
 Description
     The pyrolysis side of the DEM (YADE) coupling: computes lambdaDot, the
-    rate of change of the DEM particle length scale [m/s], which
+    rate of change of the DEM particle length scale [m/s] (or under
+    lambdaMode apparentVolume the factor r [-] YADE applies once), which
     lambdaDotModel then pushes to the YADE particles.
 
     Each step lambdaDot is reset and given its temperature-driven term
@@ -52,6 +53,7 @@ SourceFiles
 
 #include "fvMesh.H"
 #include "volFields.H"
+#include "basicSolidMixture.H"
 
 #ifdef WITH_YADE
     // liblambdaDotModel links YADE, so it is referenced only here.
@@ -102,9 +104,9 @@ public:
 
     // Constructors
 
-        //- Construct from the mesh; resolves whether coupling is active
-        //  and logs the result
-        DemCoupling(const fvMesh& mesh);
+        //- Construct from the mesh and the solid species, whose rhoApparent
+        //  the model may need; resolves whether coupling is active and logs it
+        DemCoupling(const fvMesh& mesh, const basicSolidMixture& composition);
 
 
     //- Destructor
@@ -122,10 +124,12 @@ public:
         //- Reset lambdaDot and add its temperature-driven term
         void beginStep();
 
-        //- Add the chemistry-driven term of one solid specie
+        //- Add the chemistry-driven term of one solid specie; Ym_i is its
+        //  mass concentration before this step's solve
         void addChemistryTerm
         (
             const volScalarField& sRhoSi,
+            const volScalarField& Ym_i,
             const word& specie
         );
 

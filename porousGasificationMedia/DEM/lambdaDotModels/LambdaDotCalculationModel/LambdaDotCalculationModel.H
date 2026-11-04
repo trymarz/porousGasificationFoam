@@ -13,8 +13,9 @@ namespace Foam
 // Owned by volPyrolysis, selected via lambdaMode in constant/lambdaDict, and
 // driven in SolidSpeciesTransport::solve(): beginStep() once per step, then
 // calculateTemperatureDriven() once, then calculateChemistryDriven() per
-// solid specie. PGF owns only the rate; YADE integrates lambda itself
-// (State::lambda_) and no model here reads it.
+// solid specie, then endStep() once. PGF owns only what it sends YADE: the
+// rate [m/s] (YADE integrates State::lambda_), or the factor under
+// apparentVolume, applied once per exchange.
 class LambdaDotCalculationModel
 {
 protected:
@@ -55,6 +56,31 @@ public:
     (
         const volScalarField& sRhoSi,
         const word& specieName
+    )
+    {}
+
+    //- As above, also given this specie's Ym_i [kg/m^3], not yet solved this
+    //  step. Default forwards to the two-argument form.
+    virtual void calculateChemistryDriven
+    (
+        const volScalarField& sRhoSi,
+        const volScalarField& Ym_i,
+        const word& specieName
+    )
+    {
+        calculateChemistryDriven(sRhoSi, specieName);
+    }
+
+    //- Called once after the species loop. Default no-op.
+    virtual void endStep()
+    {}
+
+    //- Called once after construction with each solidComponents name and
+    //  its rhoApparent [kg/m^3], 0 where not given. Default no-op.
+    virtual void setApparentDensities
+    (
+        const wordList& specieNames,
+        const scalarList& rhoApparent
     )
     {}
 };

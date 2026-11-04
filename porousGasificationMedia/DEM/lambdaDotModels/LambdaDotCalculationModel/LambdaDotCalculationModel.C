@@ -1,6 +1,7 @@
 #include "LambdaDotCalculationModel.H"
 #include "constantLambdaDot.H"
 #include "exactDifferentialLambdaDot.H"
+#include "apparentVolumeLambdaDot.H"
 
 namespace Foam
 {
@@ -53,11 +54,19 @@ autoPtr<LambdaDotCalculationModel> LambdaDotCalculationModel::New
         );
     }
 
+    else if (modelName == "apparentVolume")
+    {
+        return autoPtr<LambdaDotCalculationModel>
+        (
+            new apparentVolumeLambdaDot(dict, mesh, lambdaDot)
+        );
+    }
+
     // No "off" mode: exactDifferential with every coefficient at its 0.0
     // default gives lambdaDot = 0 exactly.
     FatalErrorInFunction
         << "Unknown lambdaMode '" << modelName << "'." << nl
-        << "Valid options are: constant, exactDifferential"
+        << "Valid options are: constant, exactDifferential, apparentVolume"
         << exit(FatalError);
 
     return autoPtr<LambdaDotCalculationModel>();

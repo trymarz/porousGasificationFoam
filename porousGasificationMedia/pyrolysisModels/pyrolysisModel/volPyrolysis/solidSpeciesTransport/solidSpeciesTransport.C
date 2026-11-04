@@ -116,10 +116,12 @@ void SolidSpeciesTransport::solveSpecieMass(const label i)
     volScalarField& Ym_i = Ym_[i];
     volScalarField sRhoSi = chemistry_.RRs(i);
 
-    // lambdaDot only reads sRhoSi, which the Ym equation uses unchanged.
+    // lambdaDot reads sRhoSi, which the Ym equation uses unchanged, and
+    // Ym_i before it is solved.
     demCoupling_.addChemistryTerm
     (
         sRhoSi,
+        Ym_i,
         solidThermo_.composition().components()[i]
     );
 
