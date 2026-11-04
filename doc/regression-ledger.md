@@ -96,7 +96,7 @@ Built from the committed `reference/` files on `main` at 5cec447, each case's `s
 | `UAverage` | live | velocity settling | — |
 | `TRiseAverage`, `TRiseMax` (`darcy`, `darcyE`) | live | viscous / pressure-work heating | — |
 
-The steady values have analytic counterparts (Darcy's law), a candidate for step 4.
+Their steady drop is also checked against Darcy–Forchheimer: `regressionDarcyForchheimer dpRatio == 1` in `system/regressionInvariants` (#179).
 
 ### canonical/conservation
 
