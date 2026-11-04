@@ -1,0 +1,4 @@
+# Direction of lambda (#194): the temperature term outweighs chemistry here,
+# so lambda grows and never shrinks. Bound ~1/10 of the first sample (1.1e-7).
+lambdaMinusOneAverage  average(lambdaMinusOne)  >=  1e-8
+lambdaMinusOneMin      min(lambdaMinusOne)      >=  0

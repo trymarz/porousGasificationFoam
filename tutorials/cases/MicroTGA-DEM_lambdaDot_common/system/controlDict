@@ -83,6 +83,19 @@ functions
         writeInterval   -1;
     }
 
+    // lambda - 1 for the lambdaMinusOne* metrics below (must precede them).
+    // Cells set by the background value (AltInterp: |lambda - 1| ~ 0.5) are
+    // zeroed, else that O(1) offset would hide the 1e-8..1e-6 signal again.
+    lambdaMinusOne
+    {
+        type            exprField;
+        libs            (fieldFunctionObjects);
+        field           lambdaMinusOne;
+        expression      "(mag(lambda - 1) < 0.01) ? lambda - 1 : 0";
+        executeControl  timeStep;
+        executeInterval 1;
+    }
+
     lambdaDotAverage
     {
         ${solidBedFieldValueBase}
@@ -128,6 +141,37 @@ functions
         ${solidBedFieldValueBase}
         enabled         true;
         fields          (lambda);
+        operation       max;
+    }
+
+    // lambda* compare lambda ~ 1 at the default rtol 1e-4, which accepts any
+    // lambda in [0.9999, 1.0001]; lambda moves by 1e-8..1e-5 here (#194).
+    // Kept: they still catch an O(1) change, e.g. in AltInterp's background.
+
+    // lambda - 1 is the signal itself, so the default rtol 1e-4 bounds its
+    // relative change (a 10% rate change fails it); atol 1e-12 only matters
+    // where it is exactly 0 (Min/Max over cells lambdaDot never reaches).
+    lambdaMinusOneAverage
+    {
+        ${solidBedFieldValueBase}
+        enabled         true;
+        fields          (lambdaMinusOne);
+        operation       average;
+    }
+
+    lambdaMinusOneMin
+    {
+        ${solidBedFieldValueBase}
+        enabled         true;
+        fields          (lambdaMinusOne);
+        operation       min;
+    }
+
+    lambdaMinusOneMax
+    {
+        ${solidBedFieldValueBase}
+        enabled         true;
+        fields          (lambdaMinusOne);
         operation       max;
     }
 

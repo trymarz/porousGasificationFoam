@@ -165,7 +165,7 @@ tools/runDEMCase.sh tutorials/cases/simple_line_case [--timeout S] [--nsteps N]
 
 - Needs a Yade-enabled build (`./build.sh --yade` / `build-pgf --yade`), Yade and `mpirun`. Cases are listed in `cases_yade.list`.
 - `--short` caps each case at a few hundred coupling steps (seconds): it checks the coupling handshake and output, not a converged result. `YADE_NSTEPS` / `YADE_TIMEOUT` in the environment override its defaults.
-- Each case is checked for `RUN FINISH`, an active coupling handshake, sphere/spring VTK output and a positive PGF time step in `dtInfo.txt`.
+- Each case is checked for `RUN FINISH`, an active coupling handshake, sphere/spring VTK output and a positive PGF time step in `dtInfo.txt`. A case's `system/regressionInvariants` is then checked as in the serial suite, before the baseline comparison.
 - Takes the same `--list`, `--json`, `--state-dir` and `--jobs` flags, but defaults to **one** case at a time and warns if you raise it: concurrent DEM runs are unverified, and each spawns its own `mpirun` → Yade → `MPI_Comm_spawn`'d solver tree.
 - A hung run is bounded by `YADE_TIMEOUT` and killed by signalling only its own process group (`setsid` + `timeout --kill-after`). There is no host-wide `pkill`, which would kill unrelated solver runs.
 - Each run gets its own `TMPDIR` (`$TMPDIR/pgf-dem-XXXXXX`, removed when the case finishes). A killed `mpirun` leaves its `prterun.<host>.<pid>.<uid>` session dir behind, and in a PID namespace the next `mpirun` often gets the same pid and fails with `PMIX_ERR_EXISTS` / `prte_session_dir failed`.

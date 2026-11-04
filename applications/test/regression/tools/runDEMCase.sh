@@ -36,13 +36,15 @@
 # postProcessing comparison: a case carrying a committed
 # reference/postProcessing/ baseline has its run diffed against it with
 # compareScalars.py. A case without one (e.g. MicroTGA-DEM_Us_UsInterp) skips
-# the comparison rather than failing.
+# the comparison rather than failing. Invariants declared in the case's
+# system/regressionInvariants are checked first (tools/checkInvariants.py).
 #
 # Exit codes (shared outcome taxonomy — see regressionLib.sh):
 #   0      - PASS  (ran to completion, all output asserts satisfied, and any
 #                   postProcessing comparison was within tolerance)
 #   1      - FAIL  (ran, but an output assert failed: no RUN FINISH / VTK / dt;
-#                   or postProcessing diverged from the reference baseline)
+#                   a declared invariant broke; or postProcessing diverged
+#                   from the reference baseline)
 #   2      - ERROR (infrastructure: missing case dir, failed clean)
 #   124    - TIMEOUT (the run exceeded the timeout and its process group was
 #                     terminated)
@@ -284,6 +286,24 @@ if foamDt <= 0.0:
 print("  PGF coupling check passed (foamDt={:.3e})".format(foamDt))
 PYCHECK
 then finish 1 "dtInfo.txt assertion failed — no positive PGF time step received"; fi
+
+# -- invariants (system/regressionInvariants, when present) --------------------
+# Checked before the baseline, as in runCase.sh: a broken invariant is a bug
+# whatever the baseline holds.
+
+INVARIANTS="$CASE_DIR/system/regressionInvariants"
+if [ -f "$INVARIANTS" ]; then
+    reg_phase invariants
+    python3 "$SCRIPT_DIR/checkInvariants.py" \
+        --invariants "$INVARIANTS" \
+        --postprocessing "$CASE_DIR/postProcessing"
+    rc=$?
+    case "$rc" in
+        0) echo "  invariant check passed" ;;
+        1) finish 1 "declared invariant broken (system/regressionInvariants)" ;;
+        *) finish 2 "invariant checker reported an infrastructure error (exit $rc)" ;;
+    esac
+fi
 
 # -- postProcessing comparison (only when a baseline is committed) -------------
 
