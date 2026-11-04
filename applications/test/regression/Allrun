@@ -77,7 +77,7 @@ Options:
   -h, --help      Show this help.
 
 Tags defined in cases.list:
-  fast        Run by default and on pre-push hook.
+  fast        Run by default and by CI on every PR and push to main.
   convergence Mesh-refinement study; run manually.
 EOF
 }
