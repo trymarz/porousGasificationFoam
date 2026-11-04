@@ -149,6 +149,8 @@ solidReactions
 | `heatOfReaction` | Heat released/absorbed (<0 = exothermic) | [J/kg] |
 | `n1, n2, ...` | Reaction order for each LHS species in order | — |
 
+**Rate basis**: the rate is defined per 1 kg of solid substrate (Żuk et al., CPC 2022, Eq. 4–5), and solid coefficients are mass-based (`hem = 0.6 CH4 + 0.4 char`: 1 kg hem gives 0.4 kg char). A coefficient on a lone solid substrate therefore has no effect on the rate: `2 wood = 2 tar` behaves like `wood = tar`, and the solver warns about it at startup. To split one solid among competing branches, give each branch its own reaction and put the branch fraction into its `A`. How reactions with gas substrates are normalised is under review in #201.
+
 ### `constant/solidThermophysicalProperties`
 
 Defines solid components and their thermophysical properties.
