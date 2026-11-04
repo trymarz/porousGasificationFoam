@@ -38,7 +38,7 @@ Each case ends in one outcome, taken from its exit status; the summary and suite
 
 The suite is green only if at least one case ran and every case passed. There is no skip: a case without a baseline, an empty or unreadable case list, or a `--tag`/`--case` filter matching nothing is an `ERROR` (exit 2). To skip a suite, don't invoke its driver.
 
-**Tiers** (tagged in `cases.list`): `fast` runs by default and is meant as the pre-push gate; `convergence` is a mesh-refinement study, run with `--tag convergence` or `--tag all`. DEM cases are listed separately in `cases_yade.list`.
+**Tiers** (tagged in `cases.list`): `fast` runs by default and in CI on every PR and push to `main` (see [CI on GitHub Actions](#ci-on-github-actions)); `convergence` is a mesh-refinement study, run with `--tag convergence` or `--tag all`. DEM cases are listed separately in `cases_yade.list`.
 
 ### Tiers with `pgf-test`
 
