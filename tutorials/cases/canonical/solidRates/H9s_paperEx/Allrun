@@ -1,0 +1,9 @@
+#!/bin/sh
+cd "${0%/*}" || exit
+. ${WM_PROJECT_DIR:?}/bin/tools/RunFunctions
+# The paper's Sec. 4.2.3 example, stoichiometric.
+python3 ../solidRates.py setup gasification --reaction 'char + CO2 = 2 CO + 0.05 ash' --coeffs '34.9 1.25e4 300 -1.72e5 1 1' --stoichiometric --dt 1e-4 --set Ychar=1 Yash=0 O2=0 CO2=0.233 || exit
+restore0Dir
+runApplication blockMesh || exit
+runApplication $(getApplication) || exit
+python3 ../solidRates.py check > log.solidRates 2>&1 || { cat log.solidRates >&2; exit 1; }

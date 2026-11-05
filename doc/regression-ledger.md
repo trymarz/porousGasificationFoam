@@ -98,6 +98,18 @@ Built from the committed `reference/` files on `main` at 5cec447, each case's `s
 
 Their steady drop is also checked against Darcy–Forchheimer: `regressionDarcyForchheimer dpRatio == 1` in `system/regressionInvariants` (#179).
 
+### canonical/solidRates
+
+Ten single-cell, single-step heterogeneous rate fixtures (#209 block A), one per reaction shape of #201: `H1`/`H1s` solid only, `H2` solid + gas, `H3` the same diffusion-limited, `H4` solid → solid, `H5` two solid reactants, `H6` the §5.6 gasifier shape, `H7` `H2` with doubled coefficients, `H8s` and `H9s` stoichiometric. `solidRates.py check` recomputes each case's rates from its own input files and writes `regressionSolidRates`.
+
+| Column | Status | Detects | Cannot detect |
+|---|---|---|---|
+| `rateRatioMin`, `rateRatioMax` | invariant (== 1, 1e-5) | any change to Eq. 4, 5, 10, the species split or the Eq. 12 heat source, for these shapes | a later step's rates; the time-step limiter |
+| `massRatio` | invariant (== 1, 1e-9) | mass created or lost by the split | — |
+| `source(<specie>)`, `heat` | live | the same, against the baseline | — |
+
+The species split is the code's convention, written out in `split_coefficients()`; the #201 fix changes it there and in the solver together.
+
 ### canonical/conservation
 
 These cases assert a balance; the comments in their `regressionFunctions` state each claim, and the data agree except where noted.

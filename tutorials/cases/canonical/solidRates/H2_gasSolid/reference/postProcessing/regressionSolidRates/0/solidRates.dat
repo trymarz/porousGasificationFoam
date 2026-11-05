@@ -1,0 +1,4 @@
+# char + 1.33 O2 = 2.33 CO (5.61e+09 19600 300 -3.95e+06 1 1) stoichiometric False diffusion False
+# hand: Omega 4.2202311239e+03 CO 2.5321386743e+03 O2 -1.4453838785e+03 char -1.0867547958e+03 heat 1.0001947764e+10
+# Time source(CO) source(O2) source(char) heat rateRatioMin rateRatioMax massRatio
+1e-08 2.5321386540e+03 -1.4453838669e+03 -1.0867547871e+03 1.0001947764e+10 9.9999999199e-01 1.0000000000e+00 1.0000000000e+00

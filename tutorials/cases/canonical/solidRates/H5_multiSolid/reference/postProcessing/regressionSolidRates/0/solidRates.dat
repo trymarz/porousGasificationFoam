@@ -1,0 +1,4 @@
+# 0.5 char + 0.5 ash + O2 = 2 CO (5.61e+09 19600 300 -3.95e+06 1 1 1) stoichiometric False diffusion False
+# hand: Omega 1.0550577810e+03 CO 6.3303466858e+02 O2 -3.1651733429e+02 ash -1.5825866714e+02 char -1.5825866714e+02 heat 2.5004869409e+09
+# Time source(CO) source(O2) source(ash) source(char) heat rateRatioMin rateRatioMax massRatio
+1e-08 6.3303489241e+02 -3.1651744620e+02 -1.5825872310e+02 -1.5825872310e+02 2.5004869409e+09 1.0000000000e+00 1.0000003536e+00 1.0000000000e+00
