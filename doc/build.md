@@ -96,6 +96,18 @@ Use `--purge` here: it also removes the installed solver, so a rebuild that fail
 | porousGasificationFoam | executable | all libraries |
 | utilities | executable suite | — |
 
+## Editor navigation (clangd)
+
+For go-to-definition, find-references and diagnostics in any clangd-based editor (nvim, VS Code, ...), generate a compilation database from the `Make/files` and `Make/options` of each component:
+
+```bash
+source <OpenFOAM>/etc/bashrc        # sets WM_PROJECT_DIR; or pass --foam DIR
+utilities/gen-compile-commands.py                   # this worktree
+utilities/gen-compile-commands.py --all-worktrees   # every git worktree
+```
+
+It writes a gitignored `compile_commands.json` at each tree's root, so rerun it per machine and per worktree. It reads the `lnInclude/` directories, so build (or run `wmakeLnInclude`) first. `--with-yade` also indexes the `WITH_YADE` code paths.
+
 ## Doxygen documentation
 
 ```bash
