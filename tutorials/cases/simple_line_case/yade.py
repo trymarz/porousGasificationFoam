@@ -1,4 +1,5 @@
 import os
+import sys
 from yade import mpy as mp
 from yade import export 
 import math
@@ -51,7 +52,11 @@ O.periodic = False # if true, define O.cell.setBox
 #numspheres = 100
 young = 25e6 #5e6
 density = 1200
-NSTEPS = int(os.environ.get('YADE_NSTEPS', 240000000))
+# Yade's step count follows the solver's controlDict (one exchange per solver
+# step, see DEM_common/yadeEndpoint.py); a mismatch leaves one side hanging.
+sys.path.insert(0, os.path.join(os.getcwd(), '..', 'DEM_common'))
+import yadeEndpoint
+NSTEPS = yadeEndpoint.yadeSteps(O.dt, dynDt=O.dynDt)
 #fixed_seed = 12345 # to keep random arrangment of spheres repertable. if changing this value, the arrangment will be different.
 
 

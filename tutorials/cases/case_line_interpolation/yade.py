@@ -1,4 +1,5 @@
 import os
+import sys
 from yade import mpy as mp
 from yade import export 
 import math
@@ -6,7 +7,6 @@ from collections import defaultdict
 import numpy as np
 from mpi4py import MPI
 from yade import pack
-import subprocess  # to read controlDict
 
 
 
@@ -55,23 +55,11 @@ O.periodic = False # if true, define O.cell.setBox
 
 young = 25e6 #5e6
 density = 1200
-#NSTEPS = int(os.environ.get('YADE_NSTEPS', 2000000))
-
-
-foamEndTime = float(
-    subprocess.check_output(
-        [
-            "foamDictionary",
-            "system/controlDict",
-            "-entry",
-            "endTime",
-            "-value",
-        ],
-        text=True,
-    ).strip()
-)
-
-NSTEPS = int(round(foamEndTime / O.dt))
+# Yade's step count follows the solver's controlDict (one exchange per solver
+# step, see DEM_common/yadeEndpoint.py); a mismatch leaves one side hanging.
+sys.path.insert(0, os.path.join(os.getcwd(), '..', 'DEM_common'))
+import yadeEndpoint
+NSTEPS = yadeEndpoint.yadeSteps(O.dt, dynDt=O.dynDt)
 
 
 O.materials.append(FrictMat(young=young, poisson=0.5, frictionAngle=radians(15), density=density, label='spheremat'))
