@@ -174,15 +174,17 @@ A zero, negative or non-numeric `--jobs` is an `ERROR` (exit 2).
 ### DEM (Yade) suite
 
 ```bash
-applications/test/regression/Allrun.yade --short   # smoke: YADE_NSTEPS=200
+applications/test/regression/Allrun.yade --short   # smoke: 50 solver steps, no baseline
 applications/test/regression/Allrun.yade           # full run (hours)
 applications/test/regression/Allrun.yade --list    # selection only
-tools/runDEMCase.sh tutorials/cases/simple_line_case [--timeout S] [--nsteps N]
+tools/runDEMCase.sh tutorials/cases/simple_line_case [--timeout S] [--run-dir D [--short-steps N]]
 ```
 
 - Needs a Yade-enabled build (`./build.sh --yade` / `build-pgf --yade`), Yade and `mpirun`. Cases are listed in `cases_yade.list`.
-- `--short` caps each case at a few hundred coupling steps (seconds): it checks the coupling handshake and output, not a converged result. `YADE_NSTEPS` / `YADE_TIMEOUT` in the environment override its defaults.
-- Each case is checked for `RUN FINISH`, an active coupling handshake, sphere/spring VTK output and a positive PGF time step in `dtInfo.txt`. A case's `system/regressionInvariants` is then checked as in the serial suite, before the baseline comparison.
+- Each case runs from a copy under the run root (`--run-root`, default `$PGF_RUN_ROOT/yade-<time>-<pid>`), as in the serial suite. Passed copies are deleted, failed ones kept; `--keep-runs` keeps all, `--in-place` runs in the source tree.
+- **Run length comes from the solver's `controlDict`.** Each case's Yade script derives its step count from it (`tutorials/cases/DEM_common/yadeEndpoint.py`; see [case setup → run length](case-setup.md#constantlambdadict-required-by-with_yade-builds-running-a-dem-case)), so both sides stop on the same exchange. A run whose log has no `[yadeEndpoint]` line, or where the helper refuses (`adjustTimeStep yes`, `stopAt` other than `endTime`), is an `ERROR`, not a 300 s `TIMEOUT`. `YADE_NSTEPS` is ignored, and `runDEMCase.sh --nsteps` is gone.
+- `--short` sets each copy's `endTime` to `YADE_SHORT_STEPS` solver steps (default 50, about 5 min per fixture on a loaded machine) and its `writeInterval` to half that, and skips the baseline comparison, whose rows are full-length. Yade follows the shortened `controlDict` by itself. A green `--short` run shows that the coupling handshake works, that both sides exit cleanly and that output and invariants hold. It is not a numerical or physical result. `YADE_TIMEOUT` defaults to 900 s under `--short`.
+- Each case is checked for `RUN FINISH`, the solver's `End`, an active coupling handshake, at least two sphere VTK files and two solver write times after the start, spring VTK output and a positive PGF time step in `dtInfo.txt`. A case's `system/regressionInvariants` is then checked as in the serial suite, before the baseline comparison.
 - Takes the same `--list`, `--json`, `--state-dir` and `--jobs` flags, but defaults to **one** case at a time and warns if you raise it: concurrent DEM runs are unverified, and each spawns its own `mpirun` → Yade → `MPI_Comm_spawn`'d solver tree.
 - A hung run is bounded by `YADE_TIMEOUT` and killed by signalling only its own process group (`setsid` + `timeout --kill-after`). There is no host-wide `pkill`, which would kill unrelated solver runs.
 - Each run gets its own `TMPDIR` (`$TMPDIR/pgf-dem-XXXXXX`, removed when the case finishes). A killed `mpirun` leaves its `prterun.<host>.<pid>.<uid>` session dir behind, and in a PID namespace the next `mpirun` often gets the same pid and fails with `PMIX_ERR_EXISTS` / `prte_session_dir failed`.

@@ -14,7 +14,11 @@
 # Usage:
 #   applications/test/regression/Allrun.yade [--case <name>] [--short]
 #                                           [--jobs N] [--list] [--json]
-#                                           [--state-dir DIR]
+#                                           [--state-dir DIR] [--run-root DIR]
+#                                           [--in-place] [--keep-runs]
+#
+# Each case runs from a copy under the run root (tools/runDEMCase.sh --run-dir),
+# so the work tree stays clean; passed copies are deleted, failed ones kept.
 
 set -u
 
@@ -38,15 +42,24 @@ JOBS=1
 LIST_ONLY=false
 AS_JSON=false
 STATE_DIR=""
+RUN_ROOT=""
+IN_PLACE=false
+KEEP_RUNS=false
+SHORT_STEPS="${YADE_SHORT_STEPS:-50}"
 
 usage() {
     cat <<EOF
 Usage: $0 [options]
 
   --case <name>   Run only the named case (basename or repo-relative path).
-  --short         Fast smoke test: set YADE_NSTEPS=200 so each case runs in
-                  seconds instead of hours. Checks coupling handshake and VTK
-                  output without running a full simulation.
+  --short         Smoke test: run each copy for \$YADE_SHORT_STEPS solver steps
+                  (default 50; Yade follows via controlDict) and skip the
+                  baseline comparison. Checks the coupling handshake, a clean
+                  exit on both sides and the output, not a result.
+  --run-root <d>  Run each case from a copy under <d>/<case path with / as __>/
+                  (default: \${PGF_RUN_ROOT:-\${TMPDIR:-/tmp}/pgf-runs}/yade-<time>-<pid>).
+  --in-place      Run in the source tree instead of a copy (not with --short).
+  --keep-runs     Keep the copies of passed cases too (failed ones are always kept).
   --jobs <n>      Number of DEM CASES to run concurrently (default 1). This is
                   suite concurrency only: it never changes a case's own MPI
                   layout. Concurrent DEM execution is NOT verified — each case
@@ -68,10 +81,18 @@ while [ $# -gt 0 ]; do
         --list) LIST_ONLY=true; shift ;;
         --json) AS_JSON=true; shift ;;
         --state-dir) STATE_DIR="$2"; shift 2 ;;
+        --run-root) RUN_ROOT="$2"; shift 2 ;;
+        --in-place) IN_PLACE=true; shift ;;
+        --keep-runs) KEEP_RUNS=true; shift ;;
         -h|--help) usage; exit 0 ;;
         *) clog ERROR "Unknown option: $1"; usage; exit 2 ;;
     esac
 done
+
+if [ "$SHORT_RUN" -eq 1 ] && [ "$IN_PLACE" = true ]; then
+    clog ERROR "--short edits each case's controlDict, so it runs only on copies (drop --in-place)"
+    exit 2
+fi
 
 if ! [[ "$JOBS" =~ ^[0-9]+$ ]] || [ "$JOBS" -lt 1 ]; then
     clog ERROR "--jobs must be a positive integer (got: $JOBS)"
@@ -144,10 +165,9 @@ if [ "$AS_JSON" = true ]; then
     exit 2
 fi
 
-# --short caps the step count and wall-clock, but a value the caller pre-set in
-# the environment wins (so a longer smoke run can be requested explicitly).
-[ "$SHORT_RUN" -eq 1 ] && export YADE_NSTEPS="${YADE_NSTEPS:-200}"
-[ "$SHORT_RUN" -eq 1 ] && export YADE_TIMEOUT="${YADE_TIMEOUT:-300}"
+# --short shortens the solver's run and caps the wall-clock; a timeout the
+# caller pre-set in the environment wins.
+[ "$SHORT_RUN" -eq 1 ] && export YADE_TIMEOUT="${YADE_TIMEOUT:-900}"
 
 # -- run-state / output-capture setup ----------------------------------------
 
@@ -175,6 +195,20 @@ elif [ "$JOBS" -gt 1 ]; then
 fi
 [ -n "$SCHED_DIR" ] && CASES_ROOT="$SCHED_DIR/cases"
 
+if [ "$IN_PLACE" = false ]; then
+    [ -n "$RUN_ROOT" ] || RUN_ROOT="${PGF_RUN_ROOT:-${TMPDIR:-/tmp}/pgf-runs}/yade-$(date +%Y%m%d-%H%M%S)-$$"
+    if ! mkdir -p "$RUN_ROOT"; then
+        clog ERROR "cannot create run root: $RUN_ROOT"
+        exit 2
+    fi
+    RUN_ROOT="$(cd "$RUN_ROOT" && pwd)"
+fi
+
+# case_run_dir <case-id> — the per-case mirror root under the run root.
+case_run_dir() {
+    printf '%s/%s' "$RUN_ROOT" "${1//\//__}"
+}
+
 T_SUITE_START=$(date +%s)
 
 if [ "$STATE_ACTIVE" = true ]; then
@@ -200,7 +234,12 @@ fi
 clog INFO "=================================================="
 clog INFO "  PGF Yade regression suite"
 [ -n "$ONLY_CASE" ]        && clog INFO "  filter: $ONLY_CASE"
-[ "$SHORT_RUN" -eq 1 ]     && clog INFO "  mode: --short (YADE_NSTEPS=$YADE_NSTEPS)"
+[ "$SHORT_RUN" -eq 1 ]     && clog INFO "  mode: --short ($SHORT_STEPS solver steps, no baseline comparison)"
+if [ "$IN_PLACE" = true ]; then
+    clog INFO "  runs:   in place, in the source tree"
+else
+    clog INFO "  runs:   $RUN_ROOT"
+fi
 [ "$STATE_ACTIVE" = true ] && clog INFO "  state:   $SCHED_DIR"
 if [ "$JOBS" -gt 1 ]; then
     clog INFO "  jobs:   $JOBS cases at a time"
@@ -234,21 +273,33 @@ run_one() {
     local idx="$1"
     local id="${SEL_IDS[$idx]}"
     local args=("$REPO_ROOT/$id" --case-id "$id" --suite-id "$SUITE_ID")
+    local run_dir="" rc
+    if [ "$IN_PLACE" = false ]; then
+        run_dir="$(case_run_dir "$id")"
+        rm -rf "$run_dir"
+        args+=(--run-dir "$run_dir")
+    fi
+    [ "$SHORT_RUN" -eq 1 ] && args+=(--short-steps "$SHORT_STEPS")
 
     if [ -z "$CASES_ROOT" ]; then
         "$RUN_CASE" "${args[@]}"
-        return $?
+        rc=$?
+    else
+        local cs="$CASES_ROOT/$id"
+        mkdir -p "$cs"
+        # A stale result must never be able to stand in for a case that died
+        # before writing one.
+        rm -f "$cs/result.json"
+        args+=(--state-dir "$cs")
+        [ "$STATE_ACTIVE" = true ] && args+=(--suite-events "$SUITE_EVENTS")
+        "$RUN_CASE" "${args[@]}" >"$cs/stdout.log" 2>"$cs/stderr.log"
+        rc=$?
     fi
 
-    local cs="$CASES_ROOT/$id"
-    mkdir -p "$cs"
-    # A stale result must never be able to stand in for a case that died before
-    # writing one.
-    rm -f "$cs/result.json"
-    args+=(--state-dir "$cs")
-    [ "$STATE_ACTIVE" = true ] && args+=(--suite-events "$SUITE_EVENTS")
-    "$RUN_CASE" "${args[@]}" >"$cs/stdout.log" 2>"$cs/stderr.log"
-    return $?
+    if [ -n "$run_dir" ] && [ "$rc" -eq 0 ] && [ "$KEEP_RUNS" = false ]; then
+        rm -rf "$run_dir"
+    fi
+    return "$rc"
 }
 
 replay_case_output() {
@@ -349,6 +400,10 @@ fi
 
 reg_summary "Yade regression summary"
 suite_rc=$?
+
+if [ -n "$RUN_ROOT" ]; then
+    rmdir "$RUN_ROOT" 2>/dev/null || clog INFO "case copies kept under $RUN_ROOT"
+fi
 
 if [ "$STATE_ACTIVE" = true ]; then
     T_SUITE_END=$(date +%s)

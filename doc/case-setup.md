@@ -301,6 +301,8 @@ Both interpolation solves look up their linear-solver controls under `system/fvS
 
 **Who owns what.** PGF owns the rate `lambdaDot`; YADE owns the integrated `lambda` (`State::lambda_`, advanced every DEM step in `NewtonIntegrator`) and sends it back through the particle-data buffer. PGF's `lambda` field is therefore derived output — nothing in the solver computes with it. The buffer stride is a compile-time constant on both sides with no MPI-level negotiation, so **Foam-Yade and PGF must be rebuilt together** whenever the coupling layout changes.
 
+**Run length.** The two sides exchange once per solver time step, not per unit of physical time. YADE exchanges every `k = int(deltaT / O.dt)` DEM steps (`k = 1` when `O.dt ≥ deltaT`), and neither side can tell the other it has finished. Both stop cleanly only when YADE runs `NSTEPS = N·k` steps, N being the solver's step count from `controlDict`. Any other `NSTEPS` leaves one side waiting forever. A DEM script gets this number from `tutorials/cases/DEM_common/yadeEndpoint.py`: `NSTEPS = yadeEndpoint.yadeSteps(O.dt, dynDt=O.dynDt)`. It needs `adjustTimeStep no`, `stopAt endTime`, `startFrom startTime` and a fixed `O.dt`, and refuses anything else. Because pairing is by step, YADE's simulated time `NSTEPS·O.dt` matches the solver's only when `deltaT / O.dt` is a whole number. In the `MicroTGA-DEM_lambdaDot*` fixtures (`O.dt` 5e-6, `deltaT` 1e-6) YADE covers 5× the solver's time.
+
 ### `constant/heatTransferProperties`
 
 ```cpp
