@@ -210,14 +210,6 @@ private:
         //- Chemical time step
         scalar dt_;
 
-        //- PGF209_MASSRATIO: log the solid/gas mass ratio of each solve
-        const bool logMassRatio_;
-
-        //- Cells with a gas change, and the min/max massBalanceScale, per solve
-        label massRatioCells_;
-        scalar massRatioMin_;
-        scalar massRatioMax_;
-
         // Private members
 
             //- Constructor step: log the gas-phase and pyrolysis gases
@@ -304,13 +296,6 @@ private:
                 volScalarField& newDeltaTMin
             );
 
-            //- Gas-rate rescale |sum dc_solid / sum dc_gas| (1 if no gas change)
-            scalar massBalanceScale
-            (
-                const scalarField& changeOfConcentration,
-                const scalar deltaT
-            ) const;
-
             //- Stores RRs of the cell; limits the step to keep Ys in [0, 1]
             void updateSolidRates
             (
@@ -322,14 +307,13 @@ private:
                 volScalarField& newDeltaTMin
             );
 
-            //- Stores RRg (scaled by sourceCorrect); limits the step as for solids
+            //- Stores RRg; limits the step as for solids
             void updateGasRates
             (
                 const scalar deltaT,
                 scalar& deltaTMin,
                 const label celli,
                 const scalar gasRho,
-                const scalar sourceCorrect,
                 const scalarField& changeOfConcentration,
                 volScalarField& newDeltaTMin
             );
