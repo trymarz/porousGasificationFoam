@@ -98,6 +98,16 @@ tutorials/cases/canonical/conservation/chemistryGateCrossing        fast
 # joule, which at h*SAV = 2000 W/m3/K is 1.8e+06 W/m3 refused.
 tutorials/cases/canonical/conservation/gatedBandSources             fast
 
+# interfaceEnthalpy*: one cell with one open face, no interphase exchange,
+# hr = 0, no pressure work, ddt Euler. Gas crossing the interface carries the
+# enthalpy of the phase it leaves (#212 D4), so the answers are exact: Ts = Tg
+# stays put for pyrolysis (Pyrolysis) and gasification (Gasification), and a
+# hotter solid gives the hs mixing temperature (Mixing, checked by its Allrun).
+# Before D4 the released gas was born at 298 K: Tg fell to 574 K in step 1.
+tutorials/cases/canonical/conservation/interfaceEnthalpyPyrolysis     fast
+tutorials/cases/canonical/conservation/interfaceEnthalpyMixing        fast
+tutorials/cases/canonical/conservation/interfaceEnthalpyGasification  fast
+
 # gasPressureWork is a sealed box at porosity 0.4 whose solid heats the gas, so
 # p rises with fixed gas mass. regressionGasEnergyResidual is the gas internal
 # energy minus the joules received; it must stay flat. Before #132 it drifted
