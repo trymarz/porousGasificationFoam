@@ -100,12 +100,13 @@ Their steady drop is also checked against Darcy–Forchheimer: `regressionDarcyF
 
 ### canonical/solidRates
 
-Ten single-cell, single-step heterogeneous rate fixtures (#209 block A), one per reaction shape of #201: `H1`/`H1s` solid only, `H2` solid + gas, `H3` the same diffusion-limited, `H4` solid → solid, `H5` two solid reactants, `H6` the §5.6 gasifier shape, `H7` `H2` with doubled coefficients, `H8s` and `H9s` stoichiometric. `solidRates.py check` recomputes each case's rates from its own input files and writes `regressionSolidRates`.
+Eleven single-cell, single-step heterogeneous rate fixtures (#209 blocks A and B), one per reaction shape of #201: `H1`/`H1s` solid only, `H2` solid + gas, `H3` the same diffusion-limited, `H4` solid → solid, `H5` two solid reactants, `H6` the §5.6 gasifier shape, `H7` `H2` with doubled coefficients, `H8s` and `H9s` stoichiometric, `H10s` `H8s` diffusion-limited. `solidRates.py check` recomputes each case's rates from its own input files and writes `regressionSolidRates`.
 
 | Column | Status | Detects | Cannot detect |
 |---|---|---|---|
 | `rateRatioMin`, `rateRatioMax` | invariant (== 1, 1e-5) | any change to Eq. 4, 5, 10, the species split or the Eq. 12 heat source, for these shapes | a later step's rates; the time-step limiter |
 | `massRatio` | invariant (== 1, 1e-9) | mass created or lost by the split | — |
+| `agentRatio` (`H10s` only) | invariant (== 1, 1e-4) | an Eq. 10 agent factor that does not match the agent's consumption: the gas reactant consumed over its Eq. 9 delivery at the diffusion limit (1.33 with the literal Eq. 10) | a move below 1e-4; the kinetic resistance's share sits 1.5e-5 below 1 |
 | `source(<specie>)`, `heat` | live | the same, against the baseline | — |
 
 The species split, written out in `split_coefficients()`, is Eq. 6 with the rate per kg of solid substrate (#201); a change to it in the solver has to change it there too.

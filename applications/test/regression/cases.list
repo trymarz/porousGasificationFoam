@@ -72,6 +72,7 @@ tutorials/cases/canonical/solidRates/H6_gasSolidAsh    fast
 tutorials/cases/canonical/solidRates/H7_twoChar        fast
 tutorials/cases/canonical/solidRates/H8s_gasSolid      fast
 tutorials/cases/canonical/solidRates/H9s_paperEx       fast
+tutorials/cases/canonical/solidRates/H10s_gasSolidDiff fast
 
 # Conservation fixtures — each asserts an energy integral, not a temperature.
 # The regressionHeatTransferResidual baseline is a column of exact zeros: it
