@@ -330,6 +330,29 @@ Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasTherm
         );
     }
 
+    const solidReactionRate::cellFields rateFields
+    {
+        Ys_, gasPhaseGases_, this->solidThermo().rho(), rhoG_, ST_, porosityF_
+    };
+
+    rates_.setSize(nReaction_);
+    forAll(reactions_, i)
+    {
+        rates_.set
+        (
+            i,
+            new solidReactionRate
+            (
+                reactions_[i],
+                stoichiometry_[i],
+                gasDictionaryBack_,
+                nSolids_,
+                diffusionLimitedReactions_,
+                rateFields
+            )
+        );
+    }
+
     Info << "diffusionLimitedReactions " << diffusionLimitedReactions_ << nl;
 }
 
@@ -367,9 +390,6 @@ Foam::scalarField  Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidT
     const bool updateC0
 ) const
 {
-    scalar pf, cf, pr, cr;
-    label lRef, rRef;
-
     const label cellI = cellCounter_;
     label nEq = nEqns();
 
@@ -380,16 +400,19 @@ Foam::scalarField  Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidT
 
     scalarField om(nEq,0.0);
 
+    scalarField c1(nSpecie_, 0.0);
+    for (label i=0; i<nSpecie_; i++)
+    {
+        c1[i] = max(0.0, c[i]);
+    }
+
     forAll(reactions_, i)
     {
         const solidHeterogeneousReaction& R = reactions_[i];
 
         const solidReactionStoichiometry& st = stoichiometry_[i];
 
-        scalar omegai = omega
-        (
-            R, st, c, T, 0.0, pf, cf, lRef, pr, cr, rRef
-        );
+        const scalar omegai = rates_[i].rate(cellI, T, c1);
 
         forAll(st.species(), k)
         {
@@ -419,110 +442,6 @@ Foam::scalarField  Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidT
     }
     return om;
 }
-
-template<class SolidThermo, class SolidThermoType, class GasThermoType>
-scalar Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasThermoType>::omega
-(
-    const solidHeterogeneousReaction& R,
-    const solidReactionStoichiometry& st,
-    const scalarField& c,
-    const scalar T,
-    const scalar p,
-    scalar& pf,
-    scalar& cf,
-    label& lRef,
-    scalar& pr,
-    scalar& cr,
-    label& rRef
-) const
-{
-    scalarField c1(nSpecie_, 0.0);
-
-    label cellI = cellCounter_;
-
-    for (label i=0; i<nSpecie_; i++)
-    {
-        c1[i] = max(0.0, c[i]);
-    }
-
-    scalar kf = R.kf(T, 0.0, c1);
-
-    const label Nl = R.slhs().size();
-    if (Nl > 0)
-    {
-        if ( R.glhs().size() > 0 )
-        {
-            for (label s=0; s < Nl; s++)
-            {
-            label si = R.slhs()[s];
-                kf *= pow(Ys_[si][cellI],R.nReact()[s]);
-            }
-            forAll(R.glhs(),i)
-            {
-                kf *= pow(gasPhaseGases_[R.glhs()[i]].internalField()[cellI],R.nReact()[Nl+i]);
-            }
-        }
-        else
-        {
-            for (label s=0; s<Nl; s++)
-            {
-                label si = R.slhs()[s];
-                kf *= pow(Ys_[si][cellI],R.nReact()[s]);
-            }
-        }
-        kf *= this->solidThermo().rho()[cellI];
-    }
-    else
-    {
-        forAll(R.glhs(),i)
-        {
-            kf *= pow(gasPhaseGases_[R.glhs()[i]].internalField()[cellI],R.nReact()[i]);
-        }
-        kf *= rhoG_[cellI];
-    }
-
-    if (diffusionLimitedReactions_ and (R.glhs().size() > 0 ) and (kf > VSMALL))
-    {
-        scalar avKf = 1./kf;
-        forAll(R.glhs(),i)
-        {
-            // A negative gas concentration here is an invalid state, not a
-            // small number: it flips the mass-transfer resistance's sign and
-            // 1/addAvKf then raises kf instead of bounding it. Abort loudly.
-            scalar gasConc = gasPhaseGases_[R.glhs()[i]].internalField()[cellI];
-
-            if (gasConc < 0)
-            {
-                FatalErrorIn("omega")
-                    << "Negative gas-phase concentration (" << gasConc
-                    << ") feeding the diffusion-limited rate at cell " << cellI
-                    << ", gas specie index " << R.glhs()[i]
-                    << ", reaction:\n" << R << exit(FatalError);
-            }
-
-            scalar addAvKf = (ST_[cellI]*gasConc*rhoG_[cellI]);
-
-            if (addAvKf != 0)
-            {
-                // Departs from the literal Eq. 10 (#201): the agent is consumed at
-                // xi_a*r, so its resistance is xi_a/Omega_diff, and at the limit the
-                // agent consumed equals the Eq. 9 delivery instead of xi_a times it.
-                avKf += st.agent(i)/addAvKf;
-            }
-            else
-            {
-                kf = 0;
-            }
-        }
-        if (kf != 0)
-        {
-            kf = 1./avKf;
-        }
-    }
-
-    return kf;
-}
-
 
 template<class SolidThermo, class SolidThermoType, class GasThermoType>
 void Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasThermoType>::derivatives
@@ -634,173 +553,23 @@ void Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, Gas
         dcdt[i] = omegaPreq[i];
     }
 
-    for (label ri=0; ri<reactions_.size(); ri++)
+    // Stoichiometry x d((1 - porosity) r): see solidReactionRate for what
+    // the derivative is taken in (#200).
+    forAll(rates_, ri)
     {
-        const solidHeterogeneousReaction& R = reactions_[ri];
-
-        const label Ns = R.slhs().size();
-        const label Ng = R.glhs().size();
-
+        const solidReactionRate& rate = rates_[ri];
         const solidReactionStoichiometry& st = stoichiometry_[ri];
 
-        scalar kf0 = R.kf(T, 0.0, c2);
-        if (Ns > 0)
+        scalarField dr(rate.reactants().size());
+        rate.rateDerivative(cellI, T, c2, dr);
+
+        forAll(rate.reactants(), j)
         {
-            kf0 *= this->solidThermo().rho()[cellI];
-        }
-        else
-        {
-            kf0 *= rhoG_[cellI];
-        }
-        kf0 *= (1.-porosityF_[cellI]);
-
-        // The diffusion correction below overwrites kf0 with 1/avKf, so keep
-        // the kinetic rate and restore it each sweep -- otherwise the
-        // corrected value leaks into the next rSj iteration.
-        const scalar kf0Kinetic = kf0;
-
-        for (label rSj=0; rSj < Ns + Ng; rSj++)
-        {
-            kf0 = kf0Kinetic;
-
-            label sj;
-            if (rSj < Ns)
-            {
-                sj = R.slhs()[rSj];
-            }
-            else
-            {
-                sj = gasDictionaryBack_[R.glhs()[rSj-Ns]] + nSolids_;
-            }
-
-            scalar kf = kf0;
-            scalar kfTot = kf0;
-
-            for (label rSi=0; rSi < Ns + Ng; rSi++)
-            {
-                label si;
-                if (rSi < Ns)
-                {
-                    si = R.slhs()[rSi];
-                }
-                else
-                {
-                    si = gasDictionaryBack_[R.glhs()[rSi-Ns]] + nSolids_;
-                }
-
-                scalar el = R.nReact()[rSi];
-                if (rSi < Ns)
-                {
-                    kfTot *= pow(Ys_[si][cellI],el);
-                }
-                else
-                {
-                    kfTot *= pow(gasPhaseGases_[R.glhs()[rSi-Ns]].internalField()[cellI],el);
-                }
-
-                if (rSi == rSj)
-                {
-                    if (el < 1.0)
-                    {
-                        if (c2[si]>SMALL)
-                        {
-                            if (rSi < Ns)
-                            {
-                                kf *= el*pow(Ys_[si][cellI] + VSMALL, el - 1.0);
-                            }
-                            else
-                            {
-                                kf *= el*pow(gasPhaseGases_[R.glhs()[rSi-Ns]].internalField()[cellI] + VSMALL, el - 1.0);
-                            }
-                        }
-                        else
-                        {
-                            kf = 0.0;
-                        }
-                    }
-                    else
-                    {
-                        if (rSi < Ns)
-                        {
-                            kf *= el*pow(Ys_[si][cellI], el - 1.0);
-                        }
-                        else
-                        {
-                            kf *= el*pow(gasPhaseGases_[R.glhs()[rSi-Ns]].internalField()[cellI], el - 1.0);
-                        }
-                    }
-                }
-                else
-                {
-                     if (rSi < Ns)
-                     {
-                         kf *= pow(Ys_[si][cellI],el);
-                     }
-                     else
-                     {
-                         kf *= pow(gasPhaseGases_[R.glhs()[rSi-Ns]].internalField()[cellI],el);
-                     }
-                }
-            }
-
-            if (diffusionLimitedReactions_ and (Ng > 0 ) and (kf0 != 0))
-            {
-                scalar avKf = 1./kf0;
-                scalar kf00 = kf0;
-                scalar chosenKf = 0;
-                scalar chosenKf0 = 0;
-                scalar addAvKf = 0.;
-
-                for (label rSi=Ns; rSi < Ns + Ng; rSi++)
-                {
-                    // Same invalid state as in omega()'s diffusion block: a
-                    // negative concentration inverts the resistance instead of
-                    // bounding the rate. Abort loudly rather than clamp.
-                    scalar gasConc =
-                        gasPhaseGases_[R.glhs()[rSi-Ns]].internalField()[cellI];
-
-                    if (gasConc < 0)
-                    {
-                        FatalErrorIn("jacobian")
-                            << "Negative gas-phase concentration (" << gasConc
-                            << ") feeding the diffusion-limited rate at cell "
-                            << cellI << ", gas specie index "
-                            << R.glhs()[rSi-Ns]
-                            << ", reaction:\n" << R << exit(FatalError);
-                    }
-
-                    addAvKf = (ST_[cellI]*gasConc)*rhoG_[cellI];
-
-                    if (addAvKf != 0)
-                    {
-                        // Same xi_a/Omega_diff resistance as omega() (#201).
-                        const scalar xi = st.agent(rSi-Ns);
-                        avKf += xi/addAvKf;
-                        chosenKf = xi * ST_[cellI] * rhoG_[cellI];
-                        chosenKf0 = (ST_[cellI] * gasConc * rhoG_[cellI]);
-                    }
-                    else
-                    {
-                        kf0 = 0.;
-                    }
-                }
-                if (kf0 != 0)
-                {
-                    kf0 = 1./avKf;
-                }
-                if ( kf00*chosenKf0 != 0 )
-                {
-                    kf = kf0*kf0*(kf/(kf00*kf00)+chosenKf/(chosenKf0*chosenKf0));
-                }
-                else
-                {
-                    kf = 0.;
-                }
-            }
+            const label sj = rate.reactants()[j];
 
             forAll(st.species(), k)
             {
-                dfdc[st.species()[k]][sj] += kf*st.coeffs()[k];
+                dfdc[st.species()[k]][sj] += dr[j]*st.coeffs()[k];
             }
         }
     }
