@@ -151,7 +151,22 @@ Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasTherm
     tauC_(0.0),
     dt_(0.0)
 {
-    // create the fields for the chemistry sources
+    logGases();
+    createSourceFields();
+    logReactions();
+    warnSolidSubstrateCoefficients();
+    buildGasDictionaries();
+    buildStoichiometry();
+    buildRates();
+
+    Info << "diffusionLimitedReactions " << diffusionLimitedReactions_ << nl;
+}
+
+
+template<class SolidThermo, class SolidThermoType, class GasThermoType>
+void Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasThermoType>::
+logGases() const
+{
     Info << "gases in gas phase: " << gasPhaseGases_.size() << " \n" << endl;
 
     forAll(gasPhaseGases_,i)
@@ -165,7 +180,12 @@ Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasTherm
     {
         Info << pyrolisisGases_[i] << " \n";
     }
+}
 
+template<class SolidThermo, class SolidThermoType, class GasThermoType>
+void Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasThermoType>::
+createSourceFields()
+{
     forAll(RRs_, fieldI)
     {
         RRs_.set
@@ -247,7 +267,12 @@ Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasTherm
     {
         RRg_.set(fieldI, new scalarField(mesh_.nCells(), 0.0));
     }
+}
 
+template<class SolidThermo, class SolidThermoType, class GasThermoType>
+void Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasThermoType>::
+logReactions() const
+{
     Info<< "ODESolidHeterogeneousChemistryModel: Number of solids = " << nSolids_
         << " and reactions = " << nReaction_ << endl;
 
@@ -260,7 +285,12 @@ Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasTherm
 
     Info<< "solidReactionEnergyFromEnthalpy " << solidReactionEnergyFromEnthalpy_ << nl;
     Info<< "stoichiometricReactions " << stoichiometricReactions_ << nl;
+}
 
+template<class SolidThermo, class SolidThermoType, class GasThermoType>
+void Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasThermoType>::
+warnSolidSubstrateCoefficients() const
+{
     // Rates are per kg of solid substrate (CPC 2022, Eq. 4-5), so a lone
     // solid LHS reactant's coefficient cancels. Branch fractions belong in A.
     forAll(reactions_, i)
@@ -279,7 +309,12 @@ Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasTherm
                 << " the rate; scale A instead.\n" << R << endl;
         }
     }
+}
 
+template<class SolidThermo, class SolidThermoType, class GasThermoType>
+void Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasThermoType>::
+buildGasDictionaries()
+{
     gasDictionary_.resize(nGases_);
     forAll(gasDictionary_,gasI)
     {
@@ -304,7 +339,12 @@ Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasTherm
             }
         }
     }
+}
 
+template<class SolidThermo, class SolidThermoType, class GasThermoType>
+void Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasThermoType>::
+buildStoichiometry()
+{
     // Molar masses in gas-phase order, as gasDictionary_ and glhs() index them.
     scalarList W(gasThermo_.size());
     forAll(W, j)
@@ -329,7 +369,12 @@ Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasTherm
             )
         );
     }
+}
 
+template<class SolidThermo, class SolidThermoType, class GasThermoType>
+void Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasThermoType>::
+buildRates()
+{
     const solidReactionRate::cellFields rateFields
     {
         Ys_, gasPhaseGases_, this->solidThermo().rho(), rhoG_, ST_, porosityF_
@@ -352,8 +397,6 @@ Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasTherm
             )
         );
     }
-
-    Info << "diffusionLimitedReactions " << diffusionLimitedReactions_ << nl;
 }
 
 
