@@ -1,0 +1,3 @@
+#!/bin/sh
+# Remove what solidRates.py setup and the run left in the calling case.
+rm -rf -- 0 0.orig [1-9]* constant system log.* postProcessing

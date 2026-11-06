@@ -1,0 +1,31 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     |                                                 |
+|   \\  /    A nd           |                                                 |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+
+
+// Read by ../solidRates.py check: the solid chemistry heat source of the
+// first step [W/m^3], to compare with Eq. 12 by hand.
+solidRatesHeat
+{
+    type            volFieldValue;
+    libs            (fieldFunctionObjects);
+    regionType      all;
+    operation       volAverage;
+    fields          (solidChemistrySh);
+    postOperation   none;
+    weightField     none;
+    writeFields     false;
+    writePrecision  12;
+    writeToFile     true;
+    log             false;
+    executeControl  timeStep;
+    executeInterval 1;
+    writeControl    timeStep;
+    writeInterval   1;
+}
+
+// ************************************************************************* //

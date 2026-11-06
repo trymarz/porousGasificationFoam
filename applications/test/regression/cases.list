@@ -57,6 +57,22 @@ tutorials/cases/canonical/meanTemp             fast
 tutorials/cases/canonical/noSubintegration     fast
 tutorials/cases/canonical/equilibrium          fast
 
+# Single-cell heterogeneous rate fixtures (#209 block A, the #201 shapes): one
+# 1e-8..1e-4 s step each, checked against a hand calculation from the case's
+# own inputs by solidRates/solidRates.py. regressionSolidRates holds each
+# species and heat source over its hand value at 1; the species split it
+# encodes is the code's convention, so a convention change must edit it.
+tutorials/cases/canonical/solidRates/H1_solidOnly      fast
+tutorials/cases/canonical/solidRates/H1s_solidOnly     fast
+tutorials/cases/canonical/solidRates/H2_gasSolid       fast
+tutorials/cases/canonical/solidRates/H3_gasSolidDiff   fast
+tutorials/cases/canonical/solidRates/H4_solidToSolid   fast
+tutorials/cases/canonical/solidRates/H5_multiSolid     fast
+tutorials/cases/canonical/solidRates/H6_gasSolidAsh    fast
+tutorials/cases/canonical/solidRates/H7_twoChar        fast
+tutorials/cases/canonical/solidRates/H8s_gasSolid      fast
+tutorials/cases/canonical/solidRates/H9s_paperEx       fast
+
 # Conservation fixtures — each asserts an energy integral, not a temperature.
 # The regressionHeatTransferResidual baseline is a column of exact zeros: it
 # asserts that the solid TEqn and the gas EEqn exchange the same joules, so

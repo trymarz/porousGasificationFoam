@@ -1,0 +1,14 @@
+Single-cell heterogeneous rate fixtures (#209 block A, the reaction shapes of #201).
+
+Each case copies ../pyrolysis or ../gasification with `solidRates.py setup`,
+reduces it to one cell, one solid reaction and one step, runs it, and then
+`solidRates.py check` recomputes the step's species and heat sources by hand
+from the case's own input files (Eq. 4, 5, 10 and 12 of Zuk et al. 2022).
+regressionInvariants holds each measured/hand ratio at 1; doc/regression-ledger.md
+lists what they can detect.
+
+The step length is per case (--dt): the species sources are the ODE's change
+over the step divided by its length, so a slow reaction needs a longer step
+for the change to stand clear of roundoff. H1 runs at Ts = 600 K: at
+Ts = Tcrit the endothermic step pulls the ODE's own temperature below the
+cutoff partway through the step, while the heat source keeps the full rate.

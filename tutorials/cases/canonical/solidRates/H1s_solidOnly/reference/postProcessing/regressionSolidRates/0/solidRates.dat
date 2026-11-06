@@ -1,0 +1,4 @@
+# wood = targas (10 2000 300 10000 1) stoichiometric True diffusion False
+# hand: Omega 3.5673993347e+02 targas 2.1404396008e+02 wood -2.1404396008e+02 heat -2.1404396008e+06
+# Time source(targas) source(wood) heat rateRatioMin rateRatioMax massRatio
+1e-08 2.1404400741e+02 -2.1404400741e+02 -2.1404396008e+06 1.0000000000e+00 1.0000002211e+00 1.0000000000e+00
