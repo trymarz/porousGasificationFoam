@@ -94,6 +94,12 @@ def setup(args: argparse.Namespace) -> None:
                 case / "system/regressionFunctions")
     shutil.copy(Path(__file__).resolve().parent / "regressionInvariants",
                 case / "system/regressionInvariants")
+    # A gas reactant depletes within the step, so the rate falls O(dt) below
+    # its start value (#200): relax rateRatioMin there, keep 1e-5 otherwise.
+    solids = entry(sp.read_text(), "solidComponents", sp).strip("() ").split()
+    if any(n not in solids for _, n in parse_reaction(args.reaction)[0]):
+        edit(case / "system/regressionInvariants",
+             (r"(rateRatioMin\s+==\s+1\s+)1e-5", r"\g<1>1e-3"))
     if args.agent_limit is not None:
         with open(case / "system/regressionInvariants", "a") as f:
             f.write(f"regressionSolidRates  agentRatio    ==  1  {args.agent_limit:g}\n")
