@@ -40,6 +40,7 @@ SourceFiles
 
 #include "porousThermoSolidChemistryModel.H"
 #include "solidHeterogeneousReaction.H"
+#include "solidReactionStoichiometry.H"
 #include "psiReactionThermo.H"
 #include "ODESystem.H"
 #include "volFields.H"
@@ -181,6 +182,9 @@ private:
         //- dictionary for gasPhaseGases -> pyrolysisGases
         List<label> gasDictionaryBack_;
 
+        //- Species split, heat and Eq. 10 factors of each reaction
+        PtrList<solidReactionStoichiometry> stoichiometry_;
+
         //- Gas density
         const volScalarField& rhoG_;
 
@@ -209,14 +213,6 @@ private:
 
             //- Resets the values of reaction rates and adjust size for the changing meshes.
             void resetReactionRates(const volScalarField& rho);
-
-            //- Mass of gas reactant g consumed per unit rate (Eq. 6): its
-            //  coefficient over the solid reactants' sum (#201); 1 if stoichiometric.
-            scalar agentPerRate
-            (
-                const solidHeterogeneousReaction& R,
-                const label g
-            ) const;
 
             void solveOneCell
             (
@@ -313,6 +309,7 @@ public:
         virtual scalar omega
         (
             const solidHeterogeneousReaction& r,
+            const solidReactionStoichiometry& st,
             const scalarField& c,
             const scalar T,
             const scalar p,
