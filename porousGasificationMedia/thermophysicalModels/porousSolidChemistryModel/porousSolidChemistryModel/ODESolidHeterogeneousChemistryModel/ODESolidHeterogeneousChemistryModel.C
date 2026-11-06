@@ -674,6 +674,35 @@ Foam::scalarField  Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidT
 }
 
 template<class SolidThermo, class SolidThermoType, class GasThermoType>
+Foam::scalar Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasThermoType>::agentPerRate
+(
+    const solidHeterogeneousReaction& R,
+    const label g
+) const
+{
+    // Stoichiometric mode splits gases by branch (W*nu); left to #209 block B.
+    if (stoichiometricReactions_)
+    {
+        return 1;
+    }
+
+    scalar solidSubstrates = 0;
+    scalar substrates = 0;
+    forAll(R.slhs(), s)
+    {
+        solidSubstrates += R.slhsSto()[s];
+    }
+    forAll(R.glhs(), i)
+    {
+        substrates += R.glhsSto()[i];
+    }
+
+    // The basis omega()'s non-stoichiometric split uses.
+    return R.glhsSto()[g]/(solidSubstrates > 0 ? solidSubstrates : substrates);
+}
+
+
+template<class SolidThermo, class SolidThermoType, class GasThermoType>
 scalar Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasThermoType>::omega
 (
     const solidHeterogeneousReaction& R,
@@ -756,7 +785,10 @@ scalar Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, G
 
             if (addAvKf != 0)
             {
-                avKf += 1./addAvKf;
+                // Departs from the literal Eq. 10 (#201): the agent is consumed at
+                // xi_a*r, so its resistance is xi_a/Omega_diff, and at the limit the
+                // agent consumed equals the Eq. 9 delivery instead of xi_a times it.
+                avKf += agentPerRate(R, i)/addAvKf;
             }
             else
             {
@@ -1181,8 +1213,10 @@ void Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, Gas
 
                     if (addAvKf != 0)
                     {
-                        avKf += 1./addAvKf;
-                        chosenKf = ST_[cellI] * rhoG_[cellI];
+                        // Same xi_a/Omega_diff resistance as omega() (#201).
+                        const scalar xi = agentPerRate(R, rSi-Ns);
+                        avKf += xi/addAvKf;
+                        chosenKf = xi * ST_[cellI] * rhoG_[cellI];
                         chosenKf0 = (ST_[cellI] * gasConc * rhoG_[cellI]);
                     }
                     else

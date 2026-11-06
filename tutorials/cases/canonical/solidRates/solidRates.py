@@ -261,7 +261,10 @@ def check(args: argparse.Namespace) -> None:
                   if re.search(rf"^{re.escape(f.name)}\s*$", thermo, re.M)]
         Wmix = 1 / sum(uniform(case, g) / gas_weight(case, g) for g in allGas)
         rho_g = p * Wmix / (RR * Tg)
-        r = 1 / (1 / r + sum(1 / (ST * uniform(case, n) * rho_g) for _, n in lhs_g))
+        # #201: each agent's resistance is xi_a/Omega_diff (xi_a = 1 if stoichiometric).
+        basis = sum(nu for nu, _ in lhs_s) or sum(nu for nu, _ in lhs_g)
+        xi = {n: 1.0 if stoich else nu / basis for nu, n in lhs_g}
+        r = 1 / (1 / r + sum(xi[n] / (ST * uniform(case, n) * rho_g) for _, n in lhs_g))
 
     if r == 0:
         fail("the hand rate is zero: the fixture does not react")

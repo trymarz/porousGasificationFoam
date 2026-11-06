@@ -210,6 +210,14 @@ private:
             //- Resets the values of reaction rates and adjust size for the changing meshes.
             void resetReactionRates(const volScalarField& rho);
 
+            //- Mass of gas reactant g consumed per unit rate (Eq. 6): its
+            //  coefficient over the solid reactants' sum (#201); 1 if stoichiometric.
+            scalar agentPerRate
+            (
+                const solidHeterogeneousReaction& R,
+                const label g
+            ) const;
+
             void solveOneCell
             (
                 const scalar t0,
