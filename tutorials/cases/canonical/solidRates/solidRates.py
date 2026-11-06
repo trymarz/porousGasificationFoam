@@ -2,8 +2,9 @@
 """Single-cell heterogeneous rate fixtures (#209 block A, shapes from #201).
 
 ``setup BASE --reaction EQ --coeffs C [--stoichiometric] [--diffusion]
-[--dt DT] [--set FIELD=VALUE ...]`` copies ../BASE into the calling case and
-reduces it to one cell and one step of DT, with EQ as the only solid reaction.
+[--dt DT] [--agent-limit TOL] [--set FIELD=VALUE ...]`` copies ../BASE into
+the calling case and reduces it to one cell and one step of DT, with EQ as the
+only solid reaction.
 The species sources are the ODE's change over the step divided by DT, so DT is
 a compromise: too short and the change cancels against the mass it is taken
 from, too long and the rate drifts within the step.
@@ -13,7 +14,9 @@ and the heat source from postProcessing, recomputes both by hand from the
 case's own input files (Eq. 4, 5 and 10 of Zuk et al. 2022, then the species
 split and Eq. 12), and writes the measured/hand ratios to
 postProcessing/regressionSolidRates/0/solidRates.dat, where
-system/regressionInvariants holds them at 1.
+system/regressionInvariants holds them at 1. ``check --agent-limit`` also
+writes agentRatio, the gas reactant's consumption over its Eq. 9 delivery,
+which is 1 at the diffusion limit; ``setup --agent-limit TOL`` declares it.
 
 The species split is the code's current convention (split_coefficients): a
 change to it in the solver has to change that function too.
@@ -91,6 +94,9 @@ def setup(args: argparse.Namespace) -> None:
                 case / "system/regressionFunctions")
     shutil.copy(Path(__file__).resolve().parent / "regressionInvariants",
                 case / "system/regressionInvariants")
+    if args.agent_limit is not None:
+        with open(case / "system/regressionInvariants", "a") as f:
+            f.write(f"regressionSolidRates  agentRatio    ==  1  {args.agent_limit:g}\n")
 
     for item in args.set:
         name, value = item.split("=")
@@ -152,6 +158,20 @@ def parse_reaction(eq: str) -> tuple[list[tuple[float, str]], list[tuple[float, 
     return side(lhs), side(rhs)
 
 
+def agent_factors(lhs_s, lhs_g, rhs_s, rhs_g, stoich, W):
+    """kg of each gas reactant consumed per unit Omega, as the solver splits it.
+
+    Also each agent's Eq. 10 factor: its resistance is xi_a/Omega_diff (#201).
+    """
+    if not stoich:
+        total = sum(nu for nu, _ in lhs_s) or sum(nu for nu, _ in lhs_g)
+        return {name: nu / total for nu, name in lhs_g}
+    solid = sum(nu for nu, _ in lhs_s)
+    released = 1 - sum(nu for nu, _ in rhs_s) / solid
+    dW = sum(W[n] * nu for nu, n in rhs_g) - sum(W[n] * nu for nu, n in lhs_g)
+    return {name: released * W[name] * nu / dW for nu, name in lhs_g}
+
+
 def split_coefficients(lhs_s, lhs_g, rhs_s, rhs_g, stoich, W):
     """Signed source per unit Omega for each species, as the solver splits it.
 
@@ -165,9 +185,11 @@ def split_coefficients(lhs_s, lhs_g, rhs_s, rhs_g, stoich, W):
     def add(name: str, value: float) -> None:
         split[name] = split.get(name, 0.0) + value
 
+    for name, xi in agent_factors(lhs_s, lhs_g, rhs_s, rhs_g, stoich, W).items():
+        add(name, -xi)
     if not stoich:
         total = sum(nu for nu, _ in lhs_s) or sum(nu for nu, _ in lhs_g)
-        for sign, side in ((-1, lhs_s), (-1, lhs_g), (1, rhs_s), (1, rhs_g)):
+        for sign, side in ((-1, lhs_s), (1, rhs_s), (1, rhs_g)):
             for nu, name in side:
                 add(name, sign * nu / total)
         return split
@@ -178,9 +200,8 @@ def split_coefficients(lhs_s, lhs_g, rhs_s, rhs_g, stoich, W):
         add(name, nu / solid)
     released = 1 - sum(nu for nu, _ in rhs_s) / solid
     dW = sum(W[n] * nu for nu, n in rhs_g) - sum(W[n] * nu for nu, n in lhs_g)
-    for sign, side in ((-1, lhs_g), (1, rhs_g)):
-        for nu, name in side:
-            add(name, sign * released * W[name] * nu / dW)
+    for nu, name in rhs_g:
+        add(name, released * W[name] * nu / dW)
     return split
 
 
@@ -248,6 +269,8 @@ def check(args: argparse.Namespace) -> None:
     for (_, n), order in zip(lhs_s + lhs_g, orders):
         r *= (Ys[n] if n in solids else uniform(case, n)) ** order
     r *= rho_s
+    xi = agent_factors(lhs_s, lhs_g, rhs_s, rhs_g, stoich, W)
+    delivered = {}
     if diffusion and lhs_g and r > 0:
         # Eq. 10: harmonic sum with the specie transfer of each gas reactant.
         st = case / "constant/specieTransferProperties"
@@ -261,10 +284,9 @@ def check(args: argparse.Namespace) -> None:
                   if re.search(rf"^{re.escape(f.name)}\s*$", thermo, re.M)]
         Wmix = 1 / sum(uniform(case, g) / gas_weight(case, g) for g in allGas)
         rho_g = p * Wmix / (RR * Tg)
-        # #201: each agent's resistance is xi_a/Omega_diff (xi_a = 1 if stoichiometric).
-        basis = sum(nu for nu, _ in lhs_s) or sum(nu for nu, _ in lhs_g)
-        xi = {n: 1.0 if stoich else nu / basis for nu, n in lhs_g}
-        r = 1 / (1 / r + sum(xi[n] / (ST * uniform(case, n) * rho_g) for _, n in lhs_g))
+        # Eq. 9 delivery; #201: each agent's resistance is xi_a/Omega_diff.
+        delivered = {n: ST * uniform(case, n) * rho_g for _, n in lhs_g}
+        r = 1 / (1 / r + sum(xi[n] / delivered[n] for _, n in lhs_g))
 
     if r == 0:
         fail("the hand rate is zero: the fixture does not react")
@@ -287,10 +309,18 @@ def check(args: argparse.Namespace) -> None:
     produced = sum(v for v in got.values() if v > 0)
     consumed = -sum(v for v in got.values() if v < 0)
 
-    out = case / "postProcessing" / FUNCTION / "0" / "solidRates.dat"
-    out.parent.mkdir(parents=True, exist_ok=True)
     cols = [f"source({n})" for n in names] + ["heat", "rateRatioMin", "rateRatioMax", "massRatio"]
     vals = [got[n] for n in names] + [heat, min(ratios), max(ratios), produced / consumed]
+    if args.agent_limit:
+        # The agent's consumption over its Eq. 9 delivery; 1 at the diffusion limit.
+        if len(lhs_g) != 1 or not delivered:
+            fail("--agent-limit needs one gas reactant and diffusionLimitedReactions")
+        agent = lhs_g[0][1]
+        cols.append("agentRatio")
+        vals.append(-got[agent] / (solid_fraction * delivered[agent]))
+
+    out = case / "postProcessing" / FUNCTION / "0" / "solidRates.dat"
+    out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(
         f"# {eq} ({' '.join(f'{c:g}' for c in coeffs)}) stoichiometric {stoich} diffusion {diffusion}\n"
         f"# hand: Omega {r:.10e} " + " ".join(f"{n} {hand[n]:.10e}" for n in names)
@@ -301,6 +331,8 @@ def check(args: argparse.Namespace) -> None:
         print(f"{n:8s} code {got[n]: .10e}  hand {hand[n]: .10e}  ratio {got[n] / hand[n]:.12f}")
     print(f"heat     code {heat: .10e}  hand {heat_hand: .10e}  ratio {heat / heat_hand:.12f}")
     print(f"mass     produced/consumed {produced / consumed:.12f}")
+    if args.agent_limit:
+        print(f"agent    consumed/delivered {vals[-1]:.12f}")
 
 
 def main() -> None:
@@ -313,9 +345,13 @@ def main() -> None:
     s.add_argument("--stoichiometric", action="store_true")
     s.add_argument("--diffusion", action="store_true")
     s.add_argument("--dt", type=float, default=1e-8)
+    s.add_argument("--agent-limit", type=float, metavar="TOL",
+                   help="also hold agentRatio (check --agent-limit) at 1 within TOL")
     s.add_argument("--set", nargs="*", default=[], metavar="FIELD=VALUE",
                    help="uniform internalField of a 0.orig field")
-    sp.add_parser("check")
+    c = sp.add_parser("check")
+    c.add_argument("--agent-limit", action="store_true",
+                   help="also write agentRatio, the gas reactant's consumption over its delivery")
     args = ap.parse_args()
     setup(args) if args.cmd == "setup" else check(args)
 

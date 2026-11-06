@@ -50,6 +50,18 @@ void Foam::solidReactionStoichiometry::consume(const label i, const scalar c)
 }
 
 
+void Foam::solidReactionStoichiometry::consumeAgent
+(
+    const label g,
+    const label i,
+    const scalar c
+)
+{
+    agent_[g] = c;
+    consume(i, c);
+}
+
+
 void Foam::solidReactionStoichiometry::setMassBased
 (
     const solidHeterogeneousReaction& R,
@@ -111,10 +123,12 @@ void Foam::solidReactionStoichiometry::setMassBased
     }
     forAll(R.glhs(), g)
     {
-        // Departs from the literal Eq. 10 (#201): the agent is consumed at
-        // xi_a*r, so its diffusion resistance is xi_a/Omega_diff.
-        agent_[g] = R.glhsSto()[g]/rateBasis;
-        consume(gasDictionaryBack[R.glhs()[g]] + nSolids, agent_[g]);
+        consumeAgent
+        (
+            g,
+            gasDictionaryBack[R.glhs()[g]] + nSolids,
+            R.glhsSto()[g]/rateBasis
+        );
     }
     forAll(R.srhs(), s)
     {
@@ -183,8 +197,9 @@ void Foam::solidReactionStoichiometry::setStoichiometric
         }
         forAll(R.glhs(), g)
         {
-            consume
+            consumeAgent
             (
+                g,
                 gasDictionaryBack[R.glhs()[g]] + nSolids,
                 (1.0 - sr)*massCoefficient*W[R.glhs()[g]]*R.glhsSto()[g]
             );
@@ -207,8 +222,9 @@ void Foam::solidReactionStoichiometry::setStoichiometric
 
         forAll(R.glhs(), g)
         {
-            consume
+            consumeAgent
             (
+                g,
                 gasDictionaryBack[R.glhs()[g]] + nSolids,
                 W[R.glhs()[g]]*R.glhsSto()[g]/substrates
             );
@@ -241,8 +257,9 @@ void Foam::solidReactionStoichiometry::setStoichiometric
         {
             forAll(R.glhs(), g)
             {
-                consume
+                consumeAgent
                 (
+                    g,
                     gasDictionaryBack[R.glhs()[g]] + nSolids,
                     W[R.glhs()[g]]*R.glhsSto()[g]/substrates
                 );

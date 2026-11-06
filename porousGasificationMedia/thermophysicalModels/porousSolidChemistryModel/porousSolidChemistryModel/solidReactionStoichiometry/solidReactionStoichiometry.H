@@ -32,14 +32,17 @@ Description
     - coeffs(): signed kg of each species per kg of rate, indexed like the
       ODE state (solids, then nSolids + pyrolysis-gas index).
     - heat(): reaction enthalpy per kg of rate (Eq. 12), not split.
-    - agent(g): the Eq. 10 factor of gas reactant g, xi_g in #201's sense.
+    - agent(g): kg of gas reactant g consumed per kg of rate. Its Eq. 10
+      resistance is agent(g)/Omega_diff (#201), so at the diffusion limit the
+      agent is consumed as fast as Eq. 9 delivers it. This departs from the
+      literal Eq. 10, under which the consumption would be agent(g) times that.
     - consumed(): kg of reactants per kg of rate (the relative-rate report).
 
     Mass-based mode (stoichiometricReactions false): every coefficient over
     the solid reactants' sum, or over the gas reactants' sum if there is no
     solid reactant (#201). Stoichiometric mode: solids per kg of solid
     reactant, gases weighted by their molar mass so that the net gas release
-    equals the solid mass lost (section 4.2.3 of the paper); agent(g) is 1.
+    equals the solid mass lost (section 4.2.3 of the paper).
 
 SourceFiles
     solidReactionStoichiometry.C
@@ -72,7 +75,7 @@ class solidReactionStoichiometry
         //- Signed kg of that species per kg of rate
         scalarList coeffs_;
 
-        //- Eq. 10 factor of each gas reactant, in glhs() order
+        //- kg of each gas reactant consumed per kg of rate, in glhs() order
         scalarList agent_;
 
         //- Reaction enthalpy per kg of rate
@@ -89,6 +92,10 @@ class solidReactionStoichiometry
 
         //- Species i is a reactant consumed at c per kg of rate
         void consume(const label i, const scalar c);
+
+        //- Gas reactant g (ODE-state index i) consumed at c per kg of rate;
+        //  c is also its Eq. 10 factor
+        void consumeAgent(const label g, const label i, const scalar c);
 
         //- stoichiometricReactions false
         void setMassBased
@@ -140,7 +147,7 @@ public:
             return coeffs_;
         }
 
-        //- Eq. 10 factor of gas reactant g (position in glhs())
+        //- kg of gas reactant g (position in glhs()) consumed per kg of rate
         scalar agent(const label g) const
         {
             return agent_[g];
