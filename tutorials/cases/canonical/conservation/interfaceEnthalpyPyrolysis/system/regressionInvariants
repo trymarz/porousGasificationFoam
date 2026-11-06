@@ -1,0 +1,7 @@
+# Declared invariants, checked by applications/test/regression/tools/checkInvariants.py
+# before the baseline comparison; a run that breaks one is never recaptured.
+# <functionObject> <column> <check> <args>; see doc/regression-testing.md.
+
+# Products are born at Ts = Tg: neither temperature moves.
+regressionGasTempMax  max(T)   ==  600  1e-6
+regressionTsMax       max(Ts)  ==  600  1e-6

@@ -1,0 +1,65 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     |                                                 |
+|   \\  /    A nd           |                                                 |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+
+regressionBase
+{
+    type            volFieldValue;
+    libs            (fieldFunctionObjects);
+    regionType      all;
+    postOperation   none;
+    weightField     none;
+    writeFields     false;
+    writePrecision  12;
+    writeToFile     true;
+    log             false;
+    enabled         false;
+    executeControl  timeStep;
+    executeInterval 1;
+    writeControl    writeTime;
+    writeInterval   -1;
+}
+
+// One cell, one open face, no interphase exchange (h = 0), hr = 0, no
+// pressure work (dpdt no), Euler: nothing but the gas crossing the
+// interface moves either temperature (#212 D4).
+
+// The assertions: both temperatures stay at 600 K.
+regressionGasTempMax
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (T);
+    operation       max;
+}
+
+regressionTsMax
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (Ts);
+    operation       max;
+}
+
+// Liveness: gas is released, and carries its enthalpy into the gas EEqn.
+regressionSrho
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (Srho);
+    operation       volIntegrate;
+}
+
+regressionInterfaceEnthalpy
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (interfaceEnthalpy);
+    operation       volIntegrate;
+}
+
+// ************************************************************************* //

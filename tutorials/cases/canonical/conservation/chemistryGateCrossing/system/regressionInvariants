@@ -5,3 +5,7 @@
 # No cell reacts, or sheds mass, while its energy equation refuses the heat.
 regressionChemistryHeatOutsideGate  volIntegrate(chemistryHeatOutsideGate)  zero  1e-12
 regressionGasSourceOutsideGate      volIntegrate(gasSourceOutsideGate)      zero  1e-12
+
+# Nor does the mass it sheds carry enthalpy across the interface there (#212 D4).
+regressionInterfaceEnthalpyOutsideGate  volIntegrate(interfaceEnthalpyOutsideGate)  zero  1e-12
+regressionAgentHeatUpOutsideGate        volIntegrate(agentHeatUpOutsideGate)        zero  1e-12

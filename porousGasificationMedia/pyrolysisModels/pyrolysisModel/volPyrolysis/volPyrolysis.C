@@ -561,6 +561,18 @@ void volPyrolysis::solveChemistry()
     chemistrySh_ = solidChemistry_->Sh()(); // eqZx2uHGn004
 }
 
+void volPyrolysis::updateInterfaceEnthalpy()
+{
+    // The same per-species sources rhoEqn and YEqn read, so the energy
+    // crossing the interface moves with exactly the mass that crosses it.
+    PtrList<volScalarField> SrhoI(gasThermo_.composition().Y().size());
+    forAll(SrhoI, i)
+    {
+        SrhoI.set(i, Srho(i).ptr());
+    }
+    heatExchange_->updateInterfaceEnthalpy(SrhoI);
+}
+
 tmp<volScalarField> volPyrolysis::zeroSrho(const word& name) const
 {
     return tmp<volScalarField>
@@ -593,7 +605,7 @@ void volPyrolysis::evolveRegion()
 {
     updateTransferCoefficients();
     solveChemistry();
-    heatExchange_->updateHeatUpGas(Srho()());
+    updateInterfaceEnthalpy();
 
     // Settle how much solid each face may carry before any solid field is
     // transported. Needs the chemistry rates, so it follows their solve.

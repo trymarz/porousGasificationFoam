@@ -269,10 +269,10 @@ public:
             //- Return enthalpy source - Eulerian phase only
             virtual Foam::tmp<Foam::volScalarField> heatTransfer() const;
 
-            //- Return enthalpy needed to heat up gas
-            virtual Foam::tmp<Foam::volScalarField> heatUpGas() const;
+            //- Sensible enthalpy the gas gains with the interface mass [W/m3]
+            virtual Foam::tmp<Foam::volScalarField> interfaceEnthalpy() const;
 
-            //- Return enthalpy needed to heat up gas
+            //- Heat released by the solid reactions [J/s/m3]
             virtual Foam::tmp<Foam::volScalarField> solidChemistrySh() const;
 
 };

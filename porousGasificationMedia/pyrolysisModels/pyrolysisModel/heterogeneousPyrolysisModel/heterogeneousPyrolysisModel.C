@@ -207,11 +207,11 @@ Foam::tmp<Foam::volScalarField> heterogeneousPyrolysisModel::heatTransfer() cons
     return nullptr;
 }
 
-Foam::tmp<Foam::volScalarField> heterogeneousPyrolysisModel::heatUpGas() const
+Foam::tmp<Foam::volScalarField> heterogeneousPyrolysisModel::interfaceEnthalpy() const
 {
     notImplemented
     (
-        "tmp<DimensionedField<scalar, volMesh> > heterogeneousPyrolysisModel::heatUpGas() const"
+        "tmp<DimensionedField<scalar, volMesh> > heterogeneousPyrolysisModel::interfaceEnthalpy() const"
     )
 
     return nullptr;

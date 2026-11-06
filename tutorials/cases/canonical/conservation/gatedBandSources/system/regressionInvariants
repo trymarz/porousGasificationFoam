@@ -6,7 +6,8 @@
 regressionRadiationSh   volIntegrate(radiationSh)       zero  1e-12
 regressionChemistrySh   volIntegrate(solidChemistrySh)  zero  1e-12
 regressionHeatTransfer  volIntegrate(heatTransfer)      zero  1e-12
-regressionHeatUpGas     volIntegrate(heatUpGas)         zero  1e-12
+regressionInterfaceEnthalpy  volIntegrate(interfaceEnthalpy)  zero  1e-12
+regressionAgentHeatUp        volIntegrate(agentHeatUp)        zero  1e-12
 regressionSrho          volIntegrate(Srho)              zero  1e-12
 
 # With every source gated off nothing drives either phase: both stay where they start.

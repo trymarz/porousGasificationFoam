@@ -34,8 +34,9 @@ Description
     solve(), before the species step:
       - Ts = solidH/rhoCp, with the trace rule;
       - the Ts equation: conduction (cut at faces on the edge of the
-        solid), reaction heat, gas-solid exchange, heatUpGas and
-        radiation, the last two gated by connectedAtStepStart;
+        solid), reaction heat, gas-solid exchange, the agent heat-up
+        (GasSolidHeatExchange) and radiation, the reaction heat and
+        radiation gated by connectedAtStepStart;
       - solidH = rhoCp*Ts, then advected with the solid mass flux, so
         enthalpy and Ym share face values.
 
@@ -105,7 +106,9 @@ class SolidEnergy
         //- Solid mass concentrations [kg/m3], owned by volPyrolysis
         PtrList<volScalarField>& Ym_;
 
-        //- Solid enthalpy, owned by volPyrolysis
+        //- Solid enthalpy, owned by volPyrolysis. Counts from 0 K, the gas he
+        //  from 298.15 K; only an energy audit sees the difference. To be
+        //  unified in #173 (#212 D6).
         volScalarField& solidH_;
 
         const volScalarField& porosity_;

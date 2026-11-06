@@ -1,7 +1,7 @@
 # Region          : all region0
 # Cells           : 2
 # Volume          : 2.0000000000e-09
-# Time            	volIntegrate(heatUpGas)
+# Time            	volIntegrate(agentHeatUp)
 0.05	0.000000000e+00
 0.1	0.000000000e+00
 0.15	0.000000000e+00
