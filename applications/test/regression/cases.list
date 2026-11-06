@@ -76,22 +76,23 @@ tutorials/cases/canonical/conservation/interphaseHeatTransferPlain fast
 tutorials/cases/canonical/conservation/radiationReservoir           fast
 
 # chemistryGateCrossing reacts one cell from connected to dispersed mid-run. Its
-# two assertions are regressionChemistryHeatOutsideGate and
-# regressionGasSourceOutsideGate, both columns of exact zeros: no reaction heat
-# and no converted mass in a cell whose energy equation refuses the heat.
-# regressionPorosityMax is a diagnostic, not an assertion - the crossing moves
-# it by only 1e-6 relative, inside rtol. regressionGasTempMax records issue
-# #105: a closed box with an endothermic reaction and a negative heatUpGas
-# whose gas still climbs from 800 K to 1700 K. That number is reported, not
-# asserted as conservation.
+# assertions are regressionChemistryHeatOutsideGate,
+# regressionGasSourceOutsideGate, regressionInterfaceEnthalpyOutsideGate and
+# regressionAgentHeatUpOutsideGate, all columns of exact zeros: no reaction
+# heat, no converted mass and no interface enthalpy in a cell whose energy
+# equation refuses the heat. regressionPorosityMax is a diagnostic, not an
+# assertion - the crossing moves it by only 1e-6 relative, inside rtol.
+# regressionGasTempMax is reported, not asserted: in this closed box the
+# released gas arrives with h(Ts) (#212 D4), so the gas heats like a rigid
+# tank being filled, from 800 K to about 1140 K.
 tutorials/cases/canonical/conservation/chemistryGateCrossing        fast
 
 # gatedBandSources starts every cell dispersed, so
 # solidConnectedAtStepStart is 0 from t = 0 while solidPresent is still
-# 1. Five columns of
-# exact zeros - radiationSh, solidChemistrySh, heatTransfer, heatUpGas and
-# Srho - say no solid source and no interphase term reaches an energy
-# equation there. The liveness columns are what make them mean something:
+# 1. Six columns of
+# exact zeros - radiationSh, solidChemistrySh, heatTransfer,
+# interfaceEnthalpy, agentHeatUp and Srho - say no solid source and no
+# interphase term reaches an energy equation there. The liveness columns are what make them mean something:
 # volAverage(G) sits at 1e+05 while the solid books nothing from it, and the
 # solid holds 900 K above the gas for the whole run without exchanging a
 # joule, which at h*SAV = 2000 W/m3/K is 1.8e+06 W/m3 refused.

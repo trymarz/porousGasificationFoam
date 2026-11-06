@@ -100,9 +100,9 @@ Foam::heterogeneousPyrolysisModels::volPyrolysis::heatTransfer() const
 }
 
 inline Foam::tmp<Foam::volScalarField>
-Foam::heterogeneousPyrolysisModels::volPyrolysis::heatUpGas() const
+Foam::heterogeneousPyrolysisModels::volPyrolysis::interfaceEnthalpy() const
 {
-    return heatExchange_->heatUpGas();
+    return heatExchange_->interfaceEnthalpy();
 }
 
 inline Foam::tmp<Foam::volScalarField>

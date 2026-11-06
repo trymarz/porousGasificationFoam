@@ -106,8 +106,8 @@ These cases assert a balance; the comments in their `regressionFunctions` state 
 |---|---|---|
 | `interphaseHeatTransfer`, `…Plain` | `HeatTransferResidual` 1e-19–1e-18 | `HeatTransferExchanged`, `TsAverage` |
 | `radiationReservoir` | `RadiationBookResidual` 0; `RadiationWallFlux` 0 (zeroGradient G) | `RadiationBookedMax/Min` ±2e7, `GAverage`, `TsAverage` |
-| `chemistryGateCrossing` | `ChemistryHeatOutsideGate`, `GasSourceOutsideGate` 0; `PorosityMax` flat after the crossing | `SolidMass` (`Ywoodm`), `ChemistryHeat`, `TsMax`; `SolidSensible` and `GasTempMax` are reported for #105, not asserted |
-| `gatedBandSources` | `RadiationSh`, `ChemistrySh`, `HeatTransfer`, `HeatUpGas`, `Srho` 0 | `TsMax` 1200, `GasTempMax` 300, `GAverage`, `PorosityMax`: flat by design, liveness is that they are far apart |
+| `chemistryGateCrossing` | `ChemistryHeatOutsideGate`, `GasSourceOutsideGate`, `InterfaceEnthalpyOutsideGate`, `AgentHeatUpOutsideGate` 0; `PorosityMax` flat after the crossing | `SolidMass` (`Ywoodm`), `ChemistryHeat`, `TsMax`; `SolidSensible` and `GasTempMax` are reported, not asserted (`GasTempMax`: rigid-tank filling with gas at h(Ts), #212) |
+| `gatedBandSources` | `RadiationSh`, `ChemistrySh`, `HeatTransfer`, `InterfaceEnthalpy`, `AgentHeatUp`, `Srho` 0 | `TsMax` 1200, `GasTempMax` 300, `GAverage`, `PorosityMax`: flat by design, liveness is that they are far apart |
 | `gasPressureWork` | `HeatTransferResidual` ~8e-16; `GasEnergyResidual` **question** (finding 6) | `HeatTransferExchanged`, `PAverage`, `TAverage`, `TsAverage` |
 
 The comparator's `atol = 1e-12` is the effective threshold for the zero and roundoff columns.

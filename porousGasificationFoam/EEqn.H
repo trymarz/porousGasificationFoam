@@ -4,7 +4,7 @@ Description
 
         d(porosityF*rho*he)/dt + div(phi,he) + d(porosityF*rho*K)/dt
       + div(phi,K) - porosityF*dp/dt - laplacian(alphaEff,he)
-      = Qdot*porosityF + heatTransfer + heatUpGas + radiation->Sh
+      = Qdot*porosityF + heatTransfer + interfaceEnthalpy + radiation->Sh
 
     Like the storage term, the pressure work is per unit total volume, so
     dp/dt carries the gas fraction porosityF. The he = e form follows from
@@ -22,6 +22,10 @@ Description
     porosityF_old) each step. porosityRho (createFields.H) is the
     registered, stored-old-time stand-in that avoids this; YEqn.H shares
     the same weight and must stay consistent with it.
+
+    interfaceEnthalpy is the sensible enthalpy h of the mass Srho_i brings
+    across the interface (products at Ts, agents at Tg; GasSolidHeatExchange),
+    h and not e even in e form: entering mass brings its flow work.
 \*---------------------------------------------------------------------------*/
 // eqZx2uHGn044
 
@@ -32,13 +36,13 @@ if (solveEnergy)
     else
     {
         volScalarField& he = thermo.he();
-        volScalarField heatUpGas = pyrolysisZone.heatUpGas()();
+        volScalarField interfaceEnthalpy = pyrolysisZone.interfaceEnthalpy()();
         heatTransfer = pyrolysisZone.heatTransfer()();
 
         Info<< " rho gas min/max = " << gMin(rho) << ", " << gMax(rho) << endl;
         Info<< " Sh gas min/max = " << gMin(chemistrySh) << ", " << gMax(chemistrySh) << endl;
         Info<< " porosity min/max = " << gMin(porosityF) << ", " << gMax(porosityF) << endl;
-        Info<< " heatUpGas min/max = " << gMin(heatUpGas) << ", " << gMax(heatUpGas) << endl;
+        Info<< " interfaceEnthalpy min/max = " << gMin(interfaceEnthalpy) << ", " << gMax(interfaceEnthalpy) << endl;
         Info<< " heatTransfer min/max = " << gMin(heatTransfer) << ", " << gMax(heatTransfer) << endl;
 
         fvScalarMatrix EEqn
@@ -63,7 +67,7 @@ if (solveEnergy)
             reaction->Qdot() * porosityF
           + fvOptions(rho, he)
           + heatTransfer
-          + heatUpGas
+          + interfaceEnthalpy
           + radiation->Sh(thermo, he)
         );
 
