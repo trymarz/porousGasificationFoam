@@ -614,13 +614,19 @@ Foam::scalarField  Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidT
 
             scalar totalSubstrates = substrates + solidSubstrates;
 
+            // Eq. 6 with the rate per kg of solid substrate (#201): every
+            // coefficient over the solid reactants' sum, gases included. A
+            // reaction with no solid reactant keeps its per-kg-of-gas basis.
+            const scalar rateBasis =
+                solidSubstrates > 0 ? solidSubstrates : totalSubstrates;
+
             if ((totalSubstrates > 0) and (mag(totalSubstrates - (products + solidProducts)) < SMALL))
             {
                 forAll(R.slhs(), s)
                 {
                     label si = R.slhs()[s];
-                    om[si] -= omegai*R.slhsSto()[s]/totalSubstrates;
-                    massStream -= omegai*R.slhsSto()[s]/totalSubstrates;
+                    om[si] -= omegai*R.slhsSto()[s]/rateBasis;
+                    massStream -= omegai*R.slhsSto()[s]/rateBasis;
                     if (updateC0)
                     {
                         Ys0_[si][cellI] = this->solidThermo().rho()[cellI] *Ys_[si][cellI] * V_[cellI];
@@ -631,7 +637,7 @@ Foam::scalarField  Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidT
                 forAll(R.srhs(), s)
                 {
                     label si = R.srhs()[s];
-                    om[si] += omegai*R.srhsSto()[s]/totalSubstrates;
+                    om[si] += omegai*R.srhsSto()[s]/rateBasis;
                     if (updateC0)
                     {
                         Ys0_[si][cellI] = this->solidThermo().rho()[cellI] *Ys_[si][cellI] * V_[cellI];
@@ -641,14 +647,14 @@ Foam::scalarField  Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidT
                 forAll(R.grhs(), g)
                 {
                     label gi = R.grhs()[g];
-                    om[gi + nSolids_] +=  omegai*R.grhsSto()[g]/totalSubstrates;
+                    om[gi + nSolids_] +=  omegai*R.grhsSto()[g]/rateBasis;
                 }
 
                 forAll(R.glhs(), g)
                 {
                     label gi = gasDictionaryBack_[R.glhs()[g]];
-                    om[gi + nSolids_] -= omegai*R.glhsSto()[g]/totalSubstrates;
-                    massStream -= omegai*R.glhsSto()[g]/totalSubstrates;
+                    om[gi + nSolids_] -= omegai*R.glhsSto()[g]/rateBasis;
+                    massStream -= omegai*R.glhsSto()[g]/rateBasis;
                 }
                 if (not solidReactionEnergyFromEnthalpy_)
                 {
@@ -666,6 +672,35 @@ Foam::scalarField  Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidT
     }
     return om;
 }
+
+template<class SolidThermo, class SolidThermoType, class GasThermoType>
+Foam::scalar Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasThermoType>::agentPerRate
+(
+    const solidHeterogeneousReaction& R,
+    const label g
+) const
+{
+    // Stoichiometric mode splits gases by branch (W*nu); left to #209 block B.
+    if (stoichiometricReactions_)
+    {
+        return 1;
+    }
+
+    scalar solidSubstrates = 0;
+    scalar substrates = 0;
+    forAll(R.slhs(), s)
+    {
+        solidSubstrates += R.slhsSto()[s];
+    }
+    forAll(R.glhs(), i)
+    {
+        substrates += R.glhsSto()[i];
+    }
+
+    // The basis omega()'s non-stoichiometric split uses.
+    return R.glhsSto()[g]/(solidSubstrates > 0 ? solidSubstrates : substrates);
+}
+
 
 template<class SolidThermo, class SolidThermoType, class GasThermoType>
 scalar Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasThermoType>::omega
@@ -750,7 +785,10 @@ scalar Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, G
 
             if (addAvKf != 0)
             {
-                avKf += 1./addAvKf;
+                // Departs from the literal Eq. 10 (#201): the agent is consumed at
+                // xi_a*r, so its resistance is xi_a/Omega_diff, and at the limit the
+                // agent consumed equals the Eq. 9 delivery instead of xi_a times it.
+                avKf += agentPerRate(R, i)/addAvKf;
             }
             else
             {
@@ -1041,7 +1079,8 @@ void Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, Gas
                 solidProducts += R.srhsSto()[s];
                 stCoeffs[R.srhs()[s]] = R.srhsSto()[s];
             }
-                stCoeffs = stCoeffs/(substrates+solidSubstrates);
+            // Same basis as omega()'s non-stoichiometric branch (#201).
+            stCoeffs /= (solidSubstrates > 0 ? solidSubstrates : substrates);
         }
 
         scalar kf0 = R.kf(T, 0.0, c2);
@@ -1174,8 +1213,10 @@ void Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, Gas
 
                     if (addAvKf != 0)
                     {
-                        avKf += 1./addAvKf;
-                        chosenKf = ST_[cellI] * rhoG_[cellI];
+                        // Same xi_a/Omega_diff resistance as omega() (#201).
+                        const scalar xi = agentPerRate(R, rSi-Ns);
+                        avKf += xi/addAvKf;
+                        chosenKf = xi * ST_[cellI] * rhoG_[cellI];
                         chosenKf0 = (ST_[cellI] * gasConc * rhoG_[cellI]);
                     }
                     else

@@ -59,9 +59,11 @@ species 	//gasous products of reactions
 
 solidReactions
 (
+    // #201: A/2.25 and hr*2.25 (were 5.61e9, -6.22e6) keep the kinetics this case
+    // had when every coefficient was divided by all 2.25 kg of reactants.
     irreversibleSolidArrheniusHeterogeneousReaction
     wood + 1.25 O2 = 0.5 ash + 1.75 CO 
-    (5.61e9 1.96e4 300 -6.22e6  1. 1.0)
+    (2.49333333e+09 1.96e4 300 -13995000 1. 1.0)
 );
 
 // ************************************************************************* //

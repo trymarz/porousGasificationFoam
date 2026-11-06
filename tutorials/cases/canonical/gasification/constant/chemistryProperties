@@ -53,9 +53,11 @@ solidOdeCoeffs
 
 solidReactions
 (
+    // #201: A/2.33 and hr*2.33 (were 5.61e9, -3.95e6) keep the kinetics this case
+    // had when every coefficient was divided by all 2.33 kg of reactants.
     irreversibleSolidArrheniusHeterogeneousReaction
     char + 1.33 O2 = 2.33 CO
-    (5.61e9 1.96e4 300 -3.95e6 1 1)
+    (2.40772532e+09 1.96e4 300 -9203500 1 1)
 );
 
 // ************************************************************************* //

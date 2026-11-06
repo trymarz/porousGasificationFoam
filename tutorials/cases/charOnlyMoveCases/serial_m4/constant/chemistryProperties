@@ -77,14 +77,18 @@ solidReactions
 //    (1.38e10 1.9e4 300 3.85e5 1)
 
     // Reaction 3
+    // #201: A/2.33 and hr*2.33 (were 5.61e9, -3.95e6) keep the kinetics this case
+    // had when every coefficient was divided by all 2.33 kg of reactants.
     irreversibleSolidArrheniusHeterogeneousReaction
     char + 1.33 O2 = 2.33 CO
-    (5.61e9 1.96e4 300 -3.95e6 1 1)
+    (2.40772532e+09 1.96e4 300 -9203500 1 1)
 
     // Reaction 4
+    // #201: A/3.66 and hr*3.66 (were 5.61e9, -8.94e6) keep the kinetics this case
+    // had when every coefficient was divided by all 3.66 kg of reactants.
     irreversibleSolidArrheniusHeterogeneousReaction
     char + 2.66 O2 = 3.66 CO2
-    (5.61e9 1.96e4 300 -8.94e6 1 1)
+    (1.53278689e+09 1.96e4 300 -32720400 1 1)
 
 //    // Reaction 5
 //    irreversibleSolidArrheniusHeterogeneousReaction
@@ -92,9 +96,11 @@ solidReactions
 //    (4.189 2.31e3 300 -4.66e6 1 1)
 
     // Reaction 6
+    // #201: A/4.66 and hr*4.66 (were 3.616e4, 3.07e6) keep the kinetics this case
+    // had when every coefficient was divided by all 4.66 kg of reactants.
     irreversibleSolidArrheniusHeterogeneousReaction
     char + 3.66 CO2 = 4.66 CO
-    (3.616e4 9308.39 300 3.07e6 1 1)
+    (7759.65665 9308.39 300 14306200 1 1)
 
 //    // Reaction 7
 //    irreversibleSolidArrheniusHeterogeneousReaction
