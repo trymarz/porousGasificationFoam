@@ -218,6 +218,15 @@ private:
             //- Resets the values of reaction rates and adjust size for the changing meshes.
             void resetReactionRates(const volScalarField& rho);
 
+            //- Sets specieConcentration_ from cell solid/gas densities and fractions
+            void loadCellConcentrations
+            (
+                const label celli,
+                const scalar solidRho,
+                const scalar gasRho
+            );
+
+            //- Loads, integrates and stores the rates of one reacting cell
             void solveOneCell
             (
                 const scalar t0,
@@ -228,6 +237,7 @@ private:
                 volScalarField& newDeltaTMin
             );
 
+            //- Integrates the ODE over deltaT in chemistry sub-steps, advancing Ti
             void calculateSourceTerms
             (
                 const scalar t0,
@@ -240,6 +250,17 @@ private:
                 const scalarField& omegaPreq
             );
 
+            //- Solid temperature change over the current sub-step [K]
+            scalar solidTemperatureIncrement
+            (
+                const label celli,
+                const scalar solidRho,
+                const scalar Ti,
+                const scalarField& initialSpecieConcentration,
+                const scalarField& omegaPreq
+            ) const;
+
+            //- Stores the cell's RRs/RRg and limits the time step (below)
             void updateReactionRates
             (
                 const scalar deltaT,
@@ -248,6 +269,36 @@ private:
                 const scalar solidRho,
                 const scalar gasRho,
                 const scalarField& initialSpecieConcentration,
+                volScalarField& newDeltaTMin
+            );
+
+            //- Gas-rate rescale |sum dc_solid / sum dc_gas| (1 if no gas change)
+            scalar massBalanceScale
+            (
+                const scalarField& changeOfConcentration,
+                const scalar deltaT
+            ) const;
+
+            //- Stores RRs of the cell; limits the step to keep Ys in [0, 1]
+            void updateSolidRates
+            (
+                const scalar deltaT,
+                scalar& deltaTMin,
+                const label celli,
+                const scalar solidRho,
+                const scalarField& changeOfConcentration,
+                volScalarField& newDeltaTMin
+            );
+
+            //- Stores RRg (scaled by sourceCorrect); limits the step as for solids
+            void updateGasRates
+            (
+                const scalar deltaT,
+                scalar& deltaTMin,
+                const label celli,
+                const scalar gasRho,
+                const scalar sourceCorrect,
+                const scalarField& changeOfConcentration,
                 volScalarField& newDeltaTMin
             );
 

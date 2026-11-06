@@ -990,15 +990,7 @@ Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasTherm
             Info<< "relative reaction rates: " << rR / gSum(rR) << endl;
         }
 
-        for (label i = 0; i < nSolids_; ++i)
-        {
-            specieConcentration_[i] = solidRho * Ys_[i][celli];
-        }
-
-        for (label i = 0; i < nGases_; ++i)
-        {
-            specieConcentration_[nSolids_ + i] = gasRho * gasPhaseGases_[gasDictionary_[i]][celli];
-        }
+        loadCellConcentrations(celli, solidRho, gasRho);
 
         initialSpecieConcentration = specieConcentration_;
 
@@ -1010,6 +1002,26 @@ Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasTherm
         {
             shReactionHeat_[celli] = omegaPreq[nEqns()];
         }
+    }
+}
+
+template<class SolidThermo, class SolidThermoType, class GasThermoType>
+void
+Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasThermoType>::loadCellConcentrations
+(
+    const label celli,
+    const scalar solidRho,
+    const scalar gasRho
+)
+{
+    for (label i = 0; i < nSolids_; ++i)
+    {
+        specieConcentration_[i] = solidRho * Ys_[i][celli];
+    }
+
+    for (label i = 0; i < nGases_; ++i)
+    {
+        specieConcentration_[nSolids_ + i] = gasRho * gasPhaseGases_[gasDictionary_[i]][celli];
     }
 }
 
@@ -1040,100 +1052,8 @@ Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasTherm
     {
         tauC_ = this->solve(specieConcentration_, Ti, 0.0, t, dt_);
         t += dt_;
-        // Update the temperature.
-        scalar cTot = 0.0;
 
-        // Total mass density.
-        for (label i=0; i<nSolids_; i++)
-        {
-            cTot += specieConcentration_[i];
-        }
-
-        scalar newCp = 0.0;
-        scalar newhi = 0.0;
-        scalar invRho = 0.0;
-        scalarList dcdt = (specieConcentration_ - initialSpecieConcentration)/dt_;
-
-        if (solidReactionEnergyFromEnthalpy_)
-        {
-            for (label i=0; i < nSolids_; i++)
-            {
-                scalar dYi = dcdt[i];
-                scalar Yi = specieConcentration_[i];
-                newhi -= dYi * solidThermo_[i].hf();
-                newCp += Yi * solidThermo_[i].Cp(Ti);
-                invRho += Yi / solidThermo_[i].rho(Ti);
-            }
-        }
-        else
-        {
-            for (label i=0; i<nSolids_; i++)
-            {
-                scalar Yi = specieConcentration_[i];
-                newCp += Yi * solidThermo_[i].Cp(Ti);
-                invRho += Yi / solidThermo_[i].rho(Ti);
-            }
-            newhi += omegaPreq[nEqns()];
-        }
-
-        // Solid-phase temperature update. Divides reaction heat by solid heat
-        // capacity. Cells admitted by the permissive reacting-cell criterion
-        // (porosity < 1, see volPyrolysis::preEvolveRegion) can carry a
-        // vanishing solid fraction: solidRho -> 0 drives newCp -> 0 too,
-        // while reaction heat stays finite (computed from mass fractions,
-        // not absolute mass) -> newhi/(newCp*solidRho) overflows to inf/NaN
-        // -> FOAM_SIGFPE. With no solid mass there is no solid temperature
-        // to advance.
-        const scalar solidHeatCapacity = newCp*solidRho;
-
-        scalar dTi = 0;
-        if (newhi != 0 && solidHeatCapacity > VSMALL)
-        {
-            dTi = (newhi/solidHeatCapacity)*dt_;
-        }
-        else if (newhi != 0)
-        {
-            // Reports the cell state the first time the guard skips an update,
-            // once per process, so that a run can show whether the state occurs
-            // at all. Solid mass fractions are listed by name over the solids
-            // actually present -- the composition is case-dependent.
-            static bool reported = false;
-            if (!reported)
-            {
-                reported = true;
-                Pout<< "ODESolidHeterogeneousChemistryModel::calculateSourceTerms:"
-                    << " skipped solid T update (negligible solid heat capacity)"
-                    << " cell=" << celli
-                    << " porosity=" << porosityF_[celli]
-                    << " solidRho=" << solidRho
-                    << " newCp=" << newCp
-                    << " newhi=" << newhi
-                    << " Ti=" << Ti;
-
-                forAll(Ys_, i)
-                {
-                    Pout<< ' ' << Ys_[i].name() << '=' << Ys_[i][celli];
-                }
-
-                Pout<< endl;
-            }
-        }
-
-        // A heat capacity above VSMALL can still be small enough that the
-        // division overflows. Abort at the line that produced it rather than
-        // let a non-finite Ts reach SolidStateChecker three calls later.
-        if (!std::isfinite(dTi))
-        {
-            FatalErrorIn("calculateSourceTerms")
-                << "Non-finite solid temperature update at cell " << celli
-                << ": dTi=" << dTi << " from newhi=" << newhi
-                << ", newCp=" << newCp << ", solidRho=" << solidRho
-                << ", solidHeatCapacity=" << solidHeatCapacity
-                << ", dt=" << dt_ << ", Ti=" << Ti
-                << ", porosity=" << porosityF_[celli] << exit(FatalError);
-        }
-
-        Ti += dTi;
+        Ti += solidTemperatureIncrement(celli, solidRho, Ti, initialSpecieConcentration, omegaPreq);
 
         timeLeft -= dt_;
         this->deltaTChem_[celli] = tauC_;
@@ -1142,6 +1062,112 @@ Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasTherm
     }
 
     deltaTMin = min(tauC_, deltaTMin);
+}
+
+template<class SolidThermo, class SolidThermoType, class GasThermoType>
+Foam::scalar
+Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasThermoType>::solidTemperatureIncrement
+(
+    const label celli,
+    const scalar solidRho,
+    const scalar Ti,
+    const scalarField& initialSpecieConcentration,
+    const scalarField& omegaPreq
+) const
+{
+    // Total mass density.
+    scalar cTot = 0.0;
+    for (label i=0; i<nSolids_; i++)
+    {
+        cTot += specieConcentration_[i];
+    }
+
+    scalar newCp = 0.0;
+    scalar newhi = 0.0;
+    scalar invRho = 0.0;
+    scalarList dcdt = (specieConcentration_ - initialSpecieConcentration)/dt_;
+
+    if (solidReactionEnergyFromEnthalpy_)
+    {
+        for (label i=0; i < nSolids_; i++)
+        {
+            scalar dYi = dcdt[i];
+            scalar Yi = specieConcentration_[i];
+            newhi -= dYi * solidThermo_[i].hf();
+            newCp += Yi * solidThermo_[i].Cp(Ti);
+            invRho += Yi / solidThermo_[i].rho(Ti);
+        }
+    }
+    else
+    {
+        for (label i=0; i<nSolids_; i++)
+        {
+            scalar Yi = specieConcentration_[i];
+            newCp += Yi * solidThermo_[i].Cp(Ti);
+            invRho += Yi / solidThermo_[i].rho(Ti);
+        }
+        newhi += omegaPreq[nEqns()];
+    }
+
+    // Solid-phase temperature update. Divides reaction heat by solid heat
+    // capacity. Cells admitted by the permissive reacting-cell criterion
+    // (porosity < 1, see volPyrolysis::preEvolveRegion) can carry a
+    // vanishing solid fraction: solidRho -> 0 drives newCp -> 0 too,
+    // while reaction heat stays finite (computed from mass fractions,
+    // not absolute mass) -> newhi/(newCp*solidRho) overflows to inf/NaN
+    // -> FOAM_SIGFPE. With no solid mass there is no solid temperature
+    // to advance.
+    // Known (#209 F2): newCp is already volumetric, so dT is ~rho times small.
+    const scalar solidHeatCapacity = newCp*solidRho;
+
+    scalar dTi = 0;
+    if (newhi != 0 && solidHeatCapacity > VSMALL)
+    {
+        dTi = (newhi/solidHeatCapacity)*dt_;
+    }
+    else if (newhi != 0)
+    {
+        // Reports the cell state the first time the guard skips an update,
+        // once per process, so that a run can show whether the state occurs
+        // at all. Solid mass fractions are listed by name over the solids
+        // actually present -- the composition is case-dependent.
+        static bool reported = false;
+        if (!reported)
+        {
+            reported = true;
+            Pout<< "ODESolidHeterogeneousChemistryModel::calculateSourceTerms:"
+                << " skipped solid T update (negligible solid heat capacity)"
+                << " cell=" << celli
+                << " porosity=" << porosityF_[celli]
+                << " solidRho=" << solidRho
+                << " newCp=" << newCp
+                << " newhi=" << newhi
+                << " Ti=" << Ti;
+
+            forAll(Ys_, i)
+            {
+                Pout<< ' ' << Ys_[i].name() << '=' << Ys_[i][celli];
+            }
+
+            Pout<< endl;
+        }
+    }
+
+    // A heat capacity above VSMALL can still be small enough that the
+    // division overflows. Abort at the line that produced it rather than
+    // let a non-finite Ts reach SolidStateChecker three calls later.
+    if (!std::isfinite(dTi))
+    {
+        FatalErrorIn("calculateSourceTerms")
+            << "Non-finite solid temperature update at cell " << celli
+            << ": dTi=" << dTi << " from newhi=" << newhi
+            << ", newCp=" << newCp << ", solidRho=" << solidRho
+            << ", solidHeatCapacity=" << solidHeatCapacity
+            << ", dt=" << dt_ << ", Ti=" << Ti
+            << ", porosity=" << porosityF_[celli] << exit(FatalError);
+    }
+
+    return dTi;
 }
 
 template<class SolidThermo, class SolidThermoType, class GasThermoType>
@@ -1159,6 +1185,21 @@ Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasTherm
 {
    const scalarField changeOfConcentration = specieConcentration_ - initialSpecieConcentration;
 
+    const scalar sourceCorrect = massBalanceScale(changeOfConcentration, deltaT);
+
+    updateSolidRates(deltaT, deltaTMin, celli, solidRho, changeOfConcentration, newDeltaTMin);
+
+    updateGasRates(deltaT, deltaTMin, celli, gasRho, sourceCorrect, changeOfConcentration, newDeltaTMin);
+}
+
+template<class SolidThermo, class SolidThermoType, class GasThermoType>
+Foam::scalar
+Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasThermoType>::massBalanceScale
+(
+    const scalarField& changeOfConcentration,
+    const scalar deltaT
+) const
+{
     // the integration inside time step tends to loose accuracy
     // for conserving the mass we correct for it
     // to normalize to calculated solid loss
@@ -1179,8 +1220,21 @@ Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasTherm
        sourceCorrect = mag(sourceSolid / sourceGas);
     }
 
-    (void) sourceCorrect;
+    return sourceCorrect;
+}
 
+template<class SolidThermo, class SolidThermoType, class GasThermoType>
+void
+Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasThermoType>::updateSolidRates
+(
+    const scalar deltaT,
+    scalar& deltaTMin,
+    const label celli,
+    const scalar solidRho,
+    const scalarField& changeOfConcentration,
+    volScalarField& newDeltaTMin
+)
+{
     forAll(RRs_, i)
     {
         RRs_[i][celli] = changeOfConcentration[i] / deltaT ;
@@ -1211,7 +1265,21 @@ Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasTherm
                 Info<< dt_ << " " << deltaTMin << " " << tauC_ << " an error occured: negative deltaT from solid chemistry" << endl;
         }
     }
+}
 
+template<class SolidThermo, class SolidThermoType, class GasThermoType>
+void
+Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasThermoType>::updateGasRates
+(
+    const scalar deltaT,
+    scalar& deltaTMin,
+    const label celli,
+    const scalar gasRho,
+    const scalar sourceCorrect,
+    const scalarField& changeOfConcentration,
+    volScalarField& newDeltaTMin
+)
+{
     forAll(RRg_, i)
     {
         RRg_[i][celli] = changeOfConcentration[nSolids_ + i] / deltaT * sourceCorrect;
