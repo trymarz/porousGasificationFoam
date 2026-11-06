@@ -41,6 +41,7 @@ SourceFiles
 #include "porousThermoSolidChemistryModel.H"
 #include "solidHeterogeneousReaction.H"
 #include "solidReactionStoichiometry.H"
+#include "solidReactionRate.H"
 #include "psiReactionThermo.H"
 #include "ODESystem.H"
 #include "volFields.H"
@@ -185,6 +186,9 @@ private:
         //- Species split, heat and Eq. 10 factors of each reaction
         PtrList<solidReactionStoichiometry> stoichiometry_;
 
+        //- Rate (Eq. 4-5, cutoff, Eq. 10) and its derivative, per reaction
+        PtrList<solidReactionRate> rates_;
+
         //- Gas density
         const volScalarField& rhoG_;
 
@@ -302,23 +306,6 @@ public:
             const scalar p,
             scalarField& rR,
             const bool updateC0 = false
-        ) const;
-
-        //- Return the reaction rate for reaction r and the reference
-        //  species and charateristic times
-        virtual scalar omega
-        (
-            const solidHeterogeneousReaction& r,
-            const solidReactionStoichiometry& st,
-            const scalarField& c,
-            const scalar T,
-            const scalar p,
-            scalar& pf,
-            scalar& cf,
-            label& lRef,
-            scalar& pr,
-            scalar& cr,
-            label& rRef
         ) const;
 
         //- Calculates the reaction rates
