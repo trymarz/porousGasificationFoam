@@ -155,8 +155,8 @@ def parse_reaction(eq: str) -> tuple[list[tuple[float, str]], list[tuple[float, 
 def split_coefficients(lhs_s, lhs_g, rhs_s, rhs_g, stoich, W):
     """Signed source per unit Omega for each species, as the solver splits it.
 
-    Non-stoichiometric: every coefficient over Sigma = solid + gas LHS
-    coefficients (#201: the paper's Eq. 6 applies them undivided).
+    Non-stoichiometric: Eq. 6 with the rate per kg of solid substrate, every
+    coefficient over the solid LHS coefficients' sum (#201).
     Stoichiometric: solids per kg of solid substrate; the net solid loss is
     shared among the gases in proportion to W*nu (paper Sec. 4.2.3).
     """
@@ -166,7 +166,7 @@ def split_coefficients(lhs_s, lhs_g, rhs_s, rhs_g, stoich, W):
         split[name] = split.get(name, 0.0) + value
 
     if not stoich:
-        total = sum(nu for nu, _ in lhs_s) + sum(nu for nu, _ in lhs_g)
+        total = sum(nu for nu, _ in lhs_s) or sum(nu for nu, _ in lhs_g)
         for sign, side in ((-1, lhs_s), (-1, lhs_g), (1, rhs_s), (1, rhs_g)):
             for nu, name in side:
                 add(name, sign * nu / total)

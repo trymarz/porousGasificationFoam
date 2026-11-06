@@ -108,7 +108,7 @@ Ten single-cell, single-step heterogeneous rate fixtures (#209 block A), one per
 | `massRatio` | invariant (== 1, 1e-9) | mass created or lost by the split | — |
 | `source(<specie>)`, `heat` | live | the same, against the baseline | — |
 
-The species split is the code's convention, written out in `split_coefficients()`; the #201 fix changes it there and in the solver together.
+The species split, written out in `split_coefficients()`, is Eq. 6 with the rate per kg of solid substrate (#201); a change to it in the solver has to change it there too.
 
 ### canonical/conservation
 
