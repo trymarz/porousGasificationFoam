@@ -269,7 +269,9 @@ void SolidEnergy::solveTsEquation
     // gating again here would be a no-op, not a safeguard.
     const volScalarField& interphaseHeatTransfer =
         heatExchange_.updateHeatTransfer();
-    const volScalarField& heatUpGas = heatExchange_.heatUpGas();
+    // An agent's mass source is gated like every Srho_i: zero outside the
+    // reacting (connectedAtStepStart) cells, so no gate is added here.
+    const volScalarField& agentHeatUp = heatExchange_.agentHeatUp();
 
     // radiationSh_ carries no connected gate of its own: as a cell
     // empties, rhoCp collapses toward its SMALL floor while the T^4
@@ -290,7 +292,7 @@ void SolidEnergy::solveTsEquation
     ==
         solidChemistrySource // eqZx2uHGn004, eqZx2uHGn017
       - interphaseHeatTransfer // eqZx2uHGn005
-      - heatUpGas
+      - agentHeatUp
       + solidRadiationSource
     );
 
@@ -313,7 +315,7 @@ void SolidEnergy::solveTsEquation
             << solidChemistrySource[badTEqnCell] << nl
             << "    heatTransfer = "
             << interphaseHeatTransfer[badTEqnCell] << nl
-            << "    heatUpGas    = " << heatUpGas[badTEqnCell] << nl
+            << "    agentHeatUp  = " << agentHeatUp[badTEqnCell] << nl
             << "    radiationSh  = "
             << solidRadiationSource[badTEqnCell] << nl
             << "    porosity     = " << porosity_[badTEqnCell];

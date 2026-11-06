@@ -116,7 +116,7 @@ The baseline says a column reproduced itself. An invariant says what the column 
 ```
 # <functionObject>        <column>               <check>   <args>
 regressionYcharmIntegral   volIntegrate(Ycharm)   constant  1e-9      # max - min <= 1e-9 * max|x|
-regressionHeatUpGas        volIntegrate(heatUpGas) zero     1e-12     # every |x| <= 1e-12
+regressionAgentHeatUp      volIntegrate(agentHeatUp) zero   1e-12     # every |x| <= 1e-12
 regressionPorosityMax      max(porosityF)         <=        1         # every x <= 1 (+ optional tolerance)
 regressionPorosityMin      min(porosityF)         >=        0.3 1e-9  # every x >= 0.3 - 1e-9
 regressionTsMax            max(Ts)                ==        300 1e-6  # every |x - 300| <= 1e-6

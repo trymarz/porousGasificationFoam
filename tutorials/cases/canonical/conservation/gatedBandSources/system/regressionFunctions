@@ -26,7 +26,7 @@ regressionBase
 
 // The assertions. Every cell is dispersed from t = 0, so
 // solidConnectedAtStepStart is 0 everywhere and none of these terms may be anything
-// but zero - in the solid TEqn or in the gas EEqn. All four are columns of
+// but zero - in the solid TEqn or in the gas EEqn. All of them are columns of
 // exact zeros; movement in any of them is a source escaping its bound.
 regressionRadiationSh
 {
@@ -54,11 +54,21 @@ regressionHeatTransfer
     operation       volIntegrate;
 }
 
-regressionHeatUpGas
+// The interface enthalpy (gas EEqn) and the agent heat-up (solid TEqn)
+// follow Srho_i, which is zero outside the reacting cells.
+regressionInterfaceEnthalpy
 {
     ${regressionBase}
     enabled         true;
-    fields          (heatUpGas);
+    fields          (interfaceEnthalpy);
+    operation       volIntegrate;
+}
+
+regressionAgentHeatUp
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (agentHeatUp);
     operation       volIntegrate;
 }
 

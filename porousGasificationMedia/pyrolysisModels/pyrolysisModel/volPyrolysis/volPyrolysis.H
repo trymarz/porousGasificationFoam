@@ -113,6 +113,9 @@ private:
         //- A zero, unregistered mass source [kg/m3/s]
         tmp<volScalarField> zeroSrho(const word& name) const;
 
+        //- Interface enthalpy and agent heat-up from this step's Srho(i)
+        void updateInterfaceEnthalpy();
+
 
 protected:
 
@@ -173,13 +176,14 @@ protected:
 
     // Fields
 
-        //- Heat release [J/s/m3]
+        //- Heat release [J/s/m3]: hr is a constant heat of reaction with all
+        //  participants at Ts, per kg of solid substrate (#212 D5)
         volScalarField chemistrySh_;
 
         //- The solid regimes of each cell, and their thresholds
         autoPtr<SolidState> solidState_;
 
-        //- CONV, the interphase exchange and heatUpGas
+        //- CONV, the interphase exchange and the interface enthalpy
         autoPtr<GasSolidHeatExchange> heatExchange_;
 
         //- Ts equation and solidH transport
@@ -331,8 +335,8 @@ public:
             //- Return enthalpy source - Eulerian phase only
             inline virtual tmp<volScalarField> heatTransfer() const;
 
-            //- Return enthalpy needed to heat up gas
-            inline virtual tmp<volScalarField> heatUpGas() const;
+            //- Sensible enthalpy the gas gains with the interface mass [W/m3]
+            inline virtual tmp<volScalarField> interfaceEnthalpy() const;
 
             //- Heat released by the solid reactions [J/s/m3]
             inline virtual tmp<volScalarField> solidChemistrySh() const;

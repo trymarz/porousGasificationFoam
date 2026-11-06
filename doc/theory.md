@@ -75,11 +75,11 @@ C = (μ + f ρ |U| √3 / |Df|) · Df
 
 ```
 ∂(ε ρ h)/∂t + ∇·(φ h) + ∂(ε ρ K)/∂t + ∇·(φ K) − ε ∂p/∂t − ∇·(α_eff ∇h)
-    = ε Q̇_chem + Q_conv + Q_heatUp + S_rad
-Q_heatUp = cp (Tₛ − T) S_ρ
+    = ε Q̇_chem + Q_conv + Q_int + S_rad
+Q_int = Σ_{S_ρ,i>0} S_ρ,i hₛ,ᵢ(Tₛ) + Σ_{S_ρ,i<0} S_ρ,i hₛ,ᵢ(T)
 ```
 
-Solved for internal energy `e`, the pressure work `− ε ∂p/∂t` becomes `∇·(φ/ρ p) + p ∂ε/∂t` (from `h = e + p/ρ`, with `φ` the superficial mass flux; see the `EEqn.H` Description). `Q_conv` is the solid-to-gas convective exchange (`heatTransfer()`), `S_rad` the radiation source.
+Solved for internal energy `e`, the pressure work `− ε ∂p/∂t` becomes `∇·(φ/ρ p) + p ∂ε/∂t` (from `h = e + p/ρ`, with `φ` the superficial mass flux; see the `EEqn.H` Description). `Q_conv` is the solid-to-gas convective exchange (`heatTransfer()`), `S_rad` the radiation source. `Q_int` (`interfaceEnthalpy`, `GasSolidHeatExchange`) is the sensible enthalpy the interface mass `S_ρ,i` brings with it (#212): products are born at `Tₛ`, consumed agents leave at the gas `T`. It uses the same `S_ρ,i` as `rhoEqn.H` and `YEqn.H`, and is `h` even when solving for `e`.
 
 **Solid species** (`SolidSpeciesTransport::solve`; paper 3a without the transport term)
 
@@ -98,12 +98,13 @@ Solved for internal energy `e`, the pressure work `− ε ∂p/∂t` becomes `�
 **Solid energy** (`SolidEnergy::solve`, `recoverTemperatureAfterReaction`; paper 3c). With `H = (Σₖ Ymₖ) cₚ,ₛ Tₛ`:
 
 ```
-∂(Σₖ Ymₖ cₚ,ₛ Tₛ)/∂t − ∇·((1 − ε) K_s · A ∇Tₛ) = S_chem − Q_conv − Q_heatUp + S_rad,s
+∂(Σₖ Ymₖ cₚ,ₛ Tₛ)/∂t − ∇·((1 − ε) K_s · A ∇Tₛ) = S_chem − Q_conv − Q_agent + S_rad,s
+Q_agent = Σ_{S_ρ,i<0} |S_ρ,i| (hₛ,ᵢ(Tₛ) − hₛ,ᵢ(T))
 ∂H/∂t + ∇·(φ_Ym hₛ) = 0        (enthalpy advected with the solid mass flux, upwind)
 Tₛ = H / (Σₖ Ymₖ cₚ,ₛ)
 ```
 
-`A` is the optional `anisotropyK` tensor; `S_chem` is the solid reaction heat (`chemistrySh`).
+`A` is the optional `anisotropyK` tensor; `S_chem` is the solid reaction heat (`chemistrySh`), `hr` with all participants at `Tₛ`. `Q_agent` (`agentHeatUp`) heats a consumed agent from the gas `T` to `Tₛ`. Products need no solid term: the `Tₛ` recovery already lets the converted solid leave at `Tₛ`. Reference temperatures differ (solid `H` from 0 K, gas `h` from 298.15 K; to be unified in #173); no temperature depends on them.
 
 **Particle size under `lambdaMode apparentVolume`** (`DEM/lambdaDotModels/apparentVolumeLambdaDot/`). With `λ³ₖ = 1/ρ_app,k` the apparent specific volume of specie `k`, and `Ymₖ` taken before this step's solve:
 

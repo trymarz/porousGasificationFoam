@@ -146,10 +146,12 @@ solidReactions
 | `A` | Pre-exponential factor | varies |
 | `Ta` | Activation temperature `Ea/R` | [K] |
 | `Tcrit` | Minimum temperature for reaction | [K] |
-| `heatOfReaction` | Heat released/absorbed (<0 = exothermic) | [J/kg] |
+| `heatOfReaction` | Heat released/absorbed (<0 = exothermic), per kg of solid substrate | [J/kg] |
 | `n1, n2, ...` | Reaction order for each LHS species in order | — |
 
 **Rate basis**: the rate is defined per 1 kg of solid substrate (Żuk et al., CPC 2022, Eq. 4–5), and solid coefficients are mass-based (`hem = 0.6 CH4 + 0.4 char`: 1 kg hem gives 0.4 kg char). A coefficient on a lone solid substrate therefore has no effect on the rate: `2 wood = 2 tar` behaves like `wood = tar`, and the solver warns about it at startup. To split one solid among competing branches, give each branch its own reaction and put the branch fraction into its `A`. How reactions with gas substrates are normalised is under review in #201.
+
+**Heat of reaction**: `heatOfReaction` is a constant, taken with all participants at the local solid temperature `Ts` (products leave and agents arrive at `Ts`; #212). It is not corrected with temperature, so give the value measured at reaction temperature (e.g. from a TGA/DSC fit), not a 298 K standard value. The solver itself carries the gases' sensible enthalpy across the interface: products enter the gas at `Ts`, and a consumed agent leaves the gas at its temperature and is heated to `Ts` by the solid.
 
 ### `constant/solidThermophysicalProperties`
 

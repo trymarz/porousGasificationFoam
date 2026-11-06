@@ -35,12 +35,26 @@ Description
     subintegrateHeatTransfer it is the analytic two-temperature relaxation
     over the time step instead, stable for large CONV.
 
-    heatUpGas is Cp_g*(Ts - Tg)*Srho: the heat that brings the gas the
-    solid releases from the gas to the solid temperature.
+    Gas crossing the interface carries the sensible enthalpy of the phase
+    it leaves (#212, D4), per species i with the mass source Srho_i that
+    feeds rhoEqn and YEqn:
 
-    Both are gated by connectedAtStepStart where they are produced, so the
-    solid and gas equations consume one field and the pair conserves
-    energy. Both are zero in equilibrium mode.
+        interfaceEnthalpy = sum_{Srho_i>0} Srho_i*hs_i(Ts)
+                          + sum_{Srho_i<0} Srho_i*hs_i(Tg)       (gas EEqn)
+        agentHeatUp       = sum_{Srho_i<0} |Srho_i|*(hs_i(Ts) - hs_i(Tg))
+                                                                 (solid TEqn, -)
+
+    Products are born at Ts; a consumed agent leaves the gas at Tg and the
+    solid heats it to Ts, so the reaction heat hr holds with all
+    participants at Ts. The solid needs no product term: the converted
+    solid already leaves at Ts (SolidEnergy::recoverTemperatureAfterReaction).
+    hs_i is the gas thermo's own, so the gas source is h even when the gas
+    solves for e. Neither carries a gate of its own: Srho_i is nonzero only
+    in reacting cells, which are the connectedAtStepStart cells.
+
+    The exchange is gated by connectedAtStepStart where it is produced, so
+    the solid and gas equations consume one field and the pair conserves
+    energy. All three are zero in equilibrium mode.
 
     Owned directly by volPyrolysis (like BedCollapse) - no runtime
     selection; the heat transfer model itself is selected at runtime.
@@ -89,11 +103,14 @@ class GasSolidHeatExchange
 
         const SolidState& solidState_;
 
-        //- The owner's switches, bound so a runtime read() takes effect
+        //- The owner's switch, bound so a runtime read() takes effect
         const Switch& equilibrium_;
-        const Switch& active_;
 
-        volScalarField heatUpGas_;
+        //- Sensible enthalpy the gas gains with the interface mass [W/m3]
+        volScalarField interfaceEnthalpy_;
+
+        //- Heat the solid gives a consumed agent, from Tg to Ts [W/m3]
+        volScalarField agentHeatUp_;
 
         //- Interphase exchange as the solid TEqn consumed it, stored so the
         //  gas EEqn adds back the same joules rather than a fresh evaluation
@@ -117,9 +134,6 @@ class GasSolidHeatExchange
 
         //- CONV from the heat transfer model, zero where there is no solid
         tmp<volScalarField> heatTransferCoeffCalc() const;
-
-        //- Enthalpy needed to heat up the released gas
-        tmp<volScalarField> heatUpGasCalc(const volScalarField& Srho) const;
 
         //- Disallow default bitwise copy construct
         GasSolidHeatExchange(const GasSolidHeatExchange&);
@@ -156,8 +170,9 @@ public:
         //- Evaluate and store the exchange for this step
         const volScalarField& updateHeatTransfer();
 
-        //- Evaluate and store heatUpGas from the gas mass source
-        void updateHeatUpGas(const volScalarField& Srho);
+        //- Evaluate and store interfaceEnthalpy and agentHeatUp from the
+        //  per-species gas mass sources, indexed like the gas species
+        void updateInterfaceEnthalpy(const PtrList<volScalarField>& SrhoI);
 
         //- Interphase exchange stored by updateHeatTransfer() [W/m3]
         const volScalarField& heatTransfer() const
@@ -165,10 +180,16 @@ public:
             return heatTransferSh_;
         }
 
-        //- Enthalpy needed to heat up gas [W/m3]
-        const volScalarField& heatUpGas() const
+        //- Gas-side interface enthalpy [W/m3]
+        const volScalarField& interfaceEnthalpy() const
         {
-            return heatUpGas_;
+            return interfaceEnthalpy_;
+        }
+
+        //- Solid-side agent heat-up [W/m3]
+        const volScalarField& agentHeatUp() const
+        {
+            return agentHeatUp_;
         }
 };
 

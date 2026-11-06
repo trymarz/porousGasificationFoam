@@ -41,6 +41,38 @@ gasSourceOutsideGate
     writeControl    writeTime;
 }
 
+// The energy half (#212 D4): the interface enthalpy and the agent heat-up
+// follow Srho_i, so they too are zero outside the gate.
+interfaceEnthalpyOutsideGate
+{
+    type            exprField;
+    libs            (fieldFunctionObjects);
+    field           interfaceEnthalpyOutsideGate;
+    dimensions      [1 -1 -3 0 0 0 0];
+    expression      "interfaceEnthalpy*(1 - solidConnectedAtStepStart)";
+    action          new;
+    store           true;
+    autowrite       true;
+    executeControl  timeStep;
+    executeInterval 1;
+    writeControl    writeTime;
+}
+
+agentHeatUpOutsideGate
+{
+    type            exprField;
+    libs            (fieldFunctionObjects);
+    field           agentHeatUpOutsideGate;
+    dimensions      [1 -1 -3 0 0 0 0];
+    expression      "agentHeatUp*(1 - solidConnectedAtStepStart)";
+    action          new;
+    store           true;
+    autowrite       true;
+    executeControl  timeStep;
+    executeInterval 1;
+    writeControl    writeTime;
+}
+
 // The solid's stored sensible energy. Reported, not asserted - see the
 // regressionSolidSensible note in cases.list.
 solidSensible
@@ -76,8 +108,8 @@ regressionBase
     writeInterval   -1;
 }
 
-// The two assertions. Both are columns of exact zeros: movement means a cell
-// reacted, or shed mass, with its energy equation refusing the heat.
+// The assertions. All are columns of exact zeros: movement means a cell
+// reacted, or shed mass or its enthalpy, with its energy equation refusing it.
 regressionChemistryHeatOutsideGate
 {
     ${regressionBase}
@@ -91,6 +123,22 @@ regressionGasSourceOutsideGate
     ${regressionBase}
     enabled         true;
     fields          (gasSourceOutsideGate);
+    operation       volIntegrate;
+}
+
+regressionInterfaceEnthalpyOutsideGate
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (interfaceEnthalpyOutsideGate);
+    operation       volIntegrate;
+}
+
+regressionAgentHeatUpOutsideGate
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (agentHeatUpOutsideGate);
     operation       volIntegrate;
 }
 
@@ -125,8 +173,8 @@ regressionChemistryHeat
 }
 
 // Reported, never asserted as a conservation result: the solid's sensible
-// energy against the gas mass it produced. The residual between them is
-// issue #105's unmatched handover and is expected to be large.
+// energy against the gas mass it produced. The solid H counts from 0 K and
+// the gas h from 298.15 K (#212 D6, #173), so the two do not balance.
 regressionSolidSensible
 {
     ${regressionBase}
@@ -143,11 +191,9 @@ regressionTsMax
     operation       max;
 }
 
-// Issue #105 made visible. This is a closed box whose only chemistry is
-// endothermic and whose only interphase term, heatUpGas, is negative - a
-// sink for the gas. The gas nevertheless climbs from 800 K past 1700 K,
-// because the enthalpy of the mass the solid sheds is not accounted for on
-// arrival. Recorded so the gap has a number; it is not an assertion.
+// A closed box: the released gas arrives with h(Ts) (#212 D4) in a fixed
+// volume, so like a rigid tank being filled the gas heats toward
+// gamma*Ts, from 800 K to about 1140 K. Reported, not asserted.
 regressionGasTempMax
 {
     ${regressionBase}

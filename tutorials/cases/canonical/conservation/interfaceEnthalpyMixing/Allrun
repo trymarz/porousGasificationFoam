@@ -1,0 +1,15 @@
+#!/bin/sh
+cd "${0%/*}" || exit
+# Wood releases targas at Ts = 700 K into gas at 600 K. The gas must reach
+# the mixing temperature from hs at every step (checkMixingTemperature.py);
+# the solid, losing only its converted mass, stays at 700 K.
+# One cell, one open face, no interphase exchange (h = 0), hr = 0, no
+# pressure work (dpdt no), Euler: only the gas crossing the interface moves
+# either temperature (#212 D4).
+. ${WM_PROJECT_DIR:?}/bin/tools/RunFunctions
+restore0Dir
+runApplication blockMesh
+runApplication $(getApplication)
+
+python3 checkMixingTemperature.py targas 1e-4 > log.checkMixingTemperature 2>&1 \
+ || { echo "gas temperature misses the mixing temperature, see log.checkMixingTemperature" >&2; exit 1; }
