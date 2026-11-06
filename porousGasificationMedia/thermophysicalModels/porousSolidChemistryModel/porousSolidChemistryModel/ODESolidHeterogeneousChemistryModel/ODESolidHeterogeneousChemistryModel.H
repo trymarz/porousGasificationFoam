@@ -212,6 +212,30 @@ private:
 
         // Private members
 
+            //- Constructor step: log the gas-phase and pyrolysis gases
+            void logGases() const;
+
+            //- Constructor step: create RRs, RRg and the initial Ys0
+            void createSourceFields();
+
+            //- Constructor step: log the reactions and the energy switches
+            void logReactions() const;
+
+            //- Constructor step: warn on a single solid substrate with
+            //  a coefficient other than 1 (it does not affect the rate)
+            void warnSolidSubstrateCoefficients() const;
+
+            //- Constructor step: map pyrolysis gases to gas-phase gases
+            //  and back
+            void buildGasDictionaries();
+
+            //- Constructor step: gas molar masses, then each reaction's
+            //  stoichiometry
+            void buildStoichiometry();
+
+            //- Constructor step: build each reaction's rate evaluator
+            void buildRates();
+
             //- Set reacting status of cell, cellI
             void setCellReacting(const label cellI, const bool active);
 
