@@ -28,6 +28,7 @@ License
 #include "UniformField.H"
 #include "extrapolatedCalculatedFvPatchFields.H"
 #include "reactingSolidHeterogeneousMixture.H"
+#include <cstdlib>
 
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
@@ -149,7 +150,11 @@ Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasTherm
     ),
     specieConcentration_(nSpecie_, 0.0),
     tauC_(0.0),
-    dt_(0.0)
+    dt_(0.0),
+    logMassRatio_(std::getenv("PGF209_MASSRATIO") != nullptr),
+    massRatioCells_(0),
+    massRatioMin_(GREAT),
+    massRatioMax_(-GREAT)
 {
     logGases();
     createSourceFields();
@@ -977,6 +982,9 @@ Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasTherm
 
     resetReactionRates(rho);
     shReactionHeat_ *= 0.0;
+    massRatioCells_ = 0;
+    massRatioMin_ = GREAT;
+    massRatioMax_ = -GREAT;
 
     if (!this->chemistry_)
     {
@@ -996,6 +1004,19 @@ Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasTherm
         deltaTMin = min(deltaTMin, deltaT);
         reduce(deltaTMin,minOp<scalar>());
         scalar output = gMin(newDeltaTMin);
+
+        if (logMassRatio_)
+        {
+            label nCells = massRatioCells_;
+            scalar rMin = massRatioMin_;
+            scalar rMax = massRatioMax_;
+            reduce(nCells, sumOp<label>());
+            reduce(rMin, minOp<scalar>());
+            reduce(rMax, maxOp<scalar>());
+            Info<< "PGF209 massRatio t=" << this->time().value()
+                << " cells=" << nCells << " min=" << rMin
+                << " max=" << rMax << endl;
+        }
 
         return output;
     }
@@ -1220,6 +1241,21 @@ Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasTherm
    const scalarField changeOfConcentration = specieConcentration_ - initialSpecieConcentration;
 
     const scalar sourceCorrect = massBalanceScale(changeOfConcentration, deltaT);
+
+    if (logMassRatio_)
+    {
+        scalar gasChange = 0;
+        for (label i = 0; i < nGases_; i++)
+        {
+            gasChange += mag(changeOfConcentration[nSolids_ + i]);
+        }
+        if (gasChange > 0)
+        {
+            massRatioCells_++;
+            massRatioMin_ = min(massRatioMin_, sourceCorrect);
+            massRatioMax_ = max(massRatioMax_, sourceCorrect);
+        }
+    }
 
     updateSolidRates(deltaT, deltaTMin, celli, solidRho, changeOfConcentration, newDeltaTMin);
 

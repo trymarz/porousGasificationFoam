@@ -210,6 +210,14 @@ private:
         //- Chemical time step
         scalar dt_;
 
+        //- PGF209_MASSRATIO: log the solid/gas mass ratio of each solve
+        const bool logMassRatio_;
+
+        //- Cells with a gas change, and the min/max massBalanceScale, per solve
+        label massRatioCells_;
+        scalar massRatioMin_;
+        scalar massRatioMax_;
+
         // Private members
 
             //- Constructor step: log the gas-phase and pyrolysis gases
