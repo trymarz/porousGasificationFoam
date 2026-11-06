@@ -382,7 +382,7 @@ buildRates()
 {
     const solidReactionRate::cellFields rateFields
     {
-        Ys_, gasPhaseGases_, this->solidThermo().rho(), rhoG_, ST_, porosityF_
+        this->solidThermo().rho(), rhoG_, ST_, porosityF_
     };
 
     rates_.setSize(nReaction_);
@@ -581,7 +581,7 @@ void Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, Gas
     scalarField c2(nSpecie_, 0.0);
     scalarField rR(nReaction_, 0.0);
 
-    for (label i=0; i<nSolids_; i++)
+    for (label i=0; i<nSpecie_; i++)
     {
         c2[i] = max(c[i], 0.0);
     }
@@ -894,10 +894,13 @@ void Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, Gas
                 scalar Ti = this->solidThermo().T()[celli];
 
                 scalarField c(nSpecie_, 0.0);
-                for (label i=0; i<nSolids_; i++)
-                {
-                    c[i] = rhoi*Ys_[i][celli]*delta;
-                }
+                loadCellConcentrations
+                (
+                    celli,
+                    rhoi*(1. - porosityF_[celli]),
+                    rhoG_[celli]*porosityF_[celli]
+                );
+                c = specieConcentration_;
                 // it is not seen from outside the class so no need to wrap it
                 scalarField rR(nReaction_, 0.0);
                 const scalarField dcdt = omega(c, Ti, 0.0, rR, true);
@@ -1043,7 +1046,9 @@ Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasTherm
         scalar gasRho = rhoG_[celli] * porosityF_[celli];
         scalar Ti = this->solidThermo().T()[celli];
 
-        scalarField initialSpecieConcentration(nSpecie_, 0.0);
+        loadCellConcentrations(celli, solidRho, gasRho);
+
+        const scalarField initialSpecieConcentration(specieConcentration_);
 
         scalarField rR(nReaction_, 0.0);
 
@@ -1053,10 +1058,6 @@ Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasTherm
         {
             Info<< "relative reaction rates: " << rR / gSum(rR) << endl;
         }
-
-        loadCellConcentrations(celli, solidRho, gasRho);
-
-        initialSpecieConcentration = specieConcentration_;
 
         calculateSourceTerms(t0, deltaT, deltaTMin, celli, solidRho, Ti, initialSpecieConcentration, omegaPreq);
 
