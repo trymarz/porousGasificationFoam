@@ -28,15 +28,27 @@ License
 
 // * * * * * * * * * * * * * Private Member Functions  * * * * * * * * * * * //
 
-Foam::scalar Foam::solidReactionRate::x(const label k, const label celli) const
+Foam::scalar Foam::solidReactionRate::xBasis(const label k, const label celli)
+    const
 {
-    const label Ns = R_.slhs().size();
-
-    if (k < Ns)
+    if (k < R_.slhs().size())
     {
-        return f_.Ys[R_.slhs()[k]][celli];
+        return f_.rho[celli]*(1. - f_.porosity[celli]);
     }
-    return f_.gases[R_.glhs()[k - Ns]].internalField()[celli];
+    return f_.rhoG[celli]*f_.porosity[celli];
+}
+
+
+Foam::scalar Foam::solidReactionRate::x
+(
+    const label k,
+    const label celli,
+    const scalarField& c
+) const
+{
+    const scalar basis = xBasis(k, celli);
+
+    return basis > 0 ? max(c[reactants_[k]], 0.)/basis : 0.;
 }
 
 
@@ -49,6 +61,7 @@ Foam::scalar Foam::solidReactionRate::rhoBasis(const label celli) const
 bool Foam::solidReactionRate::addDiffusionResistance
 (
     const label celli,
+    const scalarField& c,
     scalar& avKf,
     scalar& agent,
     scalar& omega
@@ -62,7 +75,7 @@ bool Foam::solidReactionRate::addDiffusionResistance
         // A negative gas concentration is an invalid state, not a small
         // number: it flips the resistance's sign and 1/avKf then raises the
         // rate instead of bounding it. Abort loudly rather than clamp.
-        const scalar gasConc = x(Ns + g, celli);
+        const scalar gasConc = x(Ns + g, celli, c);
 
         if (gasConc < 0)
         {
@@ -139,7 +152,7 @@ Foam::scalar Foam::solidReactionRate::rate
 
     forAll(reactants_, k)
     {
-        kf *= pow(x(k, celli), n_[k]);
+        kf *= pow(x(k, celli, c), n_[k]);
     }
     kf *= rhoBasis(celli);
 
@@ -149,7 +162,7 @@ Foam::scalar Foam::solidReactionRate::rate
         scalar agent = 0;
         scalar omega = 0;
 
-        if (addDiffusionResistance(celli, avKf, agent, omega))
+        if (addDiffusionResistance(celli, c, avKf, agent, omega))
         {
             kf = 1./avKf;
         }
@@ -171,13 +184,37 @@ void Foam::solidReactionRate::rateDerivative
     scalarField& dr
 ) const
 {
-    scalar kf0Kinetic = R_.kf(T, 0.0, c);
-    kf0Kinetic *= rhoBasis(celli);
-    kf0Kinetic *= (1. - f_.porosity[celli]);
+    const label Ns = R_.slhs().size();
+    const scalar k0 = R_.kf(T, 0.0, c)*rhoBasis(celli);
+    const scalar pf = 1. - f_.porosity[celli];
+
+    scalar rKin = k0;
+    forAll(reactants_, i)
+    {
+        rKin *= pow(x(i, celli, c), n_[i]);
+    }
+
+    // Eq. 10: 1/r = 1/rKin + sum agent/Omega, so dr = r^2 (drKin/rKin^2
+    // + agent_j/(ST rhoG x_j^2) for a gas reactant j).
+    const bool limited = diffusionLimited_
+        && R_.glhs().size() > 0 && rKin > VSMALL;
+
+    scalar r = rKin;
+    bool supplied = true;
+    if (limited)
+    {
+        scalar avKf = 1./rKin;
+        scalar agent = 0;
+        scalar omega = 0;
+        supplied = addDiffusionResistance(celli, c, avKf, agent, omega);
+        r = supplied ? 1./avKf : 0.;
+    }
 
     forAll(reactants_, j)
     {
-        scalar kf = kf0Kinetic;
+        const scalar xj = x(j, celli, c);
+        const scalar basis = xBasis(j, celli);
+        scalar dKin = k0;
 
         forAll(reactants_, i)
         {
@@ -185,56 +222,35 @@ void Foam::solidReactionRate::rateDerivative
 
             if (i != j)
             {
-                kf *= pow(x(i, celli), el);
+                dKin *= pow(x(i, celli, c), el);
             }
             else if (el < 1.0)
             {
-                if (c[reactants_[i]] > SMALL)
-                {
-                    kf *= el*pow(x(i, celli) + VSMALL, el - 1.0);
-                }
-                else
-                {
-                    kf = 0.0;
-                }
+                dKin *= xj > SMALL ? el*pow(xj + VSMALL, el - 1.0) : 0.;
             }
             else
             {
-                kf *= el*pow(x(i, celli), el - 1.0);
+                dKin *= el*pow(xj, el - 1.0);
             }
         }
 
-        // Eq. 10 by the chain rule on 1/r = 1/k0 + agent/Omega, with k0 the
-        // kinetic constant without the x factors and only the last supplied
-        // gas's term (the existing approximation, see Description).
-        if (diffusionLimited_ && R_.glhs().size() > 0 && kf0Kinetic != 0)
+        scalar dx = dKin;
+        if (limited)
         {
-            scalar avKf = 1./kf0Kinetic;
-            scalar agent = 0;
-            scalar omega = 0;
-
-            const scalar kf0 =
-                addDiffusionResistance(celli, avKf, agent, omega)
-              ? 1./avKf
-              : 0.;
-
-            if (kf0Kinetic*omega != 0)
+            dx = 0;
+            if (supplied)
             {
-                const scalar chosenKf = agent*f_.ST[celli]*f_.rhoG[celli];
+                dx = r*r*dKin/(rKin*rKin);
 
-                kf = kf0*kf0
-                   *(
-                        kf/(kf0Kinetic*kf0Kinetic)
-                      + chosenKf/(omega*omega)
-                    );
-            }
-            else
-            {
-                kf = 0.;
+                if (j >= Ns)
+                {
+                    dx += r*r*st_.agent(j - Ns)*f_.ST[celli]*f_.rhoG[celli]
+                        /sqr(f_.ST[celli]*xj*f_.rhoG[celli]);
+                }
             }
         }
 
-        dr[j] = kf;
+        dr[j] = basis > 0 ? pf*dx/basis : 0.;
     }
 }
 

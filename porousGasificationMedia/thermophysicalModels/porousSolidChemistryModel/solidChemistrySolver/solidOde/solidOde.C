@@ -37,8 +37,16 @@ Foam::solidOde<ChemistryModel>::solidOde
     solidChemistrySolver<ChemistryModel>(thermo, gasPhaseGases),
     coeffsDict_(this->subDict("solidOdeCoeffs")),
     odeSolver_(ODESolver::New(*this, coeffsDict_)),
-    cTp_(this->nEqns())
-{}
+    cTp_(this->nEqns()),
+    dcTpdt_(this->nEqns()),
+    maxSteps_(coeffsDict_.getOrDefault<label>("maxSteps", 10000))
+{
+    WarningInFunction
+        << "The solid ODE integration ends an interval as soon as all "
+        << "reaction rates are exactly zero." << nl
+        << "    Stock seulex rejects zero-error steps until dx underflows "
+        << "(#200)." << endl;
+}
 
 
 // * * * * * * * * * * * * * * * * Destructor  * * * * * * * * * * * * * * * //
@@ -46,6 +54,89 @@ Foam::solidOde<ChemistryModel>::solidOde
 template<class ChemistryModel>
 Foam::solidOde<ChemistryModel>::~solidOde()
 {}
+
+
+// * * * * * * * * * * * * Private Member Functions  * * * * * * * * * * * * //
+
+template<class ChemistryModel>
+bool Foam::solidOde<ChemistryModel>::ratesAreZero(const scalar x) const
+{
+    this->derivatives(x, cTp_, dcTpdt_);
+
+    forAll(dcTpdt_, i)
+    {
+        if (dcTpdt_[i] != 0)
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+
+template<class ChemistryModel>
+void Foam::solidOde<ChemistryModel>::integrate
+(
+    const scalar xStart,
+    const scalar xEnd,
+    scalar& dxTry
+) const
+{
+    // ODESolver::solve(xStart, xEnd, y, dxEst) plus the zero-rate exit.
+    ODESolver::stepState step(dxTry);
+    scalar x = xStart;
+
+    for (label nStep=0; nStep<maxSteps_; ++nStep)
+    {
+        // The first step always accepts zero error and sets the solver's next
+        // step, which idle cells need to grow. The exit keeps the last dxTry:
+        // the state has not changed, so there is nothing new to estimate from.
+        if (!step.first && ratesAreZero(x))
+        {
+            dxTry = step.dxTry;
+            return;
+        }
+
+        const scalar dxTry0 = step.dxTry;
+
+        step.reject = false;
+
+        if ((x + step.dxTry - xEnd)*(x + step.dxTry - xStart) > 0)
+        {
+            step.last = true;
+            step.dxTry = xEnd - x;
+        }
+
+        odeSolver_->solve(x, cTp_, step);
+
+        if ((x - xEnd)*(xEnd - xStart) >= 0)
+        {
+            if (nStep > 0 && step.last)
+            {
+                step.dxTry = dxTry0;
+            }
+
+            dxTry = step.dxTry;
+
+            return;
+        }
+
+        step.first = false;
+
+        if (step.reject)
+        {
+            step.prevReject = true;
+        }
+    }
+
+    FatalErrorInFunction
+        << "Integration steps greater than maximum " << maxSteps_ << nl
+        << "    xStart = " << xStart << ", xEnd = " << xEnd
+        << ", x = " << x << ", dxDid = " << step.dxDid << nl
+        << "    y = " << cTp_
+        << exit(FatalError);
+}
 
 
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
@@ -65,6 +156,7 @@ Foam::scalar Foam::solidOde<ChemistryModel>::solve
     if (odeSolver_->resize())
     {
         odeSolver_->resizeField(cTp_);
+        odeSolver_->resizeField(dcTpdt_);
     }
 
     const label nSpecie = this->nSpecie();
@@ -77,15 +169,14 @@ Foam::scalar Foam::solidOde<ChemistryModel>::solve
     cTp_[nSpecie] = T;
     cTp_[nSpecie+1] = p;
 
+    this->startHeatIntegration(cTp_);
+
     scalar dtEst = dt;
 
-    odeSolver_->solve
-    (
-        t0,
-        t0 + dt,
-        cTp_,
-        dtEst
-    );
+    integrate(t0, t0 + dt, dtEst);
+
+    this->finishHeatIntegration(cTp_);
+
     for (int i=0; i<nSpecie; i++)
     {
         c[i] = max(0.0, cTp_[i]);

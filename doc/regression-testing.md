@@ -122,7 +122,7 @@ regressionPorosityMin      min(porosityF)         >=        0.3 1e-9  # every x 
 regressionTsMax            max(Ts)                ==        300 1e-6  # every |x - 300| <= 1e-6
 ```
 
-`<column>` is the name in the `.dat` header. `tools/checkInvariants.py` checks every row of every start time. `runCase.sh` runs it before the baseline comparison: a broken invariant is a FAIL, and an unknown function object or column is an ERROR. Invariant columns stay in the baseline too, and are never recaptured: a run that moves one has a bug. [regression-ledger.md](regression-ledger.md) lists which metrics are invariants and why.
+`<column>` is the name in the `.dat` header. `tools/checkInvariants.py` checks every row of every start time. `runCase.sh` runs it before the baseline comparison: a broken invariant is a FAIL, and an unknown function object or column is an ERROR. Invariant columns stay in the baseline too. A run that breaks one has a bug, and `captureBaseline.sh` refuses it; a recapture only rewrites them inside their tolerance, when other columns of the same file moved. [regression-ledger.md](regression-ledger.md) lists which metrics are invariants and why.
 
 ### Expected failures and log checks
 

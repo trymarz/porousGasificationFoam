@@ -27,6 +27,10 @@ Class
 Description
     An ODE solver for chemistry
 
+    The integration runs ODESolver's step loop here so that it can end an
+    interval once every rate is exactly zero: the state cannot change any
+    more, and seulex would reject the zero-error steps until dx underflows.
+
 SourceFiles
     solidOde.C
 
@@ -60,6 +64,26 @@ class solidOde
 
         // Model constants
         mutable scalarField cTp_;
+
+        //- Right-hand side at the current state
+        mutable scalarField dcTpdt_;
+
+        //- Step limit, read as ODESolver reads it
+        const label maxSteps_;
+
+
+    // Private Member Functions
+
+        //- True when every entry of the right-hand side at x is exactly zero
+        bool ratesAreZero(const scalar x) const;
+
+        //- Integrate cTp_ from xStart to xEnd, returning the next step in dxTry
+        void integrate
+        (
+            const scalar xStart,
+            const scalar xEnd,
+            scalar& dxTry
+        ) const;
 
 public:
 

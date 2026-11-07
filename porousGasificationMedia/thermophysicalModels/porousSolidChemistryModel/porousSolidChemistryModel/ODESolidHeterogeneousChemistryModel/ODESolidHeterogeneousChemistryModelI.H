@@ -179,7 +179,15 @@ template<class SolidThermo, class SolidThermoType, class GasThermoType>
 inline Foam::label
 Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasThermoType>::nEqns() const
 {
-    // nEqns = number of species + temperature + pressure
+    // Species + temperature + pressure, + the reaction heat when it is integrated
+    return nSpecie_ + 2 + (solidReactionEnergyFromEnthalpy_ ? 0 : 1);
+}
+
+
+template<class SolidThermo, class SolidThermoType, class GasThermoType>
+inline Foam::label
+Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasThermoType>::heatEqn() const
+{
     return nSpecie_ + 2;
 }
 

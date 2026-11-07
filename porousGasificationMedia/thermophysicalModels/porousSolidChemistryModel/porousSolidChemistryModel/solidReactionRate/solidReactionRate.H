@@ -37,13 +37,12 @@ Description
       with Omega_a = ST x_a rhoG, agent_a from solidReactionStoichiometry
       (#201). A gas reactant with no supply (Omega_a = 0) stops the reaction.
 
-    The rate reads the frozen cell fields (Ys, gas fractions), not the ODE
-    state c, so its true derivative in c is zero. rateDerivative() keeps the
-    model's existing approximation (#200, fixed in #209 block F): the
-    derivative in each reactant's x, of the rate per m^3 of cell,
-    (1 - porosity) r, placed in that reactant's ODE-state column. Its Eq. 10
-    term starts from the kinetic constant without the x_k factors, unlike
-    rate().
+    The rate reads the ODE state c (kg per m^3 of cell): x_k = c_k/(rho
+    (1 - porosity)) for a solid, c_k/(rhoG porosity) for a gas, clipped at 0,
+    so that it equals the frozen-field Ys, Yg at the start of a step. rho, rhoG,
+    porosity and ST stay frozen per cell. rateDerivative() is the exact
+    derivative of (1 - porosity) r in c, so the Jacobian matches the right-hand
+    side (#200); at x = 0 under Eq. 10 it is taken as zero.
 
 SourceFiles
     solidReactionRate.C
@@ -70,11 +69,9 @@ class solidReactionRate
 {
 public:
 
-    //- The frozen cell fields a rate reads
+    //- The frozen cell fields a rate reads besides the state
     struct cellFields
     {
-        const PtrList<volScalarField>& Ys;
-        const PtrList<volScalarField>& gases;
         const volScalarField& rho;
         const volScalarField& rhoG;
         const volScalarField& ST;
@@ -103,8 +100,11 @@ private:
 
     // Private Member Functions
 
-        //- Reactant k's mass fraction in cell celli
-        scalar x(const label k, const label celli) const;
+        //- Mass fraction of reactant k from the ODE state c
+        scalar x(const label k, const label celli, const scalarField& c) const;
+
+        //- Concentration c_k divides by to give x_k
+        scalar xBasis(const label k, const label celli) const;
 
         //- Density the rate is per: solid, or gas without a solid reactant
         scalar rhoBasis(const label celli) const;
@@ -114,6 +114,7 @@ private:
         bool addDiffusionResistance
         (
             const label celli,
+            const scalarField& c,
             scalar& avKf,
             scalar& agent,
             scalar& omega
@@ -145,12 +146,11 @@ public:
             return reactants_;
         }
 
-        //- r in cell celli at temperature T; c is passed to the reaction's kf()
+        //- r in cell celli at temperature T from the ODE state c
         scalar rate(const label celli, const scalar T, const scalarField& c)
             const;
 
-        //- d((1 - porosity) r)/dx_k for each of reactants() (see Description);
-        //  c is the ODE state, whose reactant entries gate the order < 1 terms
+        //- d((1 - porosity) r)/dc_k for each of reactants() (see Description)
         void rateDerivative
         (
             const label celli,

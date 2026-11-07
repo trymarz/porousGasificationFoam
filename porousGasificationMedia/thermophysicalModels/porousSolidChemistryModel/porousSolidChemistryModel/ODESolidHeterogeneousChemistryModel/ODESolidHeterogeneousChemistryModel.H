@@ -177,6 +177,12 @@ private:
         //- Show the relative reaction ratios
         Switch showRRR_;
 
+        //- Check the heat row of the Jacobian against finite differences
+        Switch checkHeatJacobian_;
+
+        //- Largest relative heat-row error seen so far
+        mutable scalar heatJacobianError_;
+
         //- Dictionary for gasName communication
         List<label> gasDictionary_;
 
@@ -210,6 +216,12 @@ private:
         //- Chemical time step
         scalar dt_;
 
+        //- Reaction heat of the last integrated sub-step [J/m3]
+        mutable scalar subStepHeat_;
+
+        //- Start value of the heat ODE state [J/m3]
+        mutable scalar heatOffset_;
+
         // Private members
 
             //- Constructor step: log the gas-phase and pyrolysis gases
@@ -235,6 +247,19 @@ private:
 
             //- Constructor step: build each reaction's rate evaluator
             void buildRates();
+
+            //- ODE index of the cumulative reaction heat, used when
+            //  solidReactionEnergyFromEnthalpy is false
+            inline label heatEqn() const;
+
+            //- Compare the species columns of the Jacobian's heat row with a
+            //  central difference of omega(), logging each new worst error
+            void checkHeatRow
+            (
+                const scalarField& c,
+                const scalar T,
+                const scalarSquareMatrix& dfdc
+            ) const;
 
             //- Set reacting status of cell, cellI
             void setCellReacting(const label cellI, const bool active);
@@ -270,8 +295,7 @@ private:
                 const label celli,
                 const scalar solidRho,
                 scalar& Ti,
-                const scalarField& initialSpecieConcentration,
-                const scalarField& omegaPreq
+                const scalarField& initialSpecieConcentration
             );
 
             //- Solid temperature change over the current sub-step [K]
@@ -280,8 +304,7 @@ private:
                 const label celli,
                 const scalar solidRho,
                 const scalar Ti,
-                const scalarField& initialSpecieConcentration,
-                const scalarField& omegaPreq
+                const scalarField& initialSpecieConcentration
             ) const;
 
             //- Stores the cell's RRs/RRg and limits the time step (below)
@@ -296,13 +319,6 @@ private:
                 volScalarField& newDeltaTMin
             );
 
-            //- Gas-rate rescale |sum dc_solid / sum dc_gas| (1 if no gas change)
-            scalar massBalanceScale
-            (
-                const scalarField& changeOfConcentration,
-                const scalar deltaT
-            ) const;
-
             //- Stores RRs of the cell; limits the step to keep Ys in [0, 1]
             void updateSolidRates
             (
@@ -314,14 +330,13 @@ private:
                 volScalarField& newDeltaTMin
             );
 
-            //- Stores RRg (scaled by sourceCorrect); limits the step as for solids
+            //- Stores RRg; limits the step as for solids
             void updateGasRates
             (
                 const scalar deltaT,
                 scalar& deltaTMin,
                 const label celli,
                 const scalar gasRho,
-                const scalar sourceCorrect,
                 const scalarField& changeOfConcentration,
                 volScalarField& newDeltaTMin
             );
@@ -449,6 +464,12 @@ public:
 
             //- Number of ODE's to solve
             inline virtual label nEqns() const;
+
+            //- Set the heat state of the ODE vector before an integration
+            void startHeatIntegration(scalarField& cTp) const;
+
+            //- Read the reaction heat of an integration from the ODE vector
+            void finishHeatIntegration(const scalarField& cTp) const;
 
             //- Return access to coefficients
             virtual scalarField& coeffs();
