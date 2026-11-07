@@ -81,6 +81,8 @@ Q_int = Σ_{S_ρ,i>0} S_ρ,i hₛ,ᵢ(Tₛ) + Σ_{S_ρ,i<0} S_ρ,i hₛ,ᵢ(T)
 
 Solved for internal energy `e`, the pressure work `− ε ∂p/∂t` becomes `∇·(φ/ρ p) + p ∂ε/∂t` (from `h = e + p/ρ`, with `φ` the superficial mass flux; see the `EEqn.H` Description). `Q_conv` is the solid-to-gas convective exchange (`heatTransfer()`), `S_rad` the radiation source. `Q_int` (`interfaceEnthalpy`, `GasSolidHeatExchange`) is the sensible enthalpy the interface mass `S_ρ,i` brings with it (#212): products are born at `Tₛ`, consumed agents leave at the gas `T`. It uses the same `S_ρ,i` as `rhoEqn.H` and `YEqn.H`, and is `h` even when solving for `e`.
 
+**Solid chemistry sources** (`Rₖ`, `S_ρ,i`, `S_chem`; paper Eq. 4–6, 10, 12). They are step means of one ODE per cell. What a rate is per, how it is split among species, what the ODE state is and what stays frozen in a step are in the `Description` of `ODESolidHeterogeneousChemistryModel.H` (#209); the code wins.
+
 **Solid species** (`SolidSpeciesTransport::solve`; paper 3a without the transport term)
 
 ```

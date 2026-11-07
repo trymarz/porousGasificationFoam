@@ -25,9 +25,45 @@ Class
     Foam::ODESolidHeterogeneousChemistryModel
 
 Description
-    Extends base chemistry model by adding a thermo package, and ODE functions.
-    Introduces chemistry equation system and evaluation of chemical source
-    terms.
+    Solid heterogeneous chemistry (Zuk et al. 2022): one ODE per reacting
+    cell, integrated by solidOde, whose sources RRs, RRg and Sh are the means
+    over the step.
+
+    Rate convention
+    - The rate r of a reaction is the kg of its solid substrate (of its gas
+      reactants if it has no solid one) converted per m^3 of solid per s:
+      Eq. 4-5, zero below Tcrit, and limited by Eq. 10 under
+      diffusionLimitedReactions (solidReactionRate). The ODE multiplies it by
+      (1 - porosity), so every ODE rate is per m^3 of cell.
+    - r is split by solidReactionStoichiometry (Eq. 6) into kg of each
+      species per kg of r, and into the reaction heat per kg of r (Eq. 12):
+      - stoichiometricReactions false: every coefficient over the solid
+        reactants' sum (the gas reactants' sum if there is none);
+      - stoichiometricReactions true: solids per kg of solid reactant, gases
+        by molar mass, so the net gas release equals the solid mass lost.
+
+    ODE state
+    - c, in kg per m^3 of cell: the solids, then the pyrolysis gases, starting
+      at rho (1 - porosity) Ys and rhoG porosity Yg; the solid temperature Ts;
+      p, which does not change; and unless solidReactionEnergyFromEnthalpy,
+      the reaction heat released so far [J/m^3].
+    - rho, rhoG, porosity and ST stay at their step-start values. The mass
+      fractions in the rate are c over those, so they follow c within the
+      step; the Jacobian is the exact derivative of that rate in c, and its
+      Ts column a finite difference.
+    - Ts in the ODE sets k(T) within a sub-step, and is not read back: between
+      sub-steps Ts is advanced by the reaction heat over the volumetric heat
+      capacity (solidTemperatureIncrement).
+
+    Sources
+    - RRs, RRg = (c_end - c_start)/deltaT and Sh = heat/deltaT, or
+      -(hf RRs + Hc RRg) summed over species under
+      solidReactionEnergyFromEnthalpy: step means, not end-of-step rates.
+      rho, porosity and ST are frozen over the step, so the coupling to the
+      field equations is first order in deltaT.
+    - After its first step, solidOde ends an interval when every derivative,
+      the heat included, is exactly zero: the state cannot change, and seulex
+      would reject the zero-error steps until the step size underflows (#200).
 
 SourceFiles
     StandardChemistryModelI.H
