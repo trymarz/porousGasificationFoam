@@ -584,12 +584,8 @@ void Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, Gas
         }
     }
 
-    scalarField omegaPreq(omega(c2,T,0.0,rR)*(1.-porosityF_[cellI]));
-
-    forAll(dcdt,i)
-    {
-        dcdt[i] = omegaPreq[i];
-    }
+    // df/dt: the right-hand side does not depend on time (Rosenbrock reads this).
+    dcdt = 0.0;
 
     // Stoichiometry x d((1 - porosity) r): see solidReactionRate for what
     // the derivative is taken in (#200).
@@ -621,7 +617,7 @@ void Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, Gas
     scalar delta = 1.0e-8;
 
     scalarField dcdT0(dcdt);
-    omegaPreq = omega(c2,T - delta ,0,rR)*(1.-porosityF_[cellI]);
+    scalarField omegaPreq(omega(c2,T - delta ,0,rR)*(1.-porosityF_[cellI]));
 
     forAll(dcdT0,i)
     {
