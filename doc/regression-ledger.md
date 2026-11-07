@@ -102,14 +102,18 @@ Their steady drop is also checked against Darcy–Forchheimer: `regressionDarcyF
 
 Eleven single-cell, single-step heterogeneous rate fixtures (#209 blocks A and B), one per reaction shape of #201: `H1`/`H1s` solid only, `H2` solid + gas, `H3` the same diffusion-limited, `H4` solid → solid, `H5` two solid reactants, `H6` the §5.6 gasifier shape, `H7` `H2` with doubled coefficients, `H8s` and `H9s` stoichiometric, `H10s` `H8s` diffusion-limited. `solidRates.py check` recomputes each case's rates from its own input files and writes `regressionSolidRates`.
 
+The solver's sources are means over the step, so each hand value is the step-start rate times `(1 - e^-a)/a`. Here `a` is the rate's fall over the step, `sum_k (d ln r/d ln c_k)(-dc_k/dt) dt/c_k` over the reactants, computed from the hand rate and the case's inputs, never from solver output. `rateRatioMin` and `rateRatioMax` therefore compare the solver with that step mean, not with the start rate. Heat is a step mean too since it became an ODE state, so a heat source left at the step start reads `1 + a/2` on the 8 fixtures with a gas reactant and fails (7.4e-5 to 5.2e-4). The ratios sit within 1.2e-6 of 1. What is left is roundoff, and for `H3`/`H10s` a fixed 7.3e-7. The temperature's change over the step is left out of `a`; it is below 1e-7 here.
+
 | Column | Status | Detects | Cannot detect |
 |---|---|---|---|
-| `rateRatioMin`, `rateRatioMax` | invariant (== 1, 1e-5) | any change to Eq. 4, 5, 10, the species split or the Eq. 12 heat source, for these shapes | a later step's rates; the time-step limiter |
-| `massRatio` | invariant (== 1, 1e-9) | mass created or lost by the split | — |
-| `agentRatio` (`H10s` only) | invariant (== 1, 1e-4) | an Eq. 10 agent factor that does not match the agent's consumption: the gas reactant consumed over its Eq. 9 delivery at the diffusion limit (1.33 with the literal Eq. 10) | a move below 1e-4; the kinetic resistance's share sits 1.5e-5 below 1 |
+| `rateRatioMin`, `rateRatioMax` | invariant (== 1, 1e-5) | any change to Eq. 4, 5, 10, the species split or the Eq. 12 heat source, for these shapes; a source that no longer follows the ODE state over the step | a later step's rates; the time-step limiter; a fall too small to see (`H1`, `H1s`, `H4`) |
+| `massRatio` | invariant (== 1, 1e-6) | mass created or lost by the split | a loss below 1e-6. There is no gas rescale any more, so the column holds the species' roundoff, ulp(c) over the step's change, up to 1.8e-7 (`H10s`) |
+| `agentRatio` (`H10s` only) | invariant (== 1, 1e-4) | an Eq. 10 agent factor that does not match the agent's consumption: the gas reactant consumed over its Eq. 9 delivery at the diffusion limit (1.33 with the literal Eq. 10) | a move below 1e-4; it sits 9.0e-5 below 1, 1.5e-5 the kinetic resistance's share and 7.5e-5 the rate's fall over the step, against the step-start delivery |
 | `source(<specie>)`, `heat` | live | the same, against the baseline | — |
 
 The species split, written out in `split_coefficients()`, is Eq. 6 with the rate per kg of solid substrate (#201); a change to it in the solver has to change it there too.
+
+`H1` and `H1s` run at 1e-6 s, not 1e-8 s. The heat state starts from `c Cp T`, 3.6e8 J/m³ here, and seulex's extrapolation amplifies its rounding to at most 6.5 or 31.5 ulp, depending on the column reached. At 1e-8 s that reaches 1.4e-5 of the step's heat, past the invariant; at 1e-6 s it stays below 8.8e-7.
 
 ### canonical/conservation
 
@@ -142,6 +146,23 @@ All six metrics in every case: `volIntegrate`, `min`, `max` of `Ycharm`, and `vo
 | `rightWallSolidAccumulationFromLeftInlet` | live (inlet) | live | see below |
 
 `rightWallSolidAccumulationFromLeftInlet` also records per-component `min/max/volAverage` of `Ychar Yash Ywood Ymineral` (the maxima are flat at the inlet composition: invariant bounds), `TsCharWeighted` (invariant 300 K, #162), `min/max(rhos)`, `min/max(rho)`, `min/max(p)` (live), and `min/max(N2)` (dead, single-species gas).
+
+## Recaptures
+
+**#209 F.** `pyrolysis`, `pyrolysisE`, `gasification`, `conservation/interfaceEnthalpyGasification`, `conservation/chemistryGateCrossing` and the 11 `solidRates` fixtures, from build `2ff2cc0c020b`. Nothing else moved beyond `rtol`. Largest moves:
+
+| Case | Column | Move | Why |
+|---|---|---|---|
+| `pyrolysis`, `pyrolysisE` | `volAverage(p)` | 2.7e-4 | both causes below; p is the only column past `rtol` |
+| `gasification` | `volAverage(CO2)`, `(CO)`, `(O2)` | 2.9e-3, 1.4e-3, 4.5e-4 | step mean |
+| `interfaceEnthalpyGasification` | `max(CO)`, `Srho`, `interfaceEnthalpy` | 1.5e-3 | step mean; `T = Ts = 900` and `interfaceEnthalpy/Srho` unchanged |
+| `chemistryGateCrossing` | `solidChemistrySh`, `Ywoodm`, `solidSensible` | 5.4e-3, 3.6e-3, 3.5e-3 | both causes below, and the heat source |
+| `solidRates` | sources, `heat` | 5.2e-4 at most (`H2`, `H6`, `H7`, `H8s` past `rtol`) | step mean |
+
+- **Step mean.** The rate now reads the ODE state (`6465016`), where it used to read fields frozen at the step start, so a step's source is a mean over the step. The move is first order in dt, and halves when dt does. The heat source followed as an ODE state (`319f33b`), which took `chemistryGateCrossing`'s heat per kg of gas from 0.2% high to exact.
+- **Old ODE error.** The old right-hand side did not depend on the concentrations but its Jacobian did, so seulex was accurate only to `relTol`, 1e-4 by default. In `chemistryGateCrossing` the heavy cell's rate ran about 0.5% low whatever dt was, and only the heavy cell. The dt → 0 limit of `pyrolysis` p sat 1.8e-4 below the new build's, and `chemistryGateCrossing`'s `Ywoodm` 3e-3 above. With only those Jacobian entries zeroed, the old build agrees with the new limit to 3e-6. The new build's Jacobian matches its right-hand side and does not depend on `relTol`. `gasification` and `interfaceEnthalpyGasification` do not show this error.
+
+The fixtures were captured with `--all-files`, so `H3`, `H4`, `H5`, `H9s`, `H10s` are recaptured though they were within `rtol`; `H5` and `H9s` by only 2%. Their invariant columns changed with the file. `massRatio` is no longer exactly 1 because the gas rescale that forced it (`1e13ea8`) is gone. `H1` and `H1s` also carry the new time step in the `Time` column.
 
 ## Next
 
