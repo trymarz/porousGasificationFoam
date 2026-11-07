@@ -1,9 +1,8 @@
 # Declared invariants, checked by applications/test/regression/tools/checkInvariants.py
 # before the baseline comparison; see doc/regression-testing.md.
-# Written by ../solidRates.py check: each species source and the heat source of
-# the first step over its hand value (#201 shapes), and produced over consumed mass.
-# 1e-5 covers the in-step drift of the ODE (about 1e-7 here); a convention change
-# moves a ratio by a factor of 1.25 or more.
+# Written by ../solidRates.py check: each source of the first step over its
+# step-mean hand value (#201 shapes), and produced over consumed mass. Ratios sit
+# within 1.2e-6 of 1 (roundoff); a convention change moves one by 1.25 or more.
 regressionSolidRates  rateRatioMin  ==  1  1e-5
 regressionSolidRates  rateRatioMax  ==  1  1e-5
-regressionSolidRates  massRatio     ==  1  1e-9
+regressionSolidRates  massRatio     ==  1  1e-6

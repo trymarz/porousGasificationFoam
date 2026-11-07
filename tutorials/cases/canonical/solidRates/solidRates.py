@@ -7,14 +7,17 @@ the calling case and reduces it to one cell and one step of DT, with EQ as the
 only solid reaction.
 The species sources are the ODE's change over the step divided by DT, so DT is
 a compromise: too short and the change cancels against the mass it is taken
-from, too long and the rate drifts within the step.
+from, too long and the rate's fall within the step stops being one exponential.
 
 ``check`` reads the first step's species sources from log.porousGasificationFoam
 and the heat source from postProcessing, recomputes both by hand from the
 case's own input files (Eq. 4, 5 and 10 of Zuk et al. 2022, then the species
 split and Eq. 12), and writes the measured/hand ratios to
 postProcessing/regressionSolidRates/0/solidRates.dat, where
-system/regressionInvariants holds them at 1. ``check --agent-limit`` also
+system/regressionInvariants holds them at 1. The sources are means over the
+step, so each hand value is its step-start value times step_mean(a), with a the
+fall of the rate over the step, from the same hand quantities (#200).
+``check --agent-limit`` also
 writes agentRatio, the gas reactant's consumption over its Eq. 9 delivery,
 which is 1 at the diffusion limit; ``setup --agent-limit TOL`` declares it.
 
@@ -94,12 +97,6 @@ def setup(args: argparse.Namespace) -> None:
                 case / "system/regressionFunctions")
     shutil.copy(Path(__file__).resolve().parent / "regressionInvariants",
                 case / "system/regressionInvariants")
-    # A gas reactant depletes within the step, so the rate falls O(dt) below
-    # its start value (#200): relax rateRatioMin there, keep 1e-5 otherwise.
-    solids = entry(sp.read_text(), "solidComponents", sp).strip("() ").split()
-    if any(n not in solids for _, n in parse_reaction(args.reaction)[0]):
-        edit(case / "system/regressionInvariants",
-             (r"(rateRatioMin\s+==\s+1\s+)1e-5", r"\g<1>1e-3"))
     if args.agent_limit is not None:
         with open(case / "system/regressionInvariants", "a") as f:
             f.write(f"regressionSolidRates  agentRatio    ==  1  {args.agent_limit:g}\n")
@@ -211,6 +208,21 @@ def split_coefficients(lhs_s, lhs_g, rhs_s, rhs_g, stoich, W):
     return split
 
 
+def gas_density(case: Path) -> float:
+    """Gas density of the initial mixture from the ideal gas law [kg/m3]."""
+    p, Tg = uniform(case, "p"), uniform(case, "T")
+    thermo = (case / "constant/thermo.compressibleGas").read_text()
+    allGas = [f.name for f in (case / "0.orig").iterdir()
+              if re.search(rf"^{re.escape(f.name)}\s*$", thermo, re.M)]
+    Wmix = 1 / sum(uniform(case, g) / gas_weight(case, g) for g in allGas)
+    return p * Wmix / (RR * Tg)
+
+
+def step_mean(a: float) -> float:
+    """Mean over the step of a rate falling as exp(-a t/dt), over its start value."""
+    return -math.expm1(-a) / a if a else 1.0
+
+
 def first_step_sources(log: Path) -> dict[str, float]:
     text = log.read_text(errors="replace")
     m = re.search(r"^Time = .*?(?=^Time = |\Z)", text, re.M | re.S)
@@ -275,7 +287,9 @@ def check(args: argparse.Namespace) -> None:
     for (_, n), order in zip(lhs_s + lhs_g, orders):
         r *= (Ys[n] if n in solids else uniform(case, n)) ** order
     r *= rho_s
+    kinetic = r
     xi = agent_factors(lhs_s, lhs_g, rhs_s, rhs_g, stoich, W)
+    rho_g = gas_density(case) if lhs_g else 0.0
     delivered = {}
     if diffusion and lhs_g and r > 0:
         # Eq. 10: harmonic sum with the specie transfer of each gas reactant.
@@ -284,12 +298,6 @@ def check(args: argparse.Namespace) -> None:
         if entry(st_text, "specieTransferModel", st) != "constST":
             fail(f"{st}: only constST is supported")
         ST = float(entry(st_text, "h", st)) * float(entry(st_text, "SAV", st))
-        p, Tg = uniform(case, "p"), uniform(case, "T")
-        thermo = (case / "constant/thermo.compressibleGas").read_text()
-        allGas = [f.name for f in (case / "0.orig").iterdir()
-                  if re.search(rf"^{re.escape(f.name)}\s*$", thermo, re.M)]
-        Wmix = 1 / sum(uniform(case, g) / gas_weight(case, g) for g in allGas)
-        rho_g = p * Wmix / (RR * Tg)
         # Eq. 9 delivery; #201: each agent's resistance is xi_a/Omega_diff.
         delivered = {n: ST * uniform(case, n) * rho_g for _, n in lhs_g}
         r = 1 / (1 / r + sum(xi[n] / delivered[n] for _, n in lhs_g))
@@ -299,7 +307,22 @@ def check(args: argparse.Namespace) -> None:
     solid_fraction = 1 - eps
     split = split_coefficients(lhs_s, lhs_g, rhs_s, rhs_g, stoich, W)
     hand = {n: solid_fraction * r * c for n, c in split.items()}
-    heat_hand = -solid_fraction * r * hr  # Eq. 12, not split
+
+    # a = sum_k (d ln r/d ln c_k)(-dc_k/dt) dt/c_k over the reactants, at the step
+    # start. Under Eq. 10 a kinetic order counts by r/kinetic, and a gas reactant
+    # gains its delivery's share of the resistance, r*xi/delivered.
+    a = 0.0
+    for (_, n), order in zip(lhs_s + lhs_g, orders):
+        solid = n in solids
+        c0 = solid_fraction * rho_s * Ys[n] if solid else eps * rho_g * uniform(case, n)
+        weight = order * r / kinetic
+        if n in delivered:
+            weight += r * xi[n] / delivered[n]
+        if weight:
+            a -= weight * hand[n] / c0 * dt
+    mean = step_mean(a)
+    hand = {n: v * mean for n, v in hand.items()}
+    heat_hand = -solid_fraction * r * hr * mean  # Eq. 12, not split
 
     got = first_step_sources(case / "log.porousGasificationFoam")
     heat = postprocessed(case, "solidRatesHeat", "volAverage(solidChemistrySh)")
@@ -330,7 +353,7 @@ def check(args: argparse.Namespace) -> None:
     out.write_text(
         f"# {eq} ({' '.join(f'{c:g}' for c in coeffs)}) stoichiometric {stoich} diffusion {diffusion}\n"
         f"# hand: Omega {r:.10e} " + " ".join(f"{n} {hand[n]:.10e}" for n in names)
-        + f" heat {heat_hand:.10e}\n"
+        + f" heat {heat_hand:.10e} stepMean {mean:.12f}\n"
         "# Time " + " ".join(cols) + "\n"
         f"{dt:g} " + " ".join(f"{v:.10e}" for v in vals) + "\n")
     for n in names:

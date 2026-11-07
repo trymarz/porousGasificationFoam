@@ -2,8 +2,9 @@
 cd "${0%/*}" || exit
 . ${WM_PROJECT_DIR:?}/bin/tools/RunFunctions
 # Solid only, one solid reactant (Eq. 5 with no gas factor). Ts sits well above
-# Tcrit: at Tcrit the endothermic step drops the ODE below it mid-step.
-python3 ../solidRates.py setup pyrolysis --reaction 'wood = targas' --coeffs '10 2000 300 1e4 1' --set Ts=600 T=600 || exit
+# Tcrit: at Tcrit the endothermic step drops the ODE below it mid-step. At 1e-8 s
+# the heat state's roundoff reaches 1.4e-5 of the step's heat, past the invariant.
+python3 ../solidRates.py setup pyrolysis --reaction 'wood = targas' --coeffs '10 2000 300 1e4 1' --dt 1e-6 --set Ts=600 T=600 || exit
 restore0Dir
 runApplication blockMesh || exit
 runApplication $(getApplication) || exit

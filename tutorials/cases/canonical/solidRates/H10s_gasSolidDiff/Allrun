@@ -2,8 +2,8 @@
 cd "${0%/*}" || exit
 . ${WM_PROJECT_DIR:?}/bin/tools/RunFunctions
 # H8s_gasSolid limited by O2 transfer (Eq. 10): O2 consumed equals its delivery.
-# agentRatio sits 1.5e-5 below 1 (the kinetic resistance's share); with the
-# literal Eq. 10 (xi = 1) it is 1.33, so a tolerance of 1e-4 separates them.
+# agentRatio sits 9.0e-5 below 1 (1.5e-5 the kinetic resistance's share, 7.5e-5
+# the fall over the step); with the literal Eq. 10 (xi = 1) it is 1.33.
 python3 ../solidRates.py setup gasification --reaction 'char + 0.5 O2 = CO' --coeffs '5.61e9 1.96e4 300 -3.95e6 1 1' --stoichiometric --diffusion --dt 1e-4 --agent-limit 1e-4 --set Ychar=1 Yash=0 || exit
 restore0Dir
 runApplication blockMesh || exit
