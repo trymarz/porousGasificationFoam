@@ -77,6 +77,8 @@ Foam::scalar Foam::solidOde<ChemistryModel>::solve
     cTp_[nSpecie] = T;
     cTp_[nSpecie+1] = p;
 
+    this->startHeatIntegration(cTp_);
+
     scalar dtEst = dt;
 
     odeSolver_->solve
@@ -86,6 +88,9 @@ Foam::scalar Foam::solidOde<ChemistryModel>::solve
         cTp_,
         dtEst
     );
+
+    this->finishHeatIntegration(cTp_);
+
     for (int i=0; i<nSpecie; i++)
     {
         c[i] = max(0.0, cTp_[i]);

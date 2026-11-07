@@ -210,6 +210,12 @@ private:
         //- Chemical time step
         scalar dt_;
 
+        //- Reaction heat of the last integrated sub-step [J/m3]
+        mutable scalar subStepHeat_;
+
+        //- Start value of the heat ODE state [J/m3]
+        mutable scalar heatOffset_;
+
         // Private members
 
             //- Constructor step: log the gas-phase and pyrolysis gases
@@ -235,6 +241,10 @@ private:
 
             //- Constructor step: build each reaction's rate evaluator
             void buildRates();
+
+            //- ODE index of the cumulative reaction heat, used when
+            //  solidReactionEnergyFromEnthalpy is false
+            inline label heatEqn() const;
 
             //- Set reacting status of cell, cellI
             void setCellReacting(const label cellI, const bool active);
@@ -270,8 +280,7 @@ private:
                 const label celli,
                 const scalar solidRho,
                 scalar& Ti,
-                const scalarField& initialSpecieConcentration,
-                const scalarField& omegaPreq
+                const scalarField& initialSpecieConcentration
             );
 
             //- Solid temperature change over the current sub-step [K]
@@ -280,8 +289,7 @@ private:
                 const label celli,
                 const scalar solidRho,
                 const scalar Ti,
-                const scalarField& initialSpecieConcentration,
-                const scalarField& omegaPreq
+                const scalarField& initialSpecieConcentration
             ) const;
 
             //- Stores the cell's RRs/RRg and limits the time step (below)
@@ -441,6 +449,12 @@ public:
 
             //- Number of ODE's to solve
             inline virtual label nEqns() const;
+
+            //- Set the heat state of the ODE vector before an integration
+            void startHeatIntegration(scalarField& cTp) const;
+
+            //- Read the reaction heat of an integration from the ODE vector
+            void finishHeatIntegration(const scalarField& cTp) const;
 
             //- Return access to coefficients
             virtual scalarField& coeffs();
