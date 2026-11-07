@@ -279,8 +279,7 @@ private:
                 scalar& deltaTMin,
                 const label celli,
                 const scalar solidRho,
-                scalar& Ti,
-                const scalarField& initialSpecieConcentration
+                scalar& Ti
             );
 
             //- Solid temperature change over the current sub-step [K]
@@ -289,7 +288,7 @@ private:
                 const label celli,
                 const scalar solidRho,
                 const scalar Ti,
-                const scalarField& initialSpecieConcentration
+                const scalarField& subStepStartConcentration
             ) const;
 
             //- Stores the cell's RRs/RRg and limits the time step (below)

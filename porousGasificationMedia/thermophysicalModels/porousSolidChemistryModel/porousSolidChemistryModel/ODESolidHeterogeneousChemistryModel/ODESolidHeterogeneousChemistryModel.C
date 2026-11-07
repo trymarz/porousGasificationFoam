@@ -1064,7 +1064,7 @@ Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasTherm
             }
         }
 
-        calculateSourceTerms(t0, deltaT, deltaTMin, celli, solidRho, Ti, initialSpecieConcentration);
+        calculateSourceTerms(t0, deltaT, deltaTMin, celli, solidRho, Ti);
 
         updateReactionRates(deltaT, deltaTMin, celli, solidRho, gasRho, initialSpecieConcentration, newDeltaTMin);
     }
@@ -1099,8 +1099,7 @@ Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasTherm
     scalar& deltaTMin,
     const label celli,
     const scalar solidRho,
-    scalar& Ti,
-    const scalarField& initialSpecieConcentration
+    scalar& Ti
 )
 {
 
@@ -1115,11 +1114,15 @@ Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasTherm
     // Calculate the source terms.
     while (timeLeft > SMALL)
     {
+        // Ti advances by this sub-step's heat only, so the enthalpy change
+        // is taken from the state the sub-step started at (#209).
+        const scalarField subStepStartConcentration(specieConcentration_);
+
         tauC_ = this->solve(specieConcentration_, Ti, 0.0, t, dt_);
         t += dt_;
         stepHeat += subStepHeat_;
 
-        Ti += solidTemperatureIncrement(celli, solidRho, Ti, initialSpecieConcentration);
+        Ti += solidTemperatureIncrement(celli, solidRho, Ti, subStepStartConcentration);
 
         timeLeft -= dt_;
         this->deltaTChem_[celli] = tauC_;
@@ -1143,7 +1146,7 @@ Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasTherm
     const label celli,
     const scalar solidRho,
     const scalar Ti,
-    const scalarField& initialSpecieConcentration
+    const scalarField& subStepStartConcentration
 ) const
 {
     // Total mass density.
@@ -1156,7 +1159,7 @@ Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasTherm
     scalar newCp = 0.0;
     scalar newhi = 0.0;
     scalar invRho = 0.0;
-    scalarList dcdt = (specieConcentration_ - initialSpecieConcentration)/dt_;
+    scalarList dcdt = (specieConcentration_ - subStepStartConcentration)/dt_;
 
     if (solidReactionEnergyFromEnthalpy_)
     {
