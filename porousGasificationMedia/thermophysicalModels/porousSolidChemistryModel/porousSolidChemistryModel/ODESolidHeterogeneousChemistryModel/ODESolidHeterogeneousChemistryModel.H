@@ -50,10 +50,11 @@ Description
     - rho, rhoG, porosity and ST stay at their step-start values. The mass
       fractions in the rate are c over those, so they follow c within the
       step; the Jacobian is the exact derivative of that rate in c, and its
-      Ts column a finite difference.
+      Ts column a central difference of omega() in Ts.
     - Ts in the ODE sets k(T) within a sub-step, and is not read back: between
-      sub-steps Ts is advanced by the reaction heat over the volumetric heat
-      capacity (solidTemperatureIncrement).
+      sub-steps Ts is advanced by that sub-step's reaction heat (-hf times the
+      solids' change in c under solidReactionEnergyFromEnthalpy) over the
+      volumetric heat capacity (solidTemperatureIncrement).
 
     Sources
     - RRs, RRg = (c_end - c_start)/deltaT and Sh = heat/deltaT, or
@@ -61,9 +62,10 @@ Description
       solidReactionEnergyFromEnthalpy: step means, not end-of-step rates.
       rho, porosity and ST are frozen over the step, so the coupling to the
       field equations is first order in deltaT.
-    - After its first step, solidOde ends an interval when every derivative,
-      the heat included, is exactly zero: the state cannot change, and seulex
-      would reject the zero-error steps until the step size underflows (#200).
+    - With seulex, after its first step, solidOde ends an interval when every
+      derivative, the heat included, is exactly zero: the state cannot change,
+      and seulex would reject the zero-error steps until the step size
+      underflows (#200). Other ODE solvers run ODESolver::solve unchanged.
 
 SourceFiles
     StandardChemistryModelI.H
