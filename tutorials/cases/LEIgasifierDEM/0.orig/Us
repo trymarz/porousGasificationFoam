@@ -38,7 +38,7 @@ boundaryField
     }
     nozzle
     {
-        type            zeroGradient;
+        type            slip;
     }
     sides
     {
