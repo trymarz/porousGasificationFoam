@@ -119,7 +119,6 @@ solidReactionEnergyFromEnthalpy false;   // true = use Hf, false = use heatReact
 stoichiometricReactions false;           // true = mass-conserving stoichiometry
 diffusionLimitedReactions true;          // enable mass-transfer limitation
 showRelativeReactionRates false;
-checkHeatJacobian false;                 // debugging: see below
 
 solidOdeCoeffs
 {
@@ -155,8 +154,6 @@ solidReactions
 **Gas substrates** (#201): every coefficient, gas ones included, is a mass per kg of solid substrate (Eq. 6). In `char + 1.33 O2 = 2.33 CO`, each kg of char consumed takes 1.33 kg of O2 and gives 2.33 kg of CO, and `heatOfReaction` is per kg of char. Before #201, non-stoichiometric mode divided every coefficient by the sum of all reactant coefficients (Σ = 2.33 here). Inputs written for that rule keep their kinetics with `A/Σ` and `heatOfReaction·Σ`, as the bundled tutorials now do. With `diffusionLimitedReactions true`, each gas reactant's resistance in Eq. 10, 1/Ω_diff, is multiplied by its mass coefficient (ξ_a/Σ, e.g. 1.33 for O2 above), which is the same as dividing Ω_diff by it, so at the diffusion limit the reactant consumed equals what Eq. 9 delivers. This departs from the literal Eq. 10, under which the consumption would be ξ_a/Σ times the delivery. Stoichiometric mode does the same with the agent's mass coefficient in that mode, e.g. 16/12 = 1.33 kg of O2 per kg of char in `char + 0.5 O2 = CO` (#209).
 
 **Heat of reaction**: `heatOfReaction` is a constant, taken with all participants at the local solid temperature `Ts` (products leave and agents arrive at `Ts`; #212). It is not corrected with temperature, so give the value measured at reaction temperature (e.g. from a TGA/DSC fit), not a 298 K standard value. The solver itself carries the gases' sensible enthalpy across the interface: products enter the gas at `Ts`, and a consumed agent leaves the gas at its temperature and is heated to `Ts` by the solid.
-
-**`checkHeatJacobian`** (default `false`): a debugging check for work on the rate or its Jacobian. At every Jacobian evaluation it compares the analytic heat row with a central finite difference in each species with nonzero concentration, and logs `checkHeatJacobian: worst relative error ...` each time the worst error so far grows. It only logs, and never changes the solution. It needs `solidReactionEnergyFromEnthalpy false`, the mode with a heat row, and does not test the temperature column, which is a finite difference already. It adds two rate evaluations per species per Jacobian, so leave it off in production runs.
 
 ### `constant/solidThermophysicalProperties`
 
