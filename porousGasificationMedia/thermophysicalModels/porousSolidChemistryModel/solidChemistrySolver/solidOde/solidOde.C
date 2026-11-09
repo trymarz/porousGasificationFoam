@@ -39,14 +39,9 @@ Foam::solidOde<ChemistryModel>::solidOde
     odeSolver_(ODESolver::New(*this, coeffsDict_)),
     cTp_(this->nEqns()),
     dcTpdt_(this->nEqns()),
-    maxSteps_(coeffsDict_.getOrDefault<label>("maxSteps", 10000))
-{
-    WarningInFunction
-        << "The solid ODE integration ends an interval as soon as all "
-        << "reaction rates are exactly zero." << nl
-        << "    Stock seulex rejects zero-error steps until dx underflows "
-        << "(#200)." << endl;
-}
+    maxSteps_(coeffsDict_.getOrDefault<label>("maxSteps", 10000)),
+    zeroRateExit_(coeffsDict_.get<word>("solver") == "seulex")
+{}
 
 
 // * * * * * * * * * * * * * * * * Destructor  * * * * * * * * * * * * * * * //
@@ -90,11 +85,11 @@ void Foam::solidOde<ChemistryModel>::integrate
     for (label nStep=0; nStep<maxSteps_; ++nStep)
     {
         // The first step always accepts zero error and sets the solver's next
-        // step, which idle cells need to grow. The exit keeps the last dxTry:
-        // the state has not changed, so there is nothing new to estimate from.
+        // step, which idle cells need to grow. A stationary state is stable
+        // over the rest of the interval, so the next step is at least that.
         if (!step.first && ratesAreZero(x))
         {
-            dxTry = step.dxTry;
+            dxTry = max(step.dxTry, xEnd - x);
             return;
         }
 
@@ -173,7 +168,14 @@ Foam::scalar Foam::solidOde<ChemistryModel>::solve
 
     scalar dtEst = dt;
 
-    integrate(t0, t0 + dt, dtEst);
+    if (zeroRateExit_)
+    {
+        integrate(t0, t0 + dt, dtEst);
+    }
+    else
+    {
+        odeSolver_->solve(t0, t0 + dt, cTp_, dtEst);
+    }
 
     this->finishHeatIntegration(cTp_);
 

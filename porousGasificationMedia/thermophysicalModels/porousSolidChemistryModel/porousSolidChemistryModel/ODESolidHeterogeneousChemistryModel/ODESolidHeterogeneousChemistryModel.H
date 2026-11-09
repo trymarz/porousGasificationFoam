@@ -177,12 +177,6 @@ private:
         //- Show the relative reaction ratios
         Switch showRRR_;
 
-        //- Check the heat row of the Jacobian against finite differences
-        Switch checkHeatJacobian_;
-
-        //- Largest relative heat-row error seen so far
-        mutable scalar heatJacobianError_;
-
         //- Dictionary for gasName communication
         List<label> gasDictionary_;
 
@@ -251,15 +245,6 @@ private:
             //- ODE index of the cumulative reaction heat, used when
             //  solidReactionEnergyFromEnthalpy is false
             inline label heatEqn() const;
-
-            //- Compare the species columns of the Jacobian's heat row with a
-            //  central difference of omega(), logging each new worst error
-            void checkHeatRow
-            (
-                const scalarField& c,
-                const scalar T,
-                const scalarSquareMatrix& dfdc
-            ) const;
 
             //- Set reacting status of cell, cellI
             void setCellReacting(const label cellI, const bool active);

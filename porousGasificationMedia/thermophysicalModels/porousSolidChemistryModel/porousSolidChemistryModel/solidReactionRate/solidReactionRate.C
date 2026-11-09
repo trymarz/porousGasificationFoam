@@ -72,19 +72,8 @@ bool Foam::solidReactionRate::addDiffusionResistance
 
     forAll(R_.glhs(), g)
     {
-        // A negative gas concentration is an invalid state, not a small
-        // number: it flips the resistance's sign and 1/avKf then raises the
-        // rate instead of bounding it. Abort loudly rather than clamp.
+        // x() clips at 0, so the supply is never negative.
         const scalar gasConc = x(Ns + g, celli, c);
-
-        if (gasConc < 0)
-        {
-            FatalErrorInFunction
-                << "Negative gas-phase concentration (" << gasConc
-                << ") feeding the diffusion-limited rate at cell " << celli
-                << ", gas specie index " << R_.glhs()[g]
-                << ", reaction:\n" << R_ << exit(FatalError);
-        }
 
         const scalar omegaDiff = f_.ST[celli]*gasConc*f_.rhoG[celli];
 

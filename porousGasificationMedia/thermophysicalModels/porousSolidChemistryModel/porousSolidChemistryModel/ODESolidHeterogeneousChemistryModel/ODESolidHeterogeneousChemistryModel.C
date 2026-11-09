@@ -131,12 +131,6 @@ Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasTherm
         mesh_.lookupObject<dictionary>
             ("chemistryProperties").lookupOrDefault("showRelativeReactionRates",false)
     ),
-    checkHeatJacobian_
-    (
-        mesh_.lookupObject<dictionary>
-            ("chemistryProperties").lookupOrDefault("checkHeatJacobian",false)
-    ),
-    heatJacobianError_(0.0),
     rhoG_
     (
         mesh_.lookupObject<volScalarField>("rho")
@@ -622,72 +616,13 @@ void Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, Gas
     // calculate the dcdT elements numerically
     scalar delta = 1.0e-8;
 
-    scalarField dcdT0(dcdt);
-    scalarField omegaPreq(omega(c2,T - delta ,0,rR)*(1.-porosityF_[cellI]));
-
-    forAll(dcdT0,i)
-    {
-        dcdT0[i] = omegaPreq[i];
-    }
-
-    scalarField dcdT1(dcdt);
-    omegaPreq = omega(c2,T + delta,0,rR)*(1.-porosityF_[cellI]);
-    forAll(dcdT1,i)
-    {
-        dcdT1[i] = omegaPreq[i];
-    }
+    const scalar solidFraction = 1. - porosityF_[cellI];
+    const scalarField dcdT0(omega(c2, T - delta, 0, rR)*solidFraction);
+    const scalarField dcdT1(omega(c2, T + delta, 0, rR)*solidFraction);
 
     for (label i=0; i<nEqns(); i++)
     {
         dfdc[i][nSpecie_] = 0.5*(dcdT1[i] - dcdT0[i]) / delta;
-    }
-
-    if (checkHeatJacobian_ && not solidReactionEnergyFromEnthalpy_)
-    {
-        checkHeatRow(c2, T, dfdc);
-    }
-}
-
-
-template<class SolidThermo, class SolidThermoType, class GasThermoType>
-void Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasThermoType>::checkHeatRow
-(
-    const scalarField& c,
-    const scalar T,
-    const scalarSquareMatrix& dfdc
-) const
-{
-    const scalar solidFraction = 1. - porosityF_[cellCounter_];
-    scalarField rR(nReaction_, 0.0);
-
-    for (label j=0; j<nSpecie_; j++)
-    {
-        // A relative step keeps c - h above the clip; c = 0 has no two-sided
-        // difference. The T column is a finite difference already.
-        const scalar h = 1.0e-6*c[j];
-        if (h <= 0)
-        {
-            continue;
-        }
-
-        scalarField cj(c);
-        cj[j] = c[j] + h;
-        const scalar up = omega(cj,T,0,rR)[heatEqn()];
-        cj[j] = c[j] - h;
-        const scalar down = omega(cj,T,0,rR)[heatEqn()];
-
-        const scalar fd = 0.5*solidFraction*(up - down)/h;
-        const scalar exact = dfdc[heatEqn()][j];
-        const scalar scale = max(mag(fd), mag(exact));
-
-        if (scale > 0 && mag(fd - exact)/scale > heatJacobianError_)
-        {
-            heatJacobianError_ = mag(fd - exact)/scale;
-            Info<< "checkHeatJacobian: worst relative error "
-                << heatJacobianError_ << " in cell " << cellCounter_
-                << ", specie index " << j << ": analytic " << exact
-                << ", finite difference " << fd << endl;
-        }
     }
 }
 
