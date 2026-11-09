@@ -79,14 +79,18 @@ solidReactions
     (1.38e10 1.9e4 300 3.85e5 1)
 
     // R7 — Char full oxidation → CO2  (Ibrahim 2025, Table 5.4)
+    // #201: A/3.66 and hr*3.66 (were 5.61e9, -8.94e6) keep the kinetics this case
+    // had when every coefficient was divided by all 3.66 kg of reactants.
     irreversibleSolidArrheniusHeterogeneousReaction
     char + 2.66 O2 = 3.66 CO2
-    (5.61e9 1.96e4 300 -8.94e6 1 1)
+    (1.53278689e+09 1.96e4 300 -32720400 1 1)
 
     // R3 — Boudouard: char + CO2 → CO  (Ibrahim 2025, Table 5.4)
+    // #201: A/4.66 and hr*4.66 (were 3.616e4, 3.07e6) keep the kinetics this case
+    // had when every coefficient was divided by all 4.66 kg of reactants.
     irreversibleSolidArrheniusHeterogeneousReaction
     char + 3.66 CO2 = 4.66 CO
-    (3.616e4 9308.39 300 3.07e6 1 1)
+    (7759.65665 9308.39 300 14306200 1 1)
 
     // R6 (partial oxidation → CO), R4 (water-gas) and R5 (hydrogasification)
     // dropped — see lei-gasifier-continuity-us-field-2026-09-14.md Decision 2.
