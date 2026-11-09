@@ -23,12 +23,15 @@ pyrolysisCoeffs
 {
     subintegrateHeatTransfer true;
     bedCollapse false;   // Track B: DEM handles solid motion
-    criticalPorosity 0.99;
     replenish false;   // enable once chemistry is stable
-    // Packing limit for the solid flux limiter's receiver cap, and the bound
-    // below which solidStateChecker aborts. Loose, because the bed's constant
-    // downward Us would otherwise pack a throat cell solid.
-    minPorosity 0.1;
+    solidRegimes
+    {
+        connectedAboveSolidFraction  0.01;   // was criticalPorosity 0.99
+        // Packing limit for the solid flux limiter's receiver cap, and the
+        // bound above which PorosityRecovery aborts. Loose, because the bed's
+        // constant downward Us would otherwise pack a throat cell solid.
+        maxSolidFraction             0.9;    // was minPorosity 0.1
+    }
 }
 
 infoOutput      true;
