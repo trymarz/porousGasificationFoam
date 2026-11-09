@@ -51,11 +51,9 @@ odeCoeffs
     relTol   1e-4;
 }
 
-// RKCK45 (explicit Cash-Karp) avoids Jacobian inversion.
-// seulex requires the Jacobian; when Ychar=Yash=0 (cold start) those rows
-// are identically zero → singular matrix → step-size underflow SIGFPE.
-// Staying on RKCK45: the diagonal regularisation that would let seulex
-// survive that is a crash-suppressor and is not on this branch.
+// RKCK45 (explicit Cash-Karp) avoids the Jacobian. It was picked against a
+// zero-char cold-start singularity in seulex that #198 could not reproduce;
+// kept so the case's results do not change.
 solidOdeCoeffs
 {
     solver   RKCK45;
