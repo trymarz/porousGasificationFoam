@@ -616,20 +616,9 @@ void Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, Gas
     // calculate the dcdT elements numerically
     scalar delta = 1.0e-8;
 
-    scalarField dcdT0(dcdt);
-    scalarField omegaPreq(omega(c2,T - delta ,0,rR)*(1.-porosityF_[cellI]));
-
-    forAll(dcdT0,i)
-    {
-        dcdT0[i] = omegaPreq[i];
-    }
-
-    scalarField dcdT1(dcdt);
-    omegaPreq = omega(c2,T + delta,0,rR)*(1.-porosityF_[cellI]);
-    forAll(dcdT1,i)
-    {
-        dcdT1[i] = omegaPreq[i];
-    }
+    const scalar solidFraction = 1. - porosityF_[cellI];
+    const scalarField dcdT0(omega(c2, T - delta, 0, rR)*solidFraction);
+    const scalarField dcdT1(omega(c2, T + delta, 0, rR)*solidFraction);
 
     for (label i=0; i<nEqns(); i++)
     {
