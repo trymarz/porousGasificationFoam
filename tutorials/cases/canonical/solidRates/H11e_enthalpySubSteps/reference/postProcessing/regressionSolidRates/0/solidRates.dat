@@ -1,0 +1,4 @@
+# wood = targas (11000 10000 300 0 1) stoichiometric False diffusion False
+# hand: Omega 6.2361172281e+01 targas 3.7416703369e+01 wood -3.7416703369e+01 heat -0.0000000000e+00 stepMean 1.000000000000
+# Time source(targas) source(wood) heat rateRatioMin rateRatioMax massRatio
+0.5 3.7456155297e+01 -3.7456155297e+01 7.4910389789e+07 1.0010543935e+00 1.0010543935e+00 1.0000000000e+00

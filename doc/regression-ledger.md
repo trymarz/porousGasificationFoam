@@ -100,7 +100,7 @@ Their steady drop is also checked against Darcy–Forchheimer: `regressionDarcyF
 
 ### canonical/solidRates
 
-Eleven single-cell, single-step heterogeneous rate fixtures (#209 blocks A and B), one per reaction shape of #201: `H1`/`H1s` solid only, `H2` solid + gas, `H3` the same diffusion-limited, `H4` solid → solid, `H5` two solid reactants, `H6` the §5.6 gasifier shape, `H7` `H2` with doubled coefficients, `H8s` and `H9s` stoichiometric, `H10s` `H8s` diffusion-limited. `solidRates.py check` recomputes each case's rates from its own input files and writes `regressionSolidRates`.
+Twelve single-cell, single-step heterogeneous rate fixtures (#209 blocks A, B and H), one per reaction shape of #201: `H1`/`H1s` solid only, `H2` solid + gas, `H3` the same diffusion-limited, `H4` solid → solid, `H5` two solid reactants, `H6` the §5.6 gasifier shape, `H7` `H2` with doubled coefficients, `H8s` and `H9s` stoichiometric, `H10s` `H8s` diffusion-limited, `H11e` `H1` in enthalpy mode over several ODE sub-steps. `solidRates.py check` recomputes each case's rates from its own input files and writes `regressionSolidRates`.
 
 The solver's sources are means over the step, so each hand value is the step-start rate times `(1 - e^-a)/a`. Here `a` is the rate's fall over the step, `sum_k (d ln r/d ln c_k)(-dc_k/dt) dt/c_k` over the reactants, computed from the hand rate and the case's inputs, never from solver output. `rateRatioMin` and `rateRatioMax` therefore compare the solver with that step mean, not with the start rate. Heat is a step mean too since it became an ODE state, so a heat source left at the step start reads `1 + a/2` on the 8 fixtures with a gas reactant and fails (7.4e-5 to 5.2e-4). The ratios sit within 1.2e-6 of 1. What is left is roundoff, and for `H3`/`H10s` a fixed 7.3e-7. The temperature's change over the step is left out of `a`; it is below 1e-7 here.
 
@@ -108,6 +108,7 @@ The solver's sources are means over the step, so each hand value is the step-sta
 |---|---|---|---|
 | `rateRatioMin`, `rateRatioMax` | invariant (== 1, 1e-5) | any change to Eq. 4, 5, 10, the species split or the Eq. 12 heat source, for these shapes; a source that no longer follows the ODE state over the step | a later step's rates; the time-step limiter; a fall too small to see (`H1`, `H1s`, `H4`) |
 | `massRatio` | invariant (== 1, 1e-6) | mass created or lost by the split | a loss below 1e-6. There is no gas rescale any more, so the column holds the species' roundoff, ulp(c) over the step's change, up to 1.8e-7 (`H10s`) |
+| `rateRatioMin`, `rateRatioMax` (`H11e` only) | invariant (== 1, 5e-3) | an enthalpy-mode solid temperature that does not advance by each ODE sub-step's own heat (#209 H): 11.06 with the cumulative increment of `cb45c72` | Sh (no hand value in enthalpy mode); a move below 5e-3, the per-sub-step Ti update leaves the sources 1.05e-3 above the continuous hand value |
 | `agentRatio` (`H10s` only) | invariant (== 1, 1e-4) | an Eq. 10 agent factor that does not match the agent's consumption: the gas reactant consumed over its Eq. 9 delivery at the diffusion limit (1.33 with the literal Eq. 10) | a move below 1e-4; it sits 9.0e-5 below 1, 1.5e-5 the kinetic resistance's share and 7.5e-5 the rate's fall over the step, against the step-start delivery |
 | `source(<specie>)`, `heat` | live | the same, against the baseline | — |
 
