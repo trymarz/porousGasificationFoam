@@ -30,7 +30,7 @@ boundaryField
     }
     wall
     {
-        type            zeroGradient;
+        type            slip;
     }
     sides
     {
