@@ -27,9 +27,10 @@ Class
 Description
     An ODE solver for chemistry
 
-    The integration runs ODESolver's step loop here so that it can end an
-    interval once every rate is exactly zero: the state cannot change any
-    more, and seulex would reject the zero-error steps until dx underflows.
+    With seulex the integration runs ODESolver's step loop here so that it
+    can end an interval once every rate is exactly zero: the state cannot
+    change any more, and seulex would reject the zero-error steps until dx
+    underflows (#200). Other solvers use ODESolver::solve.
 
 SourceFiles
     solidOde.C
@@ -70,6 +71,9 @@ class solidOde
 
         //- Step limit, read as ODESolver reads it
         const label maxSteps_;
+
+        //- End an interval at zero rates (seulex only)
+        const bool zeroRateExit_;
 
 
     // Private Member Functions
