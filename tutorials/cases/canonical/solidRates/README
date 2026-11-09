@@ -14,3 +14,8 @@ for the change to stand clear of roundoff, in the heat state as well as the spec
 H1 runs at 1e-6 s for that reason. H1 also runs at Ts = 600 K: at
 Ts = Tcrit the endothermic step pulls the ODE's own temperature below the
 cutoff partway through the step, while the heat source keeps the full rate.
+
+H11e runs in enthalpy mode (`setup --enthalpy HF`) for one 0.5 s step that the
+ODE takes in several sub-steps; check integrates c(t) with T = T0 + Hf/Cp ln(c0/c)
+by hand. The solver advances Ti once per sub-step, so its sources sit ~1e-3 off
+that continuous value; the invariant tolerance is 5e-3 for this case only.

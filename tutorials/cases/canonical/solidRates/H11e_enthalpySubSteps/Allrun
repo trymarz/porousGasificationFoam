@@ -1,0 +1,11 @@
+#!/bin/sh
+cd "${0%/*}" || exit
+. ${WM_PROJECT_DIR:?}/bin/tools/RunFunctions
+# Enthalpy mode, exothermic wood: one 0.5 s step takes several ODE sub-steps and
+# heats the solid by ~63 K. Before #209 H each sub-step re-added the whole step's
+# heat to Ti, which ran the wood away (source 11x the hand value, not 1.001x).
+python3 ../solidRates.py setup pyrolysis --reaction 'wood = targas' --coeffs '1.1e4 1e4 300 0 1' --enthalpy 2e6 --dt 0.5 --set Ts=800 T=800 || exit
+restore0Dir
+runApplication blockMesh || exit
+runApplication $(getApplication) || exit
+python3 ../solidRates.py check > log.solidRates 2>&1 || { cat log.solidRates >&2; exit 1; }

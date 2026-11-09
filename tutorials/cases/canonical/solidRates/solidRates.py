@@ -20,6 +20,8 @@ fall of the rate over the step, from the same hand quantities (#200).
 ``check --agent-limit`` also
 writes agentRatio, the gas reactant's consumption over its Eq. 9 delivery,
 which is 1 at the diffusion limit; ``setup --agent-limit TOL`` declares it.
+``setup --enthalpy HF`` sets solidReactionEnergyFromEnthalpy true and the
+solid's Hf; check then integrates the coupled c(t), T(c) by hand (#209 H).
 
 The species split is the code's current convention (split_coefficients): a
 change to it in the solver has to change that function too.
@@ -97,6 +99,16 @@ def setup(args: argparse.Namespace) -> None:
                 case / "system/regressionFunctions")
     shutil.copy(Path(__file__).resolve().parent / "regressionInvariants",
                 case / "system/regressionInvariants")
+    if args.enthalpy is not None:
+        # The hand value is the continuous solution; the solver's Ti advances
+        # per sub-step, which leaves ~1e-3 (case-specific, see README).
+        text = cp.read_text()
+        cp.write_text(sub(text, r"^solidReactionEnergyFromEnthalpy\s+\w+;",
+                          "solidReactionEnergyFromEnthalpy true;", cp))
+        edit(sp, (r"\bHf\s+[^;]*;", f"Hf      {args.enthalpy:g};"))
+        edit(case / "system/regressionInvariants",
+             *((rf"(rateRatio{m}\s+==\s+1\s+)1e-5", rf"\g<1>{args.enthalpy_tol:g}")
+               for m in ("Min", "Max")))
     if args.agent_limit is not None:
         with open(case / "system/regressionInvariants", "a") as f:
             f.write(f"regressionSolidRates  agentRatio    ==  1  {args.agent_limit:g}\n")
@@ -223,6 +235,21 @@ def step_mean(a: float) -> float:
     return -math.expm1(-a) / a if a else 1.0
 
 
+def enthalpy_step(k, c0: float, T0: float, hf: float, Cp: float, dt: float) -> float:
+    """Solid concentration after dt of dc/dt = -k(T) c with T = T0 + hf/Cp ln(c0/c).
+
+    One solid going to gas: dT = -hf dc/(c Cp), the solver's enthalpy-mode heating.
+    """
+    def f(c: float) -> float:
+        return -k(T0 + hf / Cp * math.log(c0 / c)) * c
+    n = 20000
+    h, c = dt / n, c0
+    for _ in range(n):  # RK4; n steps resolve it to roundoff
+        k1 = f(c); k2 = f(c + h / 2 * k1); k3 = f(c + h / 2 * k2); k4 = f(c + h * k3)
+        c += h / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
+    return c
+
+
 def first_step_sources(log: Path) -> dict[str, float]:
     text = log.read_text(errors="replace")
     m = re.search(r"^Time = .*?(?=^Time = |\Z)", text, re.M | re.S)
@@ -324,6 +351,24 @@ def check(args: argparse.Namespace) -> None:
     hand = {n: v * mean for n, v in hand.items()}
     heat_hand = -solid_fraction * r * hr * mean  # Eq. 12, not split
 
+    enthalpy = entry(text, "solidReactionEnergyFromEnthalpy", cp) in ("true", "on", "yes")
+    if enthalpy:
+        # Sh then has no hand form here, so only the species sources are held.
+        if len(solids) != 1 or lhs_g or rhs_s or orders != [1.0]:
+            fail("enthalpy mode supports one solid, first order, to gas only")
+        n0 = solids[0]
+        c0 = solid_fraction * rho_s * Ys[n0]
+        hf, Cp = (float(entry(block(sp.read_text(), f"{n0}Coeffs", sp), k, sp))
+                  for k in ("Hf", "Cp"))
+        cEnd = enthalpy_step(lambda Tk: A * math.exp(-Ta / Tk) if Tk >= Tcrit else 0.0,
+                             c0, T, hf, Cp, dt)
+        r = (c0 - cEnd) / dt / solid_fraction
+        # derivatives() caps the ODE's |dT/dt| at 500 K/s; the hand value has no cap.
+        if abs(hf / Cp * A * math.exp(-Ta / (T + hf / Cp * math.log(c0 / cEnd)))) >= 500:
+            fail("enthalpy heating reaches the solver's 500 K/s cap")
+        hand = {n: solid_fraction * r * c for n, c in split.items()}
+        mean = 1.0
+
     got = first_step_sources(case / "log.porousGasificationFoam")
     heat = postprocessed(case, "solidRatesHeat", "volAverage(solidChemistrySh)")
 
@@ -334,7 +379,7 @@ def check(args: argparse.Namespace) -> None:
     stray = {n: v for n, v in got.items() if n not in hand and v != 0}
     if stray:
         fail(f"sources for species outside the reaction: {stray}")
-    ratios = [got[n] / hand[n] for n in names] + [heat / heat_hand]
+    ratios = [got[n] / hand[n] for n in names] + ([] if enthalpy else [heat / heat_hand])
     produced = sum(v for v in got.values() if v > 0)
     consumed = -sum(v for v in got.values() if v < 0)
 
@@ -358,7 +403,8 @@ def check(args: argparse.Namespace) -> None:
         f"{dt:g} " + " ".join(f"{v:.10e}" for v in vals) + "\n")
     for n in names:
         print(f"{n:8s} code {got[n]: .10e}  hand {hand[n]: .10e}  ratio {got[n] / hand[n]:.12f}")
-    print(f"heat     code {heat: .10e}  hand {heat_hand: .10e}  ratio {heat / heat_hand:.12f}")
+    if not enthalpy:
+        print(f"heat     code {heat: .10e}  hand {heat_hand: .10e}  ratio {heat / heat_hand:.12f}")
     print(f"mass     produced/consumed {produced / consumed:.12f}")
     if args.agent_limit:
         print(f"agent    consumed/delivered {vals[-1]:.12f}")
@@ -376,6 +422,10 @@ def main() -> None:
     s.add_argument("--dt", type=float, default=1e-8)
     s.add_argument("--agent-limit", type=float, metavar="TOL",
                    help="also hold agentRatio (check --agent-limit) at 1 within TOL")
+    s.add_argument("--enthalpy", type=float, metavar="HF",
+                   help="solidReactionEnergyFromEnthalpy true, with this solid Hf [J/kg]")
+    s.add_argument("--enthalpy-tol", type=float, default=5e-3, metavar="TOL",
+                   help="rateRatio tolerance with --enthalpy")
     s.add_argument("--set", nargs="*", default=[], metavar="FIELD=VALUE",
                    help="uniform internalField of a 0.orig field")
     c = sp.add_parser("check")

@@ -73,6 +73,9 @@ tutorials/cases/canonical/solidRates/H7_twoChar        fast
 tutorials/cases/canonical/solidRates/H8s_gasSolid      fast
 tutorials/cases/canonical/solidRates/H9s_paperEx       fast
 tutorials/cases/canonical/solidRates/H10s_gasSolidDiff fast
+# Enthalpy mode over one 0.5 s step of several ODE sub-steps (#209 H): the
+# sources against the hand-integrated c(t), T(c), held at 1 within 5e-3.
+tutorials/cases/canonical/solidRates/H11e_enthalpySubSteps fast
 
 # Conservation fixtures — each asserts an energy integral, not a temperature.
 # The regressionHeatTransferResidual baseline is a column of exact zeros: it
