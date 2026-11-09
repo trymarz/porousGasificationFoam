@@ -51,6 +51,9 @@ Description
       fractions in the rate are c over those, so they follow c within the
       step; the Jacobian is the exact derivative of that rate in c, and its
       Ts column a central difference of omega() in Ts.
+    - Before #209 F the rate read the frozen Ys_ and gas fields, not c: since
+      c2e1604 left the template's c1 = max(0, c) unused (Jacobian: 48ce5b6),
+      with no stated design. F (#220) restored the 2.1.x template's c rate.
     - Ts in the ODE sets k(T) within a sub-step, and is not read back: between
       sub-steps Ts is advanced by that sub-step's reaction heat (-hf times the
       solids' change in c under solidReactionEnergyFromEnthalpy) over the
