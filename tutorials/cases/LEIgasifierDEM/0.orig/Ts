@@ -27,7 +27,10 @@ boundaryField
     }
     inlet
     {
-        type            zeroGradient;
+        type            fixedValue;
+        value           uniform 300;
+        // fresh wood fed at ambient, setFieldsDict's 300 K default; the bed
+        // itself starts at 400 K
     }
     wall
     {
