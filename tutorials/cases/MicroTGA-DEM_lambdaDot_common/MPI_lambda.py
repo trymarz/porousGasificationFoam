@@ -22,7 +22,7 @@ spring_frame_number = 0
 
 #timeRatio = 5000  # itterations to write vtk files
 
-yadeDtFixed = 5e-6 #5e-6
+yadeDtFixed = 1e-6  # rate modes need deltaT/yadeDt to be an integer (#230)
 O.dynDt = False
 O.dt    = yadeDtFixed
 
@@ -270,9 +270,14 @@ def apply_spring_forces():
     vals = mp.comm.bcast(vals, root=0)
 
     # apply forces locally
+    global spring_force_added
+    added = 0.0
     for sid, force in zip(keys, vals):
         if sid < len(O.bodies) and O.bodies[sid] is not None:
             O.forces.addF(sid, force)
+            if O.bodies[sid].subdomain == mp.rank:
+                added += force.norm()
+    spring_force_added = (O.iter, added)
 
     # remove broken springs
     for sid in to_remove:
@@ -463,6 +468,29 @@ def logLambdaUs():
                 UsMean=UsMean,
             )
 
+# Spring force Newton integrates: apply_spring_forces() output counts only if it ran
+# since this step's ForceResetter (#231). Rows: max per-step value since the last
+# row, summed over ranks; shrinking fixtures assert > 0 (system/regressionInvariants).
+spring_force_added = (-1, 0.0)
+spring_force_window_max = 0.0
+spring_force_file = os.path.join('postProcessing', 'springForceAtNewton', '0', 'springForceAtNewton.dat')
+
+def spring_force_at_newton():
+    global spring_force_window_max
+    it, added = spring_force_added
+    spring_force_window_max = max(spring_force_window_max, added if it == O.iter else 0.0)
+    if O.iter == 0 or O.iter % vtkSphereIterPeriod != 0:
+        return
+    total = mp.comm.reduce(spring_force_window_max, op=MPI.SUM, root=0)
+    spring_force_window_max = 0.0
+    if mp.rank == 0:
+        new = not os.path.exists(spring_force_file)
+        os.makedirs(os.path.dirname(spring_force_file), exist_ok=True)
+        with open(spring_force_file, 'a') as f:
+            if new:
+                f.write('# Time\tspringForce\n')
+            f.write('%.8g\t%.10e\n' % (O.time, total))
+
 
 #---------------
 # ENGINES 
@@ -478,9 +506,12 @@ O.engines = [
         ),
         #GlobalStiffnessTimeStepper(timestepSafetyCoefficient=0.7, defaultDt=yadeDtFixed, timeStepUpdateInterval=20, parallelMode=True, label="ts"),
         fluidCoupling,  #to be called after timestepper
+        # Springs every step, between ForceResetter and NewtonIntegrator: addF is
+        # non-permanent, so a force added after Newton is reset unused (#231).
+        PyRunner(command='apply_spring_forces()', iterPeriod=1),
+        PyRunner(command='spring_force_at_newton()', iterPeriod=1),
         NewtonIntegrator(damping=0.99, label='newton', gravity=(0, 0.0, 0)),
-        
-        PyRunner(command='apply_spring_forces()', iterPeriod=20, firstIterRun=1),
+
         PyRunner(command="export_springs()", iterPeriod=timeRatio, firstIterRun=1),
         VTKRecorder(fileName='spheres/vtk-', recorders=['spheres'], parallelMode=True, iterPeriod=vtkSphereIterPeriod),
 

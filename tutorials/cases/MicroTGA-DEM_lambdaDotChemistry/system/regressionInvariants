@@ -2,3 +2,7 @@
 # The bound is ~1/4 of the first sample (-4.5e-9 at t=2e-4).
 lambdaMinusOneAverage  average(lambdaMinusOne)  <=  -1e-9
 lambdaMinusOneMax      max(lambdaMinusOne)      <=  0
+
+# Springs reach NewtonIntegrator (#231): exactly 0 when apply_spring_forces() runs
+# after Newton. Bound ~1/20 of Chemistry's last sample (2.0e-7 N at t=0.009).
+springForceAtNewton  springForce  >=  1e-8

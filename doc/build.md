@@ -57,6 +57,62 @@ Tests for this tooling live in `applications/test/tooling/test_*.sh`; each runs 
 
 It needs YADE installed with the OpenFOAM coupling module and `YADE_TRUNK` pointing at the Foam-Yade source checkout. `build.sh` checks both before compiling, so a missing prerequisite is an error rather than a linker failure, and an existing normal build is left untouched.
 
+### Supported versions
+
+- **OpenFOAM v2406**, the solver's only target. The coupling libraries are compiled against the same OpenFOAM.
+- **YADE from Foam-Yade** ([trymarz/Foam-Yade](https://github.com/trymarz/Foam-Yade)), a YADE fork, at the commit this repository pins. Upstream YADE does not work: the per-particle `lambda_`/`lambdaDot` state, the λ slot in the force buffer and the `lambdaMode` startup handshake exist only in the fork. Its version string is the build date and commit, e.g. `yade -v` prints `Yade version: 2026-10-15.git-d5c33e0`.
+- **One MPI for both.** YADE starts the solver with `MPI_Comm_spawn` and merges the two jobs into one communicator, so YADE, the coupling libraries and OpenFOAM must use the same MPI installation (Open MPI here).
+- **Both sides from the same revision.** The per-particle buffer layout is fixed at compile time on each side with no negotiation over MPI (`FoamCoupling::sendBodyData()` and `FoamYade::locateAllParticles()` both say so). A YADE built from another Foam-Yade commit than the coupling libraries misreads the buffers instead of failing.
+
+### The submodule and its pin
+
+Foam-Yade is the submodule `submodules/Foam-Yade` (`.gitmodules`). The pinned commit is the gitlink in this repository's tree:
+
+```bash
+git submodule update --init submodules/Foam-Yade
+git ls-tree HEAD submodules/Foam-Yade     # the pinned commit
+git submodule status submodules/Foam-Yade # a leading '+' means the checkout differs from the pin
+```
+
+When the pin moves, rebuild YADE, the coupling libraries and PGF's `--yade` build together. The `--isolated` build key does not notice: its fingerprint covers PGF's own build targets, not the submodule, so a complete `yade1` prefix (`./build.sh --print-prefix --yade`) still holds the old coupling libraries. Delete that prefix before rebuilding.
+
+### Building YADE and the coupling libraries
+
+1. **YADE** — a CMake build of the Foam-Yade checkout. The installation guide is upstream's (`doc/sphinx/installation.rst` in the submodule). The coupling needs `ENABLE_MPI` (on by default), Python 3 and `mpi4py`; without them CMake prints `MPI NOT FOUND, YADE-OpenFOAM coupling disabled`. The YADE side of the coupling, the `FoamCoupling` engine, is `pkg/openfoam/FoamCoupling.cpp`, built into `libpkg_openfoam.so`.
+2. **Coupling libraries** — three `wmake` libraries under `$YADE_TRUNK/pkg/openfoam/coupling/FoamYade`, built with OpenFOAM sourced. `libYadeFoam` links `libMeshTree`, so build `meshtree` first:
+
+   ```bash
+   cd $YADE_TRUNK/pkg/openfoam/coupling/FoamYade
+   (cd meshtree && wmake libso)   # libMeshTree
+   (cd commYade && wmake libso)   # libYadeComm
+   wmake libso                    # libYadeFoam
+   ```
+
+   They install into the `$FOAM_USER_LIBBIN` active at that moment. An `--isolated --yade` build copies them into its prefix from `PGF_YADE_LIBDIR` (default: the user lib dir OpenFOAM's `bashrc` sets).
+3. **PGF** — `./build.sh build --yade`, or `./pgf-env --bare --yade -- ./build.sh --isolated --yade` for a prefix build.
+
+### `YADE_TRUNK`
+
+`YADE_TRUNK` is the Foam-Yade source checkout. `porousGasificationMedia/DEM/Make/options` and the `WITH_YADE` blocks of `porousGasificationFoam/Make/options` read the coupling headers from `$(YADE_TRUNK)/pkg/openfoam/coupling/FoamYade/lnInclude` (and `meshtree/lnInclude`). Those `lnInclude/` directories appear once the coupling libraries are built, and `build.sh` checks for both.
+
+`build.sh` and `pgf-env --yade` default it to `submodules/Foam-Yade`. Only `pgf-env` exports that default, though, and `wmake` reads `$(YADE_TRUNK)` from the environment. Outside `pgf-env`, export it yourself:
+
+```bash
+export YADE_TRUNK=$PWD/submodules/Foam-Yade
+```
+
+### Checking that the coupling is in
+
+- **Build variant.** A `--yade` solver links the coupling libraries directly. In a normal build none of them appears:
+
+  ```bash
+  ldd $(which porousGasificationFoam) | grep -E 'libYadeFoam|libMeshTree|liblambdaDotModel'
+  ```
+
+  All three must resolve to a path; `not found` means the directory holding them is not on `LD_LIBRARY_PATH`. For a prefix build, `.pgf-build.json` in the prefix records `"variant": "yade1"`.
+- **YADE side.** `yade --help` ends its description with the compiled features; the list must contain `MPI`.
+- **At run time.** A `WITH_YADE` solver prints `DEM coupling: active` (or `inactive (yadeProperties absent or active=false)`) at startup, from `createDEMFields.H`; a normal build prints no such line. YADE prints `Starting OpenFOAM solver --> porousGasificationFoam` before it spawns the solver. YADE always spawns it with `-parallel`, so the case must be decomposed.
+
 **Switching between normal and `--yade` needs a clean.** `wmake` recompiles by source timestamp and does not notice that `WITH_YADE` changed, so an in-place rebuild would link a mix of the two variants. `build.sh` records which variant built the current objects and refuses to build the other on top:
 
 ```bash
