@@ -603,6 +603,9 @@ void volPyrolysis::preEvolveRegion() {
 
 void volPyrolysis::evolveRegion()
 {
+    // Per step: rates and interface enthalpy, the solid flux and its check,
+    // energy, species, Ts on the remaining mass, then porosity and the bed.
+    // Each stage reads what the ones above it left; the order sets results.
     updateTransferCoefficients();
     solveChemistry();
     updateInterfaceEnthalpy();
@@ -610,6 +613,8 @@ void volPyrolysis::evolveRegion()
     // Settle how much solid each face may carry before any solid field is
     // transported. Needs the chemistry rates, so it follows their solve.
     limitSolidFlux();
+    // Judges the limited flux, the one that carries Ym and solidH, before
+    // either moves: keep it directly after limitSolidFlux().
     solidDiagnostics_->checkSolidCrossing(phiSolid_, Ys_, Ym_);
 
     // Energy before species: solidH_ holds the pre-reaction solid until
