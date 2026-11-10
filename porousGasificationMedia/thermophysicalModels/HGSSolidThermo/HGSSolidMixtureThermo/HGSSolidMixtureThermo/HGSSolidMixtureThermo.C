@@ -200,6 +200,50 @@ Foam::HGSSolidMixtureThermo<MixtureType>::Cp() const
 
 template<class MixtureType>
 Foam::tmp<Foam::volScalarField>
+Foam::HGSSolidMixtureThermo<MixtureType>::specieCp(const label i) const
+{
+    tmp<volScalarField> tCp
+    (
+        new volScalarField
+        (
+            IOobject
+            (
+                "Cp." + MixtureType::components()[i],
+                mesh_.time().timeName(),
+                mesh_,
+                IOobject::NO_READ,
+                IOobject::NO_WRITE
+            ),
+            mesh_,
+            dimEnergy/(dimMass*dimTemperature)
+        )
+    );
+    volScalarField& Cp = tCp.ref();
+
+    const auto& specie = MixtureType::solidData()[i];
+
+    forAll(T_.internalField(), celli)
+    {
+        Cp[celli] = specie.Cp(T_[celli]);
+    }
+
+    forAll(Cp.boundaryField(), patchI)
+    {
+        const scalarField& Tp = T_.boundaryField()[patchI];
+        scalarField& Cpp = Cp.boundaryFieldRef()[patchI];
+
+        forAll(Tp, facei)
+        {
+            Cpp[facei] = specie.Cp(Tp[facei]);
+        }
+    }
+
+    return tCp;
+}
+
+
+template<class MixtureType>
+Foam::tmp<Foam::volScalarField>
 Foam::HGSSolidMixtureThermo<MixtureType>::hs() const
 {
     tmp<volScalarField> ths

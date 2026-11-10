@@ -27,23 +27,28 @@ Class
 Description
     Solid-phase energy of the non-equilibrium (two-temperature) model.
 
-    The transported variable is the solid enthalpy solidH = rhoCp*Ts
+    The conserved variable is the solid enthalpy solidH = rhoCp*Ts
     [J/m3], with rhoCp the floored heat capacity of the solid the cell
-    holds, sum_i Ym_i*Cp_i. Ts is always recovered from it.
+    holds, sum_i Ym_i*Cp_i.
 
-    solve(), before the species step:
-      - Ts = solidH/rhoCp, with the trace rule;
-      - the Ts equation: conduction (cut at faces on the edge of the
-        solid), reaction heat, gas-solid exchange, the agent heat-up
-        (GasSolidHeatExchange) and radiation, the reaction heat and
-        radiation gated by connectedAtStepStart;
-      - solidH = rhoCp*Ts, then advected with the solid mass flux, so
-        enthalpy and Ym share face values.
+    solve(), after the species step, integrates one balance for it,
 
-    recoverTemperatureAfterReaction(), after the species step: Ts is
-    recovered on the heat capacity of the pre-reaction solid, so mass
-    leaving as gas takes its enthalpy with it, then the dispersed and
-    trace rules; solidH is restated on the mass that remains.
+        d(solidH)/dt + div(sum_i phiYm_i*Cp_i*Ts) - laplacian(K, Ts)
+            = sources + sum_i RRs_i*Cp_i*Ts
+
+    with Ts as the unknown, so conduction stays implicit:
+      - the old-time term is solidH as the last step left it;
+      - the diagonal is the carrier heat capacity, sum_i Cp_i times the
+        mass before this step's reaction: the last term, the sensible heat
+        of the composition change, taken implicitly, so mass leaving as gas
+        takes its enthalpy with it;
+      - enthalpy rides each specie's own mass flux, upwind and explicit;
+      - conduction is cut at faces on the edge of the solid;
+      - sources: reaction heat and radiation gated by connectedAtStepStart,
+        gas-solid exchange and the agent heat-up (GasSolidHeatExchange).
+
+    Then the dispersed and trace rules on Ts, once, and solidH = rhoCp*Ts
+    on the mass that remains.
 
     In equilibrium mode only the radiation source is refreshed.
 
@@ -149,28 +154,16 @@ class SolidEnergy
             const volScalarField& totalYm
         ) const;
 
-        //- sum_i Ym_i before this step's reaction [kg/m^3]
-        //  Ym_ must already carry the reaction.
-        tmp<volScalarField> preReactionMass
-        (
-            const volScalarField& totalYm
-        ) const;
-
-        //- Floored sum_i Ym_i*Cp_i of the solid that carried solidH_
-        //  into this step, i.e. the pre-reaction solid [J/m^3/K]
+        //- Floored sum_i Cp_i*max(Ym_i - dt*RRs_i, 0): the solid that holds
+        //  the old solidH plus what transport brought [J/m^3/K]
+        //  Ym_ must already carry this step's reaction and transport.
         tmp<volScalarField> carrierHeatCapacity
         (
-            const volScalarField& preReactionYm
+            const volScalarField& totalYm
         );
 
-        //- Ts = solidH/rhoCp, then the dispersed rule (if asked) and
-        //  the trace rule
-        void recoverTsFromH
-        (
-            const volScalarField& rhoCp,
-            const volScalarField& totalYm,
-            const bool dispersedRule
-        );
+        //- The dispersed rule, then the trace rule, on Ts
+        void applyRegimeRules(const volScalarField& totalYm);
 
         //- solidH = rhoCp*Ts
         void storeH(const volScalarField& rhoCp);
@@ -181,27 +174,34 @@ class SolidEnergy
             const volTensorField& composedK
         );
 
-        //- Ts equation sources [W/m3]: reaction heat and radiation gated by
+        //- Sources [W/m3]: reaction heat and radiation gated by
         //  connectedAtStepStart, minus gas exchange and agent heat-up
         tmp<volScalarField> solidSources();
 
-        //- Ts equation: conduction, reaction heat, gas exchange, radiation
-        void solveTsEquation
+        //- div of the enthalpy flux, sum_i phiYm_i*upwind(Cp_i*Ts) [W/m3]
+        tmp<volScalarField> advectiveEnthalpyFlux
+        (
+            const PtrList<surfaceScalarField>& phiYm
+        ) const;
+
+        //- The solidH balance, solved for Ts
+        void solveEnthalpyBalance
         (
             const volTensorField& composedK,
-            const volScalarField& rhoCp,
-            const volScalarField& solidBeyondTrace
+            const volScalarField& rhoCpCarrier,
+            const volScalarField& HOld,
+            const PtrList<surfaceScalarField>& phiYm
         );
 
-        //- div of the enthalpy flux, phiYm*upwind(Cp*Ts) [W/m3]
-        tmp<volScalarField> advectiveEnthalpyFlux() const;
-
-        //- Advect solidH with the solid mass flux
-        void advectSolidH
+        //- Abort with the cell's energy terms if badCell is a cell
+        void abortOnInvalidTs
         (
-            const volScalarField& rhoCp,
+            const word& stage,
+            const label badCell,
+            const volScalarField& HOld,
+            const volScalarField& rhoCpCarrier,
             const volScalarField& totalYm
-        );
+        ) const;
 
         //- Disallow default bitwise copy construct
         SolidEnergy(const SolidEnergy&);
@@ -237,12 +237,9 @@ public:
 
     // Member Functions
 
-        //- Ts from solidH, the Ts equation, then solidH advected
-        void solve();
-
-        //- Ts recovered after the reaction changed the mass, and
-        //  solidH restated on the mass that remains
-        void recoverTemperatureAfterReaction();
+        //- The solidH balance on the mass the species step left, then the
+        //  regime rules on Ts; phiYm is that step's specie mass fluxes
+        void solve(const PtrList<surfaceScalarField>& phiYm);
 };
 
 

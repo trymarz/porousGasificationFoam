@@ -216,6 +216,9 @@ public:
             //- Specific heat capacity [J/kg/K]
             virtual tmp<volScalarField> Cp() const = 0;
 
+            //- Specific heat capacity of solid specie i [J/kg/K]
+            virtual tmp<volScalarField> specieCp(const label i) const = 0;
+
             //- Sensible enthalpy [J/kg]
             virtual tmp<volScalarField> hs() const;
 

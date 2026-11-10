@@ -25,7 +25,7 @@ The loop is `porousGasificationFoam/porousGasificationFoam.C`; each step is an `
 1. **Time step** — Courant (gas), diffusion (solid) and chemistry limits give one `deltaT` (`setMultiRegionDeltaT.H`, `updateChemistryTimeStep.H`).
 2. **DEM coupling** (only with `WITH_YADE`) — particle state is exchanged with YADE; `Us` and `lambda` are rebuilt from it and `lambdaDot` is pushed back (`DEM/lambdaDotModel.C`): a rate YADE integrates, or under `apparentVolume` a factor `r` it applies once.
 3. **Radiation** — updates the solid radiative source (`radiation.H`, `radiationModels/`).
-4. **Solid region, `pyrolysisZone.evolve()`** (`volPyrolysis::evolveRegion()`), in this order: chemistry ODE; solid-flux limit; solid temperature equation and enthalpy transport (`SolidEnergy::solve`); solid species transport (`SolidSpeciesTransport::solve`); `Ts` recovery after the reaction (`recoverTemperatureAfterReaction`); porosity recovery and bed collapse (`PorosityRecovery::recover`).
+4. **Solid region, `pyrolysisZone.evolve()`** (`volPyrolysis::evolveRegion()`), in this order: chemistry ODE and gas-solid exchange, both from the step-start state; solid-flux limit; solid species transport (`SolidSpeciesTransport::solve`); solid enthalpy balance on the new mass, solved for `Ts` (`SolidEnergy::solve`); the DEM `lambdaDot` temperature term; porosity recovery and bed collapse (`PorosityRecovery::recover`).
 5. **Gas continuity** — `rhoEqn.H`.
 6. **PIMPLE loop** — momentum `UEqn.H`, species `YEqn.H`, energy `EEqn.H`, pressure `pEqn.H` or `pcEqn.H` (`pimple.consistent()`).
 7. **Turbulence** — `turbulence->correct()`.
@@ -97,16 +97,17 @@ Solved for internal energy `e`, the pressure work `− ε ∂p/∂t` becomes `�
 1/ρₛ = Σₖ Ysₖ/ρₖ ,    1 − ε = Σₖ Ymₖ/ρₖ
 ```
 
-**Solid energy** (`SolidEnergy::solve`, `recoverTemperatureAfterReaction`; paper 3c). With `H = (Σₖ Ymₖ) cₚ,ₛ Tₛ`:
+**Solid energy** (`SolidEnergy::solve`, after the species step; paper 3c). One balance for `H = Σₖ Ymₖ cₚ,ₖ Tₛ`:
 
 ```
-∂(Σₖ Ymₖ cₚ,ₛ Tₛ)/∂t − ∇·((1 − ε) K_s · A ∇Tₛ) = S_chem − Q_conv − Q_agent + S_rad,s
+∂H/∂t + ∇·(Σₖ φ_Ym,k cₚ,ₖ Tₛ) − ∇·((1 − ε) K_s · A ∇Tₛ)
+    = S_chem − Q_conv − Q_agent + S_rad,s + Σₖ RRsₖ cₚ,ₖ Tₛ
 Q_agent = Σ_{S_ρ,i<0} |S_ρ,i| (hₛ,ᵢ(Tₛ) − hₛ,ᵢ(T))
-∂H/∂t + ∇·(φ_Ym hₛ) = 0        (enthalpy advected with the solid mass flux, upwind)
-Tₛ = H / (Σₖ Ymₖ cₚ,ₛ)
 ```
 
-`A` is the optional `anisotropyK` tensor; `S_chem` is the solid reaction heat (`chemistrySh`), `hr` with all participants at `Tₛ`. `Q_agent` (`agentHeatUp`) heats a consumed agent from the gas `T` to `Tₛ`. Products need no solid term: the `Tₛ` recovery already lets the converted solid leave at `Tₛ`. Reference temperatures differ (solid `H` from 0 K, gas `h` from 298.15 K; to be unified in #173); no temperature depends on them.
+It is solved for `Tₛ`: conduction and the last term are implicit, the advective flux is explicit and upwind on each specie's own mass flux `φ_Ym,k`. The time derivative follows the case's `ddtSchemes` entry. The last term is the sensible heat of the composition change; taken implicitly it leaves `Σₖ cₚ,ₖ (Ymₖ − Δt RRsₖ)` on the diagonal, the heat capacity of the solid before this step's reaction. `H` is then stored on the mass that remains.
+
+`A` is the optional `anisotropyK` tensor; `S_chem` is the solid reaction heat (`chemistrySh`), `hr` with all participants at `Tₛ`. `Q_agent` (`agentHeatUp`) heats a consumed agent from the gas `T` to `Tₛ`. Products need no further solid term: the last term already lets the converted solid leave at `Tₛ`. Reference temperatures differ (solid `H` from 0 K, gas `h` from 298.15 K; to be unified in #173); no temperature depends on them.
 
 **Particle size under `lambdaMode apparentVolume`** (`DEM/lambdaDotModels/apparentVolumeLambdaDot/`). With `λ³ₖ = 1/ρ_app,k` the apparent specific volume of specie `k`, and `Ymₖ` taken before this step's solve:
 

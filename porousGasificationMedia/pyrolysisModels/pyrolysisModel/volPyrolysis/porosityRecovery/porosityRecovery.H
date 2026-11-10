@@ -212,7 +212,7 @@ public:
 
         //- Recover the porosity from the transported solid mass
         //  1 - porosity = sum_i Ym_i/rho_i, exactly. Last stage of
-        //  evolveRegion(): divides by the rho_ recoverTemperatureAfterReaction() sets.
+        //  evolveRegion(): divides by the rho_ SolidEnergy::solve() sets.
         void recover();
 };
 

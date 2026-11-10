@@ -603,12 +603,16 @@ void volPyrolysis::preEvolveRegion() {
 
 void volPyrolysis::evolveRegion()
 {
-    // Per step: rates and interface enthalpy, the solid flux and its check,
-    // energy, species, Ts on the remaining mass, then porosity and the bed.
+    // Per step: rates and exchange from the step-start state, the solid flux
+    // and its check, species, energy on the new mass, then porosity and bed.
     // Each stage reads what the ones above it left; the order sets results.
     updateTransferCoefficients();
     solveChemistry();
     updateInterfaceEnthalpy();
+    if (active_ && !equilibrium_)
+    {
+        heatExchange_->updateHeatTransfer();
+    }
 
     // Settle how much solid each face may carry before any solid field is
     // transported. Needs the chemistry rates, so it follows their solve.
@@ -617,12 +621,15 @@ void volPyrolysis::evolveRegion()
     // either moves: keep it directly after limitSolidFlux().
     solidDiagnostics_->checkSolidCrossing(phiSolid_, Ys_, Ym_);
 
-    // Energy before species: solidH_ holds the pre-reaction solid until
-    // recoverTemperatureAfterReaction() restates it on the mass that remains.
-    solidEnergy_->solve();
+    // Species before energy: the enthalpy balance is closed on the mass
+    // that remains, with the fluxes that moved it.
     speciesTransport_->solve();
     reportSolidMassBudget();
-    solidEnergy_->recoverTemperatureAfterReaction();
+    solidEnergy_->solve(speciesTransport_->specieMassFlux());
+
+    // The DEM temperature term differences this step's Ts.
+    demCoupling_->addTemperatureTerm();
+    demCoupling_->finishStep();
 
     porosityRecovery_->recover();
 
