@@ -67,7 +67,7 @@ Built from the committed `reference/` files on `main` at 5cec447, each case's `s
 | `PorosityAverage`, `PorosityMin` | invariant | — | inflow: flat at 0.5 |
 | `SolidSpeciesIntegrals` `Ycharm`, `Yashm` | live | char and ash mass entering | — |
 | `SolidSpeciesIntegrals` `Yhumm`, `Yrubberwoodm` | dead | nothing | — |
-| `TsAverage`, `TsMax`, `TsMin` | live | solid heating (269–489 K); the domain is full of solid | — |
+| `TsAverage`, `TsMax`, `TsMin` | invariant | 300 K: inlet solid, bed and gas are all at 300 K with chemistry off. The committed 269–489 K is an artefact of the pre-#173 solve (see Recaptures) | solid heating |
 
 ### canonical
 
@@ -175,6 +175,34 @@ The fixtures were captured with `--all-files`, so `H3`, `H4`, `H5`, `H9s`, `H10s
 | | `volAverage(T)`, `(Ts)` | +2.2 K (2.2e-3), +0.1 K (1.0e-4) | CO now depletes more slowly, so more of it is left to release heat later in the run (not analysed further) |
 
 `CharIntegral` and `PorosityAverage` are unchanged.
+
+**#173 PR B (pending, not recaptured).** Species now move before the energy solve, and one enthalpy balance solved for `Ts` replaces the two equations and four `H`↔`Ts` conversions. Old baselines kept; the moves below wait for the shared recapture. Old is build `b5b799f733f4`, new is `a5f8b08ddc49`.
+
+| Case | Column | Move | Why |
+|---|---|---|---|
+| `pyrolysis`, `pyrolysisE`, `radiation`, `meanTemp`, `stoichiometric`, `enthalpy`, `noSubintegration` | `max(Ts)` | 1.0e-4 (+0.056 K) | accepted: discretisation only (CN), O(dt) |
+| `pyrolysis`, `pyrolysisE` | `volAverage(p)` | 2.0e-4 | same |
+| `radiation`, `meanTemp` | `volAverage(G)` | 2.2e-4, 2.0e-4 against the baseline (2.9e-4, 2.7e-4 against the old build) | same |
+| `conservation/chemistryGateCrossing` | `Ywoodm`, `solidSensible`, `solidChemistrySh`, `max(Ts)`, `max(T)` | 5.3e-3, 4.3e-3, 2.6e-3, 9.1e-4, 2.1e-4 | reaction and transport no longer split inside the energy step |
+| `charOnlyMoveCases/serial` | `max(Ts)`, char-weighted `Ts` | 3.8e-4, 1.5e-4 | per-species enthalpy flux |
+| `charOnlyMoveCases/solidInlet_ash` | `TsAverage`, `TsMax`, `TsMin` | 322, 489, 270 K → 300 K exactly | the old advection carried mixture-`Cp` enthalpy across a char/ash front |
+| `serial_m2`, `serial_m4` (convergence tier) | `max(Ts)` | 1.9e-2, 4.0e-2 | as `serial`; the char-weighted `Ts` order is unchanged (0.79–1.38) |
+
+- **Discretisation only.** The seven static cases use `CrankNicolson 0.3`. With `Euler` the two builds agree to 6.3e-11 on every column of all seven. With CN the old-minus-new difference at t = 0.5 halves when dt does (0.01 → 0.005), on every column:
+
+  | Case | Column | dt | dt/2 | Ratio |
+  |---|---|---|---|---|
+  | `pyrolysis` | `max(Ts)` | +5.64e-2 K | +2.77e-2 K | 0.49 |
+  | | `volAverage(p)` | +850 Pa | +437 Pa | 0.51 |
+  | | `volAverage(Ts)`, `(T)` | +1.82e-2, +2.54e-2 K | +9.13e-3, +1.28e-2 K | 0.50, 0.51 |
+  | `pyrolysisE` | `max(Ts)`, `volAverage(p)` | +5.68e-2 K, +857 Pa | +2.79e-2 K, +439 Pa | 0.49, 0.51 |
+  | `radiation` | `volAverage(G)` | +3.50 | +1.81 | 0.52 |
+  | `meanTemp` | `volAverage(G)` | +0.791 | +0.409 | 0.52 |
+
+  The other columns (`targas`, `porosityF`, `Ywoodm`, `min(Ts)`) stay inside `rtol` and have ratios 0.51–0.55. The source: under CN the carrier heat capacity `Σ max(Ym_i − dt·RRs_i, 0)·Cp_i` is not the old-time mass the scheme blends with.
+- **Uniform `Ts` under pure transport** is now exact: `solidInlet_ash` has `max|Ts − 300| = 0`, and `rightWallSolidAccumulationFromLeftInlet`'s `== 300` check holds.
+- **Composition term (D8).** Taking it explicit instead of implicit moves `pyrolysis` `max(Ts)` by +0.19 K (3.4e-4) and `volAverage(p)` by 5.7e-4, first order in dt. Implicit is kept.
+- **DEM tier**, new against old build under Yade `d5c33e0`: `lambdaDotTemperature` and `lambdaDotBoth` move `lambdaDotMax` by 7.0e-5 and 1.06e-4, `lambdaDotAverage` by 1.5e-5 and 1.7e-5; `lambdaDotChemistry`, `lambdaDotOff` and `lambdaDotApparentVolume` do not move (≤ 4e-9). Two runs of the new build are byte-identical. `lambdaDotTemperature` and `lambdaDotBoth` fail against the committed baselines with the old build too, on the same five files. `lambdaDotAltInterp` was not run.
 
 ## Next
 
