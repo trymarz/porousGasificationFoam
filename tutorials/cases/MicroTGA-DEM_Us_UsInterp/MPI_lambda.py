@@ -22,7 +22,7 @@ spring_frame_number = 0
 
 #timeRatio = 5000  # itterations to write vtk files
 
-yadeDtFixed = 5e-6 #5e-6
+yadeDtFixed = 1e-6  # rate modes need deltaT/yadeDt to be an integer (#230)
 O.dynDt = False
 O.dt    = yadeDtFixed
 
