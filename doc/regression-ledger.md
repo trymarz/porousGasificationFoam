@@ -166,6 +166,16 @@ All six metrics in every case: `volIntegrate`, `min`, `max` of `Ycharm`, and `vo
 
 The fixtures were captured with `--all-files`, so `H3`, `H4`, `H5`, `H9s`, `H10s` are recaptured though they were within `rtol`; `H5` and `H9s` by only 2%. Their invariant columns changed with the file. `massRatio` is no longer exactly 1 because the gas rescale that forced it (`1e13ea8`) is gone. `H1` and `H1s` also carry the new time step in the `Time` column.
 
+**#226.** `gasification` only, from build `b5b799f733f4`; `conservation/gasReactionPorosity` gets its first baseline from the same build. YEqn now weights `reaction->R(Yi)` by `porosityF`, as EEqn already weighted `Qdot`. Before, in porous cells the species reacted at 1/porosityF times the rate the heat release implied. `gasification` is the only fast case with gas chemistry in porous cells that actually reacts. `charOnlyMoveCases/serial` has porous cells (0.99), but its gas is air at 352 K or below, so the rate there is zero. `interfaceEnthalpyGasification` runs with combustion `active false`.
+
+| Case | Column | Move | Why |
+|---|---|---|---|
+| `gasification` | `volAverage(CO2)` | 0.41x at the first sample (≈ porosityF = 0.4), 0.70x at the last | the CO oxidation rate is now 0.4x what it was |
+| | `volAverage(CO)`, `(O2)` | +27%, +2.8% at the last sample | less CO is burned |
+| | `volAverage(T)`, `(Ts)` | +2.2 K (2.2e-3), +0.1 K (1.0e-4) | CO now depletes more slowly, so more of it is left to release heat later in the run (not analysed further) |
+
+`CharIntegral` and `PorosityAverage` are unchanged.
+
 ## Next
 
 - Step 4: turn the invariant rows into explicit checks (bounds, zero residuals, conserved totals, Darcy's law) instead of 100-row copies of one value.
