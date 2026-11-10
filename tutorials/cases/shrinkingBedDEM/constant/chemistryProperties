@@ -1,0 +1,68 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  8
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      chemistryProperties;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+chemistry           on;
+
+chemistryType
+{
+    solver            ode;
+}
+
+solidChemistryType
+{
+    solver              solidOde;
+    method              ODESolidHeterogeneousChemistryModel;
+    solidThermoType     const<constRad<constThermo<constRho>>>;
+}
+
+initialChemicalTimeStep 1e-10;
+
+turbulentReaction   off;
+solidReactionEnergyFromEnthalpy false;
+stoichiometricReactions false;
+showRelativeReactionRates false;
+solidChemistryTimeStepControl false;
+
+diffusionLimitedReactions true;
+
+odeCoeffs
+{
+    solver   seulex;
+    absTol   1e-8;
+    relTol   1e-4;
+}
+
+// RKCK45 (explicit Cash-Karp) avoids the Jacobian, as in LEIgasifierDEM.
+solidOdeCoeffs
+{
+    solver   RKCK45;
+    absTol   1e-8;
+    relTol   1e-4;
+}
+
+#include "reactions"
+
+solidReactions
+(
+    // One lumped devolatilisation step, no heat of reaction, so the bed stays
+    // isothermal: k = A exp(-Ta/T) = 0.1 1/s at the case's 600 K.
+    irreversibleSolidArrheniusHeterogeneousReaction
+    wood = tar
+    (7.2e9 1.5e4 300 0 1)
+);
+
+// ************************************************************************* //
