@@ -156,8 +156,9 @@ class SolidEnergy
             const volScalarField& totalYm
         ) const;
 
-        //- Floored sum_i Ym_i*Cp_i of that pre-reaction solid [J/m^3/K]
-        tmp<volScalarField> preReactionHeatCapacity
+        //- Floored sum_i Ym_i*Cp_i of the solid that carried solidH_
+        //  into this step, i.e. the pre-reaction solid [J/m^3/K]
+        tmp<volScalarField> carrierHeatCapacity
         (
             const volScalarField& preReactionYm
         );
@@ -180,6 +181,10 @@ class SolidEnergy
             const volTensorField& composedK
         );
 
+        //- Ts equation sources [W/m3]: reaction heat and radiation gated by
+        //  connectedAtStepStart, minus gas exchange and agent heat-up
+        tmp<volScalarField> solidSources();
+
         //- Ts equation: conduction, reaction heat, gas exchange, radiation
         void solveTsEquation
         (
@@ -187,6 +192,9 @@ class SolidEnergy
             const volScalarField& rhoCp,
             const volScalarField& solidBeyondTrace
         );
+
+        //- div of the enthalpy flux, phiYm*upwind(Cp*Ts) [W/m3]
+        tmp<volScalarField> advectiveEnthalpyFlux() const;
 
         //- Advect solidH with the solid mass flux
         void advectSolidH

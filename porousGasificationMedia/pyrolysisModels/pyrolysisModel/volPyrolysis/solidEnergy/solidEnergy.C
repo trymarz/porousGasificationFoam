@@ -135,7 +135,7 @@ Foam::tmp<Foam::volScalarField> SolidEnergy::preReactionMass
     );
 }
 
-Foam::tmp<Foam::volScalarField> SolidEnergy::preReactionHeatCapacity
+Foam::tmp<Foam::volScalarField> SolidEnergy::carrierHeatCapacity
 (
     const volScalarField& preReactionYm
 )
@@ -255,12 +255,7 @@ Foam::tmp<Foam::fvScalarMatrix> SolidEnergy::conductionWithinSolid
     return tTLap;
 }
 
-void SolidEnergy::solveTsEquation
-(
-    const volTensorField& composedK,
-    const volScalarField& rhoCp,
-    const volScalarField& solidBeyondTrace
-)
+Foam::tmp<Foam::volScalarField> SolidEnergy::solidSources()
 {
     const volScalarField& connectedAtStepStart = solidState_.connectedAtStepStart();
 
@@ -283,6 +278,22 @@ void SolidEnergy::solveTsEquation
     // wherever there is solid) with no connected gate of its own.
     volScalarField solidChemistrySource = connectedAtStepStart*chemistrySh_;
 
+    return
+        solidChemistrySource // eqZx2uHGn004, eqZx2uHGn017
+      - interphaseHeatTransfer // eqZx2uHGn005
+      - agentHeatUp
+      + solidRadiationSource;
+}
+
+void SolidEnergy::solveTsEquation
+(
+    const volTensorField& composedK,
+    const volScalarField& rhoCp,
+    const volScalarField& solidBeyondTrace
+)
+{
+    const tmp<volScalarField> tSources(solidSources());
+
     const tmp<fvScalarMatrix> tTLap(conductionWithinSolid(composedK));
 
     fvScalarMatrix TEqn
@@ -290,10 +301,7 @@ void SolidEnergy::solveTsEquation
         fvm::ddt(rhoCp,T_)
       - tTLap()
     ==
-        solidChemistrySource // eqZx2uHGn004, eqZx2uHGn017
-      - interphaseHeatTransfer // eqZx2uHGn005
-      - agentHeatUp
-      + solidRadiationSource
+        tSources()
     );
 
     TEqn.relax();
@@ -308,16 +316,20 @@ void SolidEnergy::solveTsEquation
 
     if (badTEqnCell != -1)
     {
+        const scalar gate =
+            solidState_.connectedAtStepStart()[badTEqnCell];
+
         OStringStream context;
         context
             << "    rhoCp        = " << rhoCp[badTEqnCell] << nl
             << "    chemistrySh  = "
-            << solidChemistrySource[badTEqnCell] << nl
+            << gate*chemistrySh_[badTEqnCell] << nl
             << "    heatTransfer = "
-            << interphaseHeatTransfer[badTEqnCell] << nl
-            << "    agentHeatUp  = " << agentHeatUp[badTEqnCell] << nl
+            << heatExchange_.heatTransfer()[badTEqnCell] << nl
+            << "    agentHeatUp  = "
+            << heatExchange_.agentHeatUp()[badTEqnCell] << nl
             << "    radiationSh  = "
-            << solidRadiationSource[badTEqnCell] << nl
+            << gate*radiationSh_[badTEqnCell] << nl
             << "    porosity     = " << porosity_[badTEqnCell];
 
         solidDiagnostics_.abort
@@ -330,11 +342,7 @@ void SolidEnergy::solveTsEquation
     }
 }
 
-void SolidEnergy::advectSolidH
-(
-    const volScalarField& rhoCp,
-    const volScalarField& totalYm
-)
+Foam::tmp<Foam::volScalarField> SolidEnergy::advectiveEnthalpyFlux() const
 {
     const surfaceScalarField& solidFlux = phiSolid_;
 
@@ -355,14 +363,23 @@ void SolidEnergy::advectSolidH
     // Cp*T_, not solidH/totalYm, to match rhoCp's own floor.
     volScalarField hs(solidThermo_.Cp()*T_);
 
+    return fvc::surfaceIntegrate
+    (
+        phiYm*upwind<scalar>(mesh_, phiYm).interpolate(hs)
+    );
+}
+
+void SolidEnergy::advectSolidH
+(
+    const volScalarField& rhoCp,
+    const volScalarField& totalYm
+)
+{
     dimensionedScalar ovDt = pow(mesh_.time().deltaT(),-1);
     fvScalarMatrix sHEqn
     (
         fvm::Sp(ovDt,solidH_) - ovDt*solidH_
-      + fvc::surfaceIntegrate
-        (
-            phiYm*upwind<scalar>(mesh_, phiYm).interpolate(hs)
-        )
+      + advectiveEnthalpyFlux()
     );
 
     sHEqn.relax();
@@ -506,7 +523,7 @@ void SolidEnergy::recoverTemperatureAfterReaction()
     // Divided by the mass that carried the enthalpy: gas-bound solid takes
     // its sensible enthalpy with it, so losing mass must not raise Ts. No
     // solidPresent factor: it lags a stage, and would start the cell at 0 K.
-    const volScalarField rhoCpPreReaction(preReactionHeatCapacity(preReactionYm));
+    const volScalarField rhoCpPreReaction(carrierHeatCapacity(preReactionYm));
     recoverTsFromH(rhoCpPreReaction, totalYm, true);
 
     const label badCell =
