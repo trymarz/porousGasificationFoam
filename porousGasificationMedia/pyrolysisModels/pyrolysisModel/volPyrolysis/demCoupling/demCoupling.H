@@ -30,10 +30,10 @@ Description
     lambdaMode apparentVolume the factor r [-] YADE applies once), which
     lambdaDotModel then pushes to the YADE particles.
 
-    Each step lambdaDot is reset and given its temperature-driven term
-    (beginStep), each solid specie adds its chemistry-driven term
-    (addChemistryTerm), and the boundary values follow once all have
-    contributed (finishStep). Which model computes the terms is selected
+    Each step lambdaDot is reset (beginStep) and given its
+    temperature-driven term (addTemperatureTerm), each solid specie adds
+    its chemistry-driven term (addChemistryTerm), and the boundary values
+    follow once all have contributed (finishStep). Which model computes the terms is selected
     by lambdaMode in constant/lambdaDict; see doc/case-setup.md.
 
     Coupling is active only when constant/yadeProperties has active=true
@@ -121,8 +121,11 @@ public:
             return demActive_;
         }
 
-        //- Reset lambdaDot and add its temperature-driven term
+        //- Reset lambdaDot to zero for this step
         void beginStep();
+
+        //- Add the temperature-driven term; reads this step's solved Ts
+        void addTemperatureTerm();
 
         //- Add the chemistry-driven term of one solid specie; Ym_i is its
         //  mass concentration before this step's solve

@@ -138,6 +138,15 @@ void DemCoupling::beginStep()
     if (demActive_)
     {
         lamDotCalc_->beginStep();
+    }
+#endif
+}
+
+void DemCoupling::addTemperatureTerm()
+{
+#ifdef WITH_YADE
+    if (demActive_)
+    {
         lamDotCalc_->calculateTemperatureDriven();
     }
 #endif
