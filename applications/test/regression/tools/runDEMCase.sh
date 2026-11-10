@@ -352,15 +352,20 @@ ls springs/springs_*.vtp > /dev/null 2>&1 || { echo "ERROR: no spring VTK files 
 nVtk=$(find spheres -maxdepth 1 -name 'vtk-spheres_*.vtu' 2>/dev/null | wc -l)
 [ "$nVtk" -ge 2 ] \
     || { echo "ERROR: $nVtk sphere VTK file(s) written, need at least 2"; finish 1 "$nVtk sphere VTK file(s) written, need at least 2"; }
+# Count only time directories holding a solver field: function-object output
+# alone (e.g. lambdaMinusOne every step) is not a solver write.
 nWrites=$(python3 - <<'PYTIMES'
 import os
 d = "processor0" if os.path.isdir("processor0") else "."
+solverFields = ("U", "p", "T")
 times = []
 for name in os.listdir(d):
     try:
-        times.append(float(name))
+        t = float(name)
     except ValueError:
-        pass
+        continue
+    if any(os.path.isfile(os.path.join(d, name, f)) for f in solverFields):
+        times.append(t)
 print(sum(t > min(times) for t in times) if times else 0)
 PYTIMES
 )

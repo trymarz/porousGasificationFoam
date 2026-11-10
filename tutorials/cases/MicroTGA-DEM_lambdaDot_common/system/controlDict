@@ -94,6 +94,7 @@ functions
         expression      "(mag(lambda - 1) < 0.01) ? lambda - 1 : 0";
         executeControl  timeStep;
         executeInterval 1;
+        writeControl    writeTime;
     }
 
     lambdaDotAverage
