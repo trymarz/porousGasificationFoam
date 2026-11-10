@@ -176,6 +176,7 @@ void SolidSpeciesTransport::solve()
     // Reset lambdaDot and add its temperature term; the chemistry
     // term accumulates per specie in solveSpecieMass().
     demCoupling_.beginStep();
+    demCoupling_.addTemperatureTerm();
 
     for (label i = 0; i < Ys_.size(); ++i)
     {
