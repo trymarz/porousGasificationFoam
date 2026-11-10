@@ -89,7 +89,6 @@ Cases under `tutorials/cases/`. Run all of them with `cd tutorials && ./TestAllC
 | `solidAdvection/` | Solid advection | |
 | `MicroTGA-DEM_*` | DEM-coupled micro TGA, one per `lambdaDot` model | Require a `--yade` build |
 | `simple_line_case/` | DEM-coupled 1-D packed line, pyrolysing | Requires a `--yade` build |
-| `case_line_interpolation/` | Line interpolation test geometry | |
 
 `MicroTGA-DEM_lambdaDot_common/` is shared input for the DEM fixtures, not a runnable case.
 
