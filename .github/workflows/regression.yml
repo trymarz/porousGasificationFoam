@@ -195,6 +195,8 @@ jobs:
           echo "PGF_BUILD_ROOT=$GITHUB_WORKSPACE/pgf-builds" >>"$GITHUB_ENV"
           echo "PGF_RUN_ROOT=$GITHUB_WORKSPACE/pgf-runs" >>"$GITHUB_ENV"
           echo "PGF_YADE_LIBDIR=$GITHUB_WORKSPACE/foam-yade-lib" >>"$GITHUB_ENV"
+          # wmake reads YADE_TRUNK from the environment; build.sh only defaults it locally.
+          echo "YADE_TRUNK=$GITHUB_WORKSPACE/pgf/submodules/Foam-Yade" >>"$GITHUB_ENV"
 
       # The build key hashes PGF sources only; the Foam-Yade commit is added to
       # the cache key so a submodule bump rebuilds the seeded coupling libs.
