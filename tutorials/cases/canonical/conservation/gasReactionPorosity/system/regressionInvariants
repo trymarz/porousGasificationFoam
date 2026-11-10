@@ -1,0 +1,10 @@
+# Declared invariants, checked by applications/test/regression/tools/checkInvariants.py
+# before the baseline comparison; see doc/regression-testing.md.
+# Written by gasReactionPorosity.py: per step, the
+# chemical enthalpy the species lost over the h EEqn gained (eps*Qdot*dt), and
+# each species change over its hand value. Before #226 both sat at 1/eps = 2.5.
+regressionGasReactionPorosity  energyRatioMin   ==  1  1e-8
+regressionGasReactionPorosity  energyRatioMax   ==  1  1e-8
+regressionGasReactionPorosity  speciesRatioMin  ==  1  1e-8
+regressionGasReactionPorosity  speciesRatioMax  ==  1  1e-8
+regressionGasReactionPorosity  massChange       zero    1e-15

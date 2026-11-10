@@ -134,6 +134,13 @@ tutorials/cases/canonical/conservation/interfaceEnthalpyGasification  fast
 # by (1 - porosityF)*dp, 180% of the heat received; now it holds within ~1%.
 tutorials/cases/canonical/conservation/gasPressureWork              fast
 
+# gasReactionPorosity is a sealed cell at porosity 0.4 whose only source is the
+# gas reaction 2 CO + O2 = 2 CO2, over two 1e-6 s steps. Its Allrun holds, per
+# step, the chemical enthalpy the species lose over the h EEqn gains from
+# porosityF*Qdot, and each species change over a hand Arrhenius rate, at 1
+# within 1e-8. Before #226 YEqn left porosityF off R(Yi) and both were 2.5.
+tutorials/cases/canonical/conservation/gasReactionPorosity          fast
+
 # Prescribed-Us solid-transport suite — Ycharm advection under analytic Us
 # fields (asserts the transported Ycharm and the porosityF recovered from it,
 # max(porosityF) included so an unbounded void fraction fails the tier).

@@ -130,6 +130,7 @@ These cases assert a balance; the comments in their `regressionFunctions` state 
 | `interfaceEnthalpyMixing` | `TsMax` == 700; `GasTempMax` is the hs mixing temperature to 1e-5 K (checked by its `Allrun`) | `Srho`, `InterfaceEnthalpy`, `TargasMax` |
 | `interfaceEnthalpyGasification` | `GasTempMax`, `TsMax` == 900 | `COMax`, `O2Min`, `Srho`, `InterfaceEnthalpy`; `AgentHeatUp` 0 to roundoff |
 | `gasPressureWork` | `HeatTransferResidual` ~8e-16; `GasEnergyResidual` **question** (finding 6) | `HeatTransferExchanged`, `PAverage`, `TAverage`, `TsAverage` |
+| `gasReactionPorosity` (#226) | `energyRatioMin/Max`, `speciesRatioMin/Max` == 1 within 1e-8 (observed 1e-9; 2.5 = 1/eps with YEqn's unweighted `R(Yi)`); `massChange` 0 | `regressionGasState`: the cell's `N2 O2 CO CO2 T h rho p porosityF` per step |
 
 The comparator's `atol = 1e-12` is the effective threshold for the zero and roundoff columns.
 
