@@ -2,15 +2,17 @@ MicroTGA-DEM_lambdaDot_common — shared input for the lambdaDot DEM fixtures
 ===========================================================================
 
 This is NOT a runnable case. It holds one copy of the input files that are
-byte-identical across the five lambdaDot regression fixtures:
+byte-identical across the six lambdaDot regression fixtures:
 
     MicroTGA-DEM_lambdaDotOff
     MicroTGA-DEM_lambdaDotTemperature
     MicroTGA-DEM_lambdaDotChemistry
     MicroTGA-DEM_lambdaDotBoth
     MicroTGA-DEM_lambdaDotAltInterp
+    MicroTGA-DEM_lambdaDotApparentVolume
 
-Each of those five directories symlinks these files in, so the fixtures still
+Each of those six directories symlinks these files in (...ApparentVolume keeps
+its own constant/solidThermophysicalProperties), so the fixtures still
 run standalone (`./Allrun`) and are still listed one-per-line in
 applications/test/regression/cases_yade.list — nothing in the regression
 runner knows this directory exists. It carries no entry there itself.
@@ -18,8 +20,8 @@ runner knows this directory exists. It carries no entry there itself.
 What stays real and per-case, and is therefore where a reviewer should look
 for what actually differs between the fixtures:
 
-    constant/lambdaDict            the test parameter (five distinct versions)
-    Allrun                         differs by the asserted lambdaDot sign
+    constant/lambdaDict            the test parameter (six distinct versions)
+    Allrun                         differs by its lambdaDot assertions
     reference/postProcessing/      the committed baseline data
     0.orig/                        see below
 
@@ -29,7 +31,7 @@ does write under constant/ — constant/polyMesh/ — is generated fresh by
 blockMesh on every run and is untracked, so it is not affected.)
 
 0.orig/ is deliberately NOT shared, even though it is identical across the
-five cases. A run copies it to 0/ via restore0Dir, which uses `cp -r`; that
+six cases. A run copies it to 0/ via restore0Dir, which uses `cp -r`; that
 preserves symlinks rather than dereferencing them, so setFields writing
 porosityF/porosityF0 into 0/ would follow the link and overwrite the shared
 copy. Keeping 0.orig/ real per-case makes that impossible by construction.
