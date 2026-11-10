@@ -1,0 +1,28 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  8
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      lambdaDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// Yade multiplies each sphere's lambda by r = cbrt(1 + dV_chem/V_old) once per
+// exchange, and MPI_lambda.py's changeRadius() sets radius = r0 * lambda.
+// wood = tar leaves no solid, so lambda falls towards 0 and changeRadius()
+// erases a sphere once its radius drops below 0.1 mm.
+lambdaMode apparentVolume;
+
+// Optional guards, shown at their defaults.
+minSolidVolume  1e-6;   // [-] V_old below this: r = 1
+minVolumeRatio  1e-6;   // [-] floor on 1 + dV_chem/V_old
+
+// ************************************************************************* //

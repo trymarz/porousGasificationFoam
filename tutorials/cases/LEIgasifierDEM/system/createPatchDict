@@ -1,0 +1,38 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  8
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "system";
+    object      createPatchDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// Turns the four faces collected by system/topoSetDict into the air-nozzle
+// patch. They are removed from "wall" in the process.
+//
+// Done here rather than in system/make_mesh.py because a nozzle one cell row
+// tall would need block 3 split at z = 0.34, and make_mesh.py's own comment
+// records that explicit z-counts on the tapered blocks raise
+// InconsistentGrading in classy_blocks.
+
+pointSync false;
+
+patches
+(
+    {
+        name            nozzle;
+        patchInfo       { type patch; }
+        constructFrom   set;
+        set             nozzleFaces;
+    }
+);
+
+// ************************************************************************* //
