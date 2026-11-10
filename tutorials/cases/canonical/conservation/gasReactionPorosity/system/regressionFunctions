@@ -1,0 +1,29 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     |                                                 |
+|   \\  /    A nd           |                                                 |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+// The state after each step, read by gasReactionPorosity.py: the gas
+// composition, T, h and rho of the one cell, at full precision.
+regressionGasState
+{
+    type            volFieldValue;
+    libs            (fieldFunctionObjects);
+    regionType      all;
+    operation       volAverage;
+    fields          (N2 O2 CO CO2 T h rho p porosityF);
+    postOperation   none;
+    weightField     none;
+    writeFields     false;
+    writePrecision  16;
+    writeToFile     true;
+    log             false;
+    executeControl  timeStep;
+    executeInterval 1;
+    writeControl    timeStep;
+    writeInterval   1;
+}
+
+// ************************************************************************* //

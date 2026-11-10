@@ -1,0 +1,14 @@
+#!/bin/sh
+cd "${0%/*}" || exit
+# A sealed cell at porosityF = 0.4 holding char that never reacts (Tcrit
+# 1e4 K) and gas reacting 2 CO + O2 = 2 CO2: two 1e-6 s Euler steps, h = 0,
+# dpdt no, U = 0. Only the gas reaction moves Y and h, so per step
+#   eps*rho*dY_i = eps*RR_i*dt  and  eps*rho*dh = eps*Qdot*dt = -eps*sum(Hc_i*RR_i)*dt.
+# gasReactionPorosity.py holds -sum(Hc_i*dY_i)/dh and dY_i over its hand value
+# (RR_i from the Arrhenius rate at the step start) at 1. Before #226 YEqn
+# dropped the eps on the species side: both ratios were 1/eps = 2.5.
+. ${WM_PROJECT_DIR:?}/bin/tools/RunFunctions
+restore0Dir
+runApplication blockMesh || exit
+runApplication $(getApplication) || exit
+python3 gasReactionPorosity.py > log.gasReactionPorosity 2>&1 || { cat log.gasReactionPorosity >&2; exit 1; }

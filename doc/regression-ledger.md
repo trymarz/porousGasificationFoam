@@ -130,6 +130,7 @@ These cases assert a balance; the comments in their `regressionFunctions` state 
 | `interfaceEnthalpyMixing` | `TsMax` == 700; `GasTempMax` is the hs mixing temperature to 1e-5 K (checked by its `Allrun`) | `Srho`, `InterfaceEnthalpy`, `TargasMax` |
 | `interfaceEnthalpyGasification` | `GasTempMax`, `TsMax` == 900 | `COMax`, `O2Min`, `Srho`, `InterfaceEnthalpy`; `AgentHeatUp` 0 to roundoff |
 | `gasPressureWork` | `HeatTransferResidual` ~8e-16; `GasEnergyResidual` **question** (finding 6) | `HeatTransferExchanged`, `PAverage`, `TAverage`, `TsAverage` |
+| `gasReactionPorosity` (#226) | `energyRatioMin/Max`, `speciesRatioMin/Max` == 1 within 1e-8 (observed 1e-9; 2.5 = 1/eps with YEqn's unweighted `R(Yi)`); `massChange` 0 | `regressionGasState`: the cell's `N2 O2 CO CO2 T h rho p porosityF` per step |
 
 The comparator's `atol = 1e-12` is the effective threshold for the zero and roundoff columns.
 
@@ -164,6 +165,16 @@ All six metrics in every case: `volIntegrate`, `min`, `max` of `Ycharm`, and `vo
 - **Old ODE error.** The old right-hand side did not depend on the concentrations but its Jacobian did, so seulex was accurate only to `relTol`, 1e-4 by default. In `chemistryGateCrossing` the heavy cell's rate ran about 0.5% low whatever dt was, and only the heavy cell. The dt → 0 limit of `pyrolysis` p sat 1.8e-4 below the new build's, and `chemistryGateCrossing`'s `Ywoodm` 3e-3 above. With only those Jacobian entries zeroed, the old build agrees with the new limit to 3e-6. The new build's Jacobian matches its right-hand side and does not depend on `relTol`. `gasification` and `interfaceEnthalpyGasification` do not show this error.
 
 The fixtures were captured with `--all-files`, so `H3`, `H4`, `H5`, `H9s`, `H10s` are recaptured though they were within `rtol`; `H5` and `H9s` by only 2%. Their invariant columns changed with the file. `massRatio` is no longer exactly 1 because the gas rescale that forced it (`1e13ea8`) is gone. `H1` and `H1s` also carry the new time step in the `Time` column.
+
+**#226.** `gasification` only, from build `b5b799f733f4`; `conservation/gasReactionPorosity` gets its first baseline from the same build. YEqn now weights `reaction->R(Yi)` by `porosityF`, as EEqn already weighted `Qdot`. Before, in porous cells the species reacted at 1/porosityF times the rate the heat release implied. `gasification` is the only fast case with gas chemistry in porous cells that actually reacts. `charOnlyMoveCases/serial` has porous cells (0.99), but its gas is air at 352 K or below, so the rate there is zero. `interfaceEnthalpyGasification` runs with combustion `active false`.
+
+| Case | Column | Move | Why |
+|---|---|---|---|
+| `gasification` | `volAverage(CO2)` | 0.41x at the first sample (≈ porosityF = 0.4), 0.70x at the last | the CO oxidation rate is now 0.4x what it was |
+| | `volAverage(CO)`, `(O2)` | +27%, +2.8% at the last sample | less CO is burned |
+| | `volAverage(T)`, `(Ts)` | +2.2 K (2.2e-3), +0.1 K (1.0e-4) | CO now depletes more slowly, so more of it is left to release heat later in the run (not analysed further) |
+
+`CharIntegral` and `PorosityAverage` are unchanged.
 
 ## Next
 

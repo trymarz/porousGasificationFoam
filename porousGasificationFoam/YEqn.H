@@ -27,7 +27,8 @@ tmp<fv::convectionScheme<scalar>> mvConvection
               + mvConvection->fvmDiv(phi, Yi)
               - fvm::laplacian(turbulence->muEff(), Yi)
              ==
-                reaction->R(Yi)
+                // R(Yi) is per unit gas volume; weight by porosityF as EEqn does Qdot (#226)
+                porosityF*reaction->R(Yi)
               + fvOptions(rho, Yi)
               + pyrolysisZone.Srho(i)
             );
