@@ -177,7 +177,7 @@ A zero, negative or non-numeric `--jobs` is an `ERROR` (exit 2).
 applications/test/regression/Allrun.yade --short   # smoke: 50 solver steps, no baseline
 applications/test/regression/Allrun.yade           # full run (hours)
 applications/test/regression/Allrun.yade --list    # selection only
-tools/runDEMCase.sh tutorials/cases/simple_line_case [--timeout S] [--run-dir D [--short-steps N]]
+tools/runDEMCase.sh tutorials/experimental/simple_line_case [--timeout S] [--run-dir D [--short-steps N]]
 ```
 
 - Needs a Yade-enabled build (`./build.sh --yade` / `build-pgf --yade`), Yade and `mpirun`. Cases are listed in `cases_yade.list`.
