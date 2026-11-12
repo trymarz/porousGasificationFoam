@@ -25,16 +25,17 @@ Class
     Foam::heterogeneousPyrolysisModels::PorosityRecovery
 
 Description
-    Porosity recovery, the last stage of the solid step.
+    Porosity recovery and the emptying of flipped cells, stages of the
+    solid step that volPyrolysis::evolveRegion() calls one by one.
 
     Porosity is not transported: 1 - porosity = sum_i Ym_i/rho_i, an
-    identity of the solid mixture density, so recover() first restates
-    it from the transported mass. It then picks the dispersed or trace
-    cells to empty - inside the bed or on a receding edge, unless solid
-    is still flowing in - and hands them to the bed collapse or, under
-    emptyFlippedCells, removes their solid (mass destroyed, charged to
-    flippedMass()). Last it refreshes the solid masks, the bed-border
-    flags and the connectedAtStepStart gate the next step reads.
+    identity of the solid mixture density, so updatePorosity() restates
+    it from the transported mass. findFlipCells() picks the dispersed or
+    trace cells to empty - inside the bed or on a receding edge, unless
+    solid is still flowing in - for the bed collapse or, under
+    emptyFlippedCells, for emptyCells(), which removes their solid (mass
+    destroyed, charged to flippedMass()). markBedBorderCells() flags the
+    solid cells on the bed border.
 
     Each write of porosity is guarded: a solid fraction outside
     [0, maxSolidFraction] aborts the run.
@@ -62,7 +63,6 @@ SourceFiles
 #include "solidState.H"
 #include "solidFields.H"
 #include "solidDiagnostics.H"
-#include "bedCollapse.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -70,6 +70,24 @@ namespace Foam
 {
 namespace heterogeneousPyrolysisModels
 {
+
+/*---------------------------------------------------------------------------*\
+                         Struct FlipCells Declaration
+\*---------------------------------------------------------------------------*/
+
+//- The cells to empty this step
+struct FlipCells
+{
+    //- On this rank
+    labelList local;
+
+    //- Every rank's list, on every rank
+    List<Field<label>> allRanks;
+
+    //- Number over all ranks
+    label nGlobal;
+};
+
 
 /*---------------------------------------------------------------------------*\
                       Class PorosityRecovery Declaration
@@ -109,15 +127,12 @@ class PorosityRecovery
         //- Border cells inside the solid body, owned by volPyrolysis
         volScalarField& cellOnBedBorder_;
 
-        SolidState& solidState_;
-
-        BedCollapse& bedCollapse_;
+        const SolidState& solidState_;
 
         //- Fail-fast guards, owned by volPyrolysis
         const SolidDiagnostics& solidDiagnostics_;
 
-        //- The owner's switches, bound so a runtime read() takes effect
-        const Switch& active_;
+        //- The owner's switch, bound so a runtime read() takes effect
         const Switch& infoOutput_;
 
         //- Switch for emptying a flipped cell rather than leaving its solid
@@ -141,39 +156,6 @@ class PorosityRecovery
 
     // Private member functions
 
-        //- Abort if any cell's solid fraction left [0, maxSolidFraction]
-        //  Below the floor a cell has no gas volume, and every gas equation
-        //  divides by it. Called each time recover() writes porosity_.
-        void guardPorosity
-        (
-            const word& stage,
-            const volScalarField& por,
-            const surfaceScalarField& phiUs
-        ) const;
-
-        //- porosity = 1 - totalYm/rho on the internal field, then guarded
-        void porosityFromSolidMass(const volScalarField& totalYm);
-
-        //- Dispersed or trace cells to empty, less those solid is still
-        //  flowing into; nFlips returns their global count
-        labelList cellsToEmpty
-        (
-            const volScalarField& totalYm,
-            label& nFlips
-        );
-
-        //- Every rank's cells to empty, on every rank
-        List<Field<label>> gatherFlipLists
-        (
-            const labelList& flipCells
-        ) const;
-
-        //- Remove the solid of the cells to empty; mass destroyed
-        void emptyCells(const labelList& flipCells, const label nFlips);
-
-        //- Flag solid cells that face a partly solid face
-        void markBedBorderCells();
-
         //- Disallow default bitwise copy construct
         PorosityRecovery(const PorosityRecovery&);
 
@@ -185,14 +167,12 @@ public:
 
     // Constructors
 
-        //- Construct from the owner's coefficients, solid fields and stages;
-        //  flags the initial bed border
+        //- Construct from the owner's coefficients, solid fields and guards
         PorosityRecovery
         (
             const dictionary& coeffs,
             const SolidFields& solid,
             volScalarField& cellOnBedBorder,
-            BedCollapse& bedCollapse,
             const SolidDiagnostics& solidDiagnostics,
             const Switch& infoOutput
         );
@@ -210,10 +190,32 @@ public:
             return cumulativeFlipMass_;
         }
 
-        //- Recover the porosity from the transported solid mass
-        //  1 - porosity = sum_i Ym_i/rho_i, exactly. Last stage of
-        //  evolveRegion(): divides by the rho_ SolidEnergy::solve() sets.
-        void recover();
+        //- Whether flipped cells are emptied when the bed does not collapse
+        bool emptyFlippedCells() const
+        {
+            return emptyFlippedCells_;
+        }
+
+        //- porosity = 1 - sum_i Ym_i/rho_i on the internal field, guarded
+        //  Divides by the rho_ SolidEnergy::solve() sets. Also evaluates
+        //  porosityS, from the step's Ts.
+        void updatePorosity();
+
+        //- Dispersed or trace cells to empty, less those solid is still
+        //  flowing into. Reads last step's solidPresent.
+        FlipCells findFlipCells() const;
+
+        //- Remove the solid of the cells to empty; mass destroyed
+        void emptyCells(const FlipCells& flips);
+
+        //- Abort if any cell's solid fraction left [0, maxSolidFraction]
+        //  Below the floor a cell has no gas volume, and every gas equation
+        //  divides by it. Called after each write of porosity_.
+        void guardPorosity(const word& stage) const;
+
+        //- Flag solid cells that face a partly solid face
+        //  Reads solidPresent and its boundary values as they stand.
+        void markBedBorderCells();
 };
 
 

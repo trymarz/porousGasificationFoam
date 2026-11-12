@@ -43,7 +43,6 @@ PorosityRecovery::PorosityRecovery
     const dictionary& coeffs,
     const SolidFields& solid,
     volScalarField& cellOnBedBorder,
-    BedCollapse& bedCollapse,
     const SolidDiagnostics& solidDiagnostics,
     const Switch& infoOutput
 )
@@ -60,9 +59,7 @@ PorosityRecovery::PorosityRecovery
     chemistry_(solid.chemistry),
     cellOnBedBorder_(cellOnBedBorder),
     solidState_(solid.state),
-    bedCollapse_(bedCollapse),
     solidDiagnostics_(solidDiagnostics),
-    active_(solid.active),
     infoOutput_(infoOutput),
     emptyFlippedCells_
     (
@@ -94,10 +91,6 @@ PorosityRecovery::PorosityRecovery
     Info << "poroProtectSolidInflowFluxTolerance  "
          << poroProtectSolidInflowFluxTolerance_ << " [kg/m3/s]" << endl;
     Info << "emptyFlippedCells        " << emptyFlippedCells_ << endl;
-
-    // The radiation model reads the flags before the first recover(). Not
-    // porosity_'s patches: evaluating a coded inlet here would change step 1.
-    markBedBorderCells();
 }
 
 
@@ -107,44 +100,14 @@ PorosityRecovery::~PorosityRecovery()
 {}
 
 
-// * * * * * * * * * * * * * Private Member Functions  * * * * * * * * * * * //
+// * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * * //
 
-void PorosityRecovery::guardPorosity
-(
-    const word& stage,
-    const volScalarField& por,
-    const surfaceScalarField& phiUs
-) const
+void PorosityRecovery::updatePorosity()
 {
-    const label badCell = solidDiagnostics_.firstInvalidPorosity(por);
+    porositySource_ = chemistry_.RRpor(T_)();
 
-    if (badCell == -1)
-    {
-        return;
-    }
+    const volScalarField totalYm(SolidState::totalMass(Ym_));
 
-    // Read from Ym_ here rather than taken as an argument, so a caller
-    // after the bed motion reports the mass it actually left behind.
-    scalar sumYm = 0.0;
-    forAll(Ym_, i)
-    {
-        sumYm += Ym_[i][badCell];
-    }
-
-    OStringStream context;
-    context
-        << "    maxSolidFraction = " << solidState_.maxSolidFraction() << nl
-        << "    Us           = " << Us_[badCell] << nl
-        << "    div(phiUs)   = " << fvc::div(phiUs)()[badCell] << nl
-        << "    sum(Ym)      = " << sumYm << nl
-        << "    rho          = " << rho_[badCell] << nl
-        << "    solidPresent = " << solidState_.solidPresent()[badCell];
-
-    solidDiagnostics_.abort(stage, por, badCell, context.str());
-}
-
-void PorosityRecovery::porosityFromSolidMass(const volScalarField& totalYm)
-{
     volScalarField& por = porosity_;
 
     // por is not transported: 1 - por = sum_i Ym_i/rho_i = totalYm/rho_,
@@ -166,12 +129,7 @@ void PorosityRecovery::porosityFromSolidMass(const volScalarField& totalYm)
 
     // On the mass the transport just produced, before the bed motion or
     // the emptying of flipped cells writes porosity_ again.
-    guardPorosity
-    (
-        "the porosity recovery in PorosityRecovery::recover()",
-        por,
-        phiSolid_
-    );
+    guardPorosity("the porosity recovery in PorosityRecovery::updatePorosity()");
 
     Info<< "porosity recovered from solid mass. Chemistry source (not"
         << " applied) min/max   = " << gMin(porositySource_)
@@ -181,11 +139,7 @@ void PorosityRecovery::porosityFromSolidMass(const volScalarField& totalYm)
         <<" max Y = " << gMax(por) << endl;
 }
 
-labelList PorosityRecovery::cellsToEmpty
-(
-    const volScalarField& totalYm,
-    label& nFlips
-)
+FlipCells PorosityRecovery::findFlipCells() const
 {
     FIFOStack<label> candidateStack = {};
 
@@ -211,11 +165,9 @@ labelList PorosityRecovery::cellsToEmpty
         }
     }
 
-    // After the candidates: they read the gradient of last step's mask.
-    solidState_.refreshSolidPresent();
-
     // Do not empty a cell while solid is still filling it through the
     // advective transport equation (an advancing edge).
+    const volScalarField totalYm(SolidState::totalMass(Ym_));
     volScalarField divPhiYm
     (
         fvc::div(phiSolid_, totalYm, "div(phiSolid)")
@@ -243,37 +195,31 @@ labelList PorosityRecovery::cellsToEmpty
         }
     }
 
-    nFlips = flipStack.size();
+    FlipCells flips;
+    flips.local = labelList(flipStack);
+    flips.nGlobal = flipStack.size();
 
     reduce(nCandidates, sumOp<label>());
     reduce(nProtected, sumOp<label>());
-    reduce(nFlips, sumOp<label>());
+    reduce(flips.nGlobal, sumOp<label>());
 
     if (infoOutput_ && Pstream::master() && nCandidates > 0)
     {
         Info<< "solid flip guard: candidates=" << nCandidates
             << " vetoed(incoming-solid)=" << nProtected
-            << " flipped=" << nFlips
+            << " flipped=" << flips.nGlobal
             << endl;
     }
 
-    return labelList(flipStack);
+    flips.allRanks.setSize(Pstream::nProcs());
+    flips.allRanks[Pstream::myProcNo()] = flips.local;
+    Pstream::gatherList(flips.allRanks);
+    Pstream::scatterList(flips.allRanks);
+
+    return flips;
 }
 
-List<Field<label>> PorosityRecovery::gatherFlipLists
-(
-    const labelList& flipCells
-) const
-{
-    List<Field<label>> procFlipList(Pstream::nProcs());
-    procFlipList[Pstream::myProcNo()] = flipCells;
-    Pstream::gatherList(procFlipList);
-    Pstream::scatterList(procFlipList);
-
-    return procFlipList;
-}
-
-void PorosityRecovery::emptyCells(const labelList& flipCells, const label nFlips)
+void PorosityRecovery::emptyCells(const FlipCells& flips)
 {
     // Emptying a cell removes its solid outright rather than just
     // rewriting porosity; the mass is destroyed (no destination) and
@@ -281,9 +227,9 @@ void PorosityRecovery::emptyCells(const labelList& flipCells, const label nFlips
     const scalarField& V = mesh_.V();
     scalar flippedMass = 0.0;
 
-    forAll(flipCells,entI)
+    forAll(flips.local,entI)
     {
-        const label cellI = flipCells[entI];
+        const label cellI = flips.local[entI];
 
         forAll(Ym_, i)
         {
@@ -299,7 +245,7 @@ void PorosityRecovery::emptyCells(const labelList& flipCells, const label nFlips
     reduce(flippedMass, sumOp<scalar>());
     cumulativeFlipMass_ += flippedMass;
 
-    if (nFlips > 0)
+    if (flips.nGlobal > 0)
     {
         // Ym_ has changed, so the mass fractions the mixture density
         // is built from have to follow it - the same refresh the
@@ -308,10 +254,38 @@ void PorosityRecovery::emptyCells(const labelList& flipCells, const label nFlips
     }
 }
 
+void PorosityRecovery::guardPorosity(const word& stage) const
+{
+    const label badCell = solidDiagnostics_.firstInvalidPorosity(porosity_);
+
+    if (badCell == -1)
+    {
+        return;
+    }
+
+    // Read from Ym_ here rather than taken as an argument, so a caller
+    // after the bed motion reports the mass it actually left behind.
+    scalar sumYm = 0.0;
+    forAll(Ym_, i)
+    {
+        sumYm += Ym_[i][badCell];
+    }
+
+    OStringStream context;
+    context
+        << "    maxSolidFraction = " << solidState_.maxSolidFraction() << nl
+        << "    Us           = " << Us_[badCell] << nl
+        << "    div(phiUs)   = " << fvc::div(phiSolid_)()[badCell] << nl
+        << "    sum(Ym)      = " << sumYm << nl
+        << "    rho          = " << rho_[badCell] << nl
+        << "    solidPresent = " << solidState_.solidPresent()[badCell];
+
+    solidDiagnostics_.abort(stage, porosity_, badCell, context.str());
+}
+
 void PorosityRecovery::markBedBorderCells()
 {
     cellOnBedBorder_= cellOnBedBorder_*0;
-    solidState_.correctSolidPresentBoundaryConditions();
 
     const volScalarField& solidPresent = solidState_.solidPresent();
     surfaceScalarField solidPresenceAtFaces = fvc::interpolate(solidPresent);
@@ -346,62 +320,6 @@ void PorosityRecovery::markBedBorderCells()
             }
         }
     }
-}
-
-
-// * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * * //
-
-void PorosityRecovery::recover()
-{
-    if (!active_)
-    {
-        return;
-    }
-
-    porositySource_ = chemistry_.RRpor(T_)();
-
-    const volScalarField totalYm(SolidState::totalMass(Ym_));
-
-    porosityFromSolidMass(totalYm);
-
-    label nFlips = 0;
-    const labelList flipCells(cellsToEmpty(totalYm, nFlips));
-    const List<Field<label>> procFlipList(gatherFlipLists(flipCells));
-
-    if (bedCollapse_.active())
-    {
-        if (bedCollapse_.collapseOnto(procFlipList))
-        {
-            // Bed motion moved Ym_ between cells; rebuild the mass
-            // fractions Ys_ from the relocated mass concentrations.
-            SolidState::deriveYiFromYm(Ym_, Ys_);
-        }
-    }
-    else if (emptyFlippedCells_)
-    {
-        emptyCells(flipCells, nFlips);
-    }
-
-    solidState_.refreshSolidPresent();
-
-    // Here, after everything above that writes porosity_ directly: the
-    // bed collapse and the emptying of flipped cells.
-    guardPorosity
-    (
-        "the bed motion in PorosityRecovery::recover()",
-        porosity_,
-        phiSolid_
-    );
-    solidDiagnostics_.checkConsistency(porosity_, Ym_, rho_);
-
-    porosity_.correctBoundaryConditions();
-    markBedBorderCells();
-
-    // porosity_ has just been rewritten; the gate is derived from it.
-    solidState_.freezeConnectedAtStepStart();
-
-    // On the mass the bed motion left, for the written regime record.
-    solidState_.classify(SolidState::totalMass(Ym_)(), rho_);
 }
 
 
