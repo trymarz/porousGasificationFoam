@@ -23,8 +23,8 @@ solverFreq 1;
 
 heterogeneousAbsorptionEmissionModel heterogeneousConstantAbsorptionEmission;
 
-// Grey gas a = 5 1/m.  The bed absorption as is set but there is no solid,
-// so it must not reach gammaRad anywhere, wall faces included (#238).
+// Grey gas, a = 5 1/m.
+// as = 90.9 is set only to prove it never reaches gammaRad without solid (#238).
 heterogeneousConstantAbsorptionEmissionCoeffs
 {
     a               a  [ 0 -1  0 0 0 0 0 ] 5;

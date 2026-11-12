@@ -17,10 +17,7 @@ FoamFile
 
 dimensions      [0 0 0 1 0 0 0];
 
-// Nonuniform so the three participating cells genuinely trade: the hot ones
-// lose and the cold one gains, while the sum over them stays zero.  The
-// gated fourth cell is the hottest of all, so an ungated producer would put
-// the largest emission of the four into G with nobody booking it.
+// No solid in the slab; Ts only has to exist.
 internalField   uniform 1000;
 
 boundaryField

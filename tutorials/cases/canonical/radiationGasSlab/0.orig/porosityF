@@ -17,9 +17,8 @@ FoamFile
 
 dimensions      [0 0 0 0 0 0 0];
 
-// Three cells well connected (porosity below 0.9999) and one just dispersed.
-// The fourth is still solid to radiatingCellHasSolid - 0.99991 < 1 - 1e-8 - so the old
-// ungated producer emitted from it while TEqn booked nothing.
+// No solid anywhere, so both radiating-cell masks say gas-only in every
+// cell, and after #238 on the wall faces too.
 internalField   uniform 1;
 
 boundaryField
