@@ -61,8 +61,9 @@ Description
 
     Sources
     - RRs, RRg = (c_end - c_start)/deltaT and Sh = heat/deltaT, or
-      -(hf RRs + Hc RRg) summed over species under
-      solidReactionEnergyFromEnthalpy: step means, not end-of-step rates.
+      -(h(Ts) RRs + Ha(Ts) RRg) summed over species under
+      solidReactionEnergyFromEnthalpy (formation plus sensible enthalpy at
+      the step-start Ts): step means, not end-of-step rates.
       rho, porosity and ST are frozen over the step, so the coupling to the
       field equations is first order in deltaT.
     - With seulex, after its first step, solidOde ends an interval when every
