@@ -1,5 +1,4 @@
 // Solve the Momentum equation
-// eqZx2uHGn043
 
 
 MRF.correctBoundaryVelocity(U);
@@ -20,7 +19,7 @@ UEqn.relax();
 tmp<volScalarField> trAU;
 tmp<volTensorField> trTU;
 
-pZones.addResistance(UEqn,Df); // eqZx2uHGn015
+pZones.addResistance(UEqn,Df);
 
 fvOptions.constrain(UEqn);
 

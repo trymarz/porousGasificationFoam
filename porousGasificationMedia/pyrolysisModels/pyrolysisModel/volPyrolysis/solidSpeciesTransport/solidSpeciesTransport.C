@@ -164,9 +164,6 @@ void SolidSpeciesTransport::solveSpecieMass(const label i)
 
 void SolidSpeciesTransport::solve()
 {
-// eqZx2uHGn045
-// eqZx2uHGn046
-
     if (debug)
     {
         Info<< "SolidSpeciesTransport:+solve()" << endl;

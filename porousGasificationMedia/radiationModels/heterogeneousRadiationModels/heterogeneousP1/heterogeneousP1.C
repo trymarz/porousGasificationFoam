@@ -335,7 +335,7 @@ void Foam::radiationModels::heterogeneousP1::calculate()
             IOobject::NO_READ,
             IOobject::NO_WRITE
         ),
-        1.0/(3.0*(a_ + as_*radiatingCellHasSolid_ + borderAs_*bedBorderSurfaceAreaDensity_ ) + sigmaEff)  // eqZx2uHGn010
+        1.0/(3.0*(a_ + as_*radiatingCellHasSolid_ + borderAs_*bedBorderSurfaceAreaDensity_ ) + sigmaEff)
     );
 
     // The solid's share of the radiation reservoir, gated by what TEqn will
@@ -344,11 +344,9 @@ void Foam::radiationModels::heterogeneousP1::calculate()
     const volScalarField solidAs(as_ * radiatingCellHasSolid_ * solidState_.connectedAtStepStart());
     const volScalarField borderAsEff(borderAs_ * bedBorderSurfaceAreaDensity_ * solidState_.connectedAtStepStart());
 
-    // eqZx2uHGn013
     volScalarField solidRadiation = (solidAs + borderAsEff) * physicoChemical::sigma * pow4(Ts_);
 
     // Solve G transport equation
-    // eqZx2uHGn009
     solve
     (
         fvm::laplacian(gamma, G_)
@@ -357,7 +355,6 @@ void Foam::radiationModels::heterogeneousP1::calculate()
         - 4.0 * (a_ * physicoChemical::sigma * pow4(T_) + solidRadiation)
     );
 
-    // eqZx2uHGn012
     forAll(G_,cellI)
     {
         solidSh_[cellI] =

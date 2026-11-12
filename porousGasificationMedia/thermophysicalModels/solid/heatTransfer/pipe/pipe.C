@@ -84,7 +84,6 @@ Foam::autoPtr<Foam::pipeCONV> Foam::pipeCONV::New
 
 Foam::tmp<Foam::volScalarField> Foam::pipeCONV::CONV() const
 {
-// eqZx2uHGn007
     Foam::tmp<Foam::volScalarField> CONVloc_ = Foam::tmp<Foam::volScalarField>
     (
         new volScalarField
@@ -111,9 +110,9 @@ Foam::tmp<Foam::volScalarField> Foam::pipeCONV::CONV() const
     {
         // Surface area to volume ratio.
         scalar SAV =  2.0 * sqrt(porosity()[cellI]) * sqrt(initialPorosity()[cellI])
-                     / pipeRadius_; // eqZx2uHGn007
+                     / pipeRadius_;
 
-        scalar h_conv = Nu * kf(cellI, Cp[cellI]) / (2 * pipeRadius_); //eqZx2uHGn020
+        scalar h_conv = Nu * kf(cellI, Cp[cellI]) / (2 * pipeRadius_);
 
         CONVloc_.ref()[cellI] = SAV * h_conv;
     }

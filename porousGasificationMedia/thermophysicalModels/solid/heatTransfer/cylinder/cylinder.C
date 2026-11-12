@@ -49,7 +49,7 @@ Foam::scalar Foam::cylinderCONV::Pr(const label cellI) const
     return mup_[cellI] / alphap_[cellI];
 }
 
-Foam::scalar Foam::cylinderCONV::Nu(const label cellI) const //eqZx2uHGn019
+Foam::scalar Foam::cylinderCONV::Nu(const label cellI) const
 {
     return 2. + 1.1 * pow(Re(cellI), 0.6) * cbrt(Pr(cellI));
 }
@@ -121,9 +121,9 @@ Foam::tmp<Foam::volScalarField> Foam::cylinderCONV::CONV() const
     {
         // Surface area to volume ratio.
         scalar SAV = 2.0 * sqrt(1 - porosity()[cellI]) * sqrt(1 - initialPorosity()[cellI])
-                     / cylinderRadius_; // eqZx2uHGn007
+                     / cylinderRadius_;
 
-        scalar h_conv = Nu(cellI) * kf(cellI) / (2 * cylinderRadius_); //eqZx2uHGn020
+        scalar h_conv = Nu(cellI) * kf(cellI) / (2 * cylinderRadius_);
 
         CONVloc_.ref()[cellI] = SAV * h_conv;
     }

@@ -76,8 +76,8 @@ private:
         //- Disallow default bitwise assignment
         void operator=(const volPyrolysis&);
 
-        //- Read model controls
-        void readReactingOneDimControls();
+        //- Read the controls: nNonOrthogonalCorrectors, maxDi, equilibrium
+        void readControls();
 
         //- Scale the shared solid flux to what the cells can supply and take
         //  Delegates to solidFluxLimiter_ (two-sided saturation limit) and
