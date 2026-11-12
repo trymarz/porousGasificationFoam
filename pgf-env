@@ -4,7 +4,7 @@
 #
 #   pgf-env [--prefix DIR | --for-tree | --bare] [--yade | --no-yade]
 #           [--mpi loopback|default|auto] [--set KEY=VALUE ...] -- <command ...>
-#   pgf-env status [--set KEY=VALUE ...]
+#   pgf-env status | doctor [options]
 #   pgf-env init [--user | --checkout] [--yes] [--foam-bashrc F] [--yade-bin B] [--set K=V ...]
 #   pgf-env shell [options] [-c COMMAND]
 #   pgf-env run [options] <caseDir> [Allrun | Allclean | script] [args ...]
@@ -22,7 +22,10 @@
 #   --bare        no prefix: OpenFOAM only, for running build.sh --isolated
 #   --yade        the WITH_YADE variant, plus yade, YADE_TRUNK and PYTHONPATH
 #                 (PGF_YADE=1 makes it the default; --no-yade overrides that)
-#   --mpi loopback  restrict Open MPI to self,vader,tcp on lo (PGF_MPI)
+#   --mpi loopback  restrict Open MPI to self,vader,tcp on lo (PGF_MPI);
+#                 auto (default) does so on a host with bridges or not exactly
+#                 one interface up; default leaves Open MPI alone
+#   doctor        status plus read-only checks, each OK/WARN/FAIL with a fix
 #   --set KEY=VALUE override one setting for this call (the CLI layer)
 #   --foam-bashrc FILE  same as --set PGF_FOAM_BASHRC=FILE
 #   status        print every setting with the layer it came from, and exit
@@ -70,9 +73,10 @@ fi
 
 . "$PGF_ROOT/utilities/pgf-env/commands.sh"
 . "$PGF_ROOT/utilities/pgf-env/coupling.sh"
+. "$PGF_ROOT/utilities/pgf-env/mpi.sh"
 
 sub="exec"
-case "${1:-}" in status | init | shell | run | install-link) sub="$1"; shift ;; esac
+case "${1:-}" in status | doctor | init | shell | run | install-link) sub="$1"; shift ;; esac
 init_layer="user"
 init_yes=0
 shell_cmd=""
@@ -143,6 +147,11 @@ mpi="$PGF_MPI"
 if [ "$sub" = "status" ]; then
   pgf_conf_print
   exit 0
+fi
+if [ "$sub" = "doctor" ]; then
+  pgf_conf_print
+  pgf_doctor "$mode" "$prefix"
+  exit $?
 fi
 
 case "$sub" in
@@ -273,6 +282,11 @@ if [ "$yade" -eq 1 ]; then
   export PATH
 fi
 
+mpi_note=""
+if [ "$mpi" = "auto" ] && [ -z "${OMPI_MCA_btl_tcp_if_include:-}" ]; then
+  why="$(pgf_mpi_auto)" && { mpi="loopback"; mpi_note="; MPI loopback (auto: $why)"; }
+fi
+[ "$mpi" = "loopback" ] && [ -z "$mpi_note" ] && mpi_note="; MPI loopback"
 if [ "$mpi" = "loopback" ]; then
   export OMPI_MCA_btl=self,vader,tcp OMPI_MCA_btl_tcp_if_include=lo OMPI_MCA_oob_tcp_if_include=lo
 fi
@@ -297,9 +311,9 @@ if [ "$mode" != "bare" ]; then
   esac
   variant="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("variant","?"))' "$prefix/.pgf-build.json" 2>/dev/null)"
   [ "$yade" -eq 1 ] && [ "$variant" != "yade1" ] && die "--yade given, but $prefix is variant $variant"
-  echo "pgf-env: prefix $prefix (key ${prefix##*/}, variant ${variant:-?}, OpenFOAM $WM_PROJECT_VERSION)" >&2
+  echo "pgf-env: prefix $prefix (key ${prefix##*/}, variant ${variant:-?}, OpenFOAM $WM_PROJECT_VERSION$mpi_note)" >&2
 else
-  echo "pgf-env: bare (no prefix; build root $PGF_BUILD_ROOT, OpenFOAM $WM_PROJECT_VERSION)" >&2
+  echo "pgf-env: bare (no prefix; build root $PGF_BUILD_ROOT, OpenFOAM $WM_PROJECT_VERSION$mpi_note)" >&2
 fi
 
 export PGF_ENV_ACTIVE=1
