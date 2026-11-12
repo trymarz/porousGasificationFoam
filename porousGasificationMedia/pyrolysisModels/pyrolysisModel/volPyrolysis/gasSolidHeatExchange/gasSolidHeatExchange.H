@@ -138,6 +138,30 @@ class GasSolidHeatExchange
         //- Compute the interphase exchange from the current state
         tmp<volScalarField> heatTransferCalc() const;
 
+        //- subintegrateHeatTransfer: Sh from the analytic two-temperature
+        //  relaxation over the step, gated by connectedAtStepStart
+        void subintegratedExchange
+        (
+            const volScalarField& connectedAtStepStart,
+            volScalarField& Sh
+        ) const;
+
+        //- Gas temperature change over the step from the analytic
+        //  relaxation; zero where there is no solid or no CONV
+        tmp<volScalarField> relaxedGasTemperatureChange
+        (
+            const volScalarField& Tgas,
+            const volScalarField& rhoCpG,
+            const volScalarField& rhoCpS,
+            const scalar deltaTime
+        ) const;
+
+        //- Explicit exchange CONV*(Ts - Tg), gated by connectedAtStepStart
+        tmp<volScalarField> explicitExchange
+        (
+            const volScalarField& connectedAtStepStart
+        ) const;
+
         //- CONV from the heat transfer model, zero where there is no solid
         tmp<volScalarField> heatTransferCoeffCalc() const;
 
