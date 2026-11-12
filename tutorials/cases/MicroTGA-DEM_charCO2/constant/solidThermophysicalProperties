@@ -1,0 +1,32 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     |
+    \\  /    A nd           |
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      solidThermophysicalProperties;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+thermoType solidMixtureThermo<constHeterogeneous>;
+
+#include "../../../../thermoData/solidThermoData"
+
+// Char is the only solid specie. With one specie its rhoApparent cancels in
+// the apparentVolume factor r = cbrt(1 + dV/V), so r = cbrt(m_new/m_old):
+// the char particle shrinks at constant apparent density.
+solidComponents
+(
+    char
+);
+
+charCoeffs { $corymbiaChar; }
+
+// ************************************************************************* //
