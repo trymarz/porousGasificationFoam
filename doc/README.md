@@ -7,6 +7,7 @@
 | Pick a tutorial to start from | [Tutorial cases](case-setup.md#tutorial-cases) |
 | Fix an error | [troubleshooting.md](troubleshooting.md) |
 | Understand the model: equations, per-step flow, where the code is | [theory.md](theory.md) |
+| Follow the solid step stage by stage: what each stage reads, writes and checks | [solid-step.md](solid-step.md) |
 | Run or extend the regression tests | [regression-testing.md](regression-testing.md) |
 | Look at a case in ParaView, or render its views to PNG | [paraview.md](paraview.md) |
 | Contribute (branches, PRs, doc rules) | [../CONTRIBUTING.md](../CONTRIBUTING.md) |
