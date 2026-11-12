@@ -1,5 +1,6 @@
 #!/bin/bash
 
+cd "${0%/*}" || exit
 for case in p[0-9]*; do
   rm -rf $case/{0.*,1,postProcessing,log,log.*}
   rm -f  $case/.foamcli-state/run.pid $case/.foamcli-state/run.json $case/*.foam
