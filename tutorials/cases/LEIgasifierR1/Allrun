@@ -1,0 +1,39 @@
+#!/bin/sh
+#
+# LEIgasifierR1 — Allrun
+# ======================
+# Rung R1 of issue #64: the LEI reactor outline (Striugas et al. 2014), cold,
+# inert N2, no chemistry. Settles the sphere bed, checks that the DEM walls
+# match the FVM boundary, then runs the coupled smoke run. See README.md.
+#
+# PREREQUISITES
+#   - porousGasificationFoam built with --yade and on PATH (pgf-env --yade)
+#   - Yade built with FoamCoupling support, `yade` on PATH
+#
+# CFD-only cold-flow check (README.md): set `active false` in
+#   constant/yadeProperties and `endTime 10` in system/controlDict, then run
+#   steps 1-2 and `porousGasificationFoam` serially.
+
+cd "${0%/*}" || exit
+. ../DEM_common/demGuard.sh   # stop early outside a --yade env (#257)
+set -e   # abort on first error
+
+# 1. Mesh from the geometry table, then fields.
+python3 leiGeometry.py
+cp -r 0.orig 0
+blockMesh
+checkMesh
+setFields
+
+# 2. Settle the bed under gravity, then check walls and packing.
+yade -n -x relax.py
+yade -n -x checkDemWalls.py
+
+# 3. Coupled smoke run (2 Yade ranks; FoamCoupling spawns 2 OpenFOAM ranks).
+#    Yade must run exactly endTime/dem_dt substeps: no early-exit handshake.
+decomposePar
+YADE_DT=$(sed -n 's/^dem_dt *= *\([0-9.eE+-]*\).*/\1/p' demGeometry.py)
+END_TIME=$(foamDictionary -entry endTime -value system/controlDict)
+export YADE_NSTEPS=$(awk -v t="$END_TIME" -v dt="$YADE_DT" 'BEGIN { printf "%d", t / dt + 0.5 }')
+echo "YADE_NSTEPS = $YADE_NSTEPS (endTime $END_TIME / yadeDt $YADE_DT)"
+mpirun -n 2 yade MPI_lambda.py
