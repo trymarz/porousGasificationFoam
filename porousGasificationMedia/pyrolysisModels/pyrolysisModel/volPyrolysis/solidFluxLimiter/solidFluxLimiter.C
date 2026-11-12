@@ -130,7 +130,7 @@ void SolidFluxLimiter::solidFluxBudgets
     tmp<surfaceScalarField>& tPhiSolidVol,
     tmp<volScalarField>& tAlphaS,
     tmp<volScalarField>& tRRpor
-)
+) const
 {
     const dimensionedScalar rhoSolidFloor
     (
@@ -144,8 +144,6 @@ void SolidFluxLimiter::solidFluxBudgets
 
     forAll(Ym_, i)
     {
-        Ym_[i].correctBoundaryConditions();
-
         phiYm.set(i, fvc::flux(phiSolid, Ym_[i], "div(phiSolid)").ptr());
         RRsolid.set(i, chemistry_.RRs(i).ptr());
     }
@@ -501,11 +499,17 @@ SolidFluxLimiter::~SolidFluxLimiter()
 
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
 
-tmp<surfaceScalarField> SolidFluxLimiter::limit()
+bool SolidFluxLimiter::limiting() const
+{
+    return active_ && advectSolidFields_ && nSolidFluxLimiterCorrectors_ >= 1;
+}
+
+
+tmp<surfaceScalarField> SolidFluxLimiter::limit() const
 {
     tmp<surfaceScalarField> tPhiSolid = solidVolFlux();
 
-    if (!active_ || !advectSolidFields_ || nSolidFluxLimiterCorrectors_ < 1)
+    if (!limiting())
     {
         return tPhiSolid;
     }

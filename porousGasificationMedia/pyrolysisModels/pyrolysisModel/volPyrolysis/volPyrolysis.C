@@ -91,6 +91,16 @@ bool volPyrolysis::read(const dictionary& dict)
 
 void volPyrolysis::limitSolidFlux()
 {
+    // The Ym patches lag the bed motion and the porosity patches
+    // updateSolidState() rewrote since the species step set them.
+    if (solidFluxLimiter_->limiting())
+    {
+        forAll(Ym_, i)
+        {
+            Ym_[i].correctBoundaryConditions();
+        }
+    }
+
     phiSolid_ = solidFluxLimiter_->limit();
 }
 

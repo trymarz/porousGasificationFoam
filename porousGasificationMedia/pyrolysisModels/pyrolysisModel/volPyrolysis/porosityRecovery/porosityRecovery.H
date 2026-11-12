@@ -45,6 +45,13 @@ Description
     chemistry source. Owned directly by volPyrolysis (like BedCollapse) -
     no runtime selection.
 
+    Field access:
+      reads   Ym, rho, Ts, Us, phiSolid, the chemistry's RRpor, the
+              SolidState masks;
+      writes  porosity (updatePorosity(), state update); Ym, Ys, solidH,
+              Ts and porosity of the flipped cells (emptyCells(),
+              constraint); cellOnBedBorder (markBedBorderCells()).
+
 SourceFiles
     porosityRecovery.C
 

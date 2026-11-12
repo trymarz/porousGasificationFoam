@@ -46,6 +46,12 @@ Description
     Owned directly by volPyrolysis (like BedCollapse) - no runtime
     selection.
 
+    Field access (equation):
+      reads   phiSolid, the chemistry's RRs; Us and porosity in the abort
+              report;
+      writes  Ym (solved, clipped, then its patches) and Ys from Ym; adds
+              the chemistry term to lambdaDot through DemCoupling.
+
 SourceFiles
     solidSpeciesTransport.C
 

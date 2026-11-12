@@ -88,6 +88,11 @@ Description
     SolidFluxLimiter) - no runtime selection. The radiation models read
     it too, through the inline accessors only: their library builds first.
 
+    Field access (state update):
+      reads   porosity, and the Ym and rho callers pass in;
+      writes  only what it owns: solidPresent, solidRegime and
+              connectedAtStepStart; deriveYiFromYm() writes the Ys passed.
+
 SourceFiles
     solidState.C
 

@@ -44,6 +44,11 @@ Description
     Owned directly by volPyrolysis (like BedCollapse) - no runtime
     selection; the lambdaDot model itself is selected at runtime.
 
+    Field access (model):
+      reads   Ym_i and the chemistry source passed in, and through the
+              lambdaDot model Ts;
+      writes  only lambdaDot, which it owns through the registry.
+
 SourceFiles
     demCoupling.C
 

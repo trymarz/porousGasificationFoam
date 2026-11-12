@@ -184,6 +184,12 @@ void SolidSpeciesTransport::solve()
     }
 
     SolidState::deriveYiFromYm(Ym_, Ys_);
+
+    // The patches follow the solved mass, for the stages that read them.
+    forAll(Ym_, i)
+    {
+        Ym_[i].correctBoundaryConditions();
+    }
 }
 
 

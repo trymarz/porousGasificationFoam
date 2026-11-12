@@ -80,8 +80,8 @@ private:
         void readControls();
 
         //- Scale the shared solid flux to what the cells can supply and take
-        //  Delegates to solidFluxLimiter_ (two-sided saturation limit) and
-        //  stores the result in phiSolid_, the flux every solid field rides.
+        //  Refreshes the Ym patches the limiter reads, then stores its
+        //  result in phiSolid_, the flux every solid field rides.
         void limitSolidFlux();
 
         //- Ym_i = Yi*rho*(1 - porosity), and the initial solid mass. Patches
