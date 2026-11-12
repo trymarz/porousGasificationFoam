@@ -1,4 +1,5 @@
 #!/bin/sh
 
+cd "${0%/*}" || exit
 rm -rf -- processor* 0 0.[0-9]* [1-9]* log log.* *.foam postProcessing VTK constant/polyMesh
 rm -f  .foamcli-state/run.pid .foamcli-state/run.json

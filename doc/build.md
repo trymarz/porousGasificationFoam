@@ -2,6 +2,24 @@
 
 Source OpenFOAM-v2406 (`etc/bashrc`) first. `wmake` runs in place in your checkout, which may live anywhere; `./Allwmake`, `./build.sh …` and `/abs/path/Allwmake` behave the same from any working directory.
 
+## First-time setup
+
+In a new terminal, with nothing sourced or exported:
+
+```bash
+./pgf-env init --yes             # finds OpenFOAM's etc/bashrc and yade; writes ~/.config/pgf/env.conf
+./pgf-env install-link           # optional: pgf-env on PATH via ~/.local/bin
+pgf-env status                   # what was recorded, and from which file
+pgf-env doctor                   # checks, each with a fix
+pgf-env --bare -- ./build.sh --isolated            # build this tree into its own prefix
+pgf-env run tutorials/cases/canonical/pyrolysis    # run a case from anywhere
+pgf-env shell                    # or work interactively in the same environment
+```
+
+For the DEM variant add `--yade` to the build (`pgf-env --bare --yade -- ./build.sh --isolated --yade`) after the [coupling libraries](#building-yade-and-the-coupling-libraries); `pgf-env run` picks `--yade` for a case with an active `constant/yadeProperties`. Settings that differ per worktree go in `./pgf-env init --checkout`. See [Remembered settings](#remembered-settings).
+
+The rest of this page covers the plain `wmake` route as well, where you source `etc/bashrc` yourself.
+
 ## Common builds
 
 ```bash
