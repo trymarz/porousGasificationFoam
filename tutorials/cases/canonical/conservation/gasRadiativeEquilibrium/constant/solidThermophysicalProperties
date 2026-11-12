@@ -23,8 +23,7 @@ woodCoeffs
 {
     transport
     {
-        // Near-zero on purpose: with the cells thermally isolated, each one's
-        // Ts is moved by its own radiative book and by nothing else.
+        // Near-zero: the solid takes no part in this case.
         K       1e-6;
     }
     thermodynamics
