@@ -43,11 +43,28 @@ Nothing is copied into `$WM_PROJECT_USER_DIR`. `$FOAM_USER_LIBBIN` is already on
 - **DEM variant**: `--isolated --yade` copies `libMeshTree.so`, `libYadeFoam.so` and `libYadeComm.so` into the prefix from `PGF_YADE_LIBDIR` (default: the user lib dir OpenFOAM's `bashrc` sets), and fails if any is missing.
 - Every build prints where it installs. OpenFOAM v2406 embeds no RPATH, so a prefix works anywhere as long as its `lib/` is on `LD_LIBRARY_PATH`.
 
-`pgf-env [--prefix DIR | --for-tree | --bare] [--yade] [--mpi loopback] -- <command>` runs a command in a clean environment. It drops the caller's environment except `HOME USER LANG TERM TMPDIR WM_PROJECT_DIR PGF_* YADE_*` and sources `$PGF_FOAM_BASHRC` (default `$WM_PROJECT_DIR/etc/bashrc`) with `set +eu`. Then it points `WM_PROJECT_USER_DIR`, `FOAM_USER_APPBIN` and `FOAM_USER_LIBBIN` at the prefix and removes every `PATH` / `LD_LIBRARY_PATH` entry under the user dir `bashrc` chose. It also sets `UCX_VFS_ENABLE=n UCX_LOG_LEVEL=fatal`, `PGF_ISOLATED_ONLY=1` (`build.sh` then refuses to build without `--prefix` / `--isolated`) and `TMPDIR=$PGF_RUN_ROOT/tmp`. It checks that `porousGasificationFoam` resolves into the prefix and prints a one-line banner on stderr.
+`pgf-env [--prefix DIR | --for-tree | --bare] [--yade] [--mpi loopback] -- <command>` runs a command in a clean environment. It drops the caller's environment except `HOME USER LANG TERM TMPDIR WM_PROJECT_DIR XDG_CONFIG_HOME PGF_* YADE_*` and sources `$PGF_FOAM_BASHRC` (default `$WM_PROJECT_DIR/etc/bashrc`) with `set +eu`. Then it points `WM_PROJECT_USER_DIR`, `FOAM_USER_APPBIN` and `FOAM_USER_LIBBIN` at the prefix and removes every `PATH` / `LD_LIBRARY_PATH` entry under the user dir `bashrc` chose. It also sets `UCX_VFS_ENABLE=n UCX_LOG_LEVEL=fatal`, `PGF_ISOLATED_ONLY=1` (`build.sh` then refuses to build without `--prefix` / `--isolated`) and `TMPDIR=$PGF_RUN_ROOT/tmp`. It checks that `porousGasificationFoam` resolves into the prefix and prints a one-line banner on stderr.
 
 - `--for-tree` (default) uses this checkout's `--isolated` prefix and exits 2 if it is not built. `--bare` uses no prefix; use it to run `build.sh`.
 - `--yade` adds `YADE_TRUNK` (default `submodules/Foam-Yade`), a `yade` on `PATH` (from `YADE_BIN` or the caller's `PATH`) and `PYTHONPATH` (`YADE_PYTHONPATH`, or derived from the install). If `/tmp` is read-only, it also preloads a small shim that moves Yade's `/tmp/yade-XXXXXX` into `$TMPDIR`.
 - `--mpi loopback` restricts Open MPI to `self,vader,tcp` on `lo`. The DEM coupling connects Yade's MPI job to the solver it spawns over TCP, and Open MPI leaves `lo` out by default, so on a host or sandbox whose only interface is `lo` the run hangs with `help-mca-bml-r2.txt / unreachable proc`. The `dem` tier passes it; a DEM run is always on one node.
+
+### Remembered settings
+
+`pgf-env` reads its settings (`PGF_FOAM_BASHRC`, `YADE_TRUNK`, `YADE_BIN`, `YADE_PYTHONPATH`, `PGF_YADE_LIBDIR`, `PGF_BUILD_ROOT`, `PGF_RUN_ROOT`, `PGF_YADE=0|1`, `PGF_MPI=default|loopback|auto`) from layers; a later layer wins:
+
+1. built-in default;
+2. user file `${XDG_CONFIG_HOME:-~/.config}/pgf/env.conf`;
+3. checkout file `.pgf-env.conf` at the tree root (git-ignored, so each worktree has its own);
+4. the caller's environment;
+5. `--set KEY=VALUE` (or `--foam-bashrc FILE`, `--yade` / `--no-yade`, `--mpi …`).
+
+The files hold `KEY=value` lines and `#` comments. They are parsed, not sourced: an unknown key or a malformed line exits 2 naming `file:line`, and only the keys above are accepted, so a file cannot set `PATH` or run code. `PGF_YADE=1` makes `--yade` the default; `PGF_MPI=loopback` does what `--mpi loopback` does. `pgf-env status` prints every effective value and the layer (and `file:line`) it came from:
+
+```bash
+printf 'PGF_FOAM_BASHRC=%s\n' ~/OpenFOAM/OpenFOAM-v2406/etc/bashrc >> ~/.config/pgf/env.conf
+./pgf-env status
+```
 
 Tests for this tooling live in `applications/test/tooling/test_*.sh`; each runs alone with `PGF_FOAM_BASHRC` set and builds under `PGF_BUILD_ROOT` (default `$TMPDIR/pgf-tooling-builds`).
 

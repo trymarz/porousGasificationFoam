@@ -2,7 +2,9 @@
 #
 # pgf-env: run a command in a hermetic porousGasificationFoam environment.
 #
-#   pgf-env [--prefix DIR | --for-tree | --bare] [--yade] [--mpi loopback] -- <command ...>
+#   pgf-env [--prefix DIR | --for-tree | --bare] [--yade | --no-yade]
+#           [--mpi loopback|default|auto] [--set KEY=VALUE ...] -- <command ...>
+#   pgf-env status [--set KEY=VALUE ...]
 #
 # The caller's environment is dropped (env -i, small allowlist), OpenFOAM's
 # etc/bashrc is sourced with set +eu, and only then are the user output
@@ -15,11 +17,17 @@
 #   --for-tree    (default) the build.sh --isolated prefix for this checkout
 #   --bare        no prefix: OpenFOAM only, for running build.sh --isolated
 #   --yade        the WITH_YADE variant, plus yade, YADE_TRUNK and PYTHONPATH
-#   --mpi loopback  restrict Open MPI to self,vader,tcp on lo
+#                 (PGF_YADE=1 makes it the default; --no-yade overrides that)
+#   --mpi loopback  restrict Open MPI to self,vader,tcp on lo (PGF_MPI)
+#   --set KEY=VALUE override one setting for this call (the CLI layer)
+#   --foam-bashrc FILE  same as --set PGF_FOAM_BASHRC=FILE
+#   status        print every setting with the layer it came from, and exit
 #
-# Inputs: PGF_FOAM_BASHRC (else $WM_PROJECT_DIR/etc/bashrc), PGF_BUILD_ROOT,
+# Settings: PGF_FOAM_BASHRC (else $WM_PROJECT_DIR/etc/bashrc), PGF_BUILD_ROOT,
 # PGF_RUN_ROOT (default ${TMPDIR:-/tmp}/pgf-runs; TMPDIR becomes its tmp/),
-# YADE_TRUNK, YADE_BIN (else `yade` on the caller's PATH), YADE_PYTHONPATH.
+# YADE_TRUNK, YADE_BIN (else `yade` on the caller's PATH), YADE_PYTHONPATH,
+# PGF_YADE_LIBDIR, PGF_YADE, PGF_MPI. Each comes from, later winning: default,
+# ~/.config/pgf/env.conf, <checkout>/.pgf-env.conf, the environment, --set.
 # Exit 2 when the environment cannot be set up; otherwise the command's status.
 
 PGF_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
@@ -34,7 +42,7 @@ die() {
 
 if [ -z "${PGF_ENV_ACTIVE:-}" ]; then
   keep=()
-  for v in HOME USER LANG TERM TMPDIR WM_PROJECT_DIR; do
+  for v in HOME USER LANG TERM TMPDIR WM_PROJECT_DIR XDG_CONFIG_HOME; do
     [ -n "${!v+x}" ] && keep+=("$v=${!v}")
   done
   while IFS= read -r v; do
@@ -47,10 +55,13 @@ fi
 
 # -- arguments -----------------------------------------------------------------
 
+. "$PGF_ROOT/utilities/pgf-env/config.sh"
+
+sub="run"
+[ "${1:-}" = "status" ] && { sub="status"; shift; }
+
 mode="tree"
 prefix=""
-yade=0
-mpi=""
 while [ $# -gt 0 ]; do
   case "$1" in
   --prefix)
@@ -61,20 +72,39 @@ while [ $# -gt 0 ]; do
     ;;
   --for-tree) mode="tree"; shift ;;
   --bare) mode="bare"; shift ;;
-  --yade) yade=1; shift ;;
+  --yade) PGF_CONF_CLI[PGF_YADE]=1; shift ;;
+  --no-yade) PGF_CONF_CLI[PGF_YADE]=0; shift ;;
   --mpi)
-    [ "${2:-}" = "loopback" ] || die "--mpi supports only 'loopback'"
-    mpi="loopback"
+    msg="$(pgf_conf_set_cli "PGF_MPI=${2:-}")" || die "--mpi: ${msg#--set: }"
+    PGF_CONF_CLI[PGF_MPI]="$2"
+    shift 2
+    ;;
+  --set | --foam-bashrc)
+    kv="${2:-}"
+    [ "$1" = "--foam-bashrc" ] && kv="PGF_FOAM_BASHRC=${2:-}"
+    [ -n "${2:-}" ] || die "$1 needs an argument"
+    msg="$(pgf_conf_set_cli "$kv")" || die "$msg"
+    PGF_CONF_CLI[${kv%%=*}]="${kv#*=}"
     shift 2
     ;;
   --) shift; break ;;
   -h | --help)
-    sed -n '3,24p' "$SELF" | sed 's/^# \{0,1\}//'
+    sed -n '3,32p' "$SELF" | sed 's/^# \{0,1\}//'
     exit 0
     ;;
   *) die "unknown option '$1' (the command goes after --)" ;;
   esac
 done
+
+pgf_conf_resolve || die "$PGF_CONF_ERR"
+yade="$PGF_YADE"
+mpi="$PGF_MPI"
+
+if [ "$sub" = "status" ]; then
+  pgf_conf_print
+  exit 0
+fi
+
 [ $# -gt 0 ] || die "no command given (usage: pgf-env [options] -- <command ...>)"
 cmd=("$@")
 

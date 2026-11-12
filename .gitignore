@@ -23,3 +23,6 @@ run.log
 /submodules/*-build/
 /submodules/*-install/
 /submodules/*-venv/
+
+# --- pgf-env per-checkout settings (#257) ---------------------------------
+/.pgf-env.conf
