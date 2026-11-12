@@ -1,0 +1,42 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  8
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "system";
+    object      setFieldsDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// Cold, inert start: everything at 300 K, the gas is N2 (0.orig).
+defaultFieldValues
+(
+    volScalarFieldValue porosityF      1.0
+    volScalarFieldValue porosityF0     1.0
+    volScalarFieldValue Ywood          0.0
+);
+
+// The bed fills the reactor above the grate (z = 0); the ash cone below it
+// is gas only. Porosity 0.4 as in LEIgasifierDEM.
+regions
+(
+    boxToCell
+    {
+        box (-0.25 -0.1 0.0) (0.25 0.1 1.1);
+        fieldValues
+        (
+            volScalarFieldValue Ywood          1.0
+            volScalarFieldValue porosityF      0.40
+            volScalarFieldValue porosityF0     0.40
+        );
+    }
+);
+
+// ************************************************************************* //
