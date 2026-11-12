@@ -52,7 +52,7 @@ A 2.5 s run with `pgf-env run .` (Foam-Yade d5c33e0, 2 OpenFOAM ranks, 9 min):
 - `checkMesh`: Mesh OK. `checkDemWalls.py`: 5119 spheres, closest wall at 0.936 r, OK.
 - Feed and discharge: 249 in, 249 out (rate·t = 249), backlog never above 0 spheres; coupled-id count equal to the sphere count at every row.
 - Mass balance: `in − out − Δinventory` is exactly 0 at all 250 rows; the inventory stays constant.
-- Bed level (top-layer mean): 0.869 m at the start, 0.888 m at the end, a 2.7 r range over the last half (limit 4 r). It rises about 2 mm per 0.25 s for the first 1.5 s, then flattens, although the inventory is constant. The likely cause is the bed loosening as the discharge shears it, but this has not been checked. A longer run would show whether the level settles.
+- Bed level (top-layer mean): rises 18 mm (4.6 r) over the run, with a 2.7 r range over the last half (limit 4 r). It rises about 2 mm per 0.25 s for the first 1.5 s, then flattens, although the inventory is constant. The likely cause is the bed loosening as the discharge shears it, but this has not been checked. A longer run would show whether the level settles.
 - Cold flow: outflow matches inflow to 3.2e-5 over the last half.
 
 The level is measured with the top-layer mean because the previous metric, the highest resting sphere, failed the 4 r limit (6.8 r) on the same run: the heap under the feed point moved the peak, not the level.
