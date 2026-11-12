@@ -61,7 +61,8 @@ SolidSpeciesTransport::SolidSpeciesTransport
     demCoupling_(demCoupling),
     solidDiagnostics_(solidDiagnostics),
     active_(solid.active),
-    cumulativeYmClip_(0.0)
+    cumulativeYmClip_(0.0),
+    phiYm_(solid.Ym.size())
 {}
 
 
@@ -127,6 +128,9 @@ void SolidSpeciesTransport::solveSpecieMass(const label i)
 
     Ym_i.correctBoundaryConditions();
 
+    // Kept for the energy step, taken from Ym_i before it is solved.
+    phiYm_.set(i, fvc::flux(phiSolid_, Ym_i, "div(phiSolid)"));
+
     // The already-limited flux, settled once per step so every solid
     // field rides the same value at each face.
     volScalarField divYmFlux
@@ -173,10 +177,9 @@ void SolidSpeciesTransport::solve()
         return;
     }
 
-    // Reset lambdaDot and add its temperature term; the chemistry
-    // term accumulates per specie in solveSpecieMass().
+    // Reset lambdaDot; the chemistry term accumulates per specie in
+    // solveSpecieMass(), the temperature term follows the energy step.
     demCoupling_.beginStep();
-    demCoupling_.addTemperatureTerm();
 
     for (label i = 0; i < Ys_.size(); ++i)
     {
@@ -184,9 +187,6 @@ void SolidSpeciesTransport::solve()
     }
 
     SolidState::deriveYiFromYm(Ym_, Ys_);
-
-    // lambdaDot is complete once every specie has contributed.
-    demCoupling_.finishStep();
 }
 
 

@@ -123,23 +123,20 @@ Foam::tmp<Foam::volScalarField> SolidEnergy::solidHeatCapacity
     return solidState_.withSolidHeatCapacityFloor(totalYm*solidThermo_.Cp());
 }
 
-Foam::tmp<Foam::volScalarField> SolidEnergy::preReactionMass
-(
-    const volScalarField& totalYm
-) const
-{
-    return max
-    (
-        totalYm - mesh_.time().deltaT()*chemistry_.RRs()(),
-        dimensionedScalar("zero", dimDensity, 0.0)
-    );
-}
-
 Foam::tmp<Foam::volScalarField> SolidEnergy::carrierHeatCapacity
 (
-    const volScalarField& preReactionYm
+    const volScalarField& totalYm
 )
 {
+    const volScalarField preReactionYm
+    (
+        max
+        (
+            totalYm - mesh_.time().deltaT()*chemistry_.RRs()(),
+            dimensionedScalar("zero", dimDensity, 0.0)
+        )
+    );
+
     volScalarField rhoCp(preReactionYm*solidThermo_.Cp());
 
     // Cp() is sum_i Ys_i*Cp_i, so with Ys_ holding the pre-reaction masses
@@ -177,28 +174,10 @@ Foam::tmp<Foam::volScalarField> SolidEnergy::carrierHeatCapacity
     return solidState_.withSolidHeatCapacityFloor(rhoCp);
 }
 
-void SolidEnergy::recoverTsFromH
-(
-    const volScalarField& rhoCp,
-    const volScalarField& totalYm,
-    const bool dispersedRule
-)
+void SolidEnergy::applyRegimeRules(const volScalarField& totalYm)
 {
-    if (dispersedRule)
-    {
-        T_ = solidState_.withDispersedRule(solidH_/rhoCp, gasThermo_.T());
-        T_ = solidState_.withTraceRule(T_, totalYm, rho_, gasThermo_.T());
-    }
-    else
-    {
-        T_ = solidState_.withTraceRule
-        (
-            solidH_/rhoCp,
-            totalYm,
-            rho_,
-            gasThermo_.T()
-        );
-    }
+    T_ = solidState_.withDispersedRule(T_, gasThermo_.T());
+    T_ = solidState_.withTraceRule(T_, totalYm, rho_, gasThermo_.T());
 }
 
 void SolidEnergy::storeH(const volScalarField& rhoCp)
@@ -259,11 +238,11 @@ Foam::tmp<Foam::volScalarField> SolidEnergy::solidSources()
 {
     const volScalarField& connectedAtStepStart = solidState_.connectedAtStepStart();
 
-    // Evaluated once and stored, so the gas EEqn adds back the same
-    // joules after TEqn has moved T_. The exchange gates itself;
-    // gating again here would be a no-op, not a safeguard.
+    // Stored by volPyrolysis before the species step, so the gas EEqn
+    // adds back the same joules. The exchange gates itself; gating
+    // again here would be a no-op, not a safeguard.
     const volScalarField& interphaseHeatTransfer =
-        heatExchange_.updateHeatTransfer();
+        heatExchange_.heatTransfer();
     // An agent's mass source is gated like every Srho_i: zero outside the
     // reacting (connectedAtStepStart) cells, so no gate is added here.
     const volScalarField& agentHeatUp = heatExchange_.agentHeatUp();
@@ -285,138 +264,116 @@ Foam::tmp<Foam::volScalarField> SolidEnergy::solidSources()
       + solidRadiationSource;
 }
 
-void SolidEnergy::solveTsEquation
+Foam::tmp<Foam::volScalarField> SolidEnergy::advectiveEnthalpyFlux
+(
+    const PtrList<surfaceScalarField>& phiYm
+) const
+{
+    tmp<surfaceScalarField> tFlux;
+
+    // Each specie carries Cp_i*Ts on its own mass flux, the one that moved
+    // Ym_i: a uniform Ts then stays uniform for any div(phiSolid) scheme.
+    // Upwind, so a receiver ends up at a convex combination of donors.
+    forAll(phiYm, i)
+    {
+        const volScalarField hsI(solidThermo_.specieCp(i)*T_);
+
+        tmp<surfaceScalarField> tFluxI
+        (
+            phiYm[i]*upwind<scalar>(mesh_, phiYm[i]).interpolate(hsI)
+        );
+
+        if (tFlux.valid())
+        {
+            tFlux.ref() += tFluxI;
+        }
+        else
+        {
+            tFlux = tFluxI;
+        }
+    }
+
+    return fvc::surfaceIntegrate(tFlux);
+}
+
+void SolidEnergy::solveEnthalpyBalance
 (
     const volTensorField& composedK,
-    const volScalarField& rhoCp,
-    const volScalarField& solidBeyondTrace
+    const volScalarField& rhoCpCarrier,
+    const volScalarField& HOld,
+    const PtrList<surfaceScalarField>& phiYm
 )
 {
+    const dimensionedScalar rDeltaT(1.0/mesh_.time().deltaT());
+
     const tmp<volScalarField> tSources(solidSources());
 
     const tmp<fvScalarMatrix> tTLap(conductionWithinSolid(composedK));
 
+    const volScalarField divEnthalpyFlux(advectiveEnthalpyFlux(phiYm));
+
+    // With Euler the first two terms are (rhoCpCarrier*Ts - HOld)/dt: dH/dt
+    // minus sum_i RRs_i*Cp_i*Ts, taken implicitly (#134). fvm::ddt keeps the
+    // case's ddtScheme; the second is zero unless transport changed the mass.
     fvScalarMatrix TEqn
     (
-        fvm::ddt(rhoCp,T_)
+        fvm::ddt(rhoCpCarrier, T_)
+      + rDeltaT*(rhoCpCarrier*T_.oldTime() - HOld)
+      + divEnthalpyFlux
       - tTLap()
     ==
         tSources()
     );
 
+    // Start from the transported state: a solve that stops at once, its
+    // residual already under tolerance, must not drop the explicit transport.
+    T_.primitiveFieldRef() =
+    (
+        (HOld - mesh_.time().deltaT()*divEnthalpyFlux)/rhoCpCarrier
+    )().primitiveField();
+
     TEqn.relax();
     TEqn.solve();
-
-    const label badTEqnCell =
-        solidDiagnostics_.firstInvalidTemperature
-        (
-            T_,
-            solidBeyondTrace.primitiveField()
-        );
-
-    if (badTEqnCell != -1)
-    {
-        const scalar gate =
-            solidState_.connectedAtStepStart()[badTEqnCell];
-
-        OStringStream context;
-        context
-            << "    rhoCp        = " << rhoCp[badTEqnCell] << nl
-            << "    chemistrySh  = "
-            << gate*chemistrySh_[badTEqnCell] << nl
-            << "    heatTransfer = "
-            << heatExchange_.heatTransfer()[badTEqnCell] << nl
-            << "    agentHeatUp  = "
-            << heatExchange_.agentHeatUp()[badTEqnCell] << nl
-            << "    radiationSh  = "
-            << gate*radiationSh_[badTEqnCell] << nl
-            << "    porosity     = " << porosity_[badTEqnCell];
-
-        solidDiagnostics_.abort
-        (
-            "the solid energy equation in solveTsEquation()",
-            T_,
-            badTEqnCell,
-            context.str()
-        );
-    }
 }
 
-Foam::tmp<Foam::volScalarField> SolidEnergy::advectiveEnthalpyFlux() const
-{
-    const surfaceScalarField& solidFlux = phiSolid_;
-
-    // Enthalpy rides the solid MASS flux, not phiSolid: div(phiSolid)
-    // is nonlinear, so it would give solidH and Ym different face
-    // values. phiYm here matches SolidSpeciesTransport::solve()'s own flux.
-    surfaceScalarField phiYm
-    (
-        fvc::flux(solidFlux, Ym_[0], "div(phiSolid)")
-    );
-    for (label i = 1; i < Ym_.size(); ++i)
-    {
-        phiYm += fvc::flux(solidFlux, Ym_[i], "div(phiSolid)");
-    }
-
-    // hs upwinds on the mass flux: a receiver ends up holding the
-    // convex combination (solidH + m_in*hs_donor)/(totalYm + m_in).
-    // Cp*T_, not solidH/totalYm, to match rhoCp's own floor.
-    volScalarField hs(solidThermo_.Cp()*T_);
-
-    return fvc::surfaceIntegrate
-    (
-        phiYm*upwind<scalar>(mesh_, phiYm).interpolate(hs)
-    );
-}
-
-void SolidEnergy::advectSolidH
+void SolidEnergy::abortOnInvalidTs
 (
-    const volScalarField& rhoCp,
+    const word& stage,
+    const label badCell,
+    const volScalarField& HOld,
+    const volScalarField& rhoCpCarrier,
     const volScalarField& totalYm
-)
+) const
 {
-    dimensionedScalar ovDt = pow(mesh_.time().deltaT(),-1);
-    fvScalarMatrix sHEqn
-    (
-        fvm::Sp(ovDt,solidH_) - ovDt*solidH_
-      + advectiveEnthalpyFlux()
-    );
-
-    sHEqn.relax();
-    sHEqn.solve();
-
-    const volScalarField& sH = solidH_;
-
-    const label badSolidHCell =
-        solidDiagnostics_.firstInvalidExtensive(sH);
-
-    if (badSolidHCell != -1)
+    if (badCell == -1)
     {
-        OStringStream context;
-        context
-            << "    Us           = " << Us_[badSolidHCell] << nl
-            << "    Ts           = " << T_[badSolidHCell] << nl
-            << "    rhoCp        = " << rhoCp[badSolidHCell] << nl
-            << "    sum(Ym)      = " << totalYm[badSolidHCell] << nl
-            << "    porosity     = " << porosity_[badSolidHCell];
-
-        solidDiagnostics_.abort
-        (
-            "the solid enthalpy advection in advectSolidH()",
-            sH,
-            badSolidHCell,
-            context.str()
-        );
+        return;
     }
 
-    solidH_.max(0);
-    solidH_.correctBoundaryConditions();
+    const scalar gate = solidState_.connectedAtStepStart()[badCell];
+
+    OStringStream context;
+    context
+        << "    solidH old   = " << HOld[badCell] << nl
+        << "    rhoCp carrier= " << rhoCpCarrier[badCell] << nl
+        << "    sum(Ym)      = " << totalYm[badCell] << nl
+        << "    chemistrySh  = " << gate*chemistrySh_[badCell] << nl
+        << "    heatTransfer = "
+        << heatExchange_.heatTransfer()[badCell] << nl
+        << "    agentHeatUp  = "
+        << heatExchange_.agentHeatUp()[badCell] << nl
+        << "    radiationSh  = " << gate*radiationSh_[badCell] << nl
+        << "    Us           = " << Us_[badCell] << nl
+        << "    porosity     = " << porosity_[badCell] << nl
+        << "    solidPresent = " << solidState_.solidPresent()[badCell];
+
+    solidDiagnostics_.abort(stage, T_, badCell, context.str());
 }
 
 
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
 
-void SolidEnergy::solve()
+void SolidEnergy::solve(const PtrList<surfaceScalarField>& phiYm)
 {
 // eqZx2uHGn047
 
@@ -439,120 +396,62 @@ void SolidEnergy::solve()
 
     const volTensorField composedK(K_ * solidState_.solidFraction() * anisotropyK_);
 
+    // Not solidH_.oldTime(): bed collapse and regime flips write solidH_
+    // after the solve, and this is the value they left.
+    const volScalarField HOld("solidHOld", solidH_);
+
     forAll(Ym_, i)
     {
         Ym_[i].correctBoundaryConditions();
     }
 
+    // The mass the species step left, reaction and transport included.
     const volScalarField totalYm(SolidState::totalMass(Ym_));
 
-    // What the two Ts guards below are judged on.
-    const volScalarField solidBeyondTrace
+    // No solidPresent factor on either heat capacity: solidH_ carries none,
+    // and masking one and not the other is a temperature of any size.
+    const volScalarField rhoCpCarrier
     (
-        solidState_.massBeyondTrace(totalYm, rho_)
+        "rhoCpCarrier",
+        carrierHeatCapacity(totalYm)
     );
-
-    // The heat capacity of the solid the cell actually holds. No
-    // solidPresent factor: solidH_ carries none either, and
-    // masking one and not the other is a temperature of any size.
-    const volScalarField rhoCp(solidHeatCapacity(totalYm));
-
-    // Only the trace rule: the dispersed rule was applied at the end
-    // of the last step, and solidH_ was restated from that Ts.
-    recoverTsFromH(rhoCp, totalYm, false);
-
-    const label badTsCell =
-        solidDiagnostics_.firstInvalidTemperature
-        (
-            T_,
-            solidBeyondTrace.primitiveField()
-        );
-
-    if (badTsCell != -1)
-    {
-        OStringStream context;
-        context
-            << "    solidH       = "
-            << solidH_[badTsCell] << nl
-            << "    sum(Ym)      = " << totalYm[badTsCell] << nl
-            << "    rhoCp        = " << rhoCp[badTsCell] << nl
-            << "    porosity     = " << porosity_[badTsCell] << nl
-            << "    solidPresent = " << solidState_.solidPresent()[badTsCell];
-
-        solidDiagnostics_.abort
-        (
-            "Ts = solidH/rhoCp at the head of SolidEnergy::solve()",
-            T_,
-            badTsCell,
-            context.str()
-        );
-    }
 
     T_.correctBoundaryConditions();
     solidState_.correctSolidPresentBoundaryConditions();
 
-    solveTsEquation(composedK, rhoCp, solidBeyondTrace);
-    storeH(rhoCp);
-    advectSolidH(rhoCp, totalYm);
-}
+    solveEnthalpyBalance(composedK, rhoCpCarrier, HOld, phiYm);
 
-void SolidEnergy::recoverTemperatureAfterReaction()
-{
-// eqZx2uHGn047
-
-    if (debug)
-    {
-        Info<< "SolidEnergy::recoverTemperatureAfterReaction()" << endl;
-    }
-
-    if (!active_ || equilibrium_)
-    {
-        return;
-    }
-
-    const volScalarField totalYm(SolidState::totalMass(Ym_));
-    solidThermo_.correct();
-
-    const volScalarField rhoCp(solidHeatCapacity(totalYm));
-
-    // The mass SolidSpeciesTransport::solve() has just converted to gas. Ym_
-    // carries the loss, solidH_ does not: it was built in
-    // solve() on what the cell held before the reaction.
-    const volScalarField preReactionYm(preReactionMass(totalYm));
-
-    // Divided by the mass that carried the enthalpy: gas-bound solid takes
-    // its sensible enthalpy with it, so losing mass must not raise Ts. No
-    // solidPresent factor: it lags a stage, and would start the cell at 0 K.
-    const volScalarField rhoCpPreReaction(carrierHeatCapacity(preReactionYm));
-    recoverTsFromH(rhoCpPreReaction, totalYm, true);
-
-    const label badCell =
-        solidDiagnostics_.firstInvalidTemperature(T_);
-
-    if (badCell != -1)
-    {
-        OStringStream context;
-        context
-            << "    solidH       = "
-            << solidH_[badCell] << nl
-            << "    sum(Ym)      = " << totalYm[badCell] << nl
-            << "    sum(Ym) pre  = " << preReactionYm[badCell] << nl
-            << "    rhoCp        = " << rhoCp[badCell] << nl
-            << "    porosity     = " << porosity_[badCell] << nl
-            << "    solidPresent = " << solidState_.solidPresent()[badCell];
-
-        solidDiagnostics_.abort
+    abortOnInvalidTs
+    (
+        "the solid enthalpy balance in SolidEnergy::solve()",
+        solidDiagnostics_.firstInvalidTemperature
         (
-            "the Ts recovery in recoverTemperatureAfterReaction()",
             T_,
-            badCell,
-            context.str()
-        );
-    }
+            solidState_.massBeyondTrace(totalYm, rho_)().primitiveField()
+        ),
+        HOld,
+        rhoCpCarrier,
+        totalYm
+    );
 
-    // Restated on the mass that remains, so solve() reads
-    // back this Ts next step instead of re-inflating it.
-    storeH(rhoCp);
+    // Only bites with the check above switched off: no negative enthalpy.
+    T_.max(dimensionedScalar("zero", dimTemperature, 0.0));
+
+    solidThermo_.correct();
+    applyRegimeRules(totalYm);
+
+    abortOnInvalidTs
+    (
+        "the regime rules on Ts in SolidEnergy::solve()",
+        solidDiagnostics_.firstInvalidTemperature(T_),
+        HOld,
+        rhoCpCarrier,
+        totalYm
+    );
+
+    // The one place solidH_ is paired with a heat capacity: the mass that
+    // remains, so the next step's old-time term is this Ts.
+    storeH(solidHeatCapacity(totalYm)());
     T_.correctBoundaryConditions();
 
     solidDiagnostics_.reportTemperatureRange(T_);

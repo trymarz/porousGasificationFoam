@@ -93,22 +93,15 @@ void exactDifferentialLambdaDot::calculateTemperatureDriven()
     const volScalarField& TsField =
         mesh_.lookupObject<volScalarField>("Ts");
 
-    // Ts is already solved for this step: SolidEnergy::solve() runs
-    // before SolidSpeciesTransport::solve(), so TsField is Ts^n. The
-    // previous value is kept here rather than read from Ts.oldTime(), which
-    // is only refreshed where the energy path takes fvm::ddt on Ts -- the
-    // equilibrium branch never does.
-    //
-    // Both samples are taken at the same point of the step, so consecutive
-    // ones are exactly one step apart:
-    //     dTsdt = (Ts^n - Ts^(n-1))/deltaT^n
+    // Called after SolidEnergy::solve(), so TsField is this step's Ts and
+    // dTsdt = (Ts^n - Ts^(n-1))/deltaT^n. The previous sample is kept here:
+    // Ts.oldTime() is not maintained on the equilibrium path.
     if (!haveTsForLambdaOld_ || TsForLambdaOld_.size() != TsField.size())
     {
         TsForLambdaOld_ = TsField;
         haveTsForLambdaOld_ = true;
 
-        // No completed increment to difference yet; beginStep() already
-        // zeroed lambdaDot_, so there is nothing to add.
+        // No completed increment to difference yet: nothing to add.
         return;
     }
 
@@ -137,9 +130,8 @@ void exactDifferentialLambdaDot::calculateChemistryDriven
     const word& specieName
 )
 {
-    // Adds to the temperature term calculateTemperatureDriven() set. The term
-    // is linear in sRhoSi and needs no cell-volume weighting. sRhoSi < 0 while
-    // mass is consumed, so a positive coefficient shrinks the particle.
+    // Linear in sRhoSi, so it needs no cell-volume weighting. sRhoSi < 0
+    // while mass is consumed, so a positive coefficient shrinks the particle.
     const dimensionedScalar dlambdaOverDYmi_i
     (
         "dlambdaOverDYmi(" + specieName + ')',

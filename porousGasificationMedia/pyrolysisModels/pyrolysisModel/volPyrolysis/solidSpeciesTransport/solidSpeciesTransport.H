@@ -37,8 +37,11 @@ Description
     clips negative Ym_i to zero (the mass that creates is booked in
     clippedMass()), then derives the mass fractions Ys from Ym.
 
-    The DEM lambdaDot is assembled alongside: its temperature term at
-    the start, a chemistry term per specie, completed at the end.
+    The face mass flux of each specie is kept (specieMassFlux()), so the
+    energy step moves enthalpy with the mass that actually crossed.
+
+    The DEM lambdaDot is reset at the start and given a chemistry term
+    per specie; volPyrolysis completes it after the energy step.
 
     Owned directly by volPyrolysis (like BedCollapse) - no runtime
     selection.
@@ -98,7 +101,7 @@ class SolidSpeciesTransport
         //- The limited solid volumetric face flux [m3/s]
         const surfaceScalarField& phiSolid_;
 
-        //- DEM lambdaDot, assembled during the species step
+        //- DEM lambdaDot, given its chemistry terms during the species step
         DemCoupling& demCoupling_;
 
         const SolidDiagnostics& solidDiagnostics_;
@@ -110,6 +113,9 @@ class SolidSpeciesTransport
         //  Reported with the mass budget, so the budget cannot look closed
         //  while the clip is quietly paying for it.
         scalar cumulativeYmClip_;
+
+        //- Face mass flux of each solid specie this step [kg/s]
+        PtrList<surfaceScalarField> phiYm_;
 
 
     // Private member functions
@@ -162,6 +168,12 @@ public:
         scalar clippedMass() const
         {
             return cumulativeYmClip_;
+        }
+
+        //- Face mass flux of each solid specie in the last solve() [kg/s]
+        const PtrList<surfaceScalarField>& specieMassFlux() const
+        {
+            return phiYm_;
         }
 
         //- Solve solid species mass conservation, then Ys from Ym

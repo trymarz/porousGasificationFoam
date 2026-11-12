@@ -47,7 +47,7 @@ Description
     Products are born at Ts; a consumed agent leaves the gas at Tg and the
     solid heats it to Ts, so the reaction heat hr holds with all
     participants at Ts. The solid needs no product term: the converted
-    solid already leaves at Ts (SolidEnergy::recoverTemperatureAfterReaction).
+    solid already leaves at Ts (SolidEnergy's carrier heat capacity).
     hs_i is the gas thermo's own, so the gas source is h even when the gas
     solves for e. Neither carries a gate of its own: Srho_i is nonzero only
     in reacting cells, which are the connectedAtStepStart cells.
