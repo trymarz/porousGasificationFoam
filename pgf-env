@@ -2,7 +2,13 @@
 #
 # pgf-env: run a command in a hermetic porousGasificationFoam environment.
 #
-#   pgf-env [--prefix DIR | --for-tree | --bare] [--yade] [--mpi loopback] -- <command ...>
+#   pgf-env [--prefix DIR | --for-tree | --bare] [--yade | --no-yade]
+#           [--mpi loopback|default|auto] [--set KEY=VALUE ...] -- <command ...>
+#   pgf-env status | doctor [options]
+#   pgf-env init [--user | --checkout] [--yes] [--foam-bashrc F] [--yade-bin B] [--set K=V ...]
+#   pgf-env shell [options] [-c COMMAND]
+#   pgf-env run [options] <caseDir> [Allrun | Allclean | script] [args ...]
+#   pgf-env install-link [--force]
 #
 # The caller's environment is dropped (env -i, small allowlist), OpenFOAM's
 # etc/bashrc is sourced with set +eu, and only then are the user output
@@ -15,11 +21,27 @@
 #   --for-tree    (default) the build.sh --isolated prefix for this checkout
 #   --bare        no prefix: OpenFOAM only, for running build.sh --isolated
 #   --yade        the WITH_YADE variant, plus yade, YADE_TRUNK and PYTHONPATH
-#   --mpi loopback  restrict Open MPI to self,vader,tcp on lo
+#                 (PGF_YADE=1 makes it the default; --no-yade overrides that)
+#   --mpi loopback  restrict Open MPI to self,vader,tcp on lo (PGF_MPI);
+#                 auto (default) does so on a host with bridges or not exactly
+#                 one interface up; default leaves Open MPI alone
+#   doctor        status plus read-only checks, each OK/WARN/FAIL with a fix
+#   --set KEY=VALUE override one setting for this call (the CLI layer)
+#   --foam-bashrc FILE  same as --set PGF_FOAM_BASHRC=FILE
+#   status        print every setting with the layer it came from, and exit
+#   init          detect OpenFOAM / yade / Foam-Yade, write the user (default)
+#                 or checkout settings file; asks unless --yes or no terminal
+#   shell         an interactive bash (or bash -c COMMAND) inside the env
+#   run           cd into caseDir (relative to the caller) and run a script
+#                 there (default Allrun); an active constant/yadeProperties
+#                 selects --yade unless --no-yade or PGF_YADE says otherwise
+#   install-link  symlink ~/.local/bin/pgf-env to this checkout's pgf-env
 #
-# Inputs: PGF_FOAM_BASHRC (else $WM_PROJECT_DIR/etc/bashrc), PGF_BUILD_ROOT,
+# Settings: PGF_FOAM_BASHRC (else $WM_PROJECT_DIR/etc/bashrc), PGF_BUILD_ROOT,
 # PGF_RUN_ROOT (default ${TMPDIR:-/tmp}/pgf-runs; TMPDIR becomes its tmp/),
-# YADE_TRUNK, YADE_BIN (else `yade` on the caller's PATH), YADE_PYTHONPATH.
+# YADE_TRUNK, YADE_BIN (else `yade` on the caller's PATH), YADE_PYTHONPATH,
+# PGF_YADE_LIBDIR, PGF_YADE, PGF_MPI. Each comes from, later winning: default,
+# ~/.config/pgf/env.conf, <checkout>/.pgf-env.conf, the environment, --set.
 # Exit 2 when the environment cannot be set up; otherwise the command's status.
 
 PGF_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
@@ -34,7 +56,7 @@ die() {
 
 if [ -z "${PGF_ENV_ACTIVE:-}" ]; then
   keep=()
-  for v in HOME USER LANG TERM TMPDIR WM_PROJECT_DIR; do
+  for v in HOME USER LANG TERM TMPDIR WM_PROJECT_DIR XDG_CONFIG_HOME; do
     [ -n "${!v+x}" ] && keep+=("$v=${!v}")
   done
   while IFS= read -r v; do
@@ -47,10 +69,21 @@ fi
 
 # -- arguments -----------------------------------------------------------------
 
+. "$PGF_ROOT/utilities/pgf-env/config.sh"
+
+. "$PGF_ROOT/utilities/pgf-env/commands.sh"
+. "$PGF_ROOT/utilities/pgf-env/coupling.sh"
+. "$PGF_ROOT/utilities/pgf-env/mpi.sh"
+
+sub="exec"
+case "${1:-}" in status | doctor | init | shell | run | install-link) sub="$1"; shift ;; esac
+init_layer="user"
+init_yes=0
+shell_cmd=""
+force=0
+
 mode="tree"
 prefix=""
-yade=0
-mpi=""
 while [ $# -gt 0 ]; do
   case "$1" in
   --prefix)
@@ -61,22 +94,85 @@ while [ $# -gt 0 ]; do
     ;;
   --for-tree) mode="tree"; shift ;;
   --bare) mode="bare"; shift ;;
-  --yade) yade=1; shift ;;
+  --yade) PGF_CONF_CLI[PGF_YADE]=1; shift ;;
+  --no-yade) PGF_CONF_CLI[PGF_YADE]=0; shift ;;
   --mpi)
-    [ "${2:-}" = "loopback" ] || die "--mpi supports only 'loopback'"
-    mpi="loopback"
+    msg="$(pgf_conf_set_cli "PGF_MPI=${2:-}")" || die "--mpi: ${msg#--set: }"
+    PGF_CONF_CLI[PGF_MPI]="$2"
+    shift 2
+    ;;
+  --set | --foam-bashrc)
+    kv="${2:-}"
+    [ "$1" = "--foam-bashrc" ] && kv="PGF_FOAM_BASHRC=${2:-}"
+    [ -n "${2:-}" ] || die "$1 needs an argument"
+    msg="$(pgf_conf_set_cli "$kv")" || die "$msg"
+    PGF_CONF_CLI[${kv%%=*}]="${kv#*=}"
+    shift 2
+    ;;
+  --yade-bin | --yade-trunk)
+    [ -n "${2:-}" ] || die "$1 needs an argument"
+    [ "$1" = "--yade-bin" ] && PGF_CONF_CLI[YADE_BIN]="$2" || PGF_CONF_CLI[YADE_TRUNK]="$2"
+    shift 2
+    ;;
+  --user | --checkout) init_layer="${1#--}"; shift ;;
+  --yes) init_yes=1; shift ;;
+  --force) force=1; shift ;;
+  -c)
+    [ "$sub" = "shell" ] || die "-c is a 'pgf-env shell' option"
+    shell_cmd="${2:-}"
     shift 2
     ;;
   --) shift; break ;;
   -h | --help)
-    sed -n '3,24p' "$SELF" | sed 's/^# \{0,1\}//'
+    sed -n '3,/^[^#]/p' "$SELF" | sed '$d; s/^# \{0,1\}//'
     exit 0
     ;;
-  *) die "unknown option '$1' (the command goes after --)" ;;
+  -*) die "unknown option '$1' (the command goes after --)" ;;
+  *)
+    [ "$sub" = "run" ] && break
+    die "unexpected '$1' (the command goes after --)"
+    ;;
   esac
 done
-[ $# -gt 0 ] || die "no command given (usage: pgf-env [options] -- <command ...>)"
-cmd=("$@")
+
+case "$sub" in
+install-link) pgf_install_link "$force"; exit $? ;;
+init) pgf_init "$init_layer" "$init_yes" || exit 2; exit 0 ;;
+esac
+
+pgf_conf_resolve || die "$PGF_CONF_ERR"
+yade="$PGF_YADE"
+mpi="$PGF_MPI"
+
+if [ "$sub" = "status" ]; then
+  pgf_conf_print
+  exit 0
+fi
+if [ "$sub" = "doctor" ]; then
+  pgf_conf_print
+  pgf_doctor "$mode" "$prefix"
+  exit $?
+fi
+
+case "$sub" in
+exec)
+  [ $# -gt 0 ] || die "no command given (usage: pgf-env [options] -- <command ...>)"
+  cmd=("$@")
+  ;;
+run)
+  [ $# -gt 0 ] || die "usage: pgf-env run [options] <caseDir> [Allrun | Allclean | script] [args ...]"
+  cd -- "$1" 2>/dev/null || die "case directory not found: $1"
+  shift
+  script="${1:-Allrun}"
+  [ $# -gt 0 ] && shift
+  [[ "$script" == */* ]] || [ ! -f "$script" ] || script="./$script"
+  cmd=("$script" "$@")
+  if [ "${PGF_CONF_SRC[PGF_YADE]}" = "default" ] && pgf_case_wants_yade .; then
+    yade=1
+    echo "pgf-env: $PWD has an active constant/yadeProperties; using --yade" >&2
+  fi
+  ;;
+esac
 
 # -- 2. OpenFOAM ---------------------------------------------------------------
 
@@ -157,6 +253,10 @@ export TMPDIR="$PGF_RUN_ROOT/tmp"
 
 if [ "$yade" -eq 1 ]; then
   export YADE_TRUNK="${YADE_TRUNK:-$PGF_ROOT/submodules/Foam-Yade}"
+  if [ "$mode" != "bare" ]; then
+    checks="$(pgf_coupling_check "$prefix/lib" "$YADE_TRUNK")" || die "$(grep '^FAIL' <<<"$checks" | cut -c6-)"
+    grep '^WARN' <<<"$checks" | sed 's/^WARN /pgf-env: warning: /' >&2
+  fi
   yade_bin="${YADE_BIN:-$(PATH="$PGF_ENV_CALLER_PATH" command -v yade)}"
   [ -x "$yade_bin" ] || die "no yade binary: set YADE_BIN or put yade on PATH"
   # Installs may only carry a suffixed binary; the tutorials call plain `yade`.
@@ -182,6 +282,11 @@ if [ "$yade" -eq 1 ]; then
   export PATH
 fi
 
+mpi_note=""
+if [ "$mpi" = "auto" ] && [ -z "${OMPI_MCA_btl_tcp_if_include:-}" ]; then
+  why="$(pgf_mpi_auto)" && { mpi="loopback"; mpi_note="; MPI loopback (auto: $why)"; }
+fi
+[ "$mpi" = "loopback" ] && [ -z "$mpi_note" ] && mpi_note="; MPI loopback"
 if [ "$mpi" = "loopback" ]; then
   export OMPI_MCA_btl=self,vader,tcp OMPI_MCA_btl_tcp_if_include=lo OMPI_MCA_oob_tcp_if_include=lo
 fi
@@ -206,13 +311,25 @@ if [ "$mode" != "bare" ]; then
   esac
   variant="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("variant","?"))' "$prefix/.pgf-build.json" 2>/dev/null)"
   [ "$yade" -eq 1 ] && [ "$variant" != "yade1" ] && die "--yade given, but $prefix is variant $variant"
-  echo "pgf-env: prefix $prefix (key ${prefix##*/}, variant ${variant:-?}, OpenFOAM $WM_PROJECT_VERSION)" >&2
+  echo "pgf-env: prefix $prefix (key ${prefix##*/}, variant ${variant:-?}, OpenFOAM $WM_PROJECT_VERSION$mpi_note)" >&2
 else
-  echo "pgf-env: bare (no prefix; build root $PGF_BUILD_ROOT, OpenFOAM $WM_PROJECT_VERSION)" >&2
+  echo "pgf-env: bare (no prefix; build root $PGF_BUILD_ROOT, OpenFOAM $WM_PROJECT_VERSION$mpi_note)" >&2
 fi
 
 export PGF_ENV_ACTIVE=1
 unset PGF_ENV_CALLER_PATH
+
+if [ "$sub" = "shell" ]; then
+  key="bare"
+  [ "$mode" = "bare" ] || key="${prefix##*/}"
+  if [ -n "$shell_cmd" ]; then
+    cmd=(/bin/bash -c "$shell_cmd")
+  else
+    rc="$TMPDIR/pgf-env-shellrc.$$"
+    printf 'PS1="(pgf:%s) \\w\\$ "\nrm -f "%s"\n' "$key" "$rc" >"$rc" || die "cannot write $rc"
+    cmd=(/bin/bash --rcfile "$rc" -i)
+  fi
+fi
 
 # -- 8. run --------------------------------------------------------------------
 

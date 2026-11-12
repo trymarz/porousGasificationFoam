@@ -30,7 +30,7 @@ License
 #include "Map.H"
 #include "autoPtr.H"
 #include "fvMesh.H"
-#include "FoamYade.H"
+#include "foamYadeApiCheck.H"
 
 namespace Foam
 {

@@ -33,6 +33,8 @@
 #   DEM sphere positions/radii: spheres/spheres_*.vtp  (open spheres/spheres.pvd in ParaView)
 #   Time-step coupling log:     dtInfo.txt
 
+cd "${0%/*}" || exit
+. ../DEM_common/demGuard.sh   # stop early outside a --yade env (#257)
 set -e   # abort on first error
 
 CASE_DIR="$(dirname "$(realpath "$0")")"

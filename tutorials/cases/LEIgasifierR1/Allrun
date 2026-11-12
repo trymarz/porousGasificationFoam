@@ -14,9 +14,9 @@
 #   constant/yadeProperties and `endTime 10` in system/controlDict, then run
 #   steps 1-2 and `porousGasificationFoam` serially.
 
+cd "${0%/*}" || exit
+. ../DEM_common/demGuard.sh   # stop early outside a --yade env (#257)
 set -e   # abort on first error
-
-cd "$(dirname "$(realpath "$0")")"
 
 # 1. Mesh from the geometry table, then fields.
 python3 leiGeometry.py

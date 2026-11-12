@@ -1,5 +1,6 @@
 #!/bin/bash
 
+cd "${0%/*}" || exit
 rm -rf ./microTGAMeanTemp/ ./microTGAP1/
 rm -f  microTGATemplate/.foamcli-state/run.pid microTGATemplate/.foamcli-state/run.json
 rm -f  microTGATemplate/*.foam log.*

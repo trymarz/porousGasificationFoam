@@ -15,6 +15,18 @@ Start from `tutorials/cases/canonical/pyrolysis`: one solid (`wood`), one reacti
 
 Other tutorials: [Tutorial Cases](#tutorial-cases). File details: [Input File Reference](#input-file-reference).
 
+### Running a case
+
+With `pgf-env` set up ([first-time setup](build.md#first-time-setup)), run any case from anywhere, without sourcing OpenFOAM or exporting anything:
+
+```bash
+pgf-env run tutorials/cases/canonical/pyrolysis            # Allrun
+pgf-env run tutorials/cases/canonical/pyrolysis Allclean
+pgf-env run tutorials/cases/MicroTGA-DEM_lambdaDotOff      # active yadeProperties: --yade picked for you
+```
+
+The case path is resolved from your current directory. Every tutorial `Allrun` / `Allclean` also changes into its own directory first, so `/path/to/case/Allrun` works from any directory in a shell that already has the environment (`pgf-env shell`, or a manually sourced OpenFOAM). The DEM tutorials stop with exit 2 and `run this via: pgf-env run <case>` when the shell has no `--yade` solver or no `yade`.
+
 ## Required Initial Fields
 
 | Field | Type | Description |
