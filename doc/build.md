@@ -47,7 +47,8 @@ Nothing is copied into `$WM_PROJECT_USER_DIR`. `$FOAM_USER_LIBBIN` is already on
 
 - `--for-tree` (default) uses this checkout's `--isolated` prefix and exits 2 if it is not built. `--bare` uses no prefix; use it to run `build.sh`.
 - `--yade` adds `YADE_TRUNK` (default `submodules/Foam-Yade`), a `yade` on `PATH` (from `YADE_BIN` or the caller's `PATH`) and `PYTHONPATH` (`YADE_PYTHONPATH`, or derived from the install). If `/tmp` is read-only, it also preloads a small shim that moves Yade's `/tmp/yade-XXXXXX` into `$TMPDIR`.
-- `--mpi loopback` restricts Open MPI to `self,vader,tcp` on `lo`. The DEM coupling connects Yade's MPI job to the solver it spawns over TCP, and Open MPI leaves `lo` out by default, so on a host or sandbox whose only interface is `lo` the run hangs with `help-mca-bml-r2.txt / unreachable proc`. The `dem` tier passes it; a DEM run is always on one node.
+- `--mpi loopback` restricts Open MPI to `self,vader,tcp` on `lo`. The DEM coupling connects Yade's MPI job to the solver it spawns over TCP, and Open MPI leaves `lo` out by default, so on a host or sandbox whose only interface is `lo` the run hangs with `help-mca-bml-r2.txt / unreachable proc`; on a host with docker/libvirt bridges it can hang probing them. The default, `PGF_MPI=auto`, applies loopback when a `docker*`, `virbr*`, `br-*` or `veth*` interface is up or when not exactly one other interface is up, and says so in the banner (`MPI loopback (auto: …)`). `--mpi default` (or `PGF_MPI=default`) leaves Open MPI alone. Runs are single-host; `auto` does not handle multi-host jobs.
+- `pgf-env doctor` prints the settings and read-only checks, each `OK`, `WARN` or `FAIL` with a fix: the bashrc and OpenFOAM version, this tree's prefix, yade (binary, version against the pin, `MPI` in its features), the coupling stamp, the MPI decision and the interfaces it saw, and whether `pgf-env` is on `PATH`. It exits 1 on any `FAIL`.
 
 ### Remembered settings
 

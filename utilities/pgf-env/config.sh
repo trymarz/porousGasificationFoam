@@ -62,7 +62,7 @@ pgf_conf_resolve() {
   local k msg
   PGF_CONF_VAL=() PGF_CONF_SRC=()
   PGF_CONF_VAL[PGF_YADE]=0 PGF_CONF_SRC[PGF_YADE]="default"
-  PGF_CONF_VAL[PGF_MPI]=default PGF_CONF_SRC[PGF_MPI]="default"
+  PGF_CONF_VAL[PGF_MPI]=auto PGF_CONF_SRC[PGF_MPI]="default"
   pgf_conf_parse "$(pgf_conf_user_file)" user || return 1
   pgf_conf_parse "$(pgf_conf_checkout_file)" checkout || return 1
   for k in "${PGF_CONF_KEYS[@]}"; do
