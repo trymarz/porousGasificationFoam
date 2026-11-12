@@ -176,7 +176,7 @@ The fixtures were captured with `--all-files`, so `H3`, `H4`, `H5`, `H9s`, `H10s
 
 `CharIntegral` and `PorosityAverage` are unchanged.
 
-**#173 PR B (pending, not recaptured).** Species now move before the energy solve, and one enthalpy balance solved for `Ts` replaces the two equations and four `H`↔`Ts` conversions. Old baselines kept; the moves below wait for the shared recapture. Old is build `b5b799f733f4`, new is `a5f8b08ddc49`.
+**#173 PR B.** Species now move before the energy solve, and one enthalpy balance solved for `Ts` replaces the two equations and four `H`↔`Ts` conversions. Recaptured from build `a5f8b08ddc49-yade0` (2026-11-10, branch merged with main `4dd0b40`); old is build `b5b799f733f4`. Only the 23 failing files were rewritten: 21 in the fast tier (10 cases) and 2 in the convergence tier (`serial_m2`, `serial_m4`). Fast went from 50/60 to 60/60 passing, convergence from 0/2 to 2/2. Every moved column is in this table and nothing else moved.
 
 | Case | Column | Move | Why |
 |---|---|---|---|
@@ -202,7 +202,31 @@ The fixtures were captured with `--all-files`, so `H3`, `H4`, `H5`, `H9s`, `H10s
   The other columns (`targas`, `porosityF`, `Ywoodm`, `min(Ts)`) stay inside `rtol` and have ratios 0.51–0.55. The source: under CN the carrier heat capacity `Σ max(Ym_i − dt·RRs_i, 0)·Cp_i` is not the old-time mass the scheme blends with.
 - **Uniform `Ts` under pure transport** is now exact: `solidInlet_ash` has `max|Ts − 300| = 0`, and `rightWallSolidAccumulationFromLeftInlet`'s `== 300` check holds.
 - **Composition term (D8).** Taking it explicit instead of implicit moves `pyrolysis` `max(Ts)` by +0.19 K (3.4e-4) and `volAverage(p)` by 5.7e-4, first order in dt. Implicit is kept.
-- **DEM tier**, new against old build under Yade `d5c33e0`: `lambdaDotTemperature` and `lambdaDotBoth` move `lambdaDotMax` by 7.0e-5 and 1.06e-4, `lambdaDotAverage` by 1.5e-5 and 1.7e-5; `lambdaDotChemistry`, `lambdaDotOff` and `lambdaDotApparentVolume` do not move (≤ 4e-9). Two runs of the new build are byte-identical. `lambdaDotTemperature` and `lambdaDotBoth` fail against the committed baselines with the old build too, on the same five files. `lambdaDotAltInterp` was not run.
+- **DEM tier**, new against old build under Yade `d5c33e0` and `yadeDt` 5e-6: `lambdaDotTemperature` and `lambdaDotBoth` move `lambdaDotMax` by 7.0e-5 and 1.06e-4, `lambdaDotAverage` by 1.5e-5 and 1.7e-5; `lambdaDotChemistry`, `lambdaDotOff` and `lambdaDotApparentVolume` do not move (≤ 4e-9). Under Yade `42126e8` and `yadeDt` 1e-6, `lambdaDotTemperature` moves `lambdaDotMax` by 1.4e-4 and nothing else past `rtol`. The DEM baselines are reset in the next entry.
+
+**DEM reset (with #173 PR B).** The six `MicroTGA-DEM_lambdaDot*` baselines dated from #199 (`b2f2ad6`). Recaptured from build `a5f8b08ddc49-yade1` under Yade from Foam-Yade `42126e8` (the `d5c33e0` install with `libpkg_openfoam.so` rebuilt; the coupling libraries under `pkg/openfoam/coupling` are identical at both commits). Before: `Off` and `ApparentVolume` pass, the other four fail. After: 6/6 pass. Only the 17 failing files were rewritten. Sign and spring-force checks pass in every case, and two runs of `lambdaDotTemperature` are byte-identical.
+
+| Case | Column | Move at the last sample | Why |
+|---|---|---|---|
+| `Temperature`, `Chemistry`, `Both`, `AltInterp` | `lambdaMinusOneAverage`, `Max`, `Min`, where the baseline is not 0 | 0.20x–0.23x | #230: Yade now runs at the OpenFOAM `deltaT` (`yadeDt` 5e-6 → 1e-6) |
+| `Temperature`, `Both` | `lambdaMinusOneMin` | 0 → 1.7e-7, 0 → 1.6e-7 | #229: no body at the rank cut stays at λ = 1 |
+| `Chemistry` | `lambdaMinusOneMax` | 0 → −1.0e-8 | #229, as above (λ falls in this case) |
+| `Temperature`, `Both` | `lambdaDotAverage` | +0.4%, +0.6% | see the steps below |
+| | `lambdaDotMax` | −2.5%, −2.0% | |
+| | `lambdaDotMin` | +3.3%, +3.7% | |
+
+`lambdaDotTemperature` step by step (`lambdaDotAverage`, `lambdaDotMax` at the last sample, in 1e-5):
+
+| State | Average | Max | Step |
+|---|---|---|---|
+| baseline (#199) | 5.6274 | 6.9558 | |
+| main before #229, `yadeDt` 5e-6 | 5.7708 | 7.0930 | +2.5%, +2.0%: #201, #209, #213, #226 (failing on main since) |
+| + #229 | 5.7888 | 7.0861 | +0.3%, −0.1% |
+| + #230, `yadeDt` 1e-6 | 5.6477 | 6.4610 | −2.4%, −8.8% |
+| main `4dd0b40` (+ #231, #228) | 5.6488 | 6.7802 | +0.02%, +4.9% |
+| + #173 PR B (recaptured) | 5.6488 | 6.7801 | ≤ 1.4e-4 |
+
+`lambdaDotMin` moves +3.3% in the first step and less than 1e-4 after it. `lambdaDotAltInterp` now runs in 122 s (2600 s before #230).
 
 ## Next
 
