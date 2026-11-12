@@ -1,5 +1,6 @@
 #!/bin/sh
 cd "${0%/*}" || exit
+. ../../cases/DEM_common/demGuard.sh   # stop early outside a --yade env (#257)
 . ${WM_PROJECT_DIR:?}/bin/tools/RunFunctions
 # Requires a Yade-enabled solver build: ./build.sh --yade
 
