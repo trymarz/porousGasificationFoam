@@ -1,5 +1,8 @@
 # Char gasification only shrinks: r = lambdaDot <= 1 and lambda never rises above 1.
 lambdaDotMax  max(lambdaDot)  <=  1
 lambdaMax     max(lambda)     <=  1  1e-12
+# ...and every bed cell does shrink: baseline max(lambda-1) is -2.07e-6 at the first
+# write (t=2e-4) and -2.01e-5 at the end; the bound is half the first value.
+lambdaMinusOneMax  max(lambdaMinusOne)  <=  -1e-6
 # Springs reach NewtonIntegrator (#231). First run: 1.1e-3..1.8e-3 N; bound ~1/100 of that.
 springForceAtNewton  springForce  >=  1e-5

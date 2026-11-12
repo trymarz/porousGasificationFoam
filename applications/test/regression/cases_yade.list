@@ -40,7 +40,7 @@ tutorials/cases/MicroTGA-DEM_lambdaDotAltInterp
 tutorials/cases/MicroTGA-DEM_lambdaDotApparentVolume
 
 # ...ApparentVolume's bed as char gasifying in pure CO2 at 1273 K (#207). Direction
-# invariant: r <= 1 and max(lambda) <= 1 (regressionInvariants), mean lambda < 1 (Allrun).
+# invariant: r <= 1, max(lambda) <= 1 and max(lambda-1) <= -1e-6 (regressionInvariants).
 tutorials/cases/MicroTGA-DEM_charCO2
 
 # tutorials/experimental/simple_line_case is NOT listed yet. It builds, meshes

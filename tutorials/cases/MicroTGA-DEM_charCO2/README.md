@@ -105,6 +105,10 @@ mass and contacts do not follow λ (#206).
 - `Allrun`: r = `lambdaDot` > 0 in the bed, and the mean λ ends below 1.
 - `system/regressionInvariants`: `max(lambdaDot) ≤ 1`, so no cell ever
   grows, and `max(lambda) ≤ 1`, so no particle ever grows (to 1e-12).
+  These two also hold if nothing reacts, so `max(lambda − 1) ≤ −1e-6` (no
+  tolerance) requires every bed cell to shrink at every write. That bound is
+  half the first-write value, −2.07e-6 at t = 2e-4 s; the end value is −2.01e-5.
+  Every bed cell starts as pure char, so the max over the bed still moves.
   It also keeps the reference case's check that the spring force reaches
   `NewtonIntegrator` (≥ 1e-5 N; the first run gave 1.1e-3 to 1.8e-3 N).
 
