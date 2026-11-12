@@ -1,0 +1,28 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     |                                                 |
+|   \\  /    A nd           |                                                 |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+
+// Radiative flux leaving the gas through the black walls, per unit area.
+regressionWallFlux
+{
+    type            surfaceFieldValue;
+    libs            (fieldFunctionObjects);
+    regionType      patch;
+    name            walls;
+    operation       areaAverage;
+    fields          (qr);
+    writeFields     false;
+    writePrecision  10;
+    writeToFile     true;
+    log             true;
+    executeControl  timeStep;
+    executeInterval 1;
+    writeControl    timeStep;
+    writeInterval   1;
+}
+
+// ************************************************************************* //

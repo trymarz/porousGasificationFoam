@@ -33,6 +33,23 @@ License
 
 using namespace Foam::constant;
 
+namespace
+{
+    //- Copy each cell value of a mask set cell by cell to the faces of its
+    //  non-coupled patches; correctBoundaryConditions() does the coupled ones.
+    void copyCellsToUncoupledPatches(Foam::volScalarField& f)
+    {
+        Foam::volScalarField::Boundary& bf = f.boundaryFieldRef();
+        forAll(bf, patchi)
+        {
+            if (!bf[patchi].coupled())
+            {
+                bf[patchi] = bf[patchi].patchInternalField();
+            }
+        }
+    }
+}
+
 // * * * * * * * * * * * * * * Static Data Members * * * * * * * * * * * * * //
 
 namespace Foam
@@ -215,6 +232,9 @@ Foam::radiationModels::heterogeneousP1::heterogeneousP1
             radiatingCellHasNoSolid_[cellI] = 0.0;
         }
     }
+
+    copyCellsToUncoupledPatches(radiatingCellHasSolid_);
+    copyCellsToUncoupledPatches(radiatingCellHasNoSolid_);
 }
 
 
@@ -321,6 +341,8 @@ void Foam::radiationModels::heterogeneousP1::calculate()
     bedBorderSurfaceAreaDensity_.correctBoundaryConditions();
     radiatingCellHasSolid_.correctBoundaryConditions();
     radiatingCellHasNoSolid_.correctBoundaryConditions();
+    copyCellsToUncoupledPatches(radiatingCellHasSolid_);
+    copyCellsToUncoupledPatches(radiatingCellHasNoSolid_);
 
     // Construct diffusion. Deliberately ungated: gamma sets where radiation
     // goes, not who pays for it, so the reservoir balances below whatever it
