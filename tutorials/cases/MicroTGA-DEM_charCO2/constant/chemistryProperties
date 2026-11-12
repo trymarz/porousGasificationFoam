@@ -1,0 +1,67 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     |
+    \\  /    A nd           |
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      chemistryProperties;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+chemistry           on;
+
+chemistryType
+{
+    solver            ode;
+}
+
+solidChemistryType
+{
+    solver              solidOde;
+    method              ODESolidHeterogeneousChemistryModel;
+    solidThermoType     const<constRad<constThermo<constRho>>>;
+}
+
+initialChemicalTimeStep 1e-10;
+
+turbulentReaction   off;
+solidReactionEnergyFromEnthalpy false;
+stoichiometricReactions false;
+showRelativeReactionRates false;
+solidChemistryTimeStepControl false;
+// Off: the kinetics below are a kinetic-regime TGA fit, so no Eq. 10 film resistance.
+diffusionLimitedReactions false;
+
+odeCoeffs
+{
+    solver          seulex;
+}
+
+solidOdeCoeffs
+{
+    solver      seulex;
+}
+
+species
+(
+    N2 CO CO2
+);
+
+// C + CO2 -> 2 CO per kg of char (#201); kinetics: Khalil et al., Energy Fuels
+// 23 (2009) 94-100, Table 3, pine, joint fit; Tcrit = bottom of its 600-1000 C range.
+// Derivation and limits in this case's README.md.
+solidReactions
+(
+    irreversibleSolidArrheniusHeterogeneousReaction
+    char + 3.6641 CO2 = 4.6641 CO
+    (1.778e9 31512 873 1.4362e7 1 0.40)
+);
+
+// ************************************************************************* //

@@ -12,7 +12,9 @@ byte-identical across the six lambdaDot regression fixtures:
     MicroTGA-DEM_lambdaDotApparentVolume
 
 Each of those six directories symlinks these files in (...ApparentVolume keeps
-its own constant/solidThermophysicalProperties), so the fixtures still
+its own constant/solidThermophysicalProperties). MicroTGA-DEM_charCO2 links
+the same files except its chemistry, gas thermo and solid thermo (see its
+README.md). So the fixtures still
 run standalone (`./Allrun`) and are still listed one-per-line in
 applications/test/regression/cases_yade.list — nothing in the regression
 runner knows this directory exists. It carries no entry there itself.

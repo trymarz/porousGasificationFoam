@@ -1,0 +1,26 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     |
+    \\  /    A nd           |
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      lambdaDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// r = cbrt(1 + dV_chem/V_old) per exchange; char is the only solid, so
+// r = cbrt(m_new/m_old) < 1 wherever char gasifies.
+lambdaMode apparentVolume;
+
+// Optional guards, shown at their defaults.
+minSolidVolume  1e-6;   // [-] V_old below this: r = 1
+minVolumeRatio  1e-6;   // [-] floor on 1 + dV_chem/V_old
+
+// ************************************************************************* //
