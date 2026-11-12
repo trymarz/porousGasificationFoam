@@ -1,0 +1,44 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     |                                                 |
+|   \\  /    A nd           |                                                 |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+
+// The gas temperature range.  At radiative equilibrium the gas absorbs a*G
+// and emits 4*a*sigma*T^4 in equal measure, so both stay at the initial
+// 1000 K.  Before #237 the emission was never subtracted: +85 K by 0.05 s.
+regressionGasTempMin
+{
+    type            volFieldValue;
+    libs            (fieldFunctionObjects);
+    regionType      all;
+    operation       min;
+    fields          (T);
+    writeFields     false;
+    writePrecision  10;
+    writeToFile     true;
+    log             true;
+    executeControl  timeStep;
+    executeInterval 1;
+    writeControl    timeStep;
+    writeInterval   1;
+}
+
+regressionGasTempMax
+{
+    ${regressionGasTempMin}
+    operation       max;
+}
+
+// Liveness: G is 4 sigma T^4 = 2.27e5 W/m2, so the gas trades 2.27e5 W/m3
+// each way while its temperature holds.
+regressionGAverage
+{
+    ${regressionGasTempMin}
+    operation       volAverage;
+    fields          (G);
+}
+
+// ************************************************************************* //

@@ -1,0 +1,32 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  v2406
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       volScalarField;
+    location    "0";
+    object      Ts;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+dimensions      [0 0 0 1 0 0 0];
+
+// The gas temperature: with h = 0 and as = borderAs = 0 the solid takes no
+// part, so the gas is alone with its radiation.
+internalField   uniform 1000;
+
+boundaryField
+{
+    wall
+    {
+        type            zeroGradient;
+    }
+}
+
+// ************************************************************************* //

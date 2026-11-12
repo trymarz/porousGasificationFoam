@@ -378,10 +378,12 @@ void Foam::radiationModels::heterogeneousP1::calculate()
 
 Foam::tmp<Foam::volScalarField> Foam::radiationModels::heterogeneousP1::Rp() const
 {
+    // The gas emits 4*a*sigma*T^4 into G (calculate()), so the gas EEqn loses
+    // the same. eCont() is never overridden here and would return 0.
     return volScalarField::New
     (
         "Rp",
-        4.0*heterogeneousAbsorptionEmission().eCont()*physicoChemical::sigma
+        4.0*heterogeneousAbsorptionEmission().aCont()*physicoChemical::sigma
     );
 }
 

@@ -355,13 +355,15 @@ solverFreq 1;
 heterogeneousAbsorptionEmissionModel heterogeneousConstantAbsorptionEmission;
 heterogeneousConstantAbsorptionEmissionCoeffs
 {
-    a               a  [ 0 -1  0 0 0 0 0 ] 0;       // Absorption coefficient [1/m]
+    a               a  [ 0 -1  0 0 0 0 0 ] 0;       // Gas absorption coefficient [1/m]
     as              as [ 0 -1  0 0 0 0 0 ] 0;       // Scattering coefficient [1/m]
     borderAs        borderAs [ 0 -1  0 0 0 0 0 ] 180; // Surface absorption [1/m]
-    E               E  [ 1 -1 -3 0 0 0 0 ] 0.0;     // Emissive power
+    E               E  [ 1 -1 -3 0 0 0 0 ] 0.0;     // Extra constant gas sink [W/m3]
     borderL         borderL  [ 0 1 0 0 0 0 0 ] 1.5e-3; // Surface layer [m]
 }
 ```
+
+With `heterogeneousP1` the gas energy equation receives `a·G − 4·a·σ·T⁴ − E`: the gas absorbs `a·G` and loses its own emission `4·a·σ·T⁴`, the same term that feeds the G equation, so a gas at `G = 4σT⁴` has no net source. `E` is an additional constant sink, not needed to balance the emission; leave it at 0 unless you mean to remove heat.
 
 ### `system/fvSolution` — Key Settings
 
