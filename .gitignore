@@ -23,3 +23,8 @@ run.log
 /submodules/*-build/
 /submodules/*-install/
 /submodules/*-venv/
+
+# --- Confidential site data, supplied locally (never commit) --------------
+tutorials/cases/**/*.local
+# Generated from the geometry table, which may read a .local file.
+tutorials/cases/LEIgasifierR1/system/blockMeshDict

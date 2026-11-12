@@ -22,9 +22,24 @@ Published values used (Sec. 2.2, Tables 1–3):
 
 Layout read from Fig. 3: the shaft's bottom plate is the top of the reduction chamber. The tuyere cone hangs from the 200 mm opening in that plate and narrows to the 130 mm throat over 110 mm, so the throat sits inside the chamber, 320 mm above the grate. The grate is the chamber floor.
 
+### Site drawing (local, not in the repository)
+
+LEI's drawing of the current reactor is confidential, so none of its numbers are in this repository. Put them in `constant/LEIgeometry.local`, which git ignores (`tutorials/cases/**/*.local`). The file holds Python literal assignments (`name = value`) that override the values of the same name at the top of `leiGeometry.py`; an unknown name stops the script. Without the file, the case runs on the 2014 values and the assumptions below. `system/blockMeshDict` is generated, so it is git-ignored too.
+
+The drawing decides the heights, the port and outlet positions and the outline. The paper supplies the internals the drawing doesn't show: the throat, the tuyere cone and all diameters. Where the two disagree, the drawing wins. The disagreements, by role:
+
+- **Upper shaft height:** the drawing's value differs from the paper's upper-part height.
+- **Primary ports:** the drawing puts them in the shaft wall, a short distance above the bottom plate (`primary_on = "shaft"`). The paper puts the tuyeres at the 200 mm section, at the top of the tuyere cone.
+- **Gas outlet:** the drawing puts it on the other side (`outlet_side = -1`), high in the lower chamber, above the throat. The pocket between the tuyere cone and the chamber wall is then meshed, and the cone gets a wall of assumed thickness `t_cone`.
+- **Under the grate:** the drawing shows a straight chamber narrower than the reduction zone (`r_pit_top = "throat"`), not a cone. Its width isn't dimensioned, so it takes the throat width.
+- **Lower drum width:** the drawing shows the lower drum wider than the upper shaft; in the paper the reduction zone is narrower than the shaft. The drawing gives no width, so the paper's diameters stay. The drum may be the casing around the 2014 lining.
+- **Throat:** the drawing shows a plain step with no throat. The 2014 internals stay (#64, open decision 2).
+
+The drawing's thermocouple heights aren't used yet (assumption 9).
+
 ## Geometry
 
-`leiGeometry.py` is the only geometry table. It writes `system/blockMeshDict`, and the DEM scripts import it, so the mesh, the DEM walls and the packing region can't drift apart. The slab is the xz-plane through the reactor axis, z = 0 on the grate, 16 mm deep (y = ±8 mm) as in `LEIgasifierDEM`.
+`leiGeometry.py` is the only geometry table. It writes `system/blockMeshDict`, and the DEM scripts import it, so the mesh, the DEM walls and the packing region can't drift apart. The slab is the xz-plane through the reactor axis, z = 0 on the grate, 16 mm deep (y = ±8 mm) as in `LEIgasifierDEM`. Without the local file:
 
 | Region | z (m) | Half-width (m) |
 |---|---|---|
@@ -33,7 +48,7 @@ Layout read from Fig. 3: the shaft's bottom plate is the top of the reduction ch
 | Tuyere cone | 0.32 → 0.43 | 0.065 → 0.10 |
 | Upper shaft | 0.43 → 1.03 | 0.20 |
 
-There are 744 hexahedra. Patches are `primaryInlet`, `secondaryInlet`, `outlet`, `wall` and `frontAndBack` (empty). The grate is a DEM wall only: gas passes through it, so the FVM mesh has no face there.
+Cell sizes come from target widths and heights (`dx_cell`, `dz_cell`), so the local file doesn't need a mesh of its own. Patches are `primaryInlet`, `secondaryInlet`, `outlet`, `wall` and `frontAndBack` (empty). The grate is a DEM wall only: gas passes through it, so the FVM mesh has no face there.
 
 ## Assumptions
 
@@ -42,7 +57,7 @@ There are 744 hexahedra. Patches are `primaryInlet`, `secondaryInlet`, `outlet`,
 3. **Secondary supply from below the bed** (#64): the bottom of the ash cone. In 2014 the secondary air entered through the chamber side near the grate, and the tertiary air came up a central rotating pipe (Fig. 3). Neither is modelled, and the tertiary supply is dropped.
 4. **Side gas outlet:** right chamber wall, 50–110 mm above the grate. In 2014 the gas left under the grate and rose through an annulus between the chamber wall and the brick lining to a port near the chamber top (Fig. 3). #64 places the redesign's outlet on the side of the lower chamber, and its height isn't published.
 5. **Ash cone:** 150 mm tall, narrowing from the 300 mm chamber to 150 mm at the bottom. Fig. 3 shows a straight ash zone with no dimensions; #64 asks for a cone.
-6. **The pocket between the tuyere cone and the chamber wall is not meshed.** The chamber's top boundary is the throat level (a ledge at z = 0.32 m). The pocket is dead space above the char pile.
+6. **The pocket between the tuyere cone and the chamber wall is meshed only when the outlet reaches above the throat.** Otherwise the chamber's top boundary is the throat level (a ledge at z = 0.32 m), and the pocket is dead space above the char pile. When it is meshed, the cone wall is 10 mm thick (`t_cone`). The pocket is outside the packing region, so it starts empty.
 7. **The upper part's 600 mm** runs from the bottom plate to the lid. The fuel level, the feed opening and the P/L sensors are not modelled; the lid is a wall.
 8. **Inert gas and flows:** N2 at 300 K replaces air, at the softwood run's Table 3 normal flows. Fresh-bed porosity is 0.4 (as `LEIgasifierDEM`), and the Darcy coefficient is Ergun's viscous term for 8 mm pellets at that porosity, 1.3e7 m⁻². There is no Forchheimer term.
 9. **Thermocouple and sampling positions** (T1–T6, Fig. 3) are not placed. #64 leaves them to R5.
@@ -75,11 +90,15 @@ For the cold-flow check, run CFD only: set `active false` in `constant/yadePrope
 
 ## Checks
 
-- **Mesh quality:** `checkMesh` reports `Mesh OK`. There are 744 hexahedra, max non-orthogonality is 24.9°, max skewness 1.12 and max aspect ratio 2.6. All faces are in named patches, with none in `defaultFaces`.
+Without the local file:
+
+- **Mesh quality:** `checkMesh` reports `Mesh OK`. There are 922 hexahedra, max non-orthogonality is 25.3°, max skewness 1.18 and max aspect ratio 2.0. All faces are in named patches, with none in `defaultFaces`.
 - **DEM walls agree with the FVM boundary:** `checkDemWalls.py` loads the DEM walls the way the run does. It then checks two things: each vertex, edge midpoint and centroid of every non-empty `constant/polyMesh` boundary face lies on a DEM facet, and every DEM facet except the grate lies on the FVM boundary, both to within 1e-9 m. After relaxation it also checks that every sphere sits inside the bed region, above the grate and on the mid-plane, with less than 10% overlap with a wall. Moving one blockMeshDict vertex by 5 mm makes it fail.
 - **Settling:** 6138 spheres settle in 9500 DEM steps (0.475 s): unbalanced force 2e-4, fastest sphere 0.7 mm/s, closest wall 0.93 r.
-- **Cold flow:** a CFD-only run to 10 s (2500 steps at 4e-3 s) is steady from about 2 s. Axis-probe pressures hold to 0.01 Pa from 2 s to 10 s, max |U(10 s) − U(9 s)| is 1.7e-7 m/s, max |U| is 1.08 m/s at the primary ports and max Courant number is 0.25. Outflow equals inflow to 2.5e-6 relative, T stays within 300–300.05 K, and the bed pressure drop is about 35 Pa. This is not a target: the paper's 3 kPa set point is for hot operation on a char bed.
+- **Cold flow:** a CFD-only run to 10 s (2500 steps at 4e-3 s) is steady from about 2 s. Axis-probe pressures don't change from 2 s to 10 s at the probes' written precision, max |U(10 s) − U(9 s)| is 2.4e-7 m/s, max |U| is 1.11 m/s at the primary ports and max Courant number is 0.34. Outflow equals inflow to 2.6e-6 relative, T stays within 300–300.05 K, and the pressure drop from the shaft to the chamber bottom is about 23 Pa. This is not a target: the paper's 3 kPa set point is for hot operation on a char bed.
 
-The coupled smoke run checks only that the coupling starts and ends cleanly. With chemistry off, lambdaDot is zero and the spheres keep their size.
+With the local site file the same checks pass: `Mesh OK`, the wall and sphere check OK, and a stable cold flow with outflow equal to inflow to 6e-6. A slow recirculation under the grate is still decaying at 10 s: the per-second velocity change falls about 2.5× each second.
+
+The full `Allrun`, including the coupled smoke run on 4 ranks, finishes cleanly in about a minute with and without the local file. The coupled smoke run checks only that the coupling starts and ends cleanly. With chemistry off, lambdaDot is zero and the spheres keep their size.
 
 The case is not in `applications/test/regression/cases.list` or `cases_yade.list`.
