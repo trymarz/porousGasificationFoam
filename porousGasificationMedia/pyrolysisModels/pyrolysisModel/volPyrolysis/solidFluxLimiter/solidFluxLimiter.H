@@ -33,6 +33,11 @@ Description
     Owned directly by volPyrolysis (like specieTransfer_, HTmodel_) - no runtime
     selection, since only one limiter algorithm exists.
 
+    Field access (model):
+      reads   Us, Ym (patches refreshed by volPyrolysis), rho, Ts, the
+              chemistry's RRs and RRpor, the SolidState thresholds;
+      writes  nothing: limit() returns the flux volPyrolysis stores.
+
 SourceFiles
     solidFluxLimiter.C
 
@@ -76,9 +81,8 @@ class SolidFluxLimiter
         const volVectorField& Us_;
 
         //- Solid specie mass concentrations [kg/m3]
-        //  Non-const: patches are refreshed before reading, since a
-        //  fixedYm value is one stage stale otherwise.
-        PtrList<volScalarField>& Ym_;
+        //  volPyrolysis refreshes their patches before limit() reads them.
+        const PtrList<volScalarField>& Ym_;
 
         //- Solid skeletal density [kg/m3]
         const volScalarField& rho_;
@@ -131,7 +135,7 @@ class SolidFluxLimiter
         ) const;
 
         //- Builds the per-specie and total flux/chemistry budgets used
-        //  below (alphaS, RRpor included). Refreshes Ym_'s patches first.
+        //  below (alphaS, RRpor included)
         void solidFluxBudgets
         (
             const surfaceScalarField& phiSolid,
@@ -141,7 +145,7 @@ class SolidFluxLimiter
             tmp<surfaceScalarField>& tPhiSolidVol,
             tmp<volScalarField>& tAlphaS,
             tmp<volScalarField>& tRRpor
-        );
+        ) const;
 
         //- Per-cell cap on outgoing flux: can't give away more of a
         //  specie than it holds, keeping Ym_i >= 0. With credit, flux
@@ -211,10 +215,13 @@ public:
 
     // Member Functions
 
+        //- Whether limit() scales the flux, and so reads the Ym patches
+        bool limiting() const;
+
         //- Solid volumetric face flux used by transport [m3/s]
         //  Us's flux, scaled to what each cell can supply/receive. The
         //  owning model's fail-fast guards catch whatever the sweeps miss.
-        tmp<surfaceScalarField> limit();
+        tmp<surfaceScalarField> limit() const;
 };
 
 

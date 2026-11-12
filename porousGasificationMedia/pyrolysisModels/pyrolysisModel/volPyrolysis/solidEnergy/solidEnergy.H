@@ -55,6 +55,13 @@ Description
     Owned directly by volPyrolysis (like BedCollapse) - no runtime
     selection.
 
+    Field access (equation):
+      reads   Ym, rho, K, phiYm passed in, the radiation, reaction and
+              exchange sources, Tg, the SolidState masks and gate; Us and
+              porosity in the abort report;
+      writes  Ts, the unknown, and solidH from it; solidThermo.correct();
+              owns radiationSh.
+
 SourceFiles
     solidEnergy.C
 
@@ -105,11 +112,8 @@ class SolidEnergy
         const volScalarField& rho_;
         const volScalarField& K_;
 
-        //- Solid mass fractions, from solidThermo
-        PtrList<volScalarField>& Ys_;
-
         //- Solid mass concentrations [kg/m3], owned by volPyrolysis
-        PtrList<volScalarField>& Ym_;
+        const PtrList<volScalarField>& Ym_;
 
         //- Solid enthalpy, owned by volPyrolysis. Counts from 0 K, the gas he
         //  from 298.15 K; only an energy audit sees the difference. To be
@@ -129,9 +133,9 @@ class SolidEnergy
         //- Reaction heat [W/m3]
         const volScalarField& chemistrySh_;
 
-        SolidState& solidState_;
+        const SolidState& solidState_;
 
-        GasSolidHeatExchange& heatExchange_;
+        const GasSolidHeatExchange& heatExchange_;
 
         const SolidDiagnostics& solidDiagnostics_;
 
@@ -160,7 +164,7 @@ class SolidEnergy
         tmp<volScalarField> carrierHeatCapacity
         (
             const volScalarField& totalYm
-        );
+        ) const;
 
         //- The dispersed rule, then the trace rule, on Ts
         void applyRegimeRules(const volScalarField& totalYm);
@@ -225,7 +229,7 @@ public:
             const psiReactionThermo& gasThermo,
             const volScalarField& radiation,
             const volScalarField& chemistrySh,
-            GasSolidHeatExchange& heatExchange,
+            const GasSolidHeatExchange& heatExchange,
             const SolidDiagnostics& solidDiagnostics,
             const Switch& equilibrium
         );

@@ -59,6 +59,12 @@ Description
     Owned directly by volPyrolysis (like BedCollapse) - no runtime
     selection; the heat transfer model itself is selected at runtime.
 
+    Field access (model):
+      reads   Ts, rho, porosity, porosityF0, the gas thermo (Tg, hs_i),
+              the SolidState gate, Srho_i passed in;
+      writes  only what it owns: the heat transfer coefficient, the
+              exchange, interfaceEnthalpy and agentHeatUp.
+
 SourceFiles
     gasSolidHeatExchange.C
 

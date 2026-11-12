@@ -58,6 +58,11 @@ Description
     Owned directly by volPyrolysis (like SolidFluxLimiter) - no runtime
     selection, since only one checking policy exists.
 
+    Field access (diagnostics):
+      reads   Ym, Ys, the chemistry, SolidState and the fields each check
+              is passed;
+      writes  nothing but its own counters and run totals.
+
 SourceFiles
     solidDiagnostics.C
 

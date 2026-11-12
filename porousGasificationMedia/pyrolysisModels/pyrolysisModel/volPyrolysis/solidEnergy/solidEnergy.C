@@ -53,7 +53,7 @@ SolidEnergy::SolidEnergy
     const psiReactionThermo& gasThermo,
     const volScalarField& radiation,
     const volScalarField& chemistrySh,
-    GasSolidHeatExchange& heatExchange,
+    const GasSolidHeatExchange& heatExchange,
     const SolidDiagnostics& solidDiagnostics,
     const Switch& equilibrium
 )
@@ -65,7 +65,6 @@ SolidEnergy::SolidEnergy
     T_(solid.T),
     rho_(solid.rho),
     K_(solid.thermo.K()),
-    Ys_(solid.Ys),
     Ym_(solid.Ym),
     solidH_(solid.solidH),
     porosity_(solid.porosity),
@@ -126,7 +125,7 @@ Foam::tmp<Foam::volScalarField> SolidEnergy::solidHeatCapacity
 Foam::tmp<Foam::volScalarField> SolidEnergy::carrierHeatCapacity
 (
     const volScalarField& totalYm
-)
+) const
 {
     const volScalarField preReactionYm
     (
@@ -139,29 +138,30 @@ Foam::tmp<Foam::volScalarField> SolidEnergy::carrierHeatCapacity
 
     volScalarField rhoCp(preReactionYm*solidThermo_.Cp());
 
-    // Cp() is sum_i Ys_i*Cp_i, so with Ys_ holding the pre-reaction masses
-    // instead of fractions it returns sum_i Ym_i*Cp_i. Ys_ is restored after.
-    List<scalarField> postReactionYs(Ys_.size());
-    forAll(Ys_, i)
+    // sum_i Cp_i*Ym_i on the pre-reaction masses, summed in the order
+    // multiComponentSolidMixture::Cp() sums Cp_i*Ys_i.
+    scalarField exactRhoCp(Ym_[0].size(), 0.0);
+    forAll(Ym_, i)
     {
-        postReactionYs[i] = Ys_[i].primitiveField();
-        Ys_[i].primitiveFieldRef() = max
+        const scalarField preReactionYmI
         (
-            Ym_[i].primitiveField()
-          - mesh_.time().deltaTValue()*chemistry_.RRs(i)().primitiveField(),
-            scalar(0)
+            max
+            (
+                Ym_[i].primitiveField()
+              - mesh_.time().deltaTValue()*chemistry_.RRs(i)().primitiveField(),
+                scalar(0)
+            )
         );
-    }
+        const scalarField CpI(solidThermo_.specieCp(i)().primitiveField());
 
-    const scalarField exactRhoCp(solidThermo_.Cp()().primitiveField());
-
-    forAll(Ys_, i)
-    {
-        Ys_[i].primitiveFieldRef() = postReactionYs[i];
+        forAll(exactRhoCp, cellI)
+        {
+            exactRhoCp[cellI] += CpI[cellI]*preReactionYmI[cellI];
+        }
     }
 
     // preReactionYm*Cp() pairs the old mass with the new composition,
-    // scaling Ts by Cp_pre/Cp_post each step. Below SMALL, Ys_ is
+    // scaling Ts by Cp_pre/Cp_post each step. Below SMALL, Ys is
     // deriveYiFromYm()'s placeholder, so those cells keep it.
     forAll(rhoCp, cellI)
     {
@@ -398,11 +398,6 @@ void SolidEnergy::solve(const PtrList<surfaceScalarField>& phiYm)
     // after the solve, and this is the value they left.
     const volScalarField HOld("solidHOld", solidH_);
 
-    forAll(Ym_, i)
-    {
-        Ym_[i].correctBoundaryConditions();
-    }
-
     // The mass the species step left, reaction and transport included.
     const volScalarField totalYm(SolidState::totalMass(Ym_));
 
@@ -415,7 +410,6 @@ void SolidEnergy::solve(const PtrList<surfaceScalarField>& phiYm)
     );
 
     T_.correctBoundaryConditions();
-    solidState_.correctSolidPresentBoundaryConditions();
 
     solveEnthalpyBalance(composedK, rhoCpCarrier, HOld, phiYm);
 

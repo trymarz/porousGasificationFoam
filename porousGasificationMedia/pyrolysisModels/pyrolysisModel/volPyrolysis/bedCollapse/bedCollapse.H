@@ -46,6 +46,11 @@ Description
     SolidFluxLimiter) - no runtime selection, since only one bed-motion
     model exists.
 
+    Field access (constraint, called by volPyrolysis::moveBed()):
+      reads   solidPresent;
+      writes  porosity, Ts, Ym, Ys, solidH, and also porosityF0, rho and
+              the solidPresent patches, which move with the column.
+
 SourceFiles
     bedCollapse.C
 
