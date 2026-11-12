@@ -66,6 +66,22 @@ printf 'PGF_FOAM_BASHRC=%s\n' ~/OpenFOAM/OpenFOAM-v2406/etc/bashrc >> ~/.config/
 ./pgf-env status
 ```
 
+### `init`, `shell`, `run`, `install-link`
+
+```bash
+./pgf-env init --yes                       # detect OpenFOAM and yade, write ~/.config/pgf/env.conf
+./pgf-env init --checkout --yes --foam-bashrc FILE   # or this worktree's .pgf-env.conf
+./pgf-env install-link                     # ~/.local/bin/pgf-env -> this checkout's pgf-env
+./pgf-env shell                            # interactive bash in the env, prompt (pgf:<key>)
+./pgf-env shell -c 'command -v porousGasificationFoam'
+./pgf-env run tutorials/cases/<case> [Allrun | Allclean | script] [args]
+```
+
+- `init` looks for `$WM_PROJECT_DIR/etc/bashrc`, `~/OpenFOAM/*/etc/bashrc`, `/opt/openfoam*` and `/usr/lib/openfoam/*` (v2406 first), and for `yade` or a suffixed `yade-*` on your `PATH`. It asks when several candidates exist and a terminal is attached, unless `--yes`. Values given as `--foam-bashrc`, `--yade-bin`, `--yade-trunk` or `--set` win, and keys already in the file are kept. `--checkout` also records `submodules/Foam-Yade` as `YADE_TRUNK` when it is checked out.
+- `shell` takes the same options as a plain call (`--yade`, `--prefix`, `--bare`, …). Nested `pgf-env` calls inside it skip the `env -i` step.
+- `run` changes into the case directory (resolved from your current directory) before running, so it works from anywhere. A case whose `constant/yadeProperties` says `active true` gets `--yade` unless `--no-yade` is given or `PGF_YADE` is set in a file or the environment.
+- `install-link` refuses to replace a link to another checkout without `--force`. With several worktrees, the link picks one; call the others by path.
+
 Tests for this tooling live in `applications/test/tooling/test_*.sh`; each runs alone with `PGF_FOAM_BASHRC` set and builds under `PGF_BUILD_ROOT` (default `$TMPDIR/pgf-tooling-builds`).
 
 ## YADE DEM coupling

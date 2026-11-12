@@ -1,12 +1,7 @@
 #!/bin/bash
-# config.sh — layered settings for pgf-env (#257). Source-only.
-#
-# Layers, later wins: built-in default -> user file
-# ${XDG_CONFIG_HOME:-$HOME/.config}/pgf/env.conf -> checkout file
-# $PGF_ROOT/.pgf-env.conf -> environment -> CLI (pgf-env --set KEY=VALUE).
-# Files hold KEY=value lines, '#' comments and blank lines. They are parsed,
-# never sourced, and only the keys in PGF_CONF_KEYS are accepted, so a file
-# can neither run code nor set PATH, LD_LIBRARY_PATH or any other variable.
+# config.sh — pgf-env's layered settings (#257; doc/build.md). Source-only.
+# Later wins: default, user env.conf, checkout .pgf-env.conf, environment, CLI.
+# Files are parsed, never sourced, and only PGF_CONF_KEYS are accepted.
 
 PGF_CONF_KEYS=(PGF_FOAM_BASHRC YADE_TRUNK YADE_BIN YADE_PYTHONPATH PGF_YADE_LIBDIR
   PGF_BUILD_ROOT PGF_RUN_ROOT PGF_YADE PGF_MPI)
