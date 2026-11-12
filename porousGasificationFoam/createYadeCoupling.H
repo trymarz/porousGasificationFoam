@@ -23,9 +23,9 @@ License
 
 \*---------------------------------------------------------------------------*/
 
-// Always false: this coupling only exchanges lambdaDot (PGF -> YADE) and
-// Us/porosity (YADE -> PGF), never particle drag forces, so FoamYade's
-// Gaussian-interpolated drag path is never applicable here. Not a TODO.
+// false selects FoamYade's point-force path: Stokes drag and torque per
+// particle, sent to YADE with lambdaDot every exchange (doc/theory.md,
+// "DEM coupling"). PGF never uses the Gaussian-interpolated path.
 bool gaussianInterp = false;
 
 autoPtr<FoamYade> yadeCoupling(nullptr);
