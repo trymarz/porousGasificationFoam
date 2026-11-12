@@ -94,22 +94,6 @@ void volPyrolysis::limitSolidFlux()
     phiSolid_ = solidFluxLimiter_->limit();
 }
 
-void volPyrolysis::reportSolidMassBudget()
-{
-    if (!active_)
-    {
-        return;
-    }
-
-    solidDiagnostics_->reportMassBudget
-    (
-        speciesTransport_->clippedMass(),
-        porosityRecovery_->flippedMass(),
-        bedCollapse_->collapsedMass()
-    );
-    solidDiagnostics_->reportDerivedSpecies();
-}
-
 void volPyrolysis::createYm()
 {
     forAll(Ys_, fieldI)
@@ -304,11 +288,15 @@ void volPyrolysis::createCollaborators()
             coeffs(),
             solid,
             cellOnBedBorder_,
-            bedCollapse_(),
             solidDiagnostics_(),
             infoOutput_
         )
     );
+
+    // The radiation model reads the flags before the first step. Not
+    // porosity_'s patches: evaluating a coded inlet here would change step 1.
+    solidState_->correctSolidPresentBoundaryConditions();
+    porosityRecovery_->markBedBorderCells();
 
     solidEnergy_.reset
     (
@@ -561,7 +549,7 @@ void volPyrolysis::solveChemistry()
     chemistrySh_ = solidChemistry_->Sh()();
 }
 
-void volPyrolysis::updateInterfaceEnthalpy()
+void volPyrolysis::exchangeHeatWithGas()
 {
     // The same per-species sources rhoEqn and YEqn read, so the energy
     // crossing the interface moves with exactly the mass that crosses it.
@@ -571,6 +559,71 @@ void volPyrolysis::updateInterfaceEnthalpy()
         SrhoI.set(i, Srho(i).ptr());
     }
     heatExchange_->updateInterfaceEnthalpy(SrhoI);
+
+    if (active_ && !equilibrium_)
+    {
+        heatExchange_->updateHeatTransfer();
+    }
+}
+
+void volPyrolysis::moveBed()
+{
+    const FlipCells flips(porosityRecovery_->findFlipCells());
+
+    // After the flip cells: they read the gradient of last step's mask.
+    solidState_->refreshSolidPresent();
+
+    if (bedCollapse_->active())
+    {
+        // Collapse moves Ym between cells, so the mass fractions follow
+        if (bedCollapse_->collapseOnto(flips.allRanks))
+        {
+            SolidState::deriveYiFromYm(Ym_, Ys_);
+        }
+    }
+    else if (porosityRecovery_->emptyFlippedCells())
+    {
+        porosityRecovery_->emptyCells(flips);
+    }
+
+    // Before checkPorosity(), whose reports print solidPresent
+    solidState_->refreshSolidPresent();
+}
+
+void volPyrolysis::checkPorosity() const
+{
+    porosityRecovery_->guardPorosity("the bed motion in volPyrolysis::moveBed()");
+    solidDiagnostics_->checkConsistency(porosity_, Ym_, rho_);
+}
+
+void volPyrolysis::updateSolidState()
+{
+    porosity_.correctBoundaryConditions();
+    solidState_->correctSolidPresentBoundaryConditions();
+    porosityRecovery_->markBedBorderCells();
+
+    // porosity_ has just been rewritten; the gate is derived from it.
+    solidState_->freezeConnectedAtStepStart();
+
+    // On the mass the bed motion left, for the written regime record.
+    solidState_->classify(SolidState::totalMass(Ym_)(), rho_);
+}
+
+void volPyrolysis::reportStep()
+{
+    solidDiagnostics_->reportMassBudget
+    (
+        speciesTransport_->clippedMass(),
+        porosityRecovery_->flippedMass(),
+        bedCollapse_->collapsedMass()
+    );
+    solidDiagnostics_->reportDerivedSpecies();
+
+    if (infoOutput_)
+    {
+        solidDiagnostics_->accumulateRunTotals(chemistrySh_);
+    }
+    info();
 }
 
 tmp<volScalarField> volPyrolysis::zeroSrho(const word& name) const
@@ -594,52 +647,39 @@ tmp<volScalarField> volPyrolysis::zeroSrho(const word& name) const
     );
 }
 
-void volPyrolysis::preEvolveRegion() {
-    // Added for completeness
-    heterogeneousPyrolysisModel::preEvolveRegion();
-
-    markReactingCells();
-}
-
 void volPyrolysis::evolveRegion()
 {
-    // Per step: rates and exchange from the step-start state, the solid flux
-    // and its check, species, energy on the new mass, then porosity and bed.
     // Each stage reads what the ones above it left; the order sets results.
+
+    // Rates and exchange, from the step-start state
+    markReactingCells();
     updateTransferCoefficients();
     solveChemistry();
-    updateInterfaceEnthalpy();
-    if (active_ && !equilibrium_)
-    {
-        heatExchange_->updateHeatTransfer();
-    }
+    exchangeHeatWithGas();
 
     // Settle how much solid each face may carry before any solid field is
-    // transported. Needs the chemistry rates, so it follows their solve.
+    // transported. Judge the limited flux, the one that carries Ym and
+    // solidH, before either moves.
     limitSolidFlux();
-    // Judges the limited flux, the one that carries Ym and solidH, before
-    // either moves: keep it directly after limitSolidFlux().
     solidDiagnostics_->checkSolidCrossing(phiSolid_, Ys_, Ym_);
 
     // Species before energy: the enthalpy balance is closed on the mass
     // that remains, with the fluxes that moved it.
     speciesTransport_->solve();
-    reportSolidMassBudget();
     solidEnergy_->solve(speciesTransport_->specieMassFlux());
 
     // The DEM temperature term differences this step's Ts.
     demCoupling_->addTemperatureTerm();
     demCoupling_->finishStep();
 
-    porosityRecovery_->recover();
+    // Porosity and bed
+    porosityRecovery_->updatePorosity();  // 1 - porosity = sum_i Ym_i/rho_i
+    moveBed();                            // collapse onto flip cells, or empty them
+    checkPorosity();
+    updateSolidState();                   // masks, bed border, next step's gate
 
-    if (infoOutput_)
-    {
-        solidDiagnostics_->accumulateRunTotals(chemistrySh_);
-    }
-    info();
+    reportStep();
 }
-
 
 Foam::tmp<Foam::volScalarField> volPyrolysis::Srho() const
 {

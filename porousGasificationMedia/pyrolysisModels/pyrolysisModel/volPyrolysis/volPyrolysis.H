@@ -113,8 +113,22 @@ private:
         //- A zero, unregistered mass source [kg/m3/s]
         tmp<volScalarField> zeroSrho(const word& name) const;
 
-        //- Interface enthalpy and agent heat-up from this step's Srho(i)
-        void updateInterfaceEnthalpy();
+        //- Interface enthalpy and agent heat-up from this step's Srho(i),
+        //  then the gas-solid heat transfer unless in equilibrium
+        void exchangeHeatWithGas();
+
+        //- Hand the flip cells to the bed collapse or empty them, then
+        //  refresh the solid mask
+        void moveBed();
+
+        //- Guard the porosity the bed motion left, and check it against Ym
+        void checkPorosity() const;
+
+        //- Porosity patches, bed border, next step's gate and regimes
+        void updateSolidState();
+
+        //- The solid mass budget, derived species, run totals and info()
+        void reportStep();
 
 
 protected:
@@ -213,7 +227,7 @@ protected:
         //- Bed collapse: moves the solid above each emptied cell down
         autoPtr<BedCollapse> bedCollapse_;
 
-        //- Porosity from the solid mass, emptied cells and the masks after
+        //- Porosity from the solid mass, and the emptying of flip cells
         autoPtr<PorosityRecovery> porosityRecovery_;
 
     // DEM (YADE) coupling — lambdaDot
@@ -237,9 +251,6 @@ protected:
 
         //- Read control parameters from dict
         bool read(const dictionary& dict);
-
-        //- Report the solid mass budget and the derived mass fractions
-        void reportSolidMassBudget();
 
 public:
 
@@ -314,9 +325,6 @@ public:
         // Source fields (read/write access)
 
        // Evolution
-
-            //- Pre-evolve region
-            virtual void preEvolveRegion();
 
             //- Evolve the pyrolysis equations
             virtual void evolveRegion();

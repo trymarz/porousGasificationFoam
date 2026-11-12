@@ -137,13 +137,6 @@ void heterogeneousPyrolysisModel::evolve()
 
         // Increment the region equations up to the new time level.
         evolveRegion();
-
-        if (infoOutput_)
-        {
-            Info<< incrIndent;
-            info();
-            Info<< endl << decrIndent;
-        }
     }
 }
 
