@@ -122,7 +122,6 @@ GasSolidHeatExchange::~GasSolidHeatExchange()
 
 Foam::tmp<Foam::volScalarField> GasSolidHeatExchange::heatTransferCalc() const
 {
-// eqZx2uHGn005
     Foam::tmp<Foam::volScalarField> Sh_ = Foam::tmp<Foam::volScalarField>
     (
         new volScalarField

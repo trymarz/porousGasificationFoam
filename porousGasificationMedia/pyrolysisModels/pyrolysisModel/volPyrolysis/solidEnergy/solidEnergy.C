@@ -258,8 +258,8 @@ Foam::tmp<Foam::volScalarField> SolidEnergy::solidSources()
     volScalarField solidChemistrySource = connectedAtStepStart*chemistrySh_;
 
     return
-        solidChemistrySource // eqZx2uHGn004, eqZx2uHGn017
-      - interphaseHeatTransfer // eqZx2uHGn005
+        solidChemistrySource
+      - interphaseHeatTransfer
       - agentHeatUp
       + solidRadiationSource;
 }
@@ -375,8 +375,6 @@ void SolidEnergy::abortOnInvalidTs
 
 void SolidEnergy::solve(const PtrList<surfaceScalarField>& phiYm)
 {
-// eqZx2uHGn047
-
     if (debug)
     {
         Info<< "SolidEnergy::solve()" << endl;

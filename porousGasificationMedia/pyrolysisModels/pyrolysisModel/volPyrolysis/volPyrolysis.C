@@ -55,7 +55,7 @@ addToRunTimeSelectionTable(heterogeneousPyrolysisModel, volPyrolysis, radiation)
 
 // * * * * * * * * * * * * Protected Member Functions  * * * * * * * * * * * //
 
-void volPyrolysis::readReactingOneDimControls()
+void volPyrolysis::readControls()
 {
     const dictionary& solution = this->solution().subDict("PIMPLE");
     solution.lookup("nNonOrthogonalCorrectors") >> nNonOrthCorr_;
@@ -67,7 +67,7 @@ bool volPyrolysis::read()
 {
     if (heterogeneousPyrolysisModel::read())
     {
-        readReactingOneDimControls();
+        readControls();
         return true;
     }
     else
@@ -80,7 +80,7 @@ bool volPyrolysis::read(const dictionary& dict)
 {
     if (heterogeneousPyrolysisModel::read(dict))
     {
-        readReactingOneDimControls();
+        readControls();
         return true;
     }
     else
@@ -558,7 +558,7 @@ void volPyrolysis::solveChemistry()
         time_.deltaTValue()
     );
 
-    chemistrySh_ = solidChemistry_->Sh()(); // eqZx2uHGn004
+    chemistrySh_ = solidChemistry_->Sh()();
 }
 
 void volPyrolysis::updateInterfaceEnthalpy()
@@ -676,12 +676,13 @@ void volPyrolysis::info() const
 
     solidDiagnostics_->reportRunTotals(bedCollapse_->replenishedMass());
 
-        if (chemistryTimeStep_ < GREAT )
-        {
-            Info << indent << "Suggested chemical time step from heterogeneous reactions [s] = "
-                 << chemistryTimeStep_ << nl;
-        }
+    if (chemistryTimeStep_ < GREAT)
+    {
+        Info<< indent << "Suggested chemical time step from heterogeneous reactions [s] = "
+            << chemistryTimeStep_ << nl;
+    }
 }
+
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 } // End namespace Foam

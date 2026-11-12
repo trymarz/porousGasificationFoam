@@ -79,7 +79,6 @@ autoPtr<constST> constST::New
 
 tmp<volScalarField> constST::ST() const
 {
-// eqZx2uHGn006
     return tmp<volScalarField>
     (
         new volScalarField

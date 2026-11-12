@@ -78,7 +78,6 @@ autoPtr<pipeST> pipeST::New
 
 tmp<volScalarField> pipeST::ST() const
 {
-// eqZx2uHGn007
     Foam::tmp<Foam::volScalarField> STloc_ = Foam::tmp<Foam::volScalarField>
     (
         new volScalarField
@@ -102,7 +101,7 @@ tmp<volScalarField> pipeST::ST() const
     forAll (STloc_(),cellI)
     {
         STloc_.ref()[cellI] = pow(por()[cellI], 0.5) * pow(por0()[cellI], 0.5) * 2.0 / pipeRadius_ *
-            (1.83) / pipeRadius_ * alphap_[cellI];  //eqZx2uHGn019 eqZx2uHGn020
+            (1.83) / pipeRadius_ * alphap_[cellI];
     }
 
     return STloc_;

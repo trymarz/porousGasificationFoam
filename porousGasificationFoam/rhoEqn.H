@@ -28,7 +28,6 @@ Description
     Solve the continuity for density.
 
 \*---------------------------------------------------------------------------*/
-// eqZx2uHGn042
 
 Srho = pyrolysisZone.Srho();
 

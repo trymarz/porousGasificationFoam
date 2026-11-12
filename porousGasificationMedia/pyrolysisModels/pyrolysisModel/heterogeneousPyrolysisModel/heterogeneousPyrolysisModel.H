@@ -25,7 +25,7 @@ Class
     Foam::heterogeneousPyrolysisModels::heterogeneousPyrolysisModel
 
 Description
-    base class for heterogeneusPyrolysisModel
+    base class for heterogeneousPyrolysisModel
 
     The heterogeneousPyrolysisModel class.
     It is an implementation of a base class for different pyrolysis models. This

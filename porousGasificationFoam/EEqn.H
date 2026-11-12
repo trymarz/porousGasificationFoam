@@ -27,7 +27,6 @@ Description
     across the interface (products at Ts, agents at Tg; GasSolidHeatExchange),
     h and not e even in e form: entering mass brings its flow work.
 \*---------------------------------------------------------------------------*/
-// eqZx2uHGn044
 
 if (solveEnergy)
 {

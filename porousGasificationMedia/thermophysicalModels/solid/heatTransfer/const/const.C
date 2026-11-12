@@ -76,7 +76,6 @@ Foam::autoPtr<Foam::constCONV> Foam::constCONV::New
 
 Foam::tmp<Foam::volScalarField> Foam::constCONV::CONV() const
 {
-// eqZx2uHGn006
     return tmp<volScalarField>
     (
         new volScalarField
