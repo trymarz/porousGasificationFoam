@@ -330,6 +330,108 @@ void SolidFluxLimiter::applySolidFaceLimit
 }
 
 
+void SolidFluxLimiter::sweepFluxScale
+(
+    const PtrList<surfaceScalarField>& phiYm,
+    const PtrList<volScalarField>& RRsolid,
+    const surfaceScalarField& phiYmTotal,
+    const surfaceScalarField& phiSolidVol,
+    const volScalarField& alphaS,
+    const volScalarField& RRpor,
+    scalarField& allFluxScale,
+    surfaceScalarField& fluxScale
+) const
+{
+    scalarField donorScale(mesh_.nCells(), 1.0);
+    scalarField receiverScale(mesh_.nCells(), 1.0);
+
+    for (label sweep = 0; sweep < nSolidFluxLimiterCorrectors_; ++sweep)
+    {
+        // Every sweep but the last credits flux crossing back the
+        // other way, letting a jam travel up the bed in one step. The
+        // final, uncredited sweep sets the bound that's applied.
+        const bool credit = (sweep < nSolidFluxLimiterCorrectors_ - 1);
+
+        solidDonorLimit(phiYm, RRsolid, fluxScale, credit, donorScale);
+
+        solidReceiverLimit
+        (
+            phiSolidVol,
+            alphaS,
+            RRpor,
+            fluxScale,
+            credit,
+            receiverScale
+        );
+
+        applySolidFaceLimit
+        (
+            phiYmTotal,
+            donorScale,
+            receiverScale,
+            allFluxScale,
+            fluxScale
+        );
+    }
+}
+
+
+void SolidFluxLimiter::scaleToBudgets
+(
+    surfaceScalarField& phiSolid,
+    const PtrList<surfaceScalarField>& phiYm,
+    const PtrList<volScalarField>& RRsolid,
+    const surfaceScalarField& phiYmTotal,
+    const surfaceScalarField& phiSolidVol,
+    const volScalarField& alphaS,
+    const volScalarField& RRpor
+) const
+{
+    scalarField allFluxScale(mesh_.nFaces(), 1.0);
+
+    slicedSurfaceScalarField fluxScale
+    (
+        IOobject
+        (
+            "solidFluxLimiter",
+            time_.timeName(),
+            mesh_,
+            IOobject::NO_READ,
+            IOobject::NO_WRITE,
+            false
+        ),
+        mesh_,
+        dimless,
+        allFluxScale,
+        false               // slice the couples, so syncFaceList sees them
+    );
+
+    sweepFluxScale
+    (
+        phiYm,
+        RRsolid,
+        phiYmTotal,
+        phiSolidVol,
+        alphaS,
+        RRpor,
+        allFluxScale,
+        fluxScale
+    );
+
+    reportSolidFluxLimiter
+    (
+        phiYm,
+        RRsolid,
+        phiSolidVol,
+        alphaS,
+        RRpor,
+        fluxScale
+    );
+
+    phiSolid *= fluxScale;
+}
+
+
 void SolidFluxLimiter::reportSolidFluxLimiter
 (
     const PtrList<surfaceScalarField>& phiYm,
@@ -537,73 +639,16 @@ tmp<surfaceScalarField> SolidFluxLimiter::limit() const
         tRRpor
     );
 
-    const surfaceScalarField& phiYmTotal = tPhiYmTotal();
-    const surfaceScalarField& phiSolidVol = tPhiSolidVol();
-    const volScalarField& alphaS = tAlphaS();
-    const volScalarField& RRpor = tRRpor();
-
-    scalarField allFluxScale(mesh_.nFaces(), 1.0);
-
-    slicedSurfaceScalarField fluxScale
+    scaleToBudgets
     (
-        IOobject
-        (
-            "solidFluxLimiter",
-            time_.timeName(),
-            mesh_,
-            IOobject::NO_READ,
-            IOobject::NO_WRITE,
-            false
-        ),
-        mesh_,
-        dimless,
-        allFluxScale,
-        false               // slice the couples, so syncFaceList sees them
-    );
-
-    scalarField donorScale(mesh_.nCells(), 1.0);
-    scalarField receiverScale(mesh_.nCells(), 1.0);
-
-    for (label sweep = 0; sweep < nSolidFluxLimiterCorrectors_; ++sweep)
-    {
-        // Every sweep but the last credits flux crossing back the
-        // other way, letting a jam travel up the bed in one step. The
-        // final, uncredited sweep sets the bound that's applied.
-        const bool credit = (sweep < nSolidFluxLimiterCorrectors_ - 1);
-
-        solidDonorLimit(phiYm, RRsolid, fluxScale, credit, donorScale);
-
-        solidReceiverLimit
-        (
-            phiSolidVol,
-            alphaS,
-            RRpor,
-            fluxScale,
-            credit,
-            receiverScale
-        );
-
-        applySolidFaceLimit
-        (
-            phiYmTotal,
-            donorScale,
-            receiverScale,
-            allFluxScale,
-            fluxScale
-        );
-    }
-
-    reportSolidFluxLimiter
-    (
+        phiSolid,
         phiYm,
         RRsolid,
-        phiSolidVol,
-        alphaS,
-        RRpor,
-        fluxScale
+        tPhiYmTotal(),
+        tPhiSolidVol(),
+        tAlphaS(),
+        tRRpor()
     );
-
-    phiSolid *= fluxScale;
 
     return tPhiSolid;
 }

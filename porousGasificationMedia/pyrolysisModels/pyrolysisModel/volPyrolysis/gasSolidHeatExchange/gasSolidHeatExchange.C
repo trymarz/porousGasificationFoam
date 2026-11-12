@@ -149,66 +149,103 @@ Foam::tmp<Foam::volScalarField> GasSolidHeatExchange::heatTransferCalc() const
 
         if (subintegrateSwitch_)
         {
-            // Keep the subintegrated gas/solid exchange defined in a fully
-            // solid cell. The physical gas capacity vanishes there, while
-            // the finite floor prevents an ill-conditioned analytic update.
-            volScalarField rhoCpG
-            (
-                gasThermo_.rho()
-              * gasThermo_.Cp()
-              * solidState_.gasFractionWithFloor()
-            );
-            volScalarField Tgas = gasThermo_.T();
-            volScalarField rhoCpS
-            (
-                solidState_.withSolidHeatCapacityFloor
-                (
-                    rho_ * solidThermo_.Cp() * solidState_.solidFraction()
-                )
-            );
-            volScalarField deltaTemp(T_ * 0);
-            scalar deltaTime = mesh_.time().deltaTValue();
-
-            forAll(deltaTemp,cellI)
-            {
-                if (solidState_.solidPresent()[cellI] == 1.0 && heatTransferCoeff_[cellI] > 0.0)
-                {
-                    deltaTemp[cellI] =
-                        (Tgas[cellI]
-                         * (rhoCpG[cellI]
-                           +rhoCpS[cellI]
-                           *exp(-(heatTransferCoeff_[cellI] * deltaTime*(rhoCpS[cellI]+rhoCpG[cellI]))
-                                /(rhoCpS[cellI]*rhoCpG[cellI])))
-                           +rhoCpS[cellI]*T_[cellI]
-                           *(1 - exp( -(heatTransferCoeff_[cellI]*deltaTime*(rhoCpS[cellI]+rhoCpG[cellI]))/(rhoCpS[cellI]*rhoCpG[cellI])))
-                        )
-                        / (rhoCpS[cellI]+rhoCpG[cellI]) - Tgas[cellI];
-                }
-                else
-                {
-                    deltaTemp[cellI] = 0;
-                }
-            }
-
-            forAll(Sh_(),cellI)
-            {
-                Sh_.ref()[cellI] = deltaTemp[cellI] * rhoCpG[cellI] * connectedAtStepStart[cellI] / deltaTime;
-            }
-
-            volScalarField HT(heatTransferCoeff_*(T_-Tgas));
-            Info << "The heat transfer subintegration info:" << nl
-                 << " no subintegration min, max:" << gMin(HT) << " " << gMax(HT) << nl
-                 << " subintegration    min, max:" << gMin(Sh_()) << " " << gMax(Sh_()) << endl;
+            subintegratedExchange(connectedAtStepStart, Sh_.ref());
         }
         else
         {
-            // This works only for small CONV otherwise oscillations appear.
-            volScalarField Tgas = gasThermo_.T();
-            volScalarField HT(heatTransferCoeff_*(T_-Tgas));
-            Sh_ = HT * connectedAtStepStart;
+            Sh_ = explicitExchange(connectedAtStepStart);
         }
     }
     return Sh_;
+}
+
+void GasSolidHeatExchange::subintegratedExchange
+(
+    const volScalarField& connectedAtStepStart,
+    volScalarField& Sh
+) const
+{
+    // Keep the subintegrated gas/solid exchange defined in a fully
+    // solid cell. The physical gas capacity vanishes there, while
+    // the finite floor prevents an ill-conditioned analytic update.
+    volScalarField rhoCpG
+    (
+        gasThermo_.rho()
+      * gasThermo_.Cp()
+      * solidState_.gasFractionWithFloor()
+    );
+    volScalarField Tgas = gasThermo_.T();
+    volScalarField rhoCpS
+    (
+        solidState_.withSolidHeatCapacityFloor
+        (
+            rho_ * solidThermo_.Cp() * solidState_.solidFraction()
+        )
+    );
+    scalar deltaTime = mesh_.time().deltaTValue();
+
+    const tmp<volScalarField> tDeltaTemp
+    (
+        relaxedGasTemperatureChange(Tgas, rhoCpG, rhoCpS, deltaTime)
+    );
+    const volScalarField& deltaTemp = tDeltaTemp();
+
+    forAll(Sh,cellI)
+    {
+        Sh[cellI] = deltaTemp[cellI] * rhoCpG[cellI] * connectedAtStepStart[cellI] / deltaTime;
+    }
+
+    volScalarField HT(heatTransferCoeff_*(T_-Tgas));
+    Info << "The heat transfer subintegration info:" << nl
+         << " no subintegration min, max:" << gMin(HT) << " " << gMax(HT) << nl
+         << " subintegration    min, max:" << gMin(Sh) << " " << gMax(Sh) << endl;
+}
+
+Foam::tmp<Foam::volScalarField>
+GasSolidHeatExchange::relaxedGasTemperatureChange
+(
+    const volScalarField& Tgas,
+    const volScalarField& rhoCpG,
+    const volScalarField& rhoCpS,
+    const scalar deltaTime
+) const
+{
+    tmp<volScalarField> tDeltaTemp(T_ * 0);
+    volScalarField& deltaTemp = tDeltaTemp.ref();
+
+    forAll(deltaTemp,cellI)
+    {
+        if (solidState_.solidPresent()[cellI] == 1.0 && heatTransferCoeff_[cellI] > 0.0)
+        {
+            deltaTemp[cellI] =
+                (Tgas[cellI]
+                 * (rhoCpG[cellI]
+                   +rhoCpS[cellI]
+                   *exp(-(heatTransferCoeff_[cellI] * deltaTime*(rhoCpS[cellI]+rhoCpG[cellI]))
+                        /(rhoCpS[cellI]*rhoCpG[cellI])))
+                   +rhoCpS[cellI]*T_[cellI]
+                   *(1 - exp( -(heatTransferCoeff_[cellI]*deltaTime*(rhoCpS[cellI]+rhoCpG[cellI]))/(rhoCpS[cellI]*rhoCpG[cellI])))
+                )
+                / (rhoCpS[cellI]+rhoCpG[cellI]) - Tgas[cellI];
+        }
+        else
+        {
+            deltaTemp[cellI] = 0;
+        }
+    }
+
+    return tDeltaTemp;
+}
+
+Foam::tmp<Foam::volScalarField> GasSolidHeatExchange::explicitExchange
+(
+    const volScalarField& connectedAtStepStart
+) const
+{
+    // This works only for small CONV otherwise oscillations appear.
+    volScalarField Tgas = gasThermo_.T();
+    volScalarField HT(heatTransferCoeff_*(T_-Tgas));
+    return HT * connectedAtStepStart;
 }
 
 Foam::tmp<Foam::volScalarField> GasSolidHeatExchange::heatTransferCoeffCalc() const

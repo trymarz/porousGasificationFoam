@@ -152,7 +152,7 @@ void volPyrolysis::createYm()
     }
 }
 
-void volPyrolysis::createSolidH()
+wordList volPyrolysis::solidHPatchTypes() const
 {
     const volScalarField::Boundary& tbf = T_.boundaryField();
     wordList tbt(tbf.types());
@@ -165,6 +165,58 @@ void volPyrolysis::createSolidH()
         }
     }
 
+    return tbt;
+}
+
+void volPyrolysis::setCyclicSolidHPatch
+(
+    const word& patchType,
+    const label patchi
+)
+{
+    tmp<fvPatchScalarField> tPatch
+    (
+        fvPatchScalarField::New
+        (
+            patchType,
+            cyclicPolyPatch::typeName,
+            mesh_.boundary()[patchi],
+            solidH_().internalField()
+        )
+    );
+    solidH_().boundaryFieldRef().set(patchi, tPatch);
+}
+
+void volPyrolysis::rebuildCyclicSolidHPatches()
+{
+    const volScalarField::Boundary& tbf = T_.boundaryField();
+
+    forAll(tbf, patchi)
+    {
+        if (isA<cyclicFvPatch>(mesh_.boundary()[patchi]))
+        {
+            if (isA<fixedValueFvPatchScalarField>(tbf[patchi]))
+            {
+                setCyclicSolidHPatch
+                (
+                    fixedSolidHFvPatchScalarField::typeName,
+                    patchi
+                );
+            }
+            if (isA<zeroGradientFvPatchScalarField>(tbf[patchi]))
+            {
+                setCyclicSolidHPatch
+                (
+                    zeroGradientFvPatchScalarField::typeName,
+                    patchi
+                );
+            }
+        }
+    }
+}
+
+void volPyrolysis::createSolidH()
+{
     solidH_.reset
     (
         new volScalarField
@@ -179,46 +231,13 @@ void volPyrolysis::createSolidH()
             ),
             mesh_,
             dimensionSet(1, -1, -2, 0, 0),
-            tbt
+            solidHPatchTypes()
         )
     );
 
     solidH_() = rho_ * solidThermo_.Cp() * (1 - porosity_) * T_;
 
-    forAll(tbf, patchi)
-    {
-        if (isA<cyclicFvPatch>(mesh_.boundary()[patchi]))
-        {
-            if (isA<fixedValueFvPatchScalarField>(tbf[patchi]))
-            {
-                tmp<fvPatchScalarField> tPatch
-                (
-                    fvPatchScalarField::New
-                    (
-                        fixedSolidHFvPatchScalarField::typeName,
-                        cyclicPolyPatch::typeName,
-                        mesh_.boundary()[patchi],
-                        solidH_().internalField()
-                    )
-                ); 
-                solidH_().boundaryFieldRef().set(patchi, tPatch);
-            }
-            if (isA<zeroGradientFvPatchScalarField>(tbf[patchi]))
-            {
-                tmp<fvPatchScalarField> tPatch
-                (
-                    fvPatchScalarField::New
-                    (
-                        zeroGradientFvPatchScalarField::typeName,
-                        cyclicPolyPatch::typeName,
-                        mesh_.boundary()[patchi],
-                        solidH_().internalField()
-                    )
-                ); 
-                solidH_().boundaryFieldRef().set(patchi, tPatch);
-            }
-        }
-    }
+    rebuildCyclicSolidHPatches();
 
     solidH_().correctBoundaryConditions();
 }
@@ -248,27 +267,8 @@ void volPyrolysis::renormaliseInitialComposition()
     }
 }
 
-void volPyrolysis::createCollaborators()
+void volPyrolysis::createBedModels(const SolidFields& solid)
 {
-    Info << endl;
-
-    const SolidFields solid
-    {
-        mesh_,
-        solidThermo_,
-        solidChemistry_(),
-        solidState_(),
-        T_,
-        rho_,
-        Ys_,
-        Ym_,
-        solidH_(),
-        porosity_,
-        Us_,
-        phiSolid_,
-        active_
-    };
-
     solidDiagnostics_.reset(new SolidDiagnostics(coeffs(), solid));
     solidDiagnostics_->checkBoundaryDeclarations(Ys_, T_);
 
@@ -302,12 +302,10 @@ void volPyrolysis::createCollaborators()
             infoOutput_
         )
     );
+}
 
-    // The radiation model reads the flags before the first step. Not
-    // porosity_'s patches: evaluating a coded inlet here would change step 1.
-    solidState_->correctSolidPresentBoundaryConditions();
-    porosityRecovery_->markBedBorderCells();
-
+void volPyrolysis::createEquations(const SolidFields& solid)
+{
     solidEnergy_.reset
     (
         new SolidEnergy
@@ -331,6 +329,37 @@ void volPyrolysis::createCollaborators()
     (
         new SolidSpeciesTransport(solid, demCoupling_(), solidDiagnostics_())
     );
+}
+
+void volPyrolysis::createCollaborators()
+{
+    Info << endl;
+
+    const SolidFields solid
+    {
+        mesh_,
+        solidThermo_,
+        solidChemistry_(),
+        solidState_(),
+        T_,
+        rho_,
+        Ys_,
+        Ym_,
+        solidH_(),
+        porosity_,
+        Us_,
+        phiSolid_,
+        active_
+    };
+
+    createBedModels(solid);
+
+    // The radiation model reads the flags before the first step. Not
+    // porosity_'s patches: evaluating a coded inlet here would change step 1.
+    solidState_->correctSolidPresentBoundaryConditions();
+    porosityRecovery_->markBedBorderCells();
+
+    createEquations(solid);
 
     Info << endl;
 }

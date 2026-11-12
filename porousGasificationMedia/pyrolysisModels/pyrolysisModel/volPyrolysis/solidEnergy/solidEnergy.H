@@ -207,6 +207,15 @@ class SolidEnergy
             const volScalarField& totalYm
         ) const;
 
+        //- After the balance: check Ts, clip it at zero, correct the
+        //  thermo and apply the regime rules, then check Ts again
+        void settleTs
+        (
+            const volScalarField& HOld,
+            const volScalarField& rhoCpCarrier,
+            const volScalarField& totalYm
+        );
+
         //- Disallow default bitwise copy construct
         SolidEnergy(const SolidEnergy&);
 

@@ -28,7 +28,7 @@ Description
     Scales the shared solid face flux so it never asks a cell for more
     mass than it holds (donor limit) or more volume than it has room for
     (receiver limit). See solidDonorLimit(), solidReceiverLimit() and
-    limit() for the two bounds and how the sweeps combine them.
+    sweepFluxScale() for the two bounds and how the sweeps combine them.
 
     Owned directly by volPyrolysis (like specieTransfer_, HTmodel_) - no runtime
     selection, since only one limiter algorithm exists.
@@ -102,7 +102,7 @@ class SolidFluxLimiter
         Switch advectSolidFields_;
 
         //- Number of limiter sweeps [-]
-        //  Each sweep re-reads the last one's budgets (see limit()).
+        //  Each sweep re-reads the last one's budgets (see sweepFluxScale()).
         //  Zero disables limiting.
         label nSolidFluxLimiterCorrectors_;
 
@@ -185,6 +185,33 @@ class SolidFluxLimiter
             const scalarField& receiverScale,
             scalarField& allFluxScale,
             surfaceScalarField& fluxScale
+        ) const;
+
+        //- Runs the donor/receiver sweeps; the last, uncredited one sets
+        //  the face scale factors in fluxScale (a slice of allFluxScale)
+        void sweepFluxScale
+        (
+            const PtrList<surfaceScalarField>& phiYm,
+            const PtrList<volScalarField>& RRsolid,
+            const surfaceScalarField& phiYmTotal,
+            const surfaceScalarField& phiSolidVol,
+            const volScalarField& alphaS,
+            const volScalarField& RRpor,
+            scalarField& allFluxScale,
+            surfaceScalarField& fluxScale
+        ) const;
+
+        //- Scales phiSolid by the face factors the sweeps leave, and
+        //  reports what was limited
+        void scaleToBudgets
+        (
+            surfaceScalarField& phiSolid,
+            const PtrList<surfaceScalarField>& phiYm,
+            const PtrList<volScalarField>& RRsolid,
+            const surfaceScalarField& phiYmTotal,
+            const surfaceScalarField& phiSolidVol,
+            const volScalarField& alphaS,
+            const volScalarField& RRpor
         ) const;
 
         //- Logs what the sweeps limited and what residual they left

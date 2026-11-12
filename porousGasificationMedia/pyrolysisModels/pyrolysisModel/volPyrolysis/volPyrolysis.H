@@ -93,12 +93,30 @@ private:
         //  fixedSolidH, and cyclic patches are rebuilt on solidH
         void createSolidH();
 
+        //- Ts's patch types, with fixedValue mapped to fixedSolidH
+        wordList solidHPatchTypes() const;
+
+        //- Rebuild solidH's fixedValue and zeroGradient patches that sit
+        //  on cyclic patches, as cyclic-constrained patches of that type
+        void rebuildCyclicSolidHPatches();
+
+        //- Replace solidH's patch patchi with a patchType patch on a cyclic
+        void setCyclicSolidHPatch(const word& patchType, const label patchi);
+
         //- In solid cells, rebuild Ym from the read-in Yi, then Yi = Ym/sum(Ym)
         void renormaliseInitialComposition();
 
         //- Build the stages that act on the solid fields, in dependency
         //  order; each logs its own settings when constructed
         void createCollaborators();
+
+        //- Diagnostics, the flux limiter, bed collapse, the heat exchange
+        //  and porosity recovery, in that order
+        void createBedModels(const SolidFields& solid);
+
+        //- SolidEnergy, then the DEM coupling and the species transport
+        //  that reads it
+        void createEquations(const SolidFields& solid);
 
         //- Let only cells active and connected at step start react, so
         //  every reaction heat is booked by the solid energy equation

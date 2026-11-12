@@ -371,6 +371,43 @@ void SolidEnergy::abortOnInvalidTs
 }
 
 
+void SolidEnergy::settleTs
+(
+    const volScalarField& HOld,
+    const volScalarField& rhoCpCarrier,
+    const volScalarField& totalYm
+)
+{
+    abortOnInvalidTs
+    (
+        "the solid enthalpy balance in SolidEnergy::solve()",
+        solidDiagnostics_.firstInvalidTemperature
+        (
+            T_,
+            solidState_.massBeyondTrace(totalYm, rho_)().primitiveField()
+        ),
+        HOld,
+        rhoCpCarrier,
+        totalYm
+    );
+
+    // Only bites with the check above switched off: no negative enthalpy.
+    T_.max(dimensionedScalar("zero", dimTemperature, 0.0));
+
+    solidThermo_.correct();
+    applyRegimeRules(totalYm);
+
+    abortOnInvalidTs
+    (
+        "the regime rules on Ts in SolidEnergy::solve()",
+        solidDiagnostics_.firstInvalidTemperature(T_),
+        HOld,
+        rhoCpCarrier,
+        totalYm
+    );
+}
+
+
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
 
 void SolidEnergy::solve(const PtrList<surfaceScalarField>& phiYm)
@@ -413,33 +450,7 @@ void SolidEnergy::solve(const PtrList<surfaceScalarField>& phiYm)
 
     solveEnthalpyBalance(composedK, rhoCpCarrier, HOld, phiYm);
 
-    abortOnInvalidTs
-    (
-        "the solid enthalpy balance in SolidEnergy::solve()",
-        solidDiagnostics_.firstInvalidTemperature
-        (
-            T_,
-            solidState_.massBeyondTrace(totalYm, rho_)().primitiveField()
-        ),
-        HOld,
-        rhoCpCarrier,
-        totalYm
-    );
-
-    // Only bites with the check above switched off: no negative enthalpy.
-    T_.max(dimensionedScalar("zero", dimTemperature, 0.0));
-
-    solidThermo_.correct();
-    applyRegimeRules(totalYm);
-
-    abortOnInvalidTs
-    (
-        "the regime rules on Ts in SolidEnergy::solve()",
-        solidDiagnostics_.firstInvalidTemperature(T_),
-        HOld,
-        rhoCpCarrier,
-        totalYm
-    );
+    settleTs(HOld, rhoCpCarrier, totalYm);
 
     // The one place solidH_ is paired with a heat capacity: the mass that
     // remains, so the next step's old-time term is this Ts.
