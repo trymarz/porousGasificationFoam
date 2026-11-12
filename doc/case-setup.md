@@ -88,10 +88,12 @@ Cases under `tutorials/cases/`. Run all of them with `cd tutorials && ./TestAllC
 | `prescribedUsCases/*` | Prescribed solid velocity: converging, diverging, shear, vortex, … | Solid-transport tests |
 | `solidAdvection/` | Solid advection | |
 | `MicroTGA-DEM_*` | DEM-coupled micro TGA, one per `lambdaDot` model | Require a `--yade` build |
-| `simple_line_case/` | DEM-coupled 1-D packed line, pyrolysing | Requires a `--yade` build |
-| `case_line_interpolation/` | Line interpolation test geometry | |
 
 `MicroTGA-DEM_lambdaDot_common/` is shared input for the DEM fixtures, not a runnable case.
+
+`tutorials/experimental/` holds DEM cases that are kept but not tested or supported: `simple_line_case/`
+(a DEM-coupled 1-D packed line, pyrolysing) and `MicroTGA-DEM_Us_UsInterp/` (a long `UsInterp` demonstration run).
+Both need a `--yade` build; `TestAllCases.sh` does not run them.
 
 `./CleanAllCases.sh` runs every case's `Allclean` (nested cases included) and exits non-zero if any fails.
 Cases with a `.foamcli-monitor.toml` save PNG snapshots under `<case>/render/` when run under `foamcli`;

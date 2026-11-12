@@ -29,7 +29,7 @@ for c in "${DEM_CASES[@]}"; do
         [ "$(steps "$PGF_ROOT/$c" 5e-6)" = "2000" ]
 done
 check "C++ truncation: simple_line_case (0.005/5e-6 = 999.99...) gives 24000 x 999" \
-    [ "$(steps "$PGF_ROOT/tutorials/cases/simple_line_case" 5e-6)" = "23976000" ]
+    [ "$(steps "$PGF_ROOT/tutorials/experimental/simple_line_case" 5e-6)" = "23976000" ]
 check "Yade dt 3e-7 under deltaT 1e-6 exchanges every 3 steps" \
     [ "$(steps "$PGF_ROOT/tutorials/cases/MicroTGA-DEM_lambdaDotOff" 3e-7)" = "6000" ]
 

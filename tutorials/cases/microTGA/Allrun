@@ -15,7 +15,7 @@ runCase() {
   case=$1
   caseDir=microTGA${case}
 
-  cp -r ./mircoTGATemplate/ "$caseDir"
+  cp -r ./microTGATemplate/ "$caseDir"
   cp "${caseDir}"/constant/radiationProperties{"$case",}
 
   cd "$caseDir" || {

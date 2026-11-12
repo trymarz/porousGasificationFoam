@@ -39,13 +39,13 @@ tutorials/cases/MicroTGA-DEM_lambdaDotAltInterp
 # so its Allrun asserts r > 0 and that lambda has shrunk below 1.
 tutorials/cases/MicroTGA-DEM_lambdaDotApparentVolume
 
-# tutorials/cases/simple_line_case is NOT listed yet. It builds, meshes and
-# reaches the coupled loop, but its Allrun does not exit 0 under
+# tutorials/experimental/simple_line_case is NOT listed yet. It builds, meshes
+# and reaches the coupled loop, but its Allrun does not exit 0 under
 # tools/runDEMCase.sh: the run aborts on the heap corruption that also trips
 # the serial tier at teardown. (Its Yade step count used to stop short of the
 # solver's; it now follows controlDict, #60, but has not been run since.)
 # List it once it exits 0.
 
-# tutorials/cases/MicroTGA-DEM_Us_UsInterp is NOT listed: a long demonstration
-# run (endTime 20 at deltaT 1e-6) that no suite timeout lets finish, with no
-# reference baseline to compare against (#117).
+# tutorials/experimental/MicroTGA-DEM_Us_UsInterp is NOT listed: a long
+# demonstration run (endTime 20 at deltaT 1e-6) that no suite timeout lets
+# finish, with no reference baseline to compare against (#117).

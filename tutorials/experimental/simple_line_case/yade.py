@@ -54,7 +54,7 @@ young = 25e6 #5e6
 density = 1200
 # Yade's step count follows the solver's controlDict (one exchange per solver
 # step, see DEM_common/yadeEndpoint.py); a mismatch leaves one side hanging.
-sys.path.insert(0, os.path.join(os.getcwd(), '..', 'DEM_common'))
+sys.path.insert(0, os.path.join(os.getcwd(), '..', '..', 'cases', 'DEM_common'))
 import yadeEndpoint
 NSTEPS = yadeEndpoint.yadeSteps(O.dt, dynDt=O.dynDt)
 #fixed_seed = 12345 # to keep random arrangment of spheres repertable. if changing this value, the arrangment will be different.
