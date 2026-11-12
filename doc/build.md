@@ -107,21 +107,19 @@ git ls-tree HEAD submodules/Foam-Yade     # the pinned commit
 git submodule status submodules/Foam-Yade # a leading '+' means the checkout differs from the pin
 ```
 
-When the pin moves, rebuild YADE, the coupling libraries and PGF's `--yade` build together. The `--isolated` build key does not notice: its fingerprint covers PGF's own build targets, not the submodule, so a complete `yade1` prefix (`./build.sh --print-prefix --yade`) still holds the old coupling libraries. Delete that prefix before rebuilding.
+When the pin moves, rebuild YADE, the coupling libraries and PGF's `--yade` build together. The `yade1` build key folds in the pin (as staged in the index) and a hash of the coupling headers under `YADE_TRUNK` (`FoamYade.H`, `meshtree/meshTree.H`, `commYade/yadeComm.H`), so a moved pin or other headers give a new prefix instead of a stale cache hit. The `yade0` key ignores both.
 
 ### Building YADE and the coupling libraries
 
 1. **YADE** — a CMake build of the Foam-Yade checkout. The installation guide is upstream's (`doc/sphinx/installation.rst` in the submodule). The coupling needs `ENABLE_MPI` (on by default), Python 3 and `mpi4py`; without them CMake prints `MPI NOT FOUND, YADE-OpenFOAM coupling disabled`. The YADE side of the coupling, the `FoamCoupling` engine, is `pkg/openfoam/FoamCoupling.cpp`, built into `libpkg_openfoam.so`.
-2. **Coupling libraries** — three `wmake` libraries under `$YADE_TRUNK/pkg/openfoam/coupling/FoamYade`, built with OpenFOAM sourced. `libYadeFoam` links `libMeshTree`, so build `meshtree` first:
+2. **Coupling libraries** — three `wmake` libraries under `$YADE_TRUNK/pkg/openfoam/coupling/FoamYade` (`libMeshTree`, `libYadeComm`, `libYadeFoam`, in that order). Build and stamp them with
 
    ```bash
-   cd $YADE_TRUNK/pkg/openfoam/coupling/FoamYade
-   (cd meshtree && wmake libso)   # libMeshTree
-   (cd commYade && wmake libso)   # libYadeComm
-   wmake libso                    # libYadeFoam
+   ./pgf-env --bare --yade -- utilities/pgf-env/buildCoupling.sh --libdir DIR   # default $PGF_YADE_LIBDIR
    ```
 
-   They install into the `$FOAM_USER_LIBBIN` active at that moment. An `--isolated --yade` build copies them into its prefix from `PGF_YADE_LIBDIR` (default: the user lib dir OpenFOAM's `bashrc` sets).
+   It writes `.foamyade-coupling.json` next to the libraries: the Foam-Yade commit, the `YADE_TRUNK` used and the coupling-header hash. `build.sh --yade` compares that hash with the headers it is about to compile against and stops before `wmake` on a mismatch, printing the command above; `pgf-env --yade` does the same for the copy in the prefix. Both warn when `YADE_TRUNK`'s `HEAD` differs from the submodule pin, or when the libraries carry no stamp (built by hand). An `--isolated --yade` build copies the libraries and the stamp into its prefix from `PGF_YADE_LIBDIR` (default: the user lib dir OpenFOAM's `bashrc` sets).
+   As a last line, `porousGasificationMedia/DEM/foamYadeApiCheck.H` fails the compile by name when Foam-Yade's `FOAMYADE_COUPLING_API` differs from the one PGF needs; a Foam-Yade older than that macro is not caught there.
 3. **PGF** — `./build.sh build --yade`, or `./pgf-env --bare --yade -- ./build.sh --isolated --yade` for a prefix build.
 
 ### `YADE_TRUNK`

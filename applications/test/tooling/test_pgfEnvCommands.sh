@@ -31,9 +31,14 @@ mkdir -p "$yadedir"
 printf '#!/bin/sh\necho fake yade\n' >"$yadedir/yade-2026.1"
 chmod +x "$prefix/bin/porousGasificationFoam" "$yadedir/yade-2026.1"
 
+trunk="$TEST_TMP/trunk"
+mkdir -p "$trunk/pkg/openfoam/coupling/FoamYade"
+echo '// fake' >"$trunk/pkg/openfoam/coupling/FoamYade/FoamYade.H"
+
 # penv ARGS — a clean caller (HOME, TMPDIR, a PATH with only a suffixed yade).
 penv() {
-    env -i PATH="$yadedir:/usr/bin:/bin" HOME="$home" TMPDIR="$TEST_TMP" "$tree/pgf-env" "$@"
+    env -i PATH="$yadedir:/usr/bin:/bin" HOME="$home" TMPDIR="$TEST_TMP" YADE_TRUNK="$trunk" \
+        "$tree/pgf-env" "$@"
 }
 
 # init writes a file that status reads back.
