@@ -755,21 +755,26 @@ Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasTherm
 
         if (solidReactionEnergyFromEnthalpy_)
         {
-            forAll(Ys_, i)
-            {
+            // -sum RR_k h_k(Ts), formation plus sensible: the solid TEqn has
+            // already taken each solid's Cp*Ts out with its mass, and the
+            // products' hs(Ts) goes to the gas as interfaceEnthalpy.
+            const scalarField& Ts = this->solidThermo().T();
+            const scalarField& p =
+                this->mesh_.template lookupObject<psiReactionThermo>
+                ("thermophysicalProperties").p();
+
             forAll(Sh, cellI)
             {
-                scalar hf = solidThermo_[i].hf();
-                Sh[cellI] -= hf*RRs_[i][cellI];
-            }
-            }
-            forAll(Sh, cellI)
-            {
-            forAll(pyrolisisGases_, i)
-            {
-                scalar Hc = gasThermo_[gasDictionary_[i]].Hc();
-                Sh[cellI] -= Hc*RRg_[i][cellI];
-            }
+                const scalar T = Ts[cellI];
+                forAll(Ys_, i)
+                {
+                    Sh[cellI] -= solidThermo_[i].h(T)*RRs_[i][cellI];
+                }
+                forAll(pyrolisisGases_, i)
+                {
+                    const GasThermoType& gas = gasThermo_[gasDictionary_[i]];
+                    Sh[cellI] -= gas.Ha(p[cellI], T)*RRg_[i][cellI];
+                }
             }
         }
         else
