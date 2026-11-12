@@ -1,5 +1,6 @@
 # Regression tiers in the pinned OpenFOAM v2406 image (#130).
 # fast: every PR to main and every push to main; convergence: nightly and on demand.
+# build-yade: compile-only check of the DEM (WITH_YADE) variant on PRs and pushes.
 # The dem tier stays local-only: the image has no Yade.
 name: regression
 
@@ -155,5 +156,128 @@ jobs:
         with:
           name: regression-${{ env.TIER }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: artifacts/
+          if-no-files-found: warn
+          retention-days: 14
+
+  # Compile-only check of the DEM variant: Foam-Yade's OpenFOAM coupling libs
+  # (wmake, OpenFOAM + MPI only), then build.sh --isolated --yade. Linking needs
+  # no Yade install, so Yade itself is not built and no DEM case runs.
+  build-yade:
+    needs: image
+    if: github.event_name != 'schedule'
+    name: build (yade)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    container:
+      image: ${{ needs.image.outputs.ref }}
+      options: --user root
+    env:
+      PGF_FOAM_BASHRC: /usr/lib/openfoam/openfoam2406/etc/bashrc
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Install python3 and git
+        run: |
+          set -eu
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update -q
+          apt-get install -y --no-install-recommends python3 git ca-certificates zstd
+
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: pgf
+          submodules: true
+
+      - name: Set work dirs
+        run: |
+          echo "PGF_BUILD_ROOT=$GITHUB_WORKSPACE/pgf-builds" >>"$GITHUB_ENV"
+          echo "PGF_RUN_ROOT=$GITHUB_WORKSPACE/pgf-runs" >>"$GITHUB_ENV"
+          echo "PGF_YADE_LIBDIR=$GITHUB_WORKSPACE/foam-yade-lib" >>"$GITHUB_ENV"
+          # wmake reads YADE_TRUNK from the environment; build.sh only defaults it locally.
+          echo "YADE_TRUNK=$GITHUB_WORKSPACE/pgf/submodules/Foam-Yade" >>"$GITHUB_ENV"
+
+      # The build key hashes PGF sources only; the Foam-Yade commit is added to
+      # the cache key so a submodule bump rebuilds the seeded coupling libs.
+      - name: Build key
+        id: key
+        working-directory: pgf
+        run: |
+          set -eu
+          key="$(./pgf-env --bare -- ./build.sh --yade --print-key)"
+          fy="$(git -c safe.directory='*' rev-parse HEAD:submodules/Foam-Yade)"
+          echo "key=$key" >>"$GITHUB_OUTPUT"
+          echo "foam-yade=$fy" >>"$GITHUB_OUTPUT"
+          echo "build key: $key"
+          echo "Foam-Yade: $fy"
+
+      - name: Restore prefix
+        id: cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: pgf-builds/${{ steps.key.outputs.key }}
+          key: pgf-prefix-${{ steps.key.outputs.key }}-fy${{ steps.key.outputs.foam-yade }}
+
+      - name: Create build user
+        run: |
+          set -eu
+          useradd --create-home pgf
+          mkdir -p "$PGF_BUILD_ROOT" "$PGF_RUN_ROOT" "$PGF_YADE_LIBDIR"
+          chown -R pgf: "$GITHUB_WORKSPACE"
+
+      # Always built (about a minute): build.sh also needs their lnInclude/ dirs.
+      - name: Build Foam-Yade coupling libraries
+        working-directory: pgf/submodules/Foam-Yade/pkg/openfoam/coupling/FoamYade
+        run: |
+          set -o pipefail
+          runuser -u pgf -- "$GITHUB_WORKSPACE/pgf/pgf-env" --bare -- bash -c '
+            set -e
+            export FOAM_USER_LIBBIN="$PGF_YADE_LIBDIR"
+            wmake -j libso meshtree
+            wmake -j libso commYade
+            wmake -j libso' 2>&1 |
+            tee "$PGF_RUN_ROOT/ci-foam-yade.log" | tail -20
+
+      - name: Build PGF with Yade
+        working-directory: pgf
+        run: |
+          set -o pipefail
+          runuser -u pgf -- ./pgf-env --bare -- ./build.sh --isolated --yade 2>&1 |
+            tee "$PGF_RUN_ROOT/ci-build.log" | tail -40
+
+      - name: Check the coupling was built and linked
+        working-directory: pgf
+        run: |
+          set -eu
+          prefix="$PGF_BUILD_ROOT/${{ steps.key.outputs.key }}"
+          for f in lib/liblambdaDotModel.so lib/libYadeFoam.so lib/libMeshTree.so \
+            lib/libYadeComm.so bin/porousGasificationFoam; do
+            [ -s "$prefix/$f" ] || { echo "::error::missing $prefix/$f"; exit 1; }
+          done
+          python3 -c 'import json,sys; v=json.load(open(sys.argv[1]))["variant"]; print("variant:", v); sys.exit(v != "yade1")' \
+            "$prefix/.pgf-build.json"
+          runuser -u pgf -- ./pgf-env --prefix "$prefix" -- \
+            bash -c 'ldd "$(command -v porousGasificationFoam)"' >"$PGF_RUN_ROOT/ldd.txt"
+          grep -E 'lib(YadeFoam|MeshTree|lambdaDotModel)\.so' "$PGF_RUN_ROOT/ldd.txt"
+          ! grep 'not found' "$PGF_RUN_ROOT/ldd.txt"
+          for lib in libYadeFoam libMeshTree liblambdaDotModel; do
+            grep -q "$lib\.so => $prefix/lib/" "$PGF_RUN_ROOT/ldd.txt" ||
+              { echo "::error::porousGasificationFoam does not link $lib from the prefix"; exit 1; }
+          done
+
+      - name: Save prefix
+        if: steps.cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: pgf-builds/${{ steps.key.outputs.key }}
+          key: pgf-prefix-${{ steps.key.outputs.key }}-fy${{ steps.key.outputs.foam-yade }}
+
+      - name: Upload build logs
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: build-yade-${{ github.run_id }}-${{ github.run_attempt }}
+          path: pgf-runs/*.*
           if-no-files-found: warn
           retention-days: 14
