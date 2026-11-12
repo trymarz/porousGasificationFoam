@@ -69,6 +69,7 @@ fi
 . "$PGF_ROOT/utilities/pgf-env/config.sh"
 
 . "$PGF_ROOT/utilities/pgf-env/commands.sh"
+. "$PGF_ROOT/utilities/pgf-env/coupling.sh"
 
 sub="exec"
 case "${1:-}" in status | init | shell | run | install-link) sub="$1"; shift ;; esac
@@ -243,6 +244,10 @@ export TMPDIR="$PGF_RUN_ROOT/tmp"
 
 if [ "$yade" -eq 1 ]; then
   export YADE_TRUNK="${YADE_TRUNK:-$PGF_ROOT/submodules/Foam-Yade}"
+  if [ "$mode" != "bare" ]; then
+    checks="$(pgf_coupling_check "$prefix/lib" "$YADE_TRUNK")" || die "$(grep '^FAIL' <<<"$checks" | cut -c6-)"
+    grep '^WARN' <<<"$checks" | sed 's/^WARN /pgf-env: warning: /' >&2
+  fi
   yade_bin="${YADE_BIN:-$(PATH="$PGF_ENV_CALLER_PATH" command -v yade)}"
   [ -x "$yade_bin" ] || die "no yade binary: set YADE_BIN or put yade on PATH"
   # Installs may only carry a suffixed binary; the tutorials call plain `yade`.

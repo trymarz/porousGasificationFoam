@@ -16,6 +16,7 @@
 . "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)/utilities/bash_utils/helpers.sh"
 
 PGF_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+. "$PGF_ROOT/utilities/pgf-env/coupling.sh"
 
 # ============================================================
 # CONFIGURATION
@@ -253,7 +254,22 @@ check_yade_environment() {
     return 1
   fi
 
-  return 0
+  check_coupling_stamp
+}
+
+# The coupling libs must come from the headers wmake is about to compile
+# against (#257); a mismatch is refused before anything is built.
+check_coupling_stamp() {
+  local libdir="${FOAM_USER_LIBBIN:-}" line rc=0
+  [ "$PREFIX_MODE" = "none" ] || libdir="${PGF_YADE_LIBDIR:-$DEFAULT_USER_LIBBIN}"
+  while IFS= read -r line; do
+    case "$line" in
+    OK*) clog INFO "${line#OK   }" ;;
+    WARN*) clog WARNING "${line#WARN }" ;;
+    FAIL*) clog ERROR "${line#FAIL }"; rc=1 ;;
+    esac
+  done < <(pgf_coupling_check "$libdir" "$YADE_TRUNK")
+  return "$rc"
 }
 
 # Link-time deps of the DEM library and the WITH_YADE solver; libYadeComm
@@ -290,6 +306,8 @@ seed_yade_libs() {
     fi
     cp -fL "$src/$lib.so" "$FOAM_USER_LIBBIN/$lib.so" || return 1
   done
+  rm -f "$FOAM_USER_LIBBIN/$PGF_COUPLING_STAMP"
+  [ ! -f "$src/$PGF_COUPLING_STAMP" ] || cp -f "$src/$PGF_COUPLING_STAMP" "$FOAM_USER_LIBBIN/" || return 1
   clog INFO "Seeded ${YADE_LIBS[*]} from $src"
 }
 
@@ -299,9 +317,14 @@ seed_yade_libs() {
 
 # The fingerprint covers the sources only, so the key adds what else changes
 # the binaries: the WITH_YADE variant, the OpenFOAM version and the compiler.
+# yade1 also folds in the Foam-Yade pin and coupling-header hash (#257).
 build_key() {
   local fp cc_version
   fp="$(source_fingerprint)" || return 1
+  if [ "$WITH_YADE" -eq 1 ]; then
+    local trunk="${YADE_TRUNK:-$PGF_ROOT/submodules/Foam-Yade}"
+    fp="$(printf '%s\n' "$fp" "$(pgf_coupling_pin)" "$(pgf_coupling_api_hash "$trunk")" | sha1sum | cut -c1-40)"
+  fi
   cc_version="$(gcc -dumpversion 2>/dev/null)" || {
     clog ERROR "gcc -dumpversion failed; cannot form the build key."
     return 1
