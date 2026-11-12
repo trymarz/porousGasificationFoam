@@ -22,7 +22,7 @@ Gas and solid coexist in every cell, split by the porosity `ε` (`porosityF`): `
 
 The loop is `porousGasificationFoam/porousGasificationFoam.C`; each step is an `#include` or call.
 
-1. **Time step** — Courant (gas), diffusion (solid) and chemistry limits give one `deltaT` (`setMultiRegionDeltaT.H`, `updateChemistryTimeStep.H`).
+1. **Time step** — the Courant (gas) and diffusion (solid) limits give `deltaT` (`setMultiRegionDeltaT.H`). The chemistry's ODE time scale does not limit it. Only with `solidChemistryTimeStepControl true` in `chemistryProperties` (default `false`) does `updateChemistryTimeStep.H` cut `deltaT` further: when, in the last chemistry solve, a specie's mass fraction reached 0 or 1, to about the time it took to get there (`ODESolidHeterogeneousChemistryModel::updateSolidRates`, `updateGasRates`).
 2. **DEM coupling** (only with `WITH_YADE`) — particle state is exchanged with YADE; `Us` and `lambda` are rebuilt from it and `lambdaDot` is pushed back (`DEM/lambdaDotModel.C`): a rate YADE integrates, or under `apparentVolume` a factor `r` it applies once.
 3. **Radiation** — updates the solid radiative source (`radiation.H`, `radiationModels/`).
 4. **Solid region, `pyrolysisZone.evolve()`** (`volPyrolysis::evolveRegion()`), in this order: chemistry ODE and gas-solid exchange, both from the step-start state; solid-flux limit; solid species transport (`SolidSpeciesTransport::solve`); solid enthalpy balance on the new mass, solved for `Ts` (`SolidEnergy::solve`); the DEM `lambdaDot` temperature term; porosity from the solid mass, bed collapse or emptying of flipped cells, their checks, and the solid masks and gate for the next step (`PorosityRecovery`, `volPyrolysis::moveBed`, `checkPorosity`, `updateSolidState`). Each stage, with its kind, the fields it reads and writes and its checks: [solid-step.md](solid-step.md).
@@ -69,7 +69,7 @@ The continuity source carries `(1 − ε)`; the species source does not (known d
 C = (μ + f ρ |U| √3 / |Df|) · Df
 ```
 
-`Df` is the Darcy resistance tensor (`0/Df`) and `f` the Forchheimer coefficient (`forchheimerCoeff` in `constant/porosityProperties`, default 0, so Darcy only). The paper writes the non-Darcy term in a different form; the code is as above.
+`U` is the superficial velocity: `φ` is the face flux of `ρU` (`compressibleCreatePhi.H`), and `rhoEqn.H` pairs it with `∂(ερ)/∂t`. `Df` is the Darcy resistance tensor (`0/Df`) and `f` the Forchheimer coefficient (`forchheimerCoeff` in `constant/porosityProperties`, default 0, so Darcy only). The paper writes the non-Darcy term in a different form; the code is as above.
 
 **Gas energy** (`EEqn.H`; paper 2c). Solved for sensible enthalpy `h` (or internal energy, depending on the thermo type); `K` is kinetic energy.
 
@@ -91,23 +91,28 @@ Solved for internal energy `e`, the pressure work `− ε ∂p/∂t` becomes `�
 
 `φₛ` is the solid flux after limiting (`solidFluxLimiter`), so Ym stays physical when solid moves.
 
-**Porosity** (`PorosityRecovery::recover`). Not transported; derived from the solid mass each step, then cells that are nearly empty are cleared (bed collapse).
+**Porosity** (`PorosityRecovery::updatePorosity`). Not transported; derived from the solid mass each step. Nearly empty (flipped) cells are cleared only with `bedCollapse`, which moves the column onto them, or with `emptyFlippedCells`, which destroys their mass; both are off by default, and then their solid stays ([solid-step.md](solid-step.md), stages 9–10).
 
 ```
 1/ρₛ = Σₖ Ysₖ/ρₖ ,    1 − ε = Σₖ Ymₖ/ρₖ
 ```
 
-**Solid energy** (`SolidEnergy::solve`, after the species step; paper 3c). One balance for `H = Σₖ Ymₖ cₚ,ₖ Tₛ`:
+**Solid energy** (`SolidEnergy::solve`, after the species step; paper 3c). The stored variable is `H = Σₖ Ymₖ cₚ,ₖ Tₛ` (`solidH`), but the equation is solved for `Tₛ` (`SolidEnergy::solveEnthalpyBalance`):
 
 ```
-∂H/∂t + ∇·(Σₖ φ_Ym,k cₚ,ₖ Tₛ) − ∇·((1 − ε) K_s · A ∇Tₛ)
-    = S_chem − Q_conv − Q_agent + S_rad,s + Σₖ RRsₖ cₚ,ₖ Tₛ
+∂(ρcₚ* Tₛ)/∂t + (ρcₚ* Tₛ⁰ − H⁰)/Δt + ∇·(Σₖ φ_Ym,k cₚ,ₖ Tₛ) − ∇·((1 − ε) K_s · A ∇Tₛ)
+    = S_chem − Q_conv − Q_agent + S_rad,s
+ρcₚ* = Σₖ cₚ,ₖ (Ymₖ − Δt RRsₖ)
 Q_agent = Σ_{S_ρ,i<0} |S_ρ,i| (hₛ,ᵢ(Tₛ) − hₛ,ᵢ(T))
 ```
 
-It is solved for `Tₛ`: conduction and the last term are implicit, the advective flux is explicit and upwind on each specie's own mass flux `φ_Ym,k`. The time derivative follows the case's `ddtSchemes` entry. The last term is the sensible heat of the composition change; taken implicitly it leaves `Σₖ cₚ,ₖ (Ymₖ − Δt RRsₖ)` on the diagonal, the heat capacity of the solid before this step's reaction. `H` is then stored on the mass that remains.
+- `ρcₚ*` (`rhoCpCarrier`) is the heat capacity of the solid before this step's reaction. With Euler the first two terms are `(ρcₚ* Tₛ − H⁰)/Δt`, which is `∂H/∂t − Σₖ RRsₖ cₚ,ₖ Tₛ`: the sensible heat of the composition change, taken implicitly. The first term follows the case's `ddtSchemes` entry; the second is zero unless transport changed the mass.
+- The advective enthalpy flux is explicit, and upwind on each specie's own mass flux `φ_Ym,k` (`advectiveEnthalpyFlux`).
+- Conduction is implicit, but cut at the bed border (`conductionWithinSolid`): its coefficients are zeroed on every internal, processor and cyclic face where the interpolated `solidPresent` lies strictly between 0 and 1. Its non-orthogonal correction is dropped.
 
-`A` is the optional `anisotropyK` tensor; `S_chem` is the solid reaction heat (`chemistrySh`), `hr` with all participants at `Tₛ`. `Q_agent` (`agentHeatUp`) heats a consumed agent from the gas `T` to `Tₛ`. Products need no further solid term: the last term already lets the converted solid leave at `Tₛ`. Reference temperatures differ (solid `H` from 0 K, gas `h` from 298.15 K; to be unified in #173); no temperature depends on them.
+`H` is then stored on the mass that remains.
+
+`A` is the optional `anisotropyK` tensor; `S_chem` is the solid reaction heat (`chemistrySh`), `hr` with all participants at `Tₛ`. `Q_agent` (`agentHeatUp`) heats a consumed agent from the gas `T` to `Tₛ`. Products need no further solid term: the implicit composition-change term already lets the converted solid leave at `Tₛ`. Reference temperatures differ (solid `H` from 0 K, gas `h` from 298.15 K; to be unified in #173); no temperature depends on them.
 
 **Particle size under `lambdaMode apparentVolume`** (`DEM/lambdaDotModels/apparentVolumeLambdaDot/`). With `λ³ₖ = 1/ρ_app,k` the apparent specific volume of specie `k`, and `Ymₖ` taken before this step's solve:
 
