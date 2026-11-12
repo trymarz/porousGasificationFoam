@@ -19,8 +19,12 @@ reference README for those.
 The files that are this case's own are `constant/chemistryProperties`,
 `constant/reactions`, `constant/thermo.compressibleGas`,
 `constant/solidThermophysicalProperties`, `constant/lambdaDict`, `0.orig/`,
-`Allrun`, `system/regressionInvariants` and this README. Everything else is
-linked to `../MicroTGA-DEM_lambdaDot_common/`.
+`Allrun`, `system/regressionInvariants`, `reference/` and this README.
+Everything else is linked to `../MicroTGA-DEM_lambdaDot_common/`.
+
+`reference/postProcessing/` is the regression baseline: the six λ metrics
+every DEM fixture carries, plus `lambdaMinusOne*`, which hold the 2e-5 signal
+that `lambdaAverage` rounds away.
 
 ## The reaction
 
