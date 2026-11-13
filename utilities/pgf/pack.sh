@@ -146,7 +146,7 @@ print(m.get("git_head") or "-", m.get("variant") or "-", int(bool((m.get("checko
     return 0
   fi
   # pgf's env -i drops PATH; apptainer needs the caller's to start its namespace.
-  PATH="${PGF_ENV_CALLER_PATH:-$PATH}"
+  export PATH="${PGF_ENV_CALLER_PATH:-$PATH}"
   command -v apptainer >/dev/null || { echo "pgf pack: apptainer not found" >&2; return 2; }
   (cd "$ctx" && apptainer build --fakeroot --ignore-subuid "$out" pgf-pack.def) || return 1
   echo "pgf pack: wrote $out" >&2
