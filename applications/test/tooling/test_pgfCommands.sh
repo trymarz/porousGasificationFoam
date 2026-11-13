@@ -130,6 +130,12 @@ mkdir -p "$TEST_TMP/broot"
     "$tree/pgf" run --prefix "$prefix" "$case" Allclean) >/dev/null 2>&1
 check "runs.jsonl under the build root gets the run" \
     grep -q "\"case\": \"$(realpath "$case")\"" "$TEST_TMP/broot/.pgf/runs.jsonl"
+mkdir -p "$TEST_TMP/roroot" && chmod a-w "$TEST_TMP/roroot"
+(cd / && env -i PATH="$yadedir:/usr/bin:/bin" HOME="$home" TMPDIR="$TEST_TMP" PGF_BUILD_ROOT="$TEST_TMP/roroot" \
+    "$tree/pgf" run --prefix "$prefix" "$case" Allclean) >/dev/null 2>"$TEST_TMP/ro.err"
+check "a read-only build root (an image) still records, without a warning" \
+    bash -c '[ -f "$1/.pgf-run.json" ] && ! grep -q "could not write" "$2"' _ "$case" "$TEST_TMP/ro.err"
+chmod u+w "$TEST_TMP/roroot"
 rm -f "$case/Allfail" "$case/.pgf-run.json"
 rm -f "$case/ran.txt"
 (cd "$TEST_TMP/cases" && penv run --prefix "$prefix" plain) >/dev/null 2>&1
