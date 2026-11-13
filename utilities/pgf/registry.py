@@ -10,6 +10,7 @@ last built per variant, so `pgf ls` can say which checkouts use which build.
   registry.py ls ROOT [--json] [--builds-only] [--current KEY ...]
   registry.py status CONF_JSON ROOT CHECKOUT [VARIANT=KEY ...]
   registry.py resolve ROOT VARIANT SEL       print the prefix SEL names
+  registry.py record CASE ROOT PREFIX SOURCE YADE_BIN YADE_COMMIT STARTED RC CMD ...
   registry.py gc ROOT [--keep N] [--yes] [--dry-run] [--json] [--protect KEY ...]
 
 A run holds a shared flock on ROOT/<key>.use.lock and a build an exclusive one
@@ -291,6 +292,25 @@ def remove(root, key):
             os.close(fd)
 
 
+def record(case, root, prefix, source, yade_bin, yade_commit, started, rc, *cmd):
+    """Write CASE/.pgf-run.json and append the same record to ROOT/.pgf/runs.jsonl."""
+    meta = load(os.path.join(prefix, ".pgf-build.json")) or {}
+    rec = {
+        "case": os.path.realpath(case), "command": list(cmd),
+        "started_utc": started, "finished_utc": now(), "exit_status": int(rc),
+        "build": {"key": os.path.basename(prefix), "prefix": prefix, "source": source,
+                  "variant": meta.get("variant"), "git_head": meta.get("git_head")},
+        "yade": None,
+    }
+    if yade_bin:
+        rec["yade"] = {"bin": yade_bin, "commit": yade_commit or None, "foam_yade_pin": (meta.get("foam_yade") or {}).get("pin")}
+    write_atomic(os.path.join(case, ".pgf-run.json"), rec)
+    if root and os.path.isdir(root):
+        os.makedirs(os.path.join(root, ".pgf"), exist_ok=True)
+        with open(os.path.join(root, ".pgf", "runs.jsonl"), "a") as f:
+            f.write(json.dumps(rec) + "\n")
+
+
 def main(argv):
     if not argv:
         print(__doc__, file=sys.stderr)
@@ -303,6 +323,9 @@ def main(argv):
         return cmd_ls(rest)
     if cmd == "resolve" and len(rest) == 3:
         return cmd_resolve(rest)
+    if cmd == "record" and len(rest) >= 9:
+        record(*rest)
+        return 0
     if cmd == "gc" and rest:
         return cmd_gc(rest)
     if cmd == "status" and len(rest) >= 3:
