@@ -2,7 +2,8 @@
 # pgf settings layers (#257, #264): user file < checkout file < environment < CLI,
 # a malformed or unknown line exits 2 naming file:line, and no config key can
 # put a path under the default user dir back on PATH. Uses fake bashrcs and a
-# copy of pgf, so neither OpenFOAM nor this checkout's .pgf-env.conf is touched.
+# copy of pgf, so neither OpenFOAM nor this checkout's .pgf.conf is touched.
+# The old checkout name .pgf-env.conf is still read, with a note (#274 B).
 
 FAKE="$(mktemp -d "${TMPDIR:-/tmp}/pgf-fakefoam-XXXXXX")" || exit 2
 : "${PGF_FOAM_BASHRC:=$FAKE/A/etc/bashrc}"
@@ -56,7 +57,7 @@ check "user file alone selects B" [ "$(version --)" = B ]
 penv -- status >"$TEST_TMP/status"
 check "status names the user layer and line" grep -qE "^  PGF_FOAM_BASHRC +$B +\[user $user_conf:1\]" "$TEST_TMP/status"
 
-printf '# checkout\n\nPGF_FOAM_BASHRC="%s"\nPGF_MPI=loopback\n' "$C" >"$tree/.pgf-env.conf"
+printf '# checkout\n\nPGF_FOAM_BASHRC="%s"\nPGF_MPI=loopback\n' "$C" >"$tree/.pgf.conf"
 check "checkout file overrides the user file" [ "$(version --)" = C ]
 check "PGF_MPI=loopback from the checkout file restricts Open MPI to lo" \
     [ "$(penv -- exec --bare -- printenv OMPI_MCA_btl_tcp_if_include 2>/dev/null)" = lo ]
@@ -69,24 +70,24 @@ penv PGF_FOAM_BASHRC="$A" -- status --set PGF_RUN_ROOT=/x >"$TEST_TMP/status"
 check "status reports env and cli layers" \
     bash -c 'grep -qE "^  PGF_FOAM_BASHRC .*\[env\]" "$1" && grep -qE "^  PGF_RUN_ROOT +/x +\[cli\]" "$1"' _ "$TEST_TMP/status"
 
-printf 'PGF_FOAM_BASHRC=%s\n\nnot a setting\n' "$C" >"$tree/.pgf-env.conf"
+printf 'PGF_FOAM_BASHRC=%s\n\nnot a setting\n' "$C" >"$tree/.pgf.conf"
 version -- >/dev/null
 rc=$?
 check "malformed line exits 2 (rc=$rc)" [ "$rc" -eq 2 ]
-check "the error names file:line" grep -qF "$tree/.pgf-env.conf:3:" "$TEST_TMP/err"
+check "the error names file:line" grep -qF "$tree/.pgf.conf:3:" "$TEST_TMP/err"
 
-printf 'PATH=/evil\n' >"$tree/.pgf-env.conf"
+printf 'PATH=/evil\n' >"$tree/.pgf.conf"
 version -- >/dev/null
 rc=$?
 check "an unknown key (PATH) exits 2 naming file:line (rc=$rc)" \
-    bash -c '[ "$1" -eq 2 ] && grep -qF "$2:1: unknown key" "$3"' _ "$rc" "$tree/.pgf-env.conf" "$TEST_TMP/err"
-printf 'PGF_YADE=yes\n' >"$tree/.pgf-env.conf"
+    bash -c '[ "$1" -eq 2 ] && grep -qF "$2:1: unknown key" "$3"' _ "$rc" "$tree/.pgf.conf" "$TEST_TMP/err"
+printf 'PGF_YADE=yes\n' >"$tree/.pgf.conf"
 version -- >/dev/null
 check "a bad PGF_YADE value exits 2" [ $? -eq 2 ]
 
 # Settings that name the default user dir must not put it back on PATH.
 default="$home/fake-user"
-printf 'PGF_YADE_LIBDIR=%s/lib\nPGF_RUN_ROOT=%s/run\n' "$default" "$default" >"$tree/.pgf-env.conf"
+printf 'PGF_YADE_LIBDIR=%s/lib\nPGF_RUN_ROOT=%s/run\n' "$default" "$default" >"$tree/.pgf.conf"
 path="$(penv -- exec --bare -- printenv PATH 2>"$TEST_TMP/err")"
 check "config pointing into the default user dir still runs" [ -n "$path" ]
 check "PATH holds nothing under the default user dir $default" \
@@ -101,9 +102,20 @@ echo "PGF_FOAM_BASHRC=$A" >"$user_conf"
 penv -- config set PGF_BUILD=abc123 >/dev/null 2>&1
 check "config set PGF_BUILD without --checkout exits 2" [ $? -eq 2 ]
 penv -- config set PGF_BUILD=abc123 --checkout 2>/dev/null
-check "config set PGF_BUILD --checkout lands in the checkout file" grep -qx "PGF_BUILD=abc123" "$tree/.pgf-env.conf"
+check "config set PGF_BUILD --checkout lands in the checkout file" grep -qx "PGF_BUILD=abc123" "$tree/.pgf.conf"
 check "PGF_BUILD from the environment wins over the checkout file" \
     [ "$(penv PGF_BUILD=def456 -- config get PGF_BUILD)" = def456 ]
+
+# the old checkout file name (#274): read with a note, until .pgf.conf exists
+mv "$tree/.pgf.conf" "$tree/.pgf-env.conf"
+check "the old .pgf-env.conf is still read" [ "$(penv -- config get PGF_BUILD 2>"$TEST_TMP/err")" = abc123 ]
+check "  with a note to rename it" grep -q "reading $tree/.pgf-env.conf (old name); rename it to .pgf.conf" "$TEST_TMP/err"
+penv -- config set PGF_MPI=default --checkout 2>"$TEST_TMP/err"
+check "config set --checkout writes .pgf.conf and keeps the old file's keys" \
+    bash -c 'grep -qx PGF_BUILD=abc123 "$1" && grep -qx PGF_MPI=default "$1"' _ "$tree/.pgf.conf"
+check "  and says the old file is no longer read" grep -q ".pgf-env.conf (old name) is no longer read" "$TEST_TMP/err"
+echo "PGF_BUILD=old" >"$tree/.pgf-env.conf"
+check ".pgf.conf wins once it exists" [ "$(penv -- config get PGF_BUILD 2>/dev/null)" = abc123 ]
 
 [ "$TEST_FAILURES" -eq 0 ] || { echo "--- last stderr"; cat "$TEST_TMP/err"; }
 finish

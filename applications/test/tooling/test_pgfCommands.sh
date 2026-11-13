@@ -1,7 +1,7 @@
 #!/bin/bash
 # pgf setup / config / shell / run / build / tools and the root shims (#257 B,
 # #264 PR 1, #274 A), with a fake bashrc, prefix and yade on a copy of pgf, so nothing
-# is built and neither the real user config nor this checkout's .pgf-env.conf is touched.
+# is built and neither the real user config nor this checkout's .pgf.conf is touched.
 
 FAKE="$(mktemp -d "${TMPDIR:-/tmp}/pgf-fakefoam-XXXXXX")" || exit 2
 : "${PGF_FOAM_BASHRC:=$FAKE/etc/bashrc}"
@@ -54,17 +54,17 @@ penv setup --checkout --yes --no-link --foam-bashrc "$bashrc" --set PGF_RUN_ROOT
 rc=$?
 check "setup --checkout --yes exits 0 (rc=$rc)" [ "$rc" -eq 0 ]
 check "setup --no-link made no link" [ ! -e "$home/.local/bin/pgf" ]
-check "setup wrote the checkout file" grep -qx "PGF_FOAM_BASHRC=$bashrc" "$tree/.pgf-env.conf"
+check "setup wrote the checkout file" grep -qx "PGF_FOAM_BASHRC=$bashrc" "$tree/.pgf.conf"
 check "setup found the suffixed yade on the caller's PATH" \
-    grep -qx "YADE_BIN=$yadedir/yade-2026.1" "$tree/.pgf-env.conf"
+    grep -qx "YADE_BIN=$yadedir/yade-2026.1" "$tree/.pgf.conf"
 penv status >"$TEST_TMP/status" 2>&1
 check "status reads PGF_FOAM_BASHRC back from the checkout file" \
     grep -qE "^  PGF_FOAM_BASHRC +$bashrc +\[checkout " "$TEST_TMP/status"
-printf 'PGF_BUILD_ROOT=/keep\n' >>"$tree/.pgf-env.conf"
+printf 'PGF_BUILD_ROOT=/keep\n' >>"$tree/.pgf.conf"
 penv setup --checkout --yes --no-link --set PGF_MPI=loopback >/dev/null 2>&1
 check "a second setup keeps existing keys and adds the new one" \
     bash -c 'grep -qx "PGF_BUILD_ROOT=/keep" "$1" && grep -qx "PGF_MPI=loopback" "$1" && grep -qx "PGF_FOAM_BASHRC=$2" "$1"' \
-    _ "$tree/.pgf-env.conf" "$bashrc"
+    _ "$tree/.pgf.conf" "$bashrc"
 penv setup --user --yes --foam-bashrc "$bashrc" >/dev/null 2>&1
 check "setup --user writes ~/.config/pgf/env.conf" grep -qx "PGF_FOAM_BASHRC=$bashrc" "$home/.config/pgf/env.conf"
 check "  and links ~/.local/bin/pgf to this checkout" \
@@ -77,12 +77,12 @@ check "config get of an unset key exits 1" [ $? -eq 1 ]
 penv config get NOPE >/dev/null 2>&1
 check "config get of an unknown key exits 2" [ $? -eq 2 ]
 penv config set PGF_YADE_LIBDIR=/opt/libs --checkout 2>/dev/null
-check "config set --checkout writes the checkout file" grep -qx "PGF_YADE_LIBDIR=/opt/libs" "$tree/.pgf-env.conf"
-check "  and keeps the other keys" grep -qx "PGF_MPI=loopback" "$tree/.pgf-env.conf"
+check "config set --checkout writes the checkout file" grep -qx "PGF_YADE_LIBDIR=/opt/libs" "$tree/.pgf.conf"
+check "  and keeps the other keys" grep -qx "PGF_MPI=loopback" "$tree/.pgf.conf"
 penv config set PGF_MPI=sometimes 2>/dev/null
 check "config set rejects a bad value with exit 2" [ $? -eq 2 ]
 penv config unset PGF_YADE_LIBDIR --checkout 2>/dev/null
-check "config unset removes the key" bash -c '! grep -q PGF_YADE_LIBDIR "$1"' _ "$tree/.pgf-env.conf"
+check "config unset removes the key" bash -c '! grep -q PGF_YADE_LIBDIR "$1"' _ "$tree/.pgf.conf"
 penv config --json >"$TEST_TMP/json"
 check "config --json gives value and layer per key" python3 -c '
 import json, sys
@@ -126,17 +126,17 @@ printf '#!/bin/sh\nexit 3\n' >"$case/Allfail" && chmod +x "$case/Allfail"
 rc=$?
 check "run passes the script's exit status through (rc=$rc)" [ "$rc" -eq 3 ]
 check "and records it" grep -q '"exit_status": 3' "$case/.pgf-run.json"
-mkdir -p "$TEST_TMP/broot"
-(cd / && env -i PATH="$yadedir:/usr/bin:/bin" HOME="$home" TMPDIR="$TEST_TMP" PGF_BUILD_ROOT="$TEST_TMP/broot" \
+check "runs.jsonl in the XDG state dir gets the run" \
+    grep -q "\"case\": \"$(realpath "$case")\"" "$home/.local/state/pgf/runs/runs.jsonl"
+(cd / && env -i PATH="$yadedir:/usr/bin:/bin" HOME="$home" TMPDIR="$TEST_TMP" XDG_STATE_HOME="$TEST_TMP/xdg" \
     "$tree/pgf" run --prefix "$prefix" "$case" Allclean) >/dev/null 2>&1
-check "runs.jsonl under the build root gets the run" \
-    grep -q "\"case\": \"$(realpath "$case")\"" "$TEST_TMP/broot/.pgf/runs.jsonl"
-mkdir -p "$TEST_TMP/roroot" && chmod a-w "$TEST_TMP/roroot"
-(cd / && env -i PATH="$yadedir:/usr/bin:/bin" HOME="$home" TMPDIR="$TEST_TMP" PGF_BUILD_ROOT="$TEST_TMP/roroot" \
+check "  under XDG_STATE_HOME when it is set" grep -q '"case"' "$TEST_TMP/xdg/pgf/runs/runs.jsonl"
+mkdir -p "$TEST_TMP/rostate" && chmod a-w "$TEST_TMP/rostate"
+(cd / && env -i PATH="$yadedir:/usr/bin:/bin" HOME="$home" TMPDIR="$TEST_TMP" XDG_STATE_HOME="$TEST_TMP/rostate" \
     "$tree/pgf" run --prefix "$prefix" "$case" Allclean) >/dev/null 2>"$TEST_TMP/ro.err"
-check "a read-only build root (an image) still records, without a warning" \
+check "a read-only state dir (an image) still records the case, without a warning" \
     bash -c '[ -f "$1/.pgf-run.json" ] && ! grep -q "could not write" "$2"' _ "$case" "$TEST_TMP/ro.err"
-chmod u+w "$TEST_TMP/roroot"
+chmod u+w "$TEST_TMP/rostate"
 rm -f "$case/Allfail" "$case/.pgf-run.json"
 rm -f "$case/ran.txt"
 (cd "$TEST_TMP/cases" && penv run --prefix "$prefix" plain) >/dev/null 2>&1
@@ -185,6 +185,19 @@ out="$(root pgf-test --gc --dry-run 2>"$TEST_TMP/err")"
 check "the pgf-test alias forwards to pgf test" grep -qx "test.sh --gc --dry-run" <<<"$out"
 check "  and says it is deprecated" grep -q "pgf-test: deprecated; use: pgf test" "$TEST_TMP/err"
 check "pgf-env is gone" [ ! -e "$PGF_ROOT/pgf-env" ]
+
+# pgf where: settings, builds, records, run dir, the active build and its layer
+penv where >"$TEST_TMP/where" 2>&1
+check "where names both settings files" bash -c 'grep -qF "$2/.config/pgf/env.conf" "$1" && grep -qF "$3/.pgf.conf" "$1"' \
+    _ "$TEST_TMP/where" "$home" "$tree"
+check "where names the build store and its layer" grep -qE "^builds +/keep \[checkout $tree/.pgf.conf:[0-9]+\]" "$TEST_TMP/where"
+check "where names the run records" grep -qxF "records   $home/.local/state/pgf/runs" "$TEST_TMP/where"
+check "where names the run dir" grep -qE "^run dir +$TEST_TMP/runs \[checkout " "$TEST_TMP/where"
+env -i PATH=/usr/bin:/bin HOME="$home" TMPDIR="$TEST_TMP" YADE_TRUNK="$trunk" PGF_BUILD=nosuchbuild \
+    "$tree/pgf" where >"$TEST_TMP/where" 2>&1
+check "where shows a terminal-selected build and that it was chosen there" \
+    grep -qE "^build +nosuchbuild \[yade[01]; terminal: pgf use\] no build matches" "$TEST_TMP/where"
+check "where fits on one screen (6 lines)" [ "$(wc -l <"$TEST_TMP/where")" -eq 6 ]
 
 # pgf tools: one what / why / instead block per root tool
 penv tools >"$TEST_TMP/tools" 2>&1
