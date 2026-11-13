@@ -259,3 +259,51 @@ pgf_build_cmd() {
   done
   "$SELF" exec --bare "${envopts[@]}" -- "$PGF_ROOT/build.sh" --isolated "${bopts[@]}"
 }
+
+# pgf_build_info — set PGF_INFO_ROOT and PGF_INFO_KEY[yade0|yade1] for this
+#   checkout (empty when OpenFOAM cannot be sourced). Needs SELF and PGF_ROOT.
+pgf_build_info() {
+  local out
+  declare -gA PGF_INFO_KEY=()
+  out="$("$SELF" exec --bare --no-yade -- /bin/bash -c \
+    'printenv PGF_BUILD_ROOT; "$1" --print-key; "$1" --print-key --yade' _ "$PGF_ROOT/build.sh" 2>/dev/null)"
+  { read -r PGF_INFO_ROOT; read -r PGF_INFO_KEY[yade0]; read -r PGF_INFO_KEY[yade1]; } <<<"$out"
+  [ -n "${PGF_INFO_ROOT:-}" ] || PGF_INFO_ROOT="${PGF_BUILD_ROOT:-}"
+}
+
+# pgf_ls_cmd [--json] — every build under the build root; * marks this checkout's.
+pgf_ls_cmd() {
+  local json=() k cur=()
+  while [ $# -gt 0 ]; do
+    case "$1" in
+    --json) json=(--json); shift ;;
+    *) echo "pgf: ls takes only --json" >&2; return 2 ;;
+    esac
+  done
+  pgf_conf_resolve || { echo "pgf: $PGF_CONF_ERR" >&2; return 2; }
+  pgf_build_info
+  [ -n "$PGF_INFO_ROOT" ] || { echo "pgf: no build root: set PGF_BUILD_ROOT or PGF_FOAM_BASHRC" >&2; return 2; }
+  for k in "${PGF_INFO_KEY[@]}"; do [ -n "$k" ] && cur+=("$k"); done
+  python3 "$PGF_LIB/registry.py" ls "$PGF_INFO_ROOT" "${json[@]}" --current "${cur[@]}"
+}
+
+# pgf_status_json — settings, layers and this checkout's builds as JSON.
+pgf_status_json() {
+  pgf_build_info
+  python3 "$PGF_LIB/registry.py" status "$(pgf_conf_json)" "$PGF_INFO_ROOT" "$PGF_ROOT" \
+    "yade0=${PGF_INFO_KEY[yade0]}" "yade1=${PGF_INFO_KEY[yade1]}"
+}
+
+# pgf_status_builds — the human form of the builds part of status.
+pgf_status_builds() {
+  local v key state
+  pgf_build_info
+  echo "builds for $PGF_ROOT (root ${PGF_INFO_ROOT:-unknown}):"
+  for v in yade0 yade1; do
+    key="${PGF_INFO_KEY[$v]}"
+    if [ -z "$key" ]; then state="key unknown (cannot source OpenFOAM)"
+    elif [ -f "$PGF_INFO_ROOT/$key/.pgf-build.json" ]; then state="built"
+    else state="not built"; fi
+    printf '  %-6s %-44s %s\n' "$v" "${key:--}" "$state"
+  done
+}

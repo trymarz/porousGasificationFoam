@@ -57,10 +57,12 @@ Nothing is copied into `$WM_PROJECT_USER_DIR`. `$FOAM_USER_LIBBIN` is already on
 
 - **Build key**: `<fingerprint12>-<yade0|yade1>-<OpenFOAM version>-gcc<version>`. The fingerprint (`./build.sh --fingerprint`) hashes the sources under the build targets with repo-relative paths, so two checkouts of the same sources share a key. `./build.sh --print-key` and `--print-prefix` print the key and the prefix for this tree (add `--yade` for the DEM variant).
 - **`PGF_BUILD_ROOT`** defaults to `$WM_PROJECT_USER_DIR/pgf-builds`. Set it on hosts without that layout.
-- **Cache**: a prefix is complete once its `.pgf-build.json` exists (written last: key, fingerprint, variant, OpenFOAM version, compiler, UTC time, arguments, git `HEAD`). `--isolated` on a complete prefix prints it and compiles nothing. Builds of the same key hold a `flock` on `$PGF_BUILD_ROOT/<key>.lock`.
+- **Cache**: a prefix is complete once its `.pgf-build.json` exists (written last: key, fingerprint, variant, OpenFOAM version, compiler, UTC time, arguments, git `HEAD`, and under `checkout` the path, worktree, branch and whether tracked files were modified; a `--yade` build adds `foam_yade` with the Foam-Yade pin, API hash and trunk `HEAD`). `--isolated` on a complete prefix prints it and compiles nothing. Builds of the same key hold a `flock` on `$PGF_BUILD_ROOT/<key>.lock`. Each finished build also registers its checkout in `$PGF_BUILD_ROOT/.pgf/workspaces/` (path, branch, last key per variant); builds themselves are found by scanning for `.pgf-build.json`.
 - **Objects** still live in `Make/<WM_OPTIONS>/` beside the sources (wmake's `-build-root` only applies inside `$WM_PROJECT_DIR`), so the variant rule below still applies per checkout.
 - **DEM variant**: `--isolated --yade` copies `libMeshTree.so`, `libYadeFoam.so` and `libYadeComm.so` into the prefix from `PGF_YADE_LIBDIR` (default: the user lib dir OpenFOAM's `bashrc` sets), and fails if any is missing.
 - Every build prints where it installs. OpenFOAM v2406 embeds no RPATH, so a prefix works anywhere as long as its `lib/` is on `LD_LIBRARY_PATH`.
+
+`pgf status [--json]` ends with this checkout's two keys (`yade0`, `yade1`) and whether each is built; `pgf status PATH` asks another checkout. `pgf ls [--json]` lists every prefix under the build root with its variant, build time, size, the checkout that built it and the checkouts whose last build it is; `*` marks this checkout's.
 
 `pgf build [--yade] [build.sh options]` is `pgf exec --bare [--yade] -- ./build.sh --isolated [--yade] [options]`.
 
