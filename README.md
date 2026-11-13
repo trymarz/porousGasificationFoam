@@ -48,15 +48,14 @@ Target: **OpenFOAM-v2406** · License: **GPL v3** · Earlier versions for [OpenF
 You need OpenFOAM-v2406 (installed and sourceable), a C++ compiler and `wmake` (both come with OpenFOAM).
 
 ```bash
-source /path/to/OpenFOAM-v2406/etc/bashrc   # 1. OpenFOAM environment
-./Allwmake                                  # 2. build libraries, solver, utilities
-cd tutorials/cases/charOnlyMoveCases/serial # 3. a small serial case
-./Allrun                                    #    copies 0.orig to 0, runs blockMesh and
-                                            #    setFields, then the solver (output stays
-                                            #    in the case directory)
+./pgf setup --yes                           # 1. find OpenFOAM, remember it, put pgf on PATH
+./Allwmake                                  # 2. build libraries, solver, utilities (pgf build)
+pgf run tutorials/cases/charOnlyMoveCases/serial   # 3. a small serial case: copies 0.orig
+                                            #    to 0, runs blockMesh and setFields, then
+                                            #    the solver (output stays in the case dir)
 ```
 
-Next: `tutorials/cases/gasifier` is a full reactive-flow demo. `./Allwclean` cleans the build. Build options, DEM (`--yade`) builds and clean/purge rules are in [doc/build.md](doc/build.md). To run your own case, start from [doc/case-setup.md](doc/case-setup.md).
+Next: `tutorials/cases/gasifier` is a full reactive-flow demo. `pgf shell` gives an interactive shell with the build on `PATH`; `./Allwclean` cleans the build. Build options, DEM (`--yade`) builds and clean/purge rules are in [doc/build.md](doc/build.md). To run your own case, start from [doc/case-setup.md](doc/case-setup.md).
 
 ## Documentation
 
@@ -80,10 +79,21 @@ porousGasificationMedia/   libraries (pyrolysis, chemistry, radiation, DEM)
 tutorials/cases/           tutorial cases
 utilities/                 auxiliary tools (setPorosity, totalMass, …)
 applications/test/         regression framework
-Allwmake / Allwclean       build / clean everything (non-DEM by default)
-build.sh                   fine-grained build script
+utilities/pgf/             pgf's parts: build driver, test tiers, settings, registry
+pgf                        the front door: settings, builds, runs, tests (pgf --help)
+Allwmake / Allwclean       build / clean everything (non-DEM by default), via pgf build
 doc/                       documentation and Doxygen source
 ```
+
+`pgf tools` explains every tool at the root:
+
+| Tool | What | Why it exists | Use instead when… |
+|---|---|---|---|
+| `pgf` | settings, isolated builds, runs in a clean environment, test tiers | one front door instead of hand-sourcing OpenFOAM and sharing `$FOAM_USER_APPBIN` | you only want the OpenFOAM-style entry point: `./Allwmake` / `./Allwclean` |
+| `Allwmake` | `pgf build --all --no-DEM [args]` | `./Allwmake` is where OpenFOAM users look first | you need options: `pgf build [--yade]`; an in-place build: `utilities/pgf/build.sh` |
+| `Allwclean` | `pgf build clean --all [args]`, DEM included | the same convention; cleaning DEM too means no `--yade` state survives a switch back | one target: `pgf build clean [targets]`; add `--purge` to drop the installed build |
+| `build.sh` | shim: forwards to `utilities/pgf/build.sh` (deprecated, #274) | old scripts keep working | `pgf build`, or `utilities/pgf/build.sh` in place |
+| `pgf-test` | shim: forwards to `pgf test` (deprecated, #274) | old scripts keep working | `pgf test <tier\|all>`, `--status`, `--gc` |
 
 ## Citation
 

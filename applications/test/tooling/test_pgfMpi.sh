@@ -18,7 +18,7 @@ export WM_PROJECT_USER_DIR="$HOME/fake-user"
 EOF2
 tree="$TEST_TMP/tree"
 mkdir -p "$tree/utilities"
-cp "$PGF" "$PGF_ROOT/build.sh" "$tree/" && cp -r "$PGF_ROOT/utilities" "$tree/" || die "cannot copy pgf"
+cp "$PGF" "$tree/" && cp -r "$PGF_ROOT/utilities" "$tree/" || die "cannot copy pgf"
 
 # net NAME:STATE ... — a stub /sys/class/net; prints its path.
 net() {

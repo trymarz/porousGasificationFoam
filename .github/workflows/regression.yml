@@ -14,7 +14,7 @@ on:
   workflow_dispatch:
     inputs:
       tier:
-        description: pgf-test tier to run
+        description: pgf test tier to run
         type: choice
         options: [convergence, fast]
         default: convergence
@@ -93,7 +93,7 @@ jobs:
         working-directory: pgf
         run: |
           set -eu
-          key="$(./pgf exec --bare -- ./build.sh --print-key)"
+          key="$(./pgf exec --bare -- ./utilities/pgf/build.sh --print-key)"
           echo "key=$key" >>"$GITHUB_OUTPUT"
           echo "build key: $key"
 
@@ -117,7 +117,7 @@ jobs:
         working-directory: pgf
         run: |
           set -o pipefail
-          runuser -u pgf -- ./pgf exec --bare -- ./build.sh --isolated 2>&1 |
+          runuser -u pgf -- ./pgf exec --bare -- ./utilities/pgf/build.sh --isolated 2>&1 |
             tee "$PGF_RUN_ROOT/ci-build.log" | tail -40
 
       - name: Save prefix
@@ -129,7 +129,7 @@ jobs:
 
       - name: Run ${{ env.TIER }} tier
         working-directory: pgf
-        run: runuser -u pgf -- ./pgf-test "$TIER" --run-root "$PGF_RUN_ROOT/run"
+        run: runuser -u pgf -- ./pgf test "$TIER" --run-root "$PGF_RUN_ROOT/run"
 
       # Copy only regular files: kept case copies symlink back into the source tree.
       - name: Collect artifacts
@@ -205,7 +205,7 @@ jobs:
         working-directory: pgf
         run: |
           set -eu
-          key="$(./pgf exec --bare -- ./build.sh --yade --print-key)"
+          key="$(./pgf exec --bare -- ./utilities/pgf/build.sh --yade --print-key)"
           fy="$(git -c safe.directory='*' rev-parse HEAD:submodules/Foam-Yade)"
           echo "key=$key" >>"$GITHUB_OUTPUT"
           echo "foam-yade=$fy" >>"$GITHUB_OUTPUT"
@@ -243,7 +243,7 @@ jobs:
         working-directory: pgf
         run: |
           set -o pipefail
-          runuser -u pgf -- ./pgf exec --bare -- ./build.sh --isolated --yade 2>&1 |
+          runuser -u pgf -- ./pgf exec --bare -- ./utilities/pgf/build.sh --isolated --yade 2>&1 |
             tee "$PGF_RUN_ROOT/ci-build.log" | tail -40
 
       - name: Check the coupling was built and linked

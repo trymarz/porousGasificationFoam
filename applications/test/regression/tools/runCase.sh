@@ -263,7 +263,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
 SOLVER_BIN="$(command -v porousGasificationFoam 2>/dev/null || true)"
 SOLVER_FP=""
 SOLVER_MTIME=""
-SOURCE_FP="$("$REPO_ROOT/build.sh" --fingerprint 2>/dev/null || true)"
+SOURCE_FP="$("$REPO_ROOT/utilities/pgf/build.sh" --fingerprint 2>/dev/null || true)"
 
 if [ -n "$SOLVER_BIN" ]; then
     SOLVER_MTIME="$(date -r "$SOLVER_BIN" '+%Y-%m-%d %H:%M:%S' 2>/dev/null || true)"
@@ -298,7 +298,7 @@ if [ "$SKIP_RUN" = false ] && [ "${PGF_ALLOW_BINARY_MISMATCH:-0}" != "1" ] &&
         echo "[runCase] the solver on PATH was not built from these sources." >&2
         echo "[runCase]   $SOLVER_BIN" >&2
         echo "[runCase]   built from ${SOLVER_FP:-an unstamped tree}, this tree is $SOURCE_FP" >&2
-        echo "[runCase]   Rebuild with $REPO_ROOT/build.sh build, or set" >&2
+        echo "[runCase]   Rebuild with $REPO_ROOT/pgf build, or set" >&2
         echo "[runCase]   PGF_ALLOW_BINARY_MISMATCH=1 to test another build on purpose." >&2
         finish 2 "solver built from ${SOLVER_FP:-an unstamped tree}, this tree is $SOURCE_FP"
     fi

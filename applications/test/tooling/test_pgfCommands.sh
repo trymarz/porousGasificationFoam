@@ -1,6 +1,6 @@
 #!/bin/bash
-# pgf setup / config / shell / run / build and the pgf-env alias (#257 B,
-# #264 PR 1), with a fake bashrc, prefix and yade on a copy of pgf, so nothing
+# pgf setup / config / shell / run / build / tools and the root shims (#257 B,
+# #264 PR 1, #274 A), with a fake bashrc, prefix and yade on a copy of pgf, so nothing
 # is built and neither the real user config nor this checkout's .pgf-env.conf is touched.
 
 FAKE="$(mktemp -d "${TMPDIR:-/tmp}/pgf-fakefoam-XXXXXX")" || exit 2
@@ -20,7 +20,7 @@ EOF
 
 tree="$TEST_TMP/tree"
 mkdir -p "$tree/utilities/pgf"
-cp "$PGF" "$PGF_ENV" "$tree/" && cp "$PGF_ROOT"/utilities/pgf/* "$tree/utilities/pgf/" || die "cannot copy pgf"
+cp "$PGF" "$PGF_ROOT"/{build.sh,pgf-test,Allwmake,Allwclean} "$tree/" && cp "$PGF_ROOT"/utilities/pgf/* "$tree/utilities/pgf/" || die "cannot copy pgf"
 
 prefix="$TEST_TMP/prefix"
 mkdir -p "$prefix/bin" "$prefix/lib"
@@ -40,11 +40,12 @@ penv() {
     env -i PATH="$yadedir:/usr/bin:/bin" HOME="$home" TMPDIR="$TEST_TMP" YADE_TRUNK="$trunk" \
         "$tree/pgf" "$@"
 }
-# alias ARGS — the same caller through the deprecated pgf-env.
-alias_env() {
+# root TOOL ARGS — a root tool other than pgf, for the same caller.
+root() {
+    local t="$1"
+    shift
     env -i PATH="$yadedir:/usr/bin:/bin" HOME="$home" TMPDIR="$TEST_TMP" YADE_TRUNK="$trunk" \
-        ${PGF_ENV_QUIET:+PGF_ENV_QUIET=$PGF_ENV_QUIET} \
-        "$tree/pgf-env" "$@"
+        "$tree/$t" "$@"
 }
 
 # setup writes a file that status reads back.
@@ -145,7 +146,7 @@ dem="$TEST_TMP/cases/dem"
 cp -r "$case" "$dem" && rm -f "$dem/ran.txt"
 printf 'FoamFile { object yadeProperties; }\nactive          true;\n' >"$dem/constant/yadeProperties"
 (cd / && penv run --prefix "$prefix" "$dem") >/dev/null 2>"$TEST_TMP/err"
-check "an active yadeProperties selects --yade (yade shim on PATH)" grep -q '/pgf-env-bin/yade$' "$dem/ran.txt"
+check "an active yadeProperties selects --yade (yade shim on PATH)" grep -q '/pgf-bin/yade$' "$dem/ran.txt"
 check "run says it picked --yade" grep -q "using --yade" "$TEST_TMP/err"
 rm -f "$dem/ran.txt"
 (cd / && penv run --no-yade --prefix "$prefix" "$dem") >/dev/null 2>&1
@@ -162,26 +163,35 @@ check "setup --link-only --force replaces it" \
     [ "$(readlink -f "$home/.local/bin/pgf")" = "$(readlink -f "$tree/pgf")" ]
 
 # build hands --isolated (and --yade) to build.sh under exec --bare
-printf '#!/bin/sh\necho "build.sh $*"; echo "user=$WM_PROJECT_USER_DIR"\n' >"$tree/build.sh"
-chmod +x "$tree/build.sh"
+printf '#!/bin/sh\necho "build.sh $*"; echo "user=$WM_PROJECT_USER_DIR"\n' >"$tree/utilities/pgf/build.sh"
+chmod +x "$tree/utilities/pgf/build.sh"
 out="$(penv build --yade --libs-only 2>/dev/null)"
 check "build runs build.sh --isolated --yade with the extra options" grep -qx "build.sh --isolated --yade --libs-only" <<<"$out"
 check "  in a bare env (user dir is the build root)" grep -qx "user=/keep" <<<"$out"
+out="$(root Allwmake --yade 2>/dev/null)"
+check "Allwmake is pgf build --all --no-DEM" grep -qx "build.sh --isolated --all --no-DEM --yade" <<<"$out"
+out="$(root Allwclean --purge 2>/dev/null)"
+check "Allwclean is pgf build clean --all" grep -qx "build.sh --isolated clean --all --purge" <<<"$out"
 
-# the deprecated alias
-out="$(alias_env --prefix "$prefix" -- bash -c "command -v porousGasificationFoam" 2>"$TEST_TMP/err")"
-check "pgf-env [opts] -- CMD runs CMD like pgf exec" grep -qx "$prefix/bin/porousGasificationFoam" <<<"$out"
-check "  and says it is deprecated" grep -q "pgf-env: deprecated; use pgf" "$TEST_TMP/err"
-alias_env status >"$TEST_TMP/status" 2>/dev/null
-check "pgf-env status still prints the settings" grep -qE "^  PGF_MPI +loopback +\[checkout " "$TEST_TMP/status"
-alias_env init --checkout --yes --set PGF_BUILD_ROOT=/alias >/dev/null 2>&1
-check "pgf-env init writes settings without touching the link" \
-    bash -c 'grep -qx "PGF_BUILD_ROOT=/alias" "$1" && [ "$(readlink -f "$2")" = "$(readlink -f "$3")" ]' \
-    _ "$tree/.pgf-env.conf" "$home/.local/bin/pgf" "$tree/pgf"
-rm -f "$case/ran.txt"
-out="$(PGF_ENV_QUIET=1 alias_env run --prefix "$prefix" "$case" Allclean 2>"$TEST_TMP/err")"
-check "pgf-env run still runs a case; PGF_ENV_QUIET=1 drops the note" \
-    bash -c '[ -f "$1/ran.txt" ] && ! grep -q deprecated "$2"' _ "$case" "$TEST_TMP/err"
+# the root shims (#274)
+out="$(root build.sh --print-key 2>"$TEST_TMP/err")"
+check "the build.sh shim forwards to utilities/pgf/build.sh" grep -qx "build.sh --print-key" <<<"$out"
+check "  and names the new command on stderr" grep -q "use: pgf build --print-key" "$TEST_TMP/err"
+printf '#!/bin/sh\necho "test.sh $*"\n' >"$tree/utilities/pgf/test.sh"
+chmod +x "$tree/utilities/pgf/test.sh"
+out="$(penv test --status fast 2>/dev/null)"
+check "pgf test runs utilities/pgf/test.sh" grep -qx "test.sh --status fast" <<<"$out"
+out="$(root pgf-test --gc --dry-run 2>"$TEST_TMP/err")"
+check "the pgf-test alias forwards to pgf test" grep -qx "test.sh --gc --dry-run" <<<"$out"
+check "  and says it is deprecated" grep -q "pgf-test: deprecated; use: pgf test" "$TEST_TMP/err"
+check "pgf-env is gone" [ ! -e "$PGF_ROOT/pgf-env" ]
+
+# pgf tools: one what / why / instead block per root tool
+penv tools >"$TEST_TMP/tools" 2>&1
+for t in pgf Allwmake Allwclean build.sh pgf-test; do
+    check "pgf tools explains $t" bash -c 'awk -v t="$2" "\$0 == t { f = 1; next } f && /^$/ { exit } f" "$1" |
+        grep -c -E "^  (what|why|instead): " | grep -qx 3' _ "$TEST_TMP/tools" "$t"
+done
 
 [ "$TEST_FAILURES" -eq 0 ] || { echo "--- last stderr"; cat "$TEST_TMP/err"; }
 finish

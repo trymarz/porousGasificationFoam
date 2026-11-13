@@ -1,11 +1,11 @@
 #!/bin/bash
-# pgf-test --gc keeps this tree's prefix even when it is the oldest, keeps a
+# pgf test --gc keeps this tree's prefix even when it is the oldest, keeps a
 # prefix whose build lock is held, keeps the newest M others and every run dir a
 # last record points at. Everything lives in scratch build and run roots.
 
 . "$(dirname "${BASH_SOURCE[0]}")/toolingLib.sh"
 
-PGF_TEST="$PGF_ROOT/pgf-test"
+PGF_TEST="$PGF_LIB_TEST"
 export PGF_BUILD_ROOT="$TEST_TMP/builds" PGF_RUN_ROOT="$TEST_TMP/runs"
 mkdir -p "$PGF_BUILD_ROOT" "$PGF_RUN_ROOT/last"
 

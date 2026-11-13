@@ -3,8 +3,8 @@
 #
 # ESI's opencfd/openfoam-dev:2406 image (Ubuntu 24.04, gcc 13, system Open MPI,
 # OpenFOAM in /usr/lib/openfoam/openfoam2406), pinned by digest, plus python3
-# for the comparator. PGF itself is not built into the image: pgf-test builds
-# the tree it is given with build.sh --isolated, so one image serves any commit.
+# for the comparator. PGF itself is not built into the image: pgf test builds
+# the tree it is given with pgf build (build.sh --isolated), so one image serves any commit.
 # No Yade: the experiment covers the fast and convergence tiers only.
 #
 # Build (outside the checkout; needs unprivileged user namespaces or root):

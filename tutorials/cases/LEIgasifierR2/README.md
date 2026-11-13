@@ -47,7 +47,7 @@ For a CFD-only cold flow, use R1's procedure; R2 doesn't change the gas side.
 
 ## Checks
 
-A 2.5 s run with `pgf-env run .` (Foam-Yade d5c33e0, 2 OpenFOAM ranks, 9 min):
+A 2.5 s run with `pgf run .` (Foam-Yade d5c33e0, 2 OpenFOAM ranks, 9 min):
 
 - `checkMesh`: Mesh OK. `checkDemWalls.py`: 5119 spheres, closest wall at 0.936 r, OK.
 - Feed and discharge: 249 in, 249 out (rate·t = 249), backlog never above 0 spheres; coupled-id count equal to the sphere count at every row.

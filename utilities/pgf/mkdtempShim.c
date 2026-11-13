@@ -1,4 +1,4 @@
-// LD_PRELOAD shim for pgf-env --yade: Yade calls mkdtemp("/tmp/yade-XXXXXX"),
+// LD_PRELOAD shim for pgf --yade: Yade calls mkdtemp("/tmp/yade-XXXXXX"),
 // which segfaults Omega::initTemps when /tmp is read-only. Templates under
 // /tmp/ are redirected to $TMPDIR; Yade uses the returned pointer, not the buffer.
 #define _GNU_SOURCE

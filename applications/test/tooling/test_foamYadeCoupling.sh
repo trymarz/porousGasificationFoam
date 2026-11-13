@@ -53,12 +53,12 @@ check "pgf --yade accepts a matching stamp" [ $? -eq 0 ]
 # Build key: a copy of the sources in a scratch repo whose pin we can move.
 repo="$TEST_TMP/repo"
 mkdir -p "$repo"
-cp -r "$PGF_ROOT"/{build.sh,utilities,porousGasificationMedia,porousGasificationFoam} "$repo/" || die "cannot copy sources"
+cp -r "$PGF_ROOT"/{utilities,porousGasificationMedia,porousGasificationFoam} "$repo/" || die "cannot copy sources"
 git -C "$repo" init -q || die "git init failed"
 pin() { git -C "$repo" update-index --add --cacheinfo "160000,$1,submodules/Foam-Yade"; }
 key() {
     env WM_PROJECT_VERSION=v2406 PGF_BUILD_ROOT="$TEST_TMP/br" YADE_TRUNK="$2" \
-        "$repo/build.sh" --print-key "$1" 2>/dev/null | tail -1
+        "$repo/utilities/pgf/build.sh" --print-key "$1" 2>/dev/null | tail -1
 }
 pin 1111111111111111111111111111111111111111
 k1="$(key --yade "$trunk")" n1="$(key --no-DEM "$trunk")"

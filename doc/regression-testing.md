@@ -40,9 +40,9 @@ The suite is green only if at least one case ran and every case passed. There is
 
 **Tiers** (tagged in `cases.list`): `fast` runs by default and in CI on every PR and push to `main` (see [CI on GitHub Actions](#ci-on-github-actions)); `convergence` is a mesh-refinement study, run with `--tag convergence` or `--tag all`. DEM cases are listed separately in `cases_yade.list`.
 
-### Tiers with `pgf-test`
+### Tiers with `pgf test`
 
-`pgf-test` runs a whole tier against this checkout's isolated build (see [Isolated builds](build.md#isolated-builds-and-pgf)) and remembers the result. The tiers are rows in `applications/test/tiers.conf`: driver, build variant, jobs, timeout, `pgf exec` flags, selection and cadence.
+`pgf test` runs a whole tier against this checkout's isolated build (see [Isolated builds](build.md#isolated-builds-and-pgf)) and remembers the result. The tiers are rows in `applications/test/tiers.conf`: driver, build variant, jobs, timeout, `pgf exec` flags, selection and cadence.
 
 | Tier | Driver and selection | Variant | Jobs | Cadence |
 |---|---|---|---|---|
@@ -51,18 +51,18 @@ The suite is green only if at least one case ran and every case passed. There is
 | `dem` | `Allrun.yade` | `--yade`, `pgf exec --mpi loopback` | 1 | before DEM-touching merges |
 
 ```bash
-./pgf-test fast                        # build or reuse the prefix, run the tier, record it
-./pgf-test convergence --if-stale 7d   # run only if the last PASS is for other sources or older than 7 days
-./pgf-test all                         # every tier in order; exits with the first non-zero status
-./pgf-test --status                    # per tier: last outcome, when, tested key, current or stale
-./pgf-test --gc --keep-runs 10 --keep-prefixes 5 [--dry-run]
+./pgf test fast                        # build or reuse the prefix, run the tier, record it
+./pgf test convergence --if-stale 7d   # run only if the last PASS is for other sources or older than 7 days
+./pgf test all                         # every tier in order; exits with the first non-zero status
+./pgf test --status                    # per tier: last outcome, when, tested key, current or stale
+./pgf test --gc --keep-runs 10 --keep-prefixes 5 [--dry-run]
 ```
 
-Each run goes to `$PGF_RUN_ROOT/pgf-test-<tier>-<time>-<pid>/` (`build.log`, `driver.log`, `state/` with `result.json`, and `cases/` with the kept case copies). `PGF_RUN_ROOT` defaults to `${TMPDIR:-/tmp}/pgf-runs`. The record `$PGF_RUN_ROOT/last/<tier>.json` holds the build key, source fingerprint, git `HEAD`, start and end time, outcome counts, the exit code and the paths to the run's state. A tier is **stale** when the key it last tested is not this tree's current key, or with `--if-stale AGE` when that run is older than `AGE`. `--if-stale` reruns a tier whose last run failed, even for the same key. `--rebuild` deletes the tier's prefix and builds it again. `--gc` keeps the newest N run dirs plus every dir a record points at, and the newest M prefixes. It never removes this tree's prefixes (either variant) or a prefix whose build lock is held. `PGF_TIERS_CONF` points `pgf-test` at another tiers file. Exit codes are the drivers' (see [Outcomes](#outcomes)).
+Each run goes to `$PGF_RUN_ROOT/pgf-test-<tier>-<time>-<pid>/` (`build.log`, `driver.log`, `state/` with `result.json`, and `cases/` with the kept case copies). `PGF_RUN_ROOT` defaults to `${TMPDIR:-/tmp}/pgf-runs`. The record `$PGF_RUN_ROOT/last/<tier>.json` holds the build key, source fingerprint, git `HEAD`, start and end time, outcome counts, the exit code and the paths to the run's state. A tier is **stale** when the key it last tested is not this tree's current key, or with `--if-stale AGE` when that run is older than `AGE`. `--if-stale` reruns a tier whose last run failed, even for the same key. `--rebuild` deletes the tier's prefix and builds it again. `--gc` keeps the newest N run dirs plus every dir a record points at, and the newest M prefixes. It never removes this tree's prefixes (either variant) or a prefix whose build lock is held. `PGF_TIERS_CONF` points `pgf test` at another tiers file. Exit codes are the drivers' (see [Outcomes](#outcomes)). The old `./pgf-test` still forwards to `pgf test` for a deprecation period (#274).
 
 ### Baselines on another toolchain
 
-Baselines are captured with one compiler and OpenFOAM build, and nothing guarantees another toolchain reproduces them within `rtol`. `container/pgf-toolchain.def` pins one: ESI's `opencfd/openfoam-dev:2406` image (Ubuntu 24.04, gcc 13) by digest, plus `python3`. PGF is not built into the image; `pgf-test` builds whatever tree it is given. `container/compareToolchains.sh` runs the same commit natively and in the image and prints each case's outcome on both sides:
+Baselines are captured with one compiler and OpenFOAM build, and nothing guarantees another toolchain reproduces them within `rtol`. `container/pgf-toolchain.def` pins one: ESI's `opencfd/openfoam-dev:2406` image (Ubuntu 24.04, gcc 13) by digest, plus `python3`. PGF is not built into the image; `pgf test` builds whatever tree it is given. `container/compareToolchains.sh` runs the same commit natively and in the image and prints each case's outcome on both sides:
 
 ```bash
 apptainer build --fakeroot /scratch/pgf-toolchain.sif container/pgf-toolchain.def
@@ -73,7 +73,7 @@ Each side gets its own `git archive` copy of `HEAD` under the work dir (default 
 
 ### CI on GitHub Actions
 
-`.github/workflows/regression.yml` runs one tier with `pgf-test` in the same image as `container/pgf-toolchain.def`. The job installs `python3` and `git` as root, then builds and runs the cases as an unprivileged user `pgf`: OpenFOAM refuses to compile coded boundary conditions (`codedFixedValue`, used by the `tetrisCompaction` cases) as root.
+`.github/workflows/regression.yml` runs one tier with `pgf test` in the same image as `container/pgf-toolchain.def`. The job installs `python3` and `git` as root, then builds and runs the cases as an unprivileged user `pgf`: OpenFOAM refuses to compile coded boundary conditions (`codedFixedValue`, used by the `tetrisCompaction` cases) as root.
 
 | Event | Tier |
 |---|---|
@@ -82,10 +82,10 @@ Each side gets its own `git archive` copy of `HEAD` under the work dir (default 
 | manual run (`workflow_dispatch`, "Run workflow" on the Actions tab) | `convergence` or `fast`, chosen in the form |
 
 - **Image.** The `From:` line of `container/pgf-toolchain.def` is the only place the image is pinned. A first job reads it and the test job runs in it, so changing that line changes both the local container and CI. The job fails unless the line is a digest-pinned `opencfd/openfoam-dev` image.
-- **Build cache.** The job computes the build key (`build.sh --print-key`), restores `pgf-builds/<key>` from the Actions cache, builds with `build.sh --isolated` (a no-op on a hit) and saves the prefix on a miss. A change to any source under the build targets, the OpenFOAM version or the compiler gives a new key; a change to cases, baselines or scripts reuses the prefix.
+- **Build cache.** The job computes the build key (`utilities/pgf/build.sh --print-key`), restores `pgf-builds/<key>` from the Actions cache, builds with `build.sh --isolated` (a no-op on a hit) and saves the prefix on a miss. A change to any source under the build targets, the OpenFOAM version or the compiler gives a new key; a change to cases, baselines or scripts reuses the prefix.
 - **Artifacts** (`regression-<tier>-<run id>-<attempt>`, kept 14 days): `ci-build.log`, the run's `build.log` and `driver.log`, `last/<tier>.json`, the whole `state/` dir (`result.json` and every case's logs and `compare.log`), and for each failed case the `postProcessing/` and `log.*` files of its kept copy. Only regular files are collected, because the copies symlink back into the source tree.
 - **Jobs.** `--jobs` comes from `applications/test/tiers.conf`, as locally. A hosted `ubuntu-24.04` runner has 4 cores for a public repository and 2 for a private one.
-- **Not covered.** The `dem` tier is local-only: the image has no Yade, so run `./pgf-test dem` before DEM-touching merges. Parallel decomposition is not covered either, since no case in `cases.list` decomposes.
+- **Not covered.** The `dem` tier is local-only: the image has no Yade, so run `./pgf test dem` before DEM-touching merges. Parallel decomposition is not covered either, since no case in `cases.list` decomposes.
 - **Baselines.** CI only compares against the committed `reference/`; it never captures one.
 
 ## Add a case
@@ -180,7 +180,7 @@ applications/test/regression/Allrun.yade --list    # selection only
 tools/runDEMCase.sh tutorials/experimental/simple_line_case [--timeout S] [--run-dir D [--short-steps N]]
 ```
 
-- Needs a Yade-enabled build (`./build.sh --yade` / `build-pgf --yade`), Yade and `mpirun`. Cases are listed in `cases_yade.list`.
+- Needs a Yade-enabled build (`pgf build --yade`), Yade and `mpirun`. Cases are listed in `cases_yade.list`.
 - Each case runs from a copy under the run root (`--run-root`, default `$PGF_RUN_ROOT/yade-<time>-<pid>`), as in the serial suite. Passed copies are deleted, failed ones kept; `--keep-runs` keeps all, `--in-place` runs in the source tree.
 - **Run length comes from the solver's `controlDict`.** Each case's Yade script derives its step count from it (`tutorials/cases/DEM_common/yadeEndpoint.py`; see [case setup → run length](case-setup.md#constantlambdadict-required-by-with_yade-builds-running-a-dem-case)), so both sides stop on the same exchange. A run whose log has no `[yadeEndpoint]` line, or where the helper refuses (`adjustTimeStep yes`, `stopAt` other than `endTime`), is an `ERROR`, not a 300 s `TIMEOUT`. `YADE_NSTEPS` is ignored, and `runDEMCase.sh --nsteps` is gone.
 - `--short` sets each copy's `endTime` to `YADE_SHORT_STEPS` solver steps (default 50, about 5 min per fixture on a loaded machine) and its `writeInterval` to half that, and skips the baseline comparison, whose rows are full-length. Yade follows the shortened `controlDict` by itself. A green `--short` run shows that the coupling handshake works, that both sides exit cleanly and that output and invariants hold. It is not a numerical or physical result. `YADE_TIMEOUT` defaults to 900 s under `--short`.

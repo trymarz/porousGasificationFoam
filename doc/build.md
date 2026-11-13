@@ -1,6 +1,6 @@
 # Building porousGasificationFoam
 
-Source OpenFOAM-v2406 (`etc/bashrc`) first. `wmake` runs in place in your checkout, which may live anywhere; `./Allwmake`, `./build.sh …` and `/abs/path/Allwmake` behave the same from any working directory.
+`pgf` is the front door: `pgf --help` lists its commands and `pgf tools` explains every tool at the checkout root (what it does, why it exists, what to use instead). `./Allwmake` and `./Allwclean` keep the OpenFOAM convention and call `pgf build`. `wmake` runs in place in your checkout, which may live anywhere; every tool behaves the same from any working directory.
 
 ## First-time setup
 
@@ -17,22 +17,23 @@ pgf shell                        # or work interactively in the same environment
 
 For the DEM variant use `pgf build --yade`; it compiles the [coupling libraries](#building-yade-and-the-coupling-libraries) into the build itself; `pgf run` picks `--yade` for a case with an active `constant/yadeProperties`. Settings that differ per worktree go in `pgf config set KEY=VALUE --checkout`. See [Remembered settings](#remembered-settings).
 
-`pgf` replaced `pgf-env` (#264). `pgf-env` still works as a deprecated alias: `pgf-env [options] -- CMD` is `pgf exec [options] -- CMD`, `pgf-env init` is `pgf setup --no-link`, `pgf-env install-link` is `pgf setup --link-only`, and `status`, `doctor`, `shell` and `run` keep their names. It prints a deprecation note on stderr unless `PGF_ENV_QUIET=1`.
+Old names (#274): `pgf-env` is gone (use `pgf exec`, `pgf setup`, …); `pgf-test` is now `pgf test`; the build driver moved from `build.sh` to `utilities/pgf/build.sh`. The root `pgf-test` and `build.sh` still forward to the new commands, with a note on stderr, for a deprecation period.
 
-The rest of this page covers the plain `wmake` route as well, where you source `etc/bashrc` yourself.
+The rest of this page also covers the in-place `wmake` route (`utilities/pgf/build.sh` with `etc/bashrc` sourced yourself).
 
 ## Common builds
 
 ```bash
-./Allwmake                        # normal build: libraries, solver, utilities, no DEM
+./Allwmake                        # pgf build --all --no-DEM: libraries, solver, utilities into this tree's build
 ./Allwmake --yade                 # DEM build: adds the DEM library, solver gets WITH_YADE=1
-./Allwclean                       # clean build state (wclean-style, keeps installed binaries)
-./build.sh clean --all --purge    # blank slate; required before switching between the two builds
+./Allwclean                       # pgf build clean --all: clean build state, keep the installed build
+./Allwclean --purge               # blank slate; required before switching a checkout between the two builds
 ```
 
 - **Normal build** — everything except DEM. This is what you want unless you couple to YADE.
 - **DEM build** — see [YADE DEM coupling](#yade-dem-coupling).
-- **Clean** — see [Cleaning](#cleaning). `./build.sh --help` lists every option.
+- **Clean** — see [Cleaning](#cleaning). `utilities/pgf/build.sh --help` lists every option; `pgf build` and `./Allwmake` forward them.
+- **Run** — the build is a prefix, not `$FOAM_USER_APPBIN`: run cases with `pgf run <case>` or work in `pgf shell`.
 
 ## Where things land
 
@@ -43,7 +44,7 @@ The rest of this page covers the plain `wmake` route as well, where you source `
 | Libraries | `$FOAM_USER_LIBBIN` |
 | Executables | `$FOAM_USER_APPBIN` |
 
-Nothing is copied into `$WM_PROJECT_USER_DIR`. `$FOAM_USER_LIBBIN` is already on the runtime library path after sourcing `etc/bashrc`, so no extra environment file is needed to build or run.
+This is the in-place route (`utilities/pgf/build.sh` with `etc/bashrc` sourced); `pgf build` and `./Allwmake` install into a prefix instead (next section). Nothing is copied into `$WM_PROJECT_USER_DIR`. `$FOAM_USER_LIBBIN` is already on the runtime library path after sourcing `etc/bashrc`, so no extra environment file is needed to build or run.
 
 ## Isolated builds and `pgf`
 
@@ -51,15 +52,15 @@ Nothing is copied into `$WM_PROJECT_USER_DIR`. `$FOAM_USER_LIBBIN` is already on
 
 ```bash
 ./pgf build                                          # $PGF_BUILD_ROOT/<build key>/{bin,lib}
-./pgf exec --bare -- ./build.sh --prefix DIR         # DIR/{bin,lib}
+./pgf exec --bare -- utilities/pgf/build.sh --prefix DIR   # DIR/{bin,lib}
 ./pgf exec -- applications/test/regression/Allrun    # run with this tree's prefix
 ```
 
-- **Build key**: `<fingerprint12>-<yade0|yade1>-<OpenFOAM version>-gcc<version>`. The fingerprint (`./build.sh --fingerprint`) hashes the sources under the build targets with repo-relative paths, so two checkouts of the same sources share a key. `./build.sh --print-key` and `--print-prefix` print the key and the prefix for this tree (add `--yade` for the DEM variant).
+- **Build key**: `<fingerprint12>-<yade0|yade1>-<OpenFOAM version>-gcc<version>`. The fingerprint (`utilities/pgf/build.sh --fingerprint`) hashes the sources under the build targets with repo-relative paths, so two checkouts of the same sources share a key. `utilities/pgf/build.sh --print-key` and `--print-prefix` print the key and the prefix for this tree (add `--yade` for the DEM variant).
 - **`PGF_BUILD_ROOT`** defaults to `$WM_PROJECT_USER_DIR/pgf-builds`. Set it on hosts without that layout.
 - **Cache**: a prefix is complete once its `.pgf-build.json` exists (written last: key, fingerprint, variant, OpenFOAM version, compiler, UTC time, arguments, git `HEAD`, and under `checkout` the path, worktree, branch and whether tracked files were modified; a `--yade` build adds `foam_yade` with the Foam-Yade pin, API hash and trunk `HEAD`). `--isolated` on a complete prefix prints it and compiles nothing. Builds of the same key hold a `flock` on `$PGF_BUILD_ROOT/<key>.lock`. Each finished build also registers its checkout in `$PGF_BUILD_ROOT/.pgf/workspaces/` (path, branch, last key per variant); builds themselves are found by scanning for `.pgf-build.json`.
 - **Objects** still live in `Make/<WM_OPTIONS>/` beside the sources (wmake's `-build-root` only applies inside `$WM_PROJECT_DIR`), so the variant rule below still applies per checkout.
-- **DEM variant**: `--isolated --yade` (and `--prefix DIR --yade`) copies the coupling sources from `$YADE_TRUNK/pkg/openfoam/coupling/FoamYade` into `<prefix>/foam-yade/`, compiles `libMeshTree`, `libYadeComm` and `libYadeFoam` there into `<prefix>/lib` with a `.foamyade-coupling.json` stamp, and compiles PGF against those headers. The trunk is only read, so it needs no `lnInclude` and no prior build. Setting `PGF_YADE_LIBDIR` instead copies prebuilt libraries (and their stamp) from that directory. The in-tree objects are per variant: switching a checkout between `--yade` and the plain build needs `./pgf exec --bare -- ./build.sh clean --all --isolated` first.
+- **DEM variant**: `--isolated --yade` (and `--prefix DIR --yade`) copies the coupling sources from `$YADE_TRUNK/pkg/openfoam/coupling/FoamYade` into `<prefix>/foam-yade/`, compiles `libMeshTree`, `libYadeComm` and `libYadeFoam` there into `<prefix>/lib` with a `.foamyade-coupling.json` stamp, and compiles PGF against those headers. The trunk is only read, so it needs no `lnInclude` and no prior build. Setting `PGF_YADE_LIBDIR` instead copies prebuilt libraries (and their stamp) from that directory. The in-tree objects are per variant: switching a checkout between `--yade` and the plain build needs `./Allwclean` (`pgf build clean --all`) first.
 - Every build prints where it installs. OpenFOAM v2406 embeds no RPATH, so a prefix works anywhere as long as its `lib/` is on `LD_LIBRARY_PATH`.
 
 ### Choosing a build
@@ -70,11 +71,11 @@ Each command uses one build. It comes from, later winning: **auto** (the build o
 
 A selected build that is not this checkout's sources is **stale**: `pgf exec` and `pgf shell` warn, `pgf run` refuses. `pgf run --build` builds this checkout first (it cannot be combined with a selected build), and `pgf run --allow-stale` runs a stale build anyway. The banner names the layer the build came from.
 
-`pgf builds [--json]` lists every build (variant, age, size, the checkout that built it, `[in use]`, `[building]`); `pgf ls` adds the registered workspaces. Every `pgf exec`, `shell` and `run` holds a shared `flock` on `$PGF_BUILD_ROOT/<key>.use.lock` while it runs. `pgf gc [--keep N] [--yes] [--dry-run] [--json]` removes builds that are not this checkout's, not a registered workspace's last build, not in use and not being built, keeping the `N` newest of the rest (default 2). Without `--yes` it asks on a terminal and refuses (exit 2) without one. `pgf-test --gc` also skips builds in use.
+`pgf builds [--json]` lists every build (variant, age, size, the checkout that built it, `[in use]`, `[building]`); `pgf ls` adds the registered workspaces. Every `pgf exec`, `shell` and `run` holds a shared `flock` on `$PGF_BUILD_ROOT/<key>.use.lock` while it runs. `pgf gc [--keep N] [--yes] [--dry-run] [--json]` removes builds that are not this checkout's, not a registered workspace's last build, not in use and not being built, keeping the `N` newest of the rest (default 2). Without `--yes` it asks on a terminal and refuses (exit 2) without one. `pgf test --gc` also skips builds in use.
 
 `pgf status [--json]` ends with this checkout's two keys (`yade0`, `yade1`) and whether each is built; `pgf status PATH` asks another checkout. `pgf ls [--json]` lists every prefix under the build root with its variant, build time, size, the checkout that built it and the checkouts whose last build it is; `*` marks this checkout's.
 
-`pgf build [--yade] [build.sh options]` is `pgf exec --bare [--yade] -- ./build.sh --isolated [--yade] [options]`.
+`pgf build [--yade] [build.sh options]` is `pgf exec --bare [--yade] -- utilities/pgf/build.sh --isolated [--yade] [options]`.
 
 `pgf exec [--prefix DIR | --for-tree | --bare] [--yade] [--mpi loopback] -- <command>` runs a command in a clean environment. It drops the caller's environment except `HOME USER LANG TERM TMPDIR WM_PROJECT_DIR XDG_CONFIG_HOME PGF_* YADE_*` and sources `$PGF_FOAM_BASHRC` (default `$WM_PROJECT_DIR/etc/bashrc`) with `set +eu`. Then it points `WM_PROJECT_USER_DIR`, `FOAM_USER_APPBIN` and `FOAM_USER_LIBBIN` at the prefix and removes every `PATH` / `LD_LIBRARY_PATH` entry under the user dir `bashrc` chose. It also sets `UCX_VFS_ENABLE=n UCX_LOG_LEVEL=fatal`, `PGF_ISOLATED_ONLY=1` (`build.sh` then refuses to build without `--prefix` / `--isolated`) and `TMPDIR=$PGF_RUN_ROOT/tmp`. It checks that `porousGasificationFoam` resolves into the prefix and prints a one-line banner on stderr.
 
@@ -158,7 +159,7 @@ When the pin moves, rebuild YADE, the coupling libraries and PGF's `--yade` buil
 
    It writes `.foamyade-coupling.json` next to the libraries: the Foam-Yade commit, the `YADE_TRUNK` used and the coupling-header hash. `build.sh --yade` compares that hash with the headers it is about to compile against and stops before `wmake` on a mismatch, printing the command above; `pgf --yade` does the same for the copy in the prefix. Both warn when `YADE_TRUNK`'s `HEAD` differs from the submodule pin, or when the libraries carry no stamp (built by hand). With `PGF_YADE_LIBDIR` set, an `--isolated --yade` build copies the libraries and the stamp into its prefix from there.
    As a last line, `porousGasificationMedia/DEM/foamYadeApiCheck.H` fails the compile by name when Foam-Yade's `FOAMYADE_COUPLING_API` differs from the one PGF needs; a Foam-Yade older than that macro is not caught there.
-3. **PGF** — `./pgf build --yade` (or `./build.sh build --yade` into the user dir).
+3. **PGF** — `./pgf build --yade` (or `utilities/pgf/build.sh build --yade` into the user dir).
 
 `pgf exec --yade` (and `run`, `shell`, `doctor`) checks the yade binary (`YADE_BIN`, or `yade` on `PATH`) against the pin. It reads the Foam-Yade commit from `yade -v` (`git-XXXXXXX`; cached per binary under `~/.cache/pgf`). The pinned commit is OK. Another commit whose coupling headers hash the same as `YADE_TRUNK`'s warns. Another coupling API fails (exit 2). A commit the trunk's git does not know, or no commit at all, warns. `PGF_YADE` stays the 0/1 switch for the DEM variant; the binary is `YADE_BIN`.
 
@@ -187,11 +188,11 @@ export YADE_TRUNK=$PWD/submodules/Foam-Yade
 **Switching between normal and `--yade` needs a clean.** `wmake` recompiles by source timestamp and does not notice that `WITH_YADE` changed, so an in-place rebuild would link a mix of the two variants. `build.sh` records which variant built the current objects and refuses to build the other on top:
 
 ```bash
-./build.sh clean --all --purge
-./build.sh build --yade           # or ./Allwmake for the normal build
+./Allwclean --purge
+./Allwmake --yade                 # the DEM build; plain ./Allwmake for the normal one
 ```
 
-Use `--purge` here: it also removes the installed solver, so a rebuild that fails partway cannot leave the other variant's binary on your `PATH`. Only one variant can exist in `$FOAM_USER_APPBIN` at a time.
+Use `--purge` here: it also removes the installed solver, so a rebuild that fails partway cannot leave the other variant's binary behind. In place (`utilities/pgf/build.sh clean --all --purge`, then `build --yade`), only one variant can exist in `$FOAM_USER_APPBIN` at a time.
 
 ## Apptainer images: `pgf pack`
 
@@ -220,7 +221,7 @@ Inside the image `pgf` reads the Foam-Yade pin from the manifest, so the yade ch
 
 ## Cleaning
 
-`./Allwclean` (or `./build.sh clean …`) removes `lnInclude/` and `Make/<WM_OPTIONS>/` through `wclean`. Like `wclean`, it leaves installed libraries and executables alone: `$FOAM_USER_LIBBIN` and `$FOAM_USER_APPBIN` are shared by every project built into this `$WM_PROJECT_USER_DIR`.
+`./Allwclean` (`pgf build clean --all`, or `utilities/pgf/build.sh clean …` in place) removes `lnInclude/` and `Make/<WM_OPTIONS>/` through `wclean`. Like `wclean`, it leaves installed libraries and executables alone; in place they sit in `$FOAM_USER_LIBBIN` and `$FOAM_USER_APPBIN`, shared by every project built into this `$WM_PROJECT_USER_DIR`.
 
 `--purge` additionally deletes the libraries and executables the cleaned targets declare in their own `Make/files`, and nothing else; other libraries there, including Foam-Yade's, stay. Use it before switching build variants, or when you would rather have no solver than the previous one after a failed rebuild.
 
@@ -228,15 +229,15 @@ Inside the image `pgf` reads the Foam-Yade pin from the manifest, so the yade ch
 
 ## Fine-grained control with `build.sh`
 
-`build.sh [build|clean]` acts on all active targets, which you switch on or off with flags; later flags override earlier ones.
+`utilities/pgf/build.sh [build|clean]` (or `pgf build [build|clean] …`, which adds `--isolated`) acts on all active targets, which you switch on or off with flags; later flags override earlier ones.
 
 ```bash
-./build.sh build --apps-only      # apps on, libs off
-./build.sh clean --reset-all --radiationModels   # all off, then radiationModels on: clean only that
-./build.sh build --all --no-DEM   # everything except DEM (this is ./Allwmake)
+pgf build --apps-only                          # apps on, libs off
+pgf build clean --reset-all --radiationModels  # all off, then radiationModels on: clean only that
+pgf build --all --no-DEM                       # everything except DEM (this is ./Allwmake)
 ```
 
-`./Allwmake` is `./build.sh build --all --no-DEM` and `./Allwclean` is `./build.sh clean --all` (which cleans DEM too); both forward extra arguments.
+`./Allwmake` is `pgf build --all --no-DEM` and `./Allwclean` is `pgf build clean --all` (which cleans DEM too); both forward extra arguments.
 
 | Target | Type | Depends on |
 |---|---|---|

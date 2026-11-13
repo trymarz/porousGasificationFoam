@@ -1,6 +1,9 @@
 #!/bin/sh
-# Clean every target in this checkout, DEM included, so no generated state
-# from an earlier --yade build survives a switch back to the normal build.
+# Allwclean: clean this checkout (OpenFOAM convention).
+# what:    pgf build clean --all [args]: wclean every target, DEM included
+# why:     ./Allwclean is where OpenFOAM users look first; cleaning DEM too means no
+#          state from an earlier --yade build survives a switch back
+# instead: pgf build clean [targets]; add --purge to drop the installed build
 cd "${0%/*}" || exit 1
 
-exec ./build.sh clean --all "$@"
+exec ./pgf build clean --all "$@"

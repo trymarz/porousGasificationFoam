@@ -9,7 +9,7 @@
 # protocol and the scheduling mechanics with the serial driver — never its
 # cleanup contract or its assertions, which are different on purpose.
 #
-# Requirements: solver built with ./build.sh --yade, Yade + mpirun installed.
+# Requirements: solver built with pgf build --yade, Yade + mpirun installed.
 #
 # Usage:
 #   applications/test/regression/Allrun.yade [--case <name>] [--short]
