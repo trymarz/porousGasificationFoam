@@ -92,5 +92,18 @@ check "config pointing into the default user dir still runs" [ -n "$path" ]
 check "PATH holds nothing under the default user dir $default" \
     bash -c '! tr ":" "\n" <<<"$1" | grep -qE "^$2(/|\$)"' _ "$path" "$default"
 
+# PGF_BUILD selects a build per worktree or terminal, never per user.
+printf 'PGF_FOAM_BASHRC=%s\nPGF_BUILD=abc123\n' "$A" >"$user_conf"
+penv -- config get PGF_BUILD >/dev/null 2>"$TEST_TMP/err"
+check "PGF_BUILD in the user file exits 2 naming the line" \
+    bash -c '[ $? -eq 0 ]; grep -qF "$1:2: PGF_BUILD selects" "$2"' _ "$user_conf" "$TEST_TMP/err"
+echo "PGF_FOAM_BASHRC=$A" >"$user_conf"
+penv -- config set PGF_BUILD=abc123 >/dev/null 2>&1
+check "config set PGF_BUILD without --checkout exits 2" [ $? -eq 2 ]
+penv -- config set PGF_BUILD=abc123 --checkout 2>/dev/null
+check "config set PGF_BUILD --checkout lands in the checkout file" grep -qx "PGF_BUILD=abc123" "$tree/.pgf-env.conf"
+check "PGF_BUILD from the environment wins over the checkout file" \
+    [ "$(penv PGF_BUILD=def456 -- config get PGF_BUILD)" = def456 ]
+
 [ "$TEST_FAILURES" -eq 0 ] || { echo "--- last stderr"; cat "$TEST_TMP/err"; }
 finish

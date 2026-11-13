@@ -4,7 +4,7 @@
 # Files are parsed, never sourced, and only PGF_CONF_KEYS are accepted.
 
 PGF_CONF_KEYS=(PGF_FOAM_BASHRC YADE_TRUNK YADE_BIN YADE_PYTHONPATH PGF_YADE_LIBDIR
-  PGF_BUILD_ROOT PGF_RUN_ROOT PGF_YADE PGF_MPI)
+  PGF_BUILD_ROOT PGF_RUN_ROOT PGF_YADE PGF_MPI PGF_BUILD)
 
 # Resolved value and its layer per key: PGF_CONF_VAL[k], PGF_CONF_SRC[k].
 declare -gA PGF_CONF_VAL=() PGF_CONF_SRC=() PGF_CONF_CLI=()
@@ -47,6 +47,8 @@ pgf_conf_parse() {
       { PGF_CONF_ERR="$file:$n: expected KEY=value, got '$line'"; return 1; }
     key="${BASH_REMATCH[1]}" val="${BASH_REMATCH[2]}"
     pgf_conf_known_key "$key" || { PGF_CONF_ERR="$file:$n: unknown key '$key'"; return 1; }
+    [ "$key" != PGF_BUILD ] || [ "$layer" != user ] ||
+      { PGF_CONF_ERR="$file:$n: PGF_BUILD selects a build per worktree or terminal, not per user"; return 1; }
     if [[ "$val" =~ ^\"(.*)\"$ ]] || [[ "$val" =~ ^\'(.*)\'$ ]]; then val="${BASH_REMATCH[1]}"; fi
     [[ "$val" == "~/"* ]] && val="$HOME/${val:2}"
     why="$(pgf_conf_check_value "$key" "$val")" || { PGF_CONF_ERR="$file:$n: $why"; return 1; }

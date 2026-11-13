@@ -7,13 +7,20 @@ $PGF_BUILD_ROOT/.pgf/workspaces/<hash>.json, naming its path and the key it
 last built per variant, so `pgf ls` can say which checkouts use which build.
 
   registry.py register ROOT CHECKOUT VARIANT KEY BRANCH
-  registry.py ls ROOT [--json] [--current KEY ...]
+  registry.py ls ROOT [--json] [--builds-only] [--current KEY ...]
   registry.py status CONF_JSON ROOT CHECKOUT [VARIANT=KEY ...]
+  registry.py resolve ROOT VARIANT SEL       print the prefix SEL names
+  registry.py gc ROOT [--keep N] [--yes] [--dry-run] [--json] [--protect KEY ...]
+
+A run holds a shared flock on ROOT/<key>.use.lock and a build an exclusive one
+on ROOT/<key>.lock; gc skips a build while either is held.
 """
 import datetime
+import fcntl
 import hashlib
 import json
 import os
+import shutil
 import sys
 
 
@@ -77,6 +84,29 @@ def dir_size(path):
     return total
 
 
+def lock_held(path, shared_ok=False):
+    """True if someone holds PATH's flock (any lock, or only an exclusive one)."""
+    try:
+        fd = os.open(path, os.O_RDONLY)
+    except OSError:
+        return False
+    try:
+        fcntl.flock(fd, (fcntl.LOCK_SH if shared_ok else fcntl.LOCK_EX) | fcntl.LOCK_NB)
+        return False
+    except OSError:
+        return True
+    finally:
+        os.close(fd)
+
+
+def in_use(root, key):
+    return lock_held(os.path.join(root, key + ".use.lock"))
+
+
+def building(root, key):
+    return lock_held(os.path.join(root, key + ".lock"))
+
+
 def builds(root, current=()):
     wss = workspaces(root)
     out = []
@@ -95,6 +125,11 @@ def builds(root, current=()):
             "built_utc": (meta or {}).get("built_utc"),
             "checkout": (meta or {}).get("checkout") or {"path": (meta or {}).get("source_tree")},
             "used_by": used_by,
+            "in_use": in_use(root, name),
+            "building": building(root, name),
+            "git_head": (meta or {}).get("git_head"),
+            "foam_yade_pin": ((meta or {}).get("foam_yade") or {}).get("pin"),
+            "mtime": os.path.getmtime(prefix),
             "size_bytes": dir_size(prefix),
         })
     return out
@@ -110,11 +145,22 @@ def human(n):
 def cmd_ls(argv):
     root, rest = argv[0], argv[1:]
     as_json = "--json" in rest
+    only = "--builds-only" in rest
     current = rest[rest.index("--current") + 1:] if "--current" in rest else []
     bs = builds(root, current)
     if as_json:
-        print(json.dumps({"build_root": root, "builds": bs, "workspaces": workspaces(root)}, indent=2))
+        out = {"build_root": root, "builds": bs}
+        if not only:
+            out["workspaces"] = workspaces(root)
+        print(json.dumps(out, indent=2))
         return 0
+    if not only:
+        wss = workspaces(root)
+        print("workspaces:" if wss else "no workspaces registered")
+        for w in wss:
+            keys = ", ".join("%s %s" % (v, k) for v, k in sorted((w.get("builds") or {}).items()))
+            print("  %s%s%s  %s" % (w["path"], "@" + w["branch"] if w.get("branch") else "",
+                                    "" if w["exists"] else " (gone)", keys))
     if not bs:
         print("no builds under %s" % root)
         return 0
@@ -122,6 +168,8 @@ def cmd_ls(argv):
     for b in bs:
         mark = "*" if b["current"] else " "
         state = "" if b["complete"] else "  (incomplete)"
+        state += "  [in use]" if b["in_use"] else ""
+        state += "  [building]" if b["building"] else ""
         where = b["checkout"].get("worktree") or os.path.basename(b["checkout"].get("path") or "") or "?"
         branch = b["checkout"].get("branch")
         print("%s %-44s %-6s %-20s %6s  %s%s%s" % (
@@ -148,6 +196,101 @@ def cmd_status(argv):
     return 0
 
 
+def resolve(root, variant, sel):
+    """The prefix SEL names: a prefix path, a key or unique key prefix, a commit
+    (newest build of VARIANT from it) or a worktree name/path (its last build)."""
+    if os.path.isfile(os.path.join(sel, ".pgf-build.json")):
+        return os.path.realpath(sel), None
+    bs = [b for b in builds(root) if b["complete"]]
+    if any(b["key"] == sel for b in bs):
+        return os.path.join(root, sel), None
+    hits = [b for b in bs if b["key"].startswith(sel)]
+    if len(hits) == 1:
+        return hits[0]["prefix"], None
+    if len(hits) > 1:
+        return None, "'%s' matches %d builds: %s" % (sel, len(hits), ", ".join(b["key"] for b in hits))
+    if len(sel) >= 7 and all(c in "0123456789abcdef" for c in sel.lower()):
+        hits = [b for b in bs if (b["git_head"] or "").startswith(sel.lower()) and b["variant"] == variant]
+        if hits:
+            return max(hits, key=lambda b: b["built_utc"] or "")["prefix"], None
+    for w in workspaces(root):
+        if sel in (w["path"], os.path.basename(w["path"])) or os.path.realpath(sel) == w["path"]:
+            key = (w.get("builds") or {}).get(variant)
+            if key and os.path.isfile(os.path.join(root, key, ".pgf-build.json")):
+                return os.path.join(root, key), None
+            return None, "worktree %s has no complete %s build" % (w["path"], variant)
+    return None, "no build matches '%s' (a key, key prefix, commit, worktree or prefix path; see pgf builds)" % sel
+
+
+def cmd_resolve(argv):
+    prefix, err = resolve(*argv)
+    if err:
+        print(err, file=sys.stderr)
+        return 1
+    print(prefix)
+    return 0
+
+
+def cmd_gc(argv):
+    root, rest = argv[0], argv[1:]
+    keep = int(rest[rest.index("--keep") + 1]) if "--keep" in rest else 2
+    yes, dry, as_json = "--yes" in rest, "--dry-run" in rest, "--json" in rest
+    protect = set(rest[rest.index("--protect") + 1:]) if "--protect" in rest else set()
+    referenced = {k for w in workspaces(root) if w["exists"] for k in (w.get("builds") or {}).values()}
+    plan, kept = [], []
+    for b in sorted(builds(root), key=lambda b: b["mtime"], reverse=True):
+        why = ("this checkout" if b["key"] in protect else "in use" if b["in_use"] else
+               "building" if b["building"] else "a workspace's last build" if b["key"] in referenced else None)
+        if why is None and keep > 0 and b["complete"]:
+            keep -= 1
+            why = "--keep"
+        (kept if why else plan).append(dict(b, why=why))
+    if as_json:
+        print(json.dumps({"build_root": root, "remove": plan, "keep": kept, "dry_run": dry or not yes}, indent=2))
+    else:
+        for b in kept:
+            print("keep   %s (%s)" % (b["key"], b["why"]))
+        for b in plan:
+            print("remove %s (%s)" % (b["key"], human(b["size_bytes"])))
+    if not plan or dry:
+        return 0
+    if not yes:
+        if not sys.stdin.isatty():
+            print("pgf gc: not removing %d build(s) without --yes (no terminal to ask)" % len(plan), file=sys.stderr)
+            return 2
+        sys.stderr.write("remove %d build(s), %s? [y/N] " % (len(plan), human(sum(b["size_bytes"] for b in plan))))
+        if sys.stdin.readline().strip().lower() not in ("y", "yes"):
+            return 1
+    rc = 0
+    for b in plan:
+        rc |= remove(root, b["key"])
+    return rc
+
+
+def remove(root, key):
+    """Delete one build under exclusive locks, so no run or build starts on it meanwhile."""
+    fds = []
+    try:
+        for name in (key + ".use.lock", key + ".lock"):
+            fd = os.open(os.path.join(root, name), os.O_RDWR | os.O_CREAT, 0o644)
+            fds.append(fd)
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        shutil.rmtree(os.path.join(root, key))
+        for name in (key + ".use.lock", key + ".lock"):
+            try:
+                os.unlink(os.path.join(root, name))
+            except OSError:
+                pass
+        print("removed %s" % key, file=sys.stderr)
+        return 0
+    except OSError as e:
+        print("pgf gc: kept %s: %s" % (key, e), file=sys.stderr)
+        return 1
+    finally:
+        for fd in fds:
+            os.close(fd)
+
+
 def main(argv):
     if not argv:
         print(__doc__, file=sys.stderr)
@@ -158,6 +301,10 @@ def main(argv):
         return 0
     if cmd == "ls" and rest:
         return cmd_ls(rest)
+    if cmd == "resolve" and len(rest) == 3:
+        return cmd_resolve(rest)
+    if cmd == "gc" and rest:
+        return cmd_gc(rest)
     if cmd == "status" and len(rest) >= 3:
         return cmd_status(rest)
     print(__doc__, file=sys.stderr)

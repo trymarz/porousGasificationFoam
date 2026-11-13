@@ -62,6 +62,16 @@ Nothing is copied into `$WM_PROJECT_USER_DIR`. `$FOAM_USER_LIBBIN` is already on
 - **DEM variant**: `--isolated --yade` copies `libMeshTree.so`, `libYadeFoam.so` and `libYadeComm.so` into the prefix from `PGF_YADE_LIBDIR` (default: the user lib dir OpenFOAM's `bashrc` sets), and fails if any is missing.
 - Every build prints where it installs. OpenFOAM v2406 embeds no RPATH, so a prefix works anywhere as long as its `lib/` is on `LD_LIBRARY_PATH`.
 
+### Choosing a build
+
+Each command uses one build. It comes from, later winning: **auto** (the build of this checkout's sources as they are now), `PGF_BUILD` in the checkout's `.pgf-env.conf`, the terminal (`PGF_BUILD` in the environment, which `pgf use` sets), and `--use SEL` on the command line. `PGF_BUILD` is refused in the user file. `SEL` is a key or unique key prefix, a commit (the newest build made from it), a worktree name or path (its last build), a prefix path, or `auto`. `--prefix DIR` uses that complete prefix as it is (also one built with `build.sh --prefix` outside the store) and skips the staleness check.
+
+`pgf use SEL` prints the line that sets the terminal layer; apply it with `eval "$(pgf use SEL)"`. Inside `pgf shell` a `pgf` function does the `eval`; the shell itself keeps the build it started with, so later `pgf exec` / `pgf run` calls follow the new choice.
+
+A selected build that is not this checkout's sources is **stale**: `pgf exec` and `pgf shell` warn, `pgf run` refuses. `pgf run --build` builds this checkout first (it cannot be combined with a selected build), and `pgf run --allow-stale` runs a stale build anyway. The banner names the layer the build came from.
+
+`pgf builds [--json]` lists every build (variant, age, size, the checkout that built it, `[in use]`, `[building]`); `pgf ls` adds the registered workspaces. Every `pgf exec`, `shell` and `run` holds a shared `flock` on `$PGF_BUILD_ROOT/<key>.use.lock` while it runs. `pgf gc [--keep N] [--yes] [--dry-run] [--json]` removes builds that are not this checkout's, not a registered workspace's last build, not in use and not being built, keeping the `N` newest of the rest (default 2). Without `--yes` it asks on a terminal and refuses (exit 2) without one. `pgf-test --gc` also skips builds in use.
+
 `pgf status [--json]` ends with this checkout's two keys (`yade0`, `yade1`) and whether each is built; `pgf status PATH` asks another checkout. `pgf ls [--json]` lists every prefix under the build root with its variant, build time, size, the checkout that built it and the checkouts whose last build it is; `*` marks this checkout's.
 
 `pgf build [--yade] [build.sh options]` is `pgf exec --bare [--yade] -- ./build.sh --isolated [--yade] [options]`.
@@ -75,7 +85,7 @@ Nothing is copied into `$WM_PROJECT_USER_DIR`. `$FOAM_USER_LIBBIN` is already on
 
 ### Remembered settings
 
-`pgf` reads its settings (`PGF_FOAM_BASHRC`, `YADE_TRUNK`, `YADE_BIN`, `YADE_PYTHONPATH`, `PGF_YADE_LIBDIR`, `PGF_BUILD_ROOT`, `PGF_RUN_ROOT`, `PGF_YADE=0|1`, `PGF_MPI=default|loopback|auto`) from layers; a later layer wins:
+`pgf` reads its settings (`PGF_FOAM_BASHRC`, `YADE_TRUNK`, `YADE_BIN`, `YADE_PYTHONPATH`, `PGF_YADE_LIBDIR`, `PGF_BUILD_ROOT`, `PGF_RUN_ROOT`, `PGF_YADE=0|1`, `PGF_MPI=default|loopback|auto`, `PGF_BUILD` (see [Choosing a build](#choosing-a-build); not in the user file)) from layers; a later layer wins:
 
 1. built-in default;
 2. user file `${XDG_CONFIG_HOME:-~/.config}/pgf/env.conf`;

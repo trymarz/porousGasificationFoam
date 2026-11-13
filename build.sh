@@ -380,6 +380,7 @@ sys.exit(0 if set(sys.argv[2:]) <= built else 1)' "$PREFIX/.pgf-build.json" "${w
 
 report_cache_hit() {
   clog SUCCESS "Cache hit: $PREFIX is complete for key $BUILD_KEY; nothing compiled."
+  register_workspace
   printf '%s\n' "$PREFIX"
 }
 
@@ -464,6 +465,11 @@ with open(path + ".tmp", "w") as f:
 os.replace(path + ".tmp", path)
 PY
   clog INFO "Wrote $PREFIX/.pgf-build.json"
+  register_workspace
+}
+
+# Record this checkout's latest build per variant (pgf ls, pgf use WORKTREE).
+register_workspace() {
   [ -z "${BUILD_KEY:-}" ] || python3 "$PGF_ROOT/utilities/pgf/registry.py" register "$PGF_BUILD_ROOT" \
     "$PGF_ROOT" "yade$WITH_YADE" "$BUILD_KEY" "$(git -C "$PGF_ROOT" symbolic-ref -q --short HEAD 2>/dev/null)" ||
     clog WARN "Could not register $PGF_ROOT in $PGF_BUILD_ROOT/.pgf/workspaces"

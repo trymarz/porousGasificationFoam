@@ -4,18 +4,26 @@
 # runs (#264; successor to pgf-env, #257). See doc/build.md.
 #
 #   pgf [status] [PATH] [--json]    settings, where each came from, this checkout's builds
-#   pgf ls [--json]                 every build under the build root, and who uses it
+#   pgf ls [--json]                 registered workspaces, and every build under the build root
+#   pgf builds [--json]             every build: key, variant, age, size, checkout, in use
+#   pgf use <key|commit|worktree|prefix|auto> [--yade]   this terminal's build:
+#                                   eval "$(pgf use SEL)" (pgf shell does the eval)
+#   pgf gc [--keep N] [--yes] [--dry-run] [--json]   remove old unused builds
 #   pgf doctor                      status plus checks, each with a fix
 #   pgf setup [--user | --checkout] [--yes] [--no-link] [--force]
 #   pgf config [get KEY | set KEY=VALUE | unset KEY] [--user | --checkout] [--json]
 #   pgf build [--yade] [build.sh options]
 #   pgf exec [options] -- <command ...>
 #   pgf shell [options] [-c COMMAND]
-#   pgf run [options] <caseDir> [Allrun | Allclean | script] [args ...]
+#   pgf run [options] [--build] [--allow-stale] <caseDir> [Allrun | Allclean | script] [args ...]
 #
 # options (exec, shell, run, status, doctor):
-#   --prefix DIR  use this complete prefix (built by build.sh --prefix/--isolated)
-#   --for-tree    (default) the build.sh --isolated prefix for this checkout
+#   --use SEL     the build to use: a key or key prefix, a commit, a worktree, a
+#                 prefix path, or auto (the build of this checkout's sources). Later
+#                 wins: auto, PGF_BUILD in .pgf-env.conf, the terminal (pgf use), --use
+#   --prefix DIR  use this complete prefix as it is (also one from build.sh
+#                 --prefix outside the store); no staleness check
+#   --for-tree    same as --use auto
 #   --bare        no prefix: OpenFOAM only, for running build.sh --isolated
 #   --yade        the WITH_YADE variant, plus yade, YADE_TRUNK and PYTHONPATH
 #                 (PGF_YADE=1 makes it the default; --no-yade overrides that)
@@ -36,8 +44,11 @@
 # run     cd into caseDir (relative to the caller) and run a script there
 #         (default Allrun); an active constant/yadeProperties selects --yade
 #
+# A selected build that is not this checkout's sources is stale: exec and shell
+# warn, run refuses (run --build builds first; --allow-stale runs anyway).
+#
 # Settings: PGF_FOAM_BASHRC, PGF_BUILD_ROOT, PGF_RUN_ROOT, YADE_TRUNK, YADE_BIN,
-# YADE_PYTHONPATH, PGF_YADE_LIBDIR, PGF_YADE, PGF_MPI. Each comes from, later
+# YADE_PYTHONPATH, PGF_YADE_LIBDIR, PGF_YADE, PGF_MPI, PGF_BUILD. Each comes from, later
 # winning: default, ~/.config/pgf/env.conf, <checkout>/.pgf-env.conf, the
 # environment, the CLI. Exit 2 when the environment cannot be set up;
 # otherwise the command's status.
@@ -79,7 +90,7 @@ fi
 
 sub="status"
 case "${1:-}" in
-status | doctor | setup | config | build | ls | exec | shell | run) sub="$1"; shift ;;
+status | doctor | setup | config | build | ls | builds | use | gc | exec | shell | run) sub="$1"; shift ;;
 help | -h | --help) usage; exit 0 ;;
 -*) die "give a subcommand first, e.g. pgf exec $* (see pgf --help)" ;;
 "") ;;
@@ -90,6 +101,9 @@ case "$sub" in
 config) pgf_config_cmd "$@"; exit $? ;;
 build) pgf_build_cmd "$@"; exit $? ;;
 ls) pgf_ls_cmd "$@"; exit $? ;;
+builds) pgf_ls_cmd --builds-only "$@"; exit $? ;;
+use) pgf_use_cmd "$@"; exit $? ;;
+gc) pgf_gc_cmd "$@"; exit $? ;;
 status)
   # Another checkout answers for itself.
   if [ -n "${1:-}" ] && [ "${1#-}" = "$1" ]; then
@@ -107,18 +121,29 @@ setup_link=1
 shell_cmd=""
 force=0
 json=0
+run_build=0
+allow_stale=0
+raw_prefix=0
 
 mode="tree"
 prefix=""
 while [ $# -gt 0 ]; do
   case "$1" in
-  --prefix)
-    [ -n "${2:-}" ] || die "--prefix needs a directory"
-    mode="prefix"
-    prefix="$2"
+  --use | --prefix)
+    [ -n "${2:-}" ] || die "$1 needs an argument"
+    mode="tree"
+    sel="$2"
+    raw_prefix=0
+    [ "$1" = --prefix ] && { sel="$(cd "$2" 2>/dev/null && pwd -P)" || die "prefix not found: $2"; raw_prefix=1; }
+    PGF_CONF_CLI[PGF_BUILD]="$sel"
     shift 2
     ;;
-  --for-tree) mode="tree"; shift ;;
+  --for-tree) mode="tree"; PGF_CONF_CLI[PGF_BUILD]=auto; shift ;;
+  --build | --allow-stale)
+    [ "$sub" = run ] || die "$1 is a 'pgf run' option"
+    [ "$1" = --build ] && run_build=1 || allow_stale=1
+    shift
+    ;;
   --bare) mode="bare"; shift ;;
   --yade) PGF_CONF_CLI[PGF_YADE]=1; shift ;;
   --no-yade) PGF_CONF_CLI[PGF_YADE]=0; shift ;;
@@ -175,6 +200,10 @@ fi
 pgf_conf_resolve || die "$PGF_CONF_ERR"
 yade="$PGF_YADE"
 mpi="$PGF_MPI"
+sel="${PGF_BUILD:-auto}"
+sel_src="${PGF_CONF_SRC[PGF_BUILD]:-default}"
+[ "$sel_src" = env ] && sel_src="terminal"
+[ "$raw_prefix" -eq 1 ] && [ "$sel_src" = cli ] && sel_src="--prefix"
 
 if [ "$sub" = "status" ]; then
   [ "$json" -eq 1 ] && { pgf_status_json; exit $?; }
@@ -208,6 +237,13 @@ run)
   ;;
 esac
 
+if [ "$run_build" -eq 1 ]; then
+  [ "$sel" = auto ] || die "--build builds this checkout's sources; it cannot be combined with PGF_BUILD=$sel ($sel_src)"
+  build_flag=()
+  [ "$yade" -eq 1 ] && build_flag=(--yade)
+  "$SELF" build "${build_flag[@]}" >&2 || die "pgf build failed"
+fi
+
 # -- 2. OpenFOAM ---------------------------------------------------------------
 
 bashrc="${PGF_FOAM_BASHRC:-${WM_PROJECT_DIR:+$WM_PROJECT_DIR/etc/bashrc}}"
@@ -227,20 +263,33 @@ export PGF_BUILD_ROOT="${PGF_BUILD_ROOT:-$PGF_DEFAULT_USER_DIR/pgf-builds}"
 
 # -- 3. the prefix -------------------------------------------------------------
 
+stale=""
+if [ "$mode" = tree ] && [ "$sel" != auto ]; then
+  prefix="$(python3 "$PGF_LIB/registry.py" resolve "$PGF_BUILD_ROOT" "yade$yade" "$sel" 2>&1)" ||
+    die "PGF_BUILD=$sel ($sel_src): $prefix"
+  variant="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("variant",""))' "$prefix/.pgf-build.json" 2>/dev/null)"
+  if [ "$variant" != "yade$yade" ] && [ "$sel_src" != --prefix ]; then
+    [ "${PGF_CONF_SRC[PGF_YADE]}" = cli ] && die "the selected build ${prefix##*/} is $variant, not yade$yade"
+    yade="${variant#yade}"
+  fi
+fi
 variant_flag=()
 [ "$yade" -eq 1 ] && variant_flag=(--yade)
-case "$mode" in
-tree)
-  prefix="$("$PGF_ROOT/build.sh" --print-prefix "${variant_flag[@]}")" ||
+if [ "$mode" = tree ] && [ "$sel_src" != --prefix ]; then
+  auto="$("$PGF_ROOT/build.sh" --print-prefix "${variant_flag[@]}")" ||
     die "cannot compute the build key for $PGF_ROOT"
-  [ -f "$prefix/.pgf-build.json" ] ||
-    die "no complete build for this tree at $prefix; run: $SELF build ${variant_flag[*]}"
-  ;;
-prefix)
-  prefix="$(cd "$prefix" 2>/dev/null && pwd -P)" || die "prefix not found: $prefix"
-  [ -f "$prefix/.pgf-build.json" ] || die "$prefix is not a complete build (no .pgf-build.json)"
-  ;;
-esac
+  if [ "$sel" = auto ]; then
+    prefix="$auto"
+    [ -f "$prefix/.pgf-build.json" ] ||
+      die "no complete build for this tree at $prefix; run: $SELF build ${variant_flag[*]}"
+  elif [ "$prefix" != "$auto" ] && [ "$sel_src" != --prefix ]; then
+    stale="the selected build ${prefix##*/} ($sel_src) is not this checkout's sources (${auto##*/})"
+    if [ "$sub" = run ] && [ "$allow_stale" -eq 0 ]; then
+      die "$stale; run: $SELF use auto, then $SELF run --build; or pass --allow-stale"
+    fi
+    echo "pgf: warning: $stale" >&2
+  fi
+fi
 
 # -- 4. point the user dirs at it; drop the default user dir from the paths ----
 
@@ -345,7 +394,7 @@ if [ "$mode" != "bare" ]; then
   esac
   variant="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("variant","?"))' "$prefix/.pgf-build.json" 2>/dev/null)"
   [ "$yade" -eq 1 ] && [ "$variant" != "yade1" ] && die "--yade given, but $prefix is variant $variant"
-  echo "pgf: prefix $prefix (key ${prefix##*/}, variant ${variant:-?}, OpenFOAM $WM_PROJECT_VERSION$mpi_note)" >&2
+  echo "pgf: prefix $prefix (key ${prefix##*/}, variant ${variant:-?}, $sel_src${stale:+, stale}, OpenFOAM $WM_PROJECT_VERSION$mpi_note)" >&2
 else
   echo "pgf: bare (no prefix; build root $PGF_BUILD_ROOT, OpenFOAM $WM_PROJECT_VERSION$mpi_note)" >&2
 fi
@@ -360,10 +409,18 @@ if [ "$sub" = "shell" ]; then
     cmd=(/bin/bash -c "$shell_cmd")
   else
     rc="$TMPDIR/pgf-shellrc.$$"
-    printf 'PS1="(pgf:%s@%s) \\w\\$ "\nrm -f "%s"\n' "${PGF_ROOT##*/}" "$key" "$rc" >"$rc" ||
-      die "cannot write $rc"
+    {
+      printf 'PS1="(pgf:%s@%s) \\w\\$ "\nrm -f "%s"\n' "${PGF_ROOT##*/}" "$key" "$rc"
+      # pgf use changes this terminal's later pgf calls; this shell keeps its build.
+      printf 'pgf() { if [ "${1:-}" = use ]; then local l; l="$(%q "$@")" && eval "$l"; else %q "$@"; fi; }\n' "$SELF" "$SELF"
+    } >"$rc" || die "cannot write $rc"
     cmd=(/bin/bash --rcfile "$rc" -i)
   fi
+fi
+
+# A shared lock for as long as the command runs keeps pgf gc off this build.
+if [ "$mode" != "bare" ] && [ -w "${prefix%/*}" ]; then
+  exec {use_fd}>"$prefix.use.lock" && flock -s "$use_fd" || die "cannot lock $prefix.use.lock"
 fi
 
 # -- 8. run --------------------------------------------------------------------

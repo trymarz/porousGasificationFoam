@@ -276,10 +276,19 @@ gc() {
       fi
       exec {lockfd}<&-
     fi
+    if [ -e "$d.use.lock" ]; then
+      exec {lockfd}<"$d.use.lock"
+      if ! flock -n "$lockfd"; then
+        exec {lockfd}<&-
+        echo "keep $d (in use)"
+        continue
+      fi
+      exec {lockfd}<&-
+    fi
     n=$((n + 1))
     [ "$n" -le "$keep_prefixes" ] && continue
     act "$d"
-    [ "$dry" = true ] || rm -f -- "$d.lock"
+    [ "$dry" = true ] || rm -f -- "$d.lock" "$d.use.lock"
   done < <(newest_first "${prefixes[@]}")
 }
 
