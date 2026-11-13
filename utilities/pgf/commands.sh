@@ -157,10 +157,9 @@ pgf_doctor() {
   else
     out="$(timeout 60 "$yb" -v 2>/dev/null | grep -m1 -i 'version')"
     _r OK "yade $yb: ${out:-version unknown}"
-    pin="$(pgf_coupling_pin)"
-    if [[ "$out" =~ git-([0-9a-f]{7,}) ]] && [ -n "$pin" ] && [[ "$pin" != "${BASH_REMATCH[1]}"* ]]; then
-      _r WARN "yade was built from ${BASH_REMATCH[1]}, the submodule pin is ${pin:0:10}; the MPI buffer layout is not negotiated"
-    fi
+    while IFS= read -r line; do
+      _r "${line%% *}" "$(sed -E 's/^[A-Z]+ +//' <<<"$line")"
+    done < <(pgf_yade_check "$yb" "${YADE_TRUNK:-$PGF_ROOT/submodules/Foam-Yade}")
     if timeout 60 "$yb" --help 2>/dev/null | grep -q 'MPI'; then
       _r OK "yade lists MPI among its compiled features"
     else
