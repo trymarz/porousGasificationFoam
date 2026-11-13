@@ -231,6 +231,8 @@ pgf_config_cmd() {
     else
       pgf_conf_known_key "$k" || { echo "pgf config: unknown key '$k'" >&2; return 2; }
     fi
+    [ "$k" != PGF_BUILD ] || [ "$layer" = checkout ] ||
+      { echo "pgf config: PGF_BUILD is per worktree (--checkout) or per terminal (pgf use)" >&2; return 2; }
     [ "$layer" = checkout ] && file="$(pgf_conf_checkout_file)" || file="$(pgf_conf_user_file)"
     PGF_CONF_VAL=() PGF_CONF_SRC=()
     pgf_conf_parse "$file" "$layer" || { echo "pgf: $PGF_CONF_ERR" >&2; return 2; }
@@ -271,20 +273,74 @@ pgf_build_info() {
   [ -n "${PGF_INFO_ROOT:-}" ] || PGF_INFO_ROOT="${PGF_BUILD_ROOT:-}"
 }
 
-# pgf_ls_cmd [--json] — every build under the build root; * marks this checkout's.
+# pgf_ls_cmd [--builds-only] [--json] — registered workspaces and every build
+#   under the build root (pgf ls; pgf builds is --builds-only); * marks this checkout's.
 pgf_ls_cmd() {
-  local json=() k cur=()
+  local json=() only=() k cur=()
   while [ $# -gt 0 ]; do
     case "$1" in
     --json) json=(--json); shift ;;
-    *) echo "pgf: ls takes only --json" >&2; return 2 ;;
+    --builds-only) only=(--builds-only); shift ;;
+    *) echo "pgf: ls and builds take only --json" >&2; return 2 ;;
     esac
   done
   pgf_conf_resolve || { echo "pgf: $PGF_CONF_ERR" >&2; return 2; }
   pgf_build_info
   [ -n "$PGF_INFO_ROOT" ] || { echo "pgf: no build root: set PGF_BUILD_ROOT or PGF_FOAM_BASHRC" >&2; return 2; }
   for k in "${PGF_INFO_KEY[@]}"; do [ -n "$k" ] && cur+=("$k"); done
-  python3 "$PGF_LIB/registry.py" ls "$PGF_INFO_ROOT" "${json[@]}" --current "${cur[@]}"
+  python3 "$PGF_LIB/registry.py" ls "$PGF_INFO_ROOT" "${json[@]}" "${only[@]}" --current "${cur[@]}"
+}
+
+# pgf_use_cmd SEL [--yade | --no-yade] — print the shell line that makes SEL
+#   this terminal's build: eval "$(pgf use SEL)". pgf shell defines that eval.
+pgf_use_cmd() {
+  local sel="" variant prefix err
+  pgf_conf_resolve || { echo "pgf: $PGF_CONF_ERR" >&2; return 2; }
+  variant="yade${PGF_YADE:-0}"
+  while [ $# -gt 0 ]; do
+    case "$1" in
+    --yade) variant=yade1 ;;
+    --no-yade) variant=yade0 ;;
+    -h | --help) echo "usage: eval \"\$(pgf use <key|commit|worktree|prefix|auto> [--yade])\""; return 0 ;;
+    -*) echo "pgf use: unknown option '$1'" >&2; return 2 ;;
+    *) [ -z "$sel" ] || { echo "pgf use: one selector only" >&2; return 2; }; sel="$1" ;;
+    esac
+    shift
+  done
+  [ -n "$sel" ] || { echo "usage: eval \"\$(pgf use <key|commit|worktree|prefix|auto> [--yade])\"" >&2; return 2; }
+  if [ "$sel" = auto ]; then
+    echo "unset PGF_BUILD"
+    echo "pgf: this terminal's build is auto again (the build matching the checkout's sources)" >&2
+    return 0
+  fi
+  pgf_build_info
+  prefix="$(python3 "$PGF_LIB/registry.py" resolve "$PGF_INFO_ROOT" "$variant" "$sel")" || return 2
+  printf 'export PGF_BUILD=%q\n' "${prefix##*/}"
+  echo "pgf: this terminal now uses ${prefix##*/}" >&2
+  [ -t 1 ] && echo "pgf: printing only; apply it with: eval \"\$(pgf use $sel)\"" >&2
+  return 0
+}
+
+# pgf_gc_cmd [--keep N] [--yes] [--dry-run] [--json] — remove builds no workspace
+#   last built, none in use or building, beyond the N newest (default 2).
+pgf_gc_cmd() {
+  local args=() k cur=()
+  while [ $# -gt 0 ]; do
+    case "$1" in
+    --keep)
+      [[ "${2:-}" =~ ^[0-9]+$ ]] || { echo "pgf gc: --keep needs a number" >&2; return 2; }
+      args+=(--keep "$2"); shift ;;
+    --yes | --dry-run | --json) args+=("$1") ;;
+    -h | --help) echo "usage: pgf gc [--keep N] [--yes] [--dry-run] [--json]"; return 0 ;;
+    *) echo "pgf gc: unexpected '$1'" >&2; return 2 ;;
+    esac
+    shift
+  done
+  pgf_conf_resolve || { echo "pgf: $PGF_CONF_ERR" >&2; return 2; }
+  pgf_build_info
+  [ -n "$PGF_INFO_ROOT" ] || { echo "pgf: no build root: set PGF_BUILD_ROOT or PGF_FOAM_BASHRC" >&2; return 2; }
+  for k in "${PGF_INFO_KEY[@]}" "${PGF_BUILD:-}"; do [ -n "$k" ] && cur+=("$k"); done
+  python3 "$PGF_LIB/registry.py" gc "$PGF_INFO_ROOT" "${args[@]}" --protect "${cur[@]}"
 }
 
 # pgf_status_json — settings, layers and this checkout's builds as JSON.
