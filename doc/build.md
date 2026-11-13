@@ -28,7 +28,7 @@
 In a new terminal, with nothing sourced or exported:
 
 ```bash
-./pgf setup --yes                # finds OpenFOAM's etc/bashrc and yade; writes ~/.config/pgf/env.conf; links ~/.local/bin/pgf
+./pgf setup --yes                # finds OpenFOAM's etc/bashrc and yade; writes ~/.config/pgf/env.conf; links ~/.local/bin/pgf; installs bash completion
 pgf status                       # what was recorded, and from which file
 pgf where                        # where settings, builds, run records and scratch live
 pgf doctor                       # checks, each with a fix
@@ -142,8 +142,22 @@ printf 'PGF_FOAM_BASHRC=%s\n' ~/OpenFOAM/OpenFOAM-v2406/etc/bashrc >> ~/.config/
 - `run` changes into the case directory (resolved from your current directory) before running, so it works from anywhere. A case whose `constant/yadeProperties` says `active true` gets `--yade` unless `--no-yade` is given or `PGF_YADE` is set in a file or the environment.
 - After the script ends, `run` writes a run record to `<case>/.pgf-run.json`: the command, start and end times, exit status, the build (key, prefix, variant, commit, and the layer it was selected by) and, for a DEM run, the yade binary, its commit and the Foam-Yade pin. The same record is appended as one line to `${XDG_STATE_HOME:-~/.local/state}/pgf/runs/runs.jsonl` when that is writable (before #274 this log lived under the build root). `run` exits with the script's status, and still writes the record after Ctrl-C.
 - The link step refuses to replace a link to another checkout without `--force`. With several worktrees, the link picks one; call the others by path.
+- `setup` (not `--link-only`) also offers to install bash completion: it asks on a terminal, installs with `--yes`, and skips with `--no-completion`. The script goes to `${BASH_COMPLETION_USER_DIR:-${XDG_DATA_HOME:-~/.local/share}/bash-completion}/completions/pgf`, where the bash-completion package loads it on the first Tab; without that package, source the file from `~/.bashrc`. Rerun `pgf setup` (or `pgf completion bash > FILE`) after updating pgf.
 
 Tests for this tooling live in `applications/test/tooling/test_*.sh`; each runs alone with `PGF_FOAM_BASHRC` set and builds under `PGF_BUILD_ROOT` (default `$TMPDIR/pgf-tooling-builds`).
+
+### Bash completion
+
+`pgf completion bash` prints the script. It is generated from the command table in `utilities/pgf/cli.sh`, the same table `pgf --help` prints, so the two cannot drift. It completes every subcommand and its options. It also completes these values, asking `pgf __complete` at Tab time:
+
+- build keys, `auto` and worktree names after `use`, `pack` and `--use`;
+- `get`/`set`/`unset`, then keys after `config` (and `KEY=` then values for `config set` and `--set`);
+- `auto`/`loopback`/`default` for `--mpi` and `PGF_MPI=`, `0`/`1` for `PGF_YADE=`;
+- directories after `run`, then that case's scripts;
+- tiers from `applications/test/tiers.conf` (and `all`) after `test`;
+- `build.sh` options after `build`.
+
+Build keys need the build root. When `PGF_BUILD_ROOT` is not set, finding it sources OpenFOAM, which takes about a second; set `PGF_BUILD_ROOT` to make that Tab instant.
 
 ## YADE DEM coupling
 

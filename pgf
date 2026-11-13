@@ -5,23 +5,7 @@
 # why:     one front door instead of hand-sourcing OpenFOAM and sharing $FOAM_USER_APPBIN
 # instead: ./Allwmake / ./Allwclean when the OpenFOAM-style entry point is all you need
 #
-#   pgf [status] [PATH] [--json]    settings, where each came from, this checkout's builds
-#   pgf ls [--json]                 registered workspaces, and every build under the build root
-#   pgf builds [--json]             every build: key, variant, age, size, checkout, in use
-#   pgf use <key|commit|worktree|prefix|auto> [--yade]   this terminal's build:
-#                                   eval "$(pgf use SEL)" (pgf shell does the eval)
-#   pgf gc [--keep N] [--yes] [--dry-run] [--json]   remove old unused builds
-#   pgf pack [BUILD] [--no-yade] [--output FILE] [--dry-run]   Apptainer image of a commit
-#   pgf doctor                      status plus checks, each with a fix
-#   pgf setup [--user | --checkout] [--yes] [--no-link] [--force]
-#   pgf config [get KEY | set KEY=VALUE | unset KEY] [--user | --checkout] [--json]
-#   pgf build [--yade] [build.sh options]   (utilities/pgf/build.sh --help lists them)
-#   pgf test <tier|all> [--rebuild] [--if-stale AGE] | --status | --gc   (pgf test --help)
-#   pgf tools                       every tool at the checkout root: what, why, use instead
-#   pgf where                       settings files, build store, run records, run dir, active build
-#   pgf exec [options] -- <command ...>
-#   pgf shell [options] [-c COMMAND]
-#   pgf run [options] [--build] [--allow-stale] <caseDir> [Allrun | Allclean | script] [args ...]
+#   @commands  (pgf --help lists them from the table in utilities/pgf/cli.sh)
 #
 # options (exec, shell, run, status, doctor):
 #   --use SEL     the build to use: a key or key prefix, a commit, a worktree, a
@@ -73,7 +57,7 @@ die() {
 }
 
 usage() {
-  sed -n '3,/^[^#]/p' "$SELF" | sed '$d; s/^# \{0,1\}//'
+  pgf_cli_usage "$SELF"
 }
 
 # -- 1. drop the caller's environment ------------------------------------------
@@ -98,10 +82,11 @@ fi
 . "$PGF_LIB/coupling.sh"
 . "$PGF_LIB/mpi.sh"
 . "$PGF_LIB/pack.sh"
+. "$PGF_LIB/cli.sh"
 
 sub="status"
 case "${1:-}" in
-status | doctor | setup | config | build | ls | builds | use | gc | pack | exec | shell | run | tools | where) sub="$1"; shift ;;
+status | doctor | setup | config | build | ls | builds | use | gc | pack | exec | shell | run | tools | where | completion | __complete) sub="$1"; shift ;;
 help | -h | --help) usage; exit 0 ;;
 -*) die "give a subcommand first, e.g. pgf exec $* (see pgf --help)" ;;
 "") ;;
@@ -112,6 +97,8 @@ case "$sub" in
 config) pgf_config_cmd "$@"; exit $? ;;
 tools) pgf_tools_cmd "$@"; exit $? ;;
 where) pgf_where_cmd "$@"; exit $? ;;
+completion) pgf_completion_cmd "$@"; exit $? ;;
+__complete) pgf_complete_cmd "$@"; exit $? ;;
 build) pgf_build_cmd "$@"; exit $? ;;
 ls) pgf_ls_cmd "$@"; exit $? ;;
 builds) pgf_ls_cmd --builds-only "$@"; exit $? ;;
@@ -132,6 +119,7 @@ esac
 setup_layer="user"
 setup_yes=0
 setup_link=1
+setup_completion=1
 shell_cmd=""
 force=0
 json=0
@@ -181,6 +169,7 @@ while [ $# -gt 0 ]; do
   --user | --checkout) setup_layer="${1#--}"; shift ;;
   --yes) setup_yes=1; shift ;;
   --no-link) setup_link=0; shift ;;
+  --no-completion) setup_completion=0; shift ;;
   --link-only) setup_link=2; shift ;;
   --force) force=1; shift ;;
   --json)
@@ -208,6 +197,11 @@ if [ "$sub" = "setup" ]; then
     pgf_init "$setup_layer" "$setup_yes" || exit 2
   fi
   [ "$setup_link" -eq 0 ] || pgf_install_link "$force" || exit $?
+  if [ "$setup_link" -ne 2 ] && [ "$setup_completion" -eq 1 ]; then
+    ask=0
+    [ "$setup_yes" -eq 0 ] && [ -t 0 ] && [ -r /dev/tty ] && ask=1
+    pgf_install_completion "$ask" || exit $?
+  fi
   exit 0
 fi
 

@@ -48,7 +48,7 @@ Target: **OpenFOAM-v2406** · License: **GPL v3** · Earlier versions for [OpenF
 You need OpenFOAM-v2406 (installed and sourceable), a C++ compiler and `wmake` (both come with OpenFOAM).
 
 ```bash
-./pgf setup --yes                           # 1. find OpenFOAM, remember it, put pgf on PATH
+./pgf setup --yes                           # 1. find OpenFOAM, remember it, put pgf on PATH (+ Tab completion)
 ./Allwmake                                  # 2. build libraries, solver, utilities (pgf build)
 pgf run tutorials/cases/charOnlyMoveCases/serial   # 3. a small serial case: copies 0.orig
                                             #    to 0, runs blockMesh and setFields, then
