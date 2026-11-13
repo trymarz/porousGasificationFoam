@@ -341,7 +341,14 @@ if [ "$yade" -eq 1 ]; then
     grep '^WARN' <<<"$checks" | sed 's/^WARN /pgf: warning: /' >&2
   fi
   yade_bin="${YADE_BIN:-$(PATH="$PGF_ENV_CALLER_PATH" command -v yade)}"
+fi
+# Building (--bare) needs the trunk, not the yade binary.
+if [ "$yade" -eq 1 ] && { [ "$mode" != bare ] || [ -x "$yade_bin" ]; }; then
   [ -x "$yade_bin" ] || die "no yade binary: set YADE_BIN or put yade on PATH"
+  if [ "$mode" != bare ]; then
+    checks="$(pgf_yade_check "$yade_bin" "$YADE_TRUNK")" || die "$(grep '^FAIL' <<<"$checks" | cut -c6-)"
+    grep '^WARN' <<<"$checks" | sed 's/^WARN /pgf: warning: /' >&2
+  fi
   # Installs may only carry a suffixed binary; the tutorials call plain `yade`.
   shim="$TMPDIR/pgf-env-bin"
   mkdir -p "$shim" && ln -sfn "$yade_bin" "$shim/yade" || die "cannot create $shim/yade"

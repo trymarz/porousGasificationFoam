@@ -15,7 +15,7 @@ pgf run tutorials/cases/canonical/pyrolysis    # run a case from anywhere
 pgf shell                        # or work interactively in the same environment
 ```
 
-For the DEM variant use `pgf build --yade` after the [coupling libraries](#building-yade-and-the-coupling-libraries); `pgf run` picks `--yade` for a case with an active `constant/yadeProperties`. Settings that differ per worktree go in `pgf config set KEY=VALUE --checkout`. See [Remembered settings](#remembered-settings).
+For the DEM variant use `pgf build --yade`; it compiles the [coupling libraries](#building-yade-and-the-coupling-libraries) into the build itself; `pgf run` picks `--yade` for a case with an active `constant/yadeProperties`. Settings that differ per worktree go in `pgf config set KEY=VALUE --checkout`. See [Remembered settings](#remembered-settings).
 
 `pgf` replaced `pgf-env` (#264). `pgf-env` still works as a deprecated alias: `pgf-env [options] -- CMD` is `pgf exec [options] -- CMD`, `pgf-env init` is `pgf setup --no-link`, `pgf-env install-link` is `pgf setup --link-only`, and `status`, `doctor`, `shell` and `run` keep their names. It prints a deprecation note on stderr unless `PGF_ENV_QUIET=1`.
 
@@ -59,7 +59,7 @@ Nothing is copied into `$WM_PROJECT_USER_DIR`. `$FOAM_USER_LIBBIN` is already on
 - **`PGF_BUILD_ROOT`** defaults to `$WM_PROJECT_USER_DIR/pgf-builds`. Set it on hosts without that layout.
 - **Cache**: a prefix is complete once its `.pgf-build.json` exists (written last: key, fingerprint, variant, OpenFOAM version, compiler, UTC time, arguments, git `HEAD`, and under `checkout` the path, worktree, branch and whether tracked files were modified; a `--yade` build adds `foam_yade` with the Foam-Yade pin, API hash and trunk `HEAD`). `--isolated` on a complete prefix prints it and compiles nothing. Builds of the same key hold a `flock` on `$PGF_BUILD_ROOT/<key>.lock`. Each finished build also registers its checkout in `$PGF_BUILD_ROOT/.pgf/workspaces/` (path, branch, last key per variant); builds themselves are found by scanning for `.pgf-build.json`.
 - **Objects** still live in `Make/<WM_OPTIONS>/` beside the sources (wmake's `-build-root` only applies inside `$WM_PROJECT_DIR`), so the variant rule below still applies per checkout.
-- **DEM variant**: `--isolated --yade` copies `libMeshTree.so`, `libYadeFoam.so` and `libYadeComm.so` into the prefix from `PGF_YADE_LIBDIR` (default: the user lib dir OpenFOAM's `bashrc` sets), and fails if any is missing.
+- **DEM variant**: `--isolated --yade` (and `--prefix DIR --yade`) copies the coupling sources from `$YADE_TRUNK/pkg/openfoam/coupling/FoamYade` into `<prefix>/foam-yade/`, compiles `libMeshTree`, `libYadeComm` and `libYadeFoam` there into `<prefix>/lib` with a `.foamyade-coupling.json` stamp, and compiles PGF against those headers. The trunk is only read, so it needs no `lnInclude` and no prior build. Setting `PGF_YADE_LIBDIR` instead copies prebuilt libraries (and their stamp) from that directory. The in-tree objects are per variant: switching a checkout between `--yade` and the plain build needs `./pgf exec --bare -- ./build.sh clean --all --isolated` first.
 - Every build prints where it installs. OpenFOAM v2406 embeds no RPATH, so a prefix works anywhere as long as its `lib/` is on `LD_LIBRARY_PATH`.
 
 ### Choosing a build
@@ -149,15 +149,17 @@ When the pin moves, rebuild YADE, the coupling libraries and PGF's `--yade` buil
 ### Building YADE and the coupling libraries
 
 1. **YADE** — a CMake build of the Foam-Yade checkout. The installation guide is upstream's (`doc/sphinx/installation.rst` in the submodule). The coupling needs `ENABLE_MPI` (on by default), Python 3 and `mpi4py`; without them CMake prints `MPI NOT FOUND, YADE-OpenFOAM coupling disabled`. The YADE side of the coupling, the `FoamCoupling` engine, is `pkg/openfoam/FoamCoupling.cpp`, built into `libpkg_openfoam.so`.
-2. **Coupling libraries** — three `wmake` libraries under `$YADE_TRUNK/pkg/openfoam/coupling/FoamYade` (`libMeshTree`, `libYadeComm`, `libYadeFoam`, in that order). Build and stamp them with
+2. **Coupling libraries** — three `wmake` libraries under `$YADE_TRUNK/pkg/openfoam/coupling/FoamYade` (`libMeshTree`, `libYadeComm`, `libYadeFoam`, in that order). `pgf build --yade` compiles them into the build (see [Isolated builds](#isolated-builds-and-pgf)); nothing else is needed. For a non-prefix build, or to prebuild them for `PGF_YADE_LIBDIR`, build and stamp them with
 
    ```bash
    ./pgf exec --bare --yade -- utilities/pgf/buildCoupling.sh --libdir DIR   # default $PGF_YADE_LIBDIR
    ```
 
-   It writes `.foamyade-coupling.json` next to the libraries: the Foam-Yade commit, the `YADE_TRUNK` used and the coupling-header hash. `build.sh --yade` compares that hash with the headers it is about to compile against and stops before `wmake` on a mismatch, printing the command above; `pgf --yade` does the same for the copy in the prefix. Both warn when `YADE_TRUNK`'s `HEAD` differs from the submodule pin, or when the libraries carry no stamp (built by hand). An `--isolated --yade` build copies the libraries and the stamp into its prefix from `PGF_YADE_LIBDIR` (default: the user lib dir OpenFOAM's `bashrc` sets).
+   It writes `.foamyade-coupling.json` next to the libraries: the Foam-Yade commit, the `YADE_TRUNK` used and the coupling-header hash. `build.sh --yade` compares that hash with the headers it is about to compile against and stops before `wmake` on a mismatch, printing the command above; `pgf --yade` does the same for the copy in the prefix. Both warn when `YADE_TRUNK`'s `HEAD` differs from the submodule pin, or when the libraries carry no stamp (built by hand). With `PGF_YADE_LIBDIR` set, an `--isolated --yade` build copies the libraries and the stamp into its prefix from there.
    As a last line, `porousGasificationMedia/DEM/foamYadeApiCheck.H` fails the compile by name when Foam-Yade's `FOAMYADE_COUPLING_API` differs from the one PGF needs; a Foam-Yade older than that macro is not caught there.
-3. **PGF** — `./build.sh build --yade`, or `./pgf build --yade` for a prefix build.
+3. **PGF** — `./pgf build --yade` (or `./build.sh build --yade` into the user dir).
+
+`pgf exec --yade` (and `run`, `shell`, `doctor`) checks the yade binary (`YADE_BIN`, or `yade` on `PATH`) against the pin. It reads the Foam-Yade commit from `yade -v` (`git-XXXXXXX`; cached per binary under `~/.cache/pgf`). The pinned commit is OK. Another commit whose coupling headers hash the same as `YADE_TRUNK`'s warns. Another coupling API fails (exit 2). A commit the trunk's git does not know, or no commit at all, warns. `PGF_YADE` stays the 0/1 switch for the DEM variant; the binary is `YADE_BIN`.
 
 ### `YADE_TRUNK`
 

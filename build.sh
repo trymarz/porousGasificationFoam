@@ -243,6 +243,14 @@ check_yade_environment() {
 
   local coupling="$YADE_TRUNK/pkg/openfoam/coupling/FoamYade"
   local missing=()
+  if coupling_in_prefix; then
+    [ -f "$coupling/FoamYade.H" ] || {
+      clog ERROR "No Foam-Yade coupling sources under YADE_TRUNK=$YADE_TRUNK (missing $coupling/FoamYade.H)."
+      clog ERROR "Run: git submodule update --init submodules/Foam-Yade, or set YADE_TRUNK."
+      return 1
+    }
+    return 0
+  fi
   [ -d "$coupling/lnInclude" ] || missing+=("$coupling/lnInclude")
   [ -d "$coupling/meshtree/lnInclude" ] || missing+=("$coupling/meshtree/lnInclude")
 
@@ -261,6 +269,7 @@ check_yade_environment() {
 # against (#257); a mismatch is refused before anything is built.
 check_coupling_stamp() {
   local libdir="${FOAM_USER_LIBBIN:-}" line rc=0
+  coupling_in_prefix && return 0
   [ "$PREFIX_MODE" = "none" ] || libdir="${PGF_YADE_LIBDIR:-$DEFAULT_USER_LIBBIN}"
   while IFS= read -r line; do
     case "$line" in
@@ -272,10 +281,39 @@ check_coupling_stamp() {
   return "$rc"
 }
 
+# A prefix compiles its own coupling libs into <prefix>/lib (#264), unless
+# PGF_YADE_LIBDIR names prebuilt ones to copy instead.
+coupling_in_prefix() {
+  [ "$PREFIX_MODE" != "none" ] && [ -z "${PGF_YADE_LIBDIR:-}" ]
+}
+
+# Compile the coupling from a copy of the trunk's sources in the prefix, so
+# the trunk stays untouched; later wmake calls take headers from that copy.
+build_coupling_in_prefix() {
+  local src="$YADE_TRUNK/pkg/openfoam/coupling/FoamYade"
+  local shadow="$PREFIX/foam-yade" dst="$PREFIX/foam-yade/pkg/openfoam/coupling/FoamYade" d
+  rm -rf "$shadow" && mkdir -p "$dst" || return 1
+  (cd "$src" && tar --exclude=lnInclude --exclude="Make/linux*" --exclude="Make/darwin*" -cf - .) |
+    (cd "$dst" && tar -xf -) || { clog ERROR "Cannot copy the coupling sources to $dst"; return 1; }
+  # libYadeFoam links libMeshTree, so meshtree goes first.
+  for d in meshtree commYade .; do
+    clog INFO "Building the Foam-Yade coupling: ${d/#./FoamYade}"
+    (cd "$dst/$d" && wmake libso) || { clog ERROR "Coupling build failed in $dst/$d"; return 1; }
+  done
+  pgf_coupling_write_stamp "$FOAM_USER_LIBBIN" "$YADE_TRUNK" || return 1
+  YADE_SOURCE_TRUNK="$YADE_TRUNK"
+  export YADE_TRUNK="$shadow"
+  clog INFO "Coupling libs built into $FOAM_USER_LIBBIN from $YADE_SOURCE_TRUNK"
+}
+
 # Link-time deps of the DEM library and the WITH_YADE solver; libYadeComm
-# is a runtime dep of libYadeFoam. A prefix starts empty, so it is seeded.
+# is a runtime dep of libYadeFoam. A prefix starts empty, so it is built or seeded.
 check_yade_libs() {
-  [ "$PREFIX_MODE" = "none" ] || seed_yade_libs || return 1
+  if coupling_in_prefix; then
+    build_coupling_in_prefix || return 1
+  elif [ "$PREFIX_MODE" != "none" ]; then
+    seed_yade_libs || return 1
+  fi
   local lib missing=()
   for lib in "${YADE_LIBS[@]}"; do
     [ -e "$FOAM_USER_LIBBIN/$lib.so" ] || missing+=("$lib.so")
@@ -292,12 +330,10 @@ check_yade_libs() {
 
 declare -a YADE_LIBS=(libMeshTree libYadeFoam libYadeComm)
 
-# The Foam-Yade coupling libs install into whichever $FOAM_USER_LIBBIN was
-# active when they were built, so they are copied from PGF_YADE_LIBDIR or the
-# default user lib dir. Copies, not links: a later rebuild there must not
-# change a prefix underneath its metadata.
+# With PGF_YADE_LIBDIR set, prebuilt coupling libs are copied from there.
+# Copies, not links: a later rebuild there must not change the prefix.
 seed_yade_libs() {
-  local src="${PGF_YADE_LIBDIR:-$DEFAULT_USER_LIBBIN}" lib
+  local src="$PGF_YADE_LIBDIR" lib
   for lib in "${YADE_LIBS[@]}"; do
     if [ ! -e "$src/$lib.so" ]; then
       clog ERROR "$lib.so not found in ${src:-<no default user lib dir>}."
@@ -430,7 +466,7 @@ write_build_metadata() {
   for t in "${ALL_TARGETS[@]}"; do
     [ "${BUILD_TARGETS[$t]:-0}" -eq 1 ] && targets+=("$t")
   done
-  local trunk="${YADE_TRUNK:-$PGF_ROOT/submodules/Foam-Yade}" dirty=""
+  local trunk="${YADE_SOURCE_TRUNK:-${YADE_TRUNK:-$PGF_ROOT/submodules/Foam-Yade}}" dirty=""
   if git -C "$PGF_ROOT" rev-parse --git-dir >/dev/null 2>&1; then
     dirty=0
     [ -z "$(git -C "$PGF_ROOT" status --porcelain --untracked-files=no 2>/dev/null)" ] || dirty=1

@@ -21,7 +21,7 @@ refused_keeps_marker() {
     isolated_build "$@" >"$log" 2>&1
     rc=$?
     check "$label: build is refused (rc=$rc)" [ "$rc" -ne 0 ]
-    check "$label: refused by the Foam-Yade header check" grep -q "coupling headers not found" "$log"
+    check "$label: refused by the Foam-Yade header check" grep -qE "coupling headers not found|No Foam-Yade coupling sources" "$log"
     check "$label: no wmake target runs" bash -c '! grep -q "Building " "$1"' _ "$log"
     check "$label: .pgf-build.json is unchanged" cmp -s "$TEST_TMP/$label.marker" "$prefix/.pgf-build.json"
 }

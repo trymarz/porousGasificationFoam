@@ -79,3 +79,57 @@ pgf_coupling_check() {
   fi
   return "$rc"
 }
+
+# pgf_coupling_api_hash_at REPO COMMIT — the API hash of the coupling headers
+#   at COMMIT in the Foam-Yade git repo REPO; fails if COMMIT is not there.
+pgf_coupling_api_hash_at() {
+  local repo="$1" commit="$2" h p="pkg/openfoam/coupling/FoamYade"
+  git -C "$repo" cat-file -e "$commit:$p/FoamYade.H" 2>/dev/null || return 1
+  for h in "${PGF_COUPLING_HEADERS[@]}"; do
+    printf '%s\n' "$h"
+    git -C "$repo" show "$commit:$p/$h" 2>/dev/null
+  done | sha1sum | cut -c1-40
+}
+
+# pgf_yade_commit BIN — the Foam-Yade commit yade reports (yade -v: git-XXXX),
+#   cached per binary path, size and mtime; empty when it reports none.
+pgf_yade_commit() {
+  local bin id cache out
+  bin="$(readlink -f "$1")" || return 1
+  id="$(stat -c '%s:%Y' "$bin" 2>/dev/null)" || return 1
+  cache="${XDG_CACHE_HOME:-${HOME:-/tmp}/.cache}/pgf/yade-commit/$(printf '%s:%s' "$bin" "$id" | sha1sum | cut -c1-16)"
+  if [ -f "$cache" ]; then cat "$cache"; return 0; fi
+  out="$(timeout 60 "$bin" -v 2>/dev/null)"
+  [[ "$out" =~ git-([0-9a-f]{7,40}) ]] && out="${BASH_REMATCH[1]}" || out=""
+  mkdir -p "${cache%/*}" 2>/dev/null && printf '%s\n' "$out" >"$cache" 2>/dev/null
+  printf '%s\n' "$out"
+}
+
+# pgf_yade_check BIN TRUNK — "LEVEL message" lines comparing the yade binary
+#   with the pin and with TRUNK's coupling API: other API FAIL, other commit WARN.
+pgf_yade_check() {
+  local bin="$1" trunk="$2" commit pin repo want have
+  commit="$(pgf_yade_commit "$bin")"
+  pin="$(pgf_coupling_pin)"
+  if [ -z "$commit" ]; then
+    echo "WARN yade $bin reports no git commit; cannot check it against the Foam-Yade pin"
+    return 0
+  fi
+  if [ -n "$pin" ] && [[ "$pin" == "$commit"* ]]; then
+    echo "OK   yade $bin was built from the pinned Foam-Yade ${pin:0:10}"
+    return 0
+  fi
+  want="$(pgf_coupling_api_hash "$trunk")"
+  for repo in "$trunk" "$PGF_ROOT/submodules/Foam-Yade"; do
+    have="$(pgf_coupling_api_hash_at "$repo" "$commit")" && break
+  done
+  if [ -z "$have" ]; then
+    echo "WARN yade $bin was built from Foam-Yade $commit, not found in $trunk; cannot compare its coupling API (pin ${pin:0:10})"
+  elif [ -n "$want" ] && [ "$have" != "$want" ]; then
+    echo "FAIL yade $bin was built from Foam-Yade $commit, whose coupling API differs from $trunk (pin ${pin:0:10}); rebuild yade at the pin or set YADE_BIN"
+    return 1
+  else
+    echo "WARN yade $bin was built from Foam-Yade $commit, not the pin ${pin:0:10}; same coupling API"
+  fi
+  return 0
+}
