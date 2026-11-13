@@ -187,6 +187,24 @@ The springs are not part of YADE or Foam-Yade. They are Python in the DEM fixtur
 - **Force.** Hooke, `F = k (L − L_target)` along the spring, equal and opposite on both ends. `k = c²/(4m)`, with `c = spring_damping = 1.0` and `m = 0.000268`, the relation for critical damping, used only to set `k`. There is no dashpot term; motion is damped by `NewtonIntegrator(damping=0.99)`.
 - **Engine order.** `ForceResetter` → collider → `InteractionLoop` → `FoamCoupling` (adds the drag, sets `λ̇` or applies `r`) → `apply_spring_forces()` (every step) → `spring_force_at_newton()` → `NewtonIntegrator` (moves bodies, `λ += λ̇·dt`) → output runners. The script's own reason: "addF is non-permanent, so a force added after Newton is reset unused (#231)". `springForceAtNewton` in `postProcessing/` records the spring force Newton integrates. The `lambdaDotChemistry`, `lambdaDotAltInterp` and `lambdaDotApparentVolume` fixtures assert it is > 0 (`system/regressionInvariants`).
 
+### Minimal coupler (`coupler pgf`, #271)
+
+`coupler` in `constant/yadeProperties` selects the OpenFOAM half: `foamYade` (default, everything above) or `pgf`, the PGF-owned `porousGasificationMedia/DEM/pgfYadeCoupler/`. Its YADE half is the `PgfCoupling` engine in the Foam-Yade fork (`pkg/openfoam/PgfCoupling.cpp`); the fixtures' `MPI_lambda.py` builds it when `yadeProperties` says `coupler pgf;`. `pgfYadeCoupler` includes no Foam-Yade header, so the wire format is written down in both files' banners and checked at startup:
+
+| Message | Direction | Per body | Content |
+|---|---|---|---|
+| HELLO 2701, BBOX 2702 | each OpenFOAM rank → every YADE rank, once | – | magic, protocol version (1), strides 8/2, `lambdaMode`, rank count; mesh bounding box |
+| ACK 2703 | YADE rank 0 → each OpenFOAM rank, once | – | magic, version, status, first worker rank, worker count |
+| COUNT 2711, DATA 2712 | each YADE worker → each OpenFOAM rank | 8 | body id, position, velocity, `λ` |
+| REPLY_COUNT 2713, REPLY 2714 | each OpenFOAM rank → each YADE worker | 2 | body id, `λ̇` or `r`, only for bodies whose centre that rank found |
+| FOAM_DT 2721 | OpenFOAM rank 0 → YADE rank 0 | – | `deltaT` |
+
+- **Stops by name** on a version, stride or `lambdaMode` mismatch, on OpenFOAM ranks disagreeing on `lambdaMode`, and on `PgfCoupling.expectLambdaMode` ≠ the case's mode. A legacy peer is caught too: YADE sees tag 1001 from `FoamYade`; OpenFOAM gets no ACK from `FoamCoupling` within `handshakeTimeout` (`yadeProperties`, default 60 s).
+- **No drag or torque.** Only the fields the solver uses cross: radius, angular velocity, `SHARED_ID` and `YADE_DT` are gone. Stokes drag moved the spheres, so `Us` differs from the `foamYade` path (an intended physics change).
+- **#229, #230 kept.** Only a rank that found a body replies for it, and YADE takes the first reply per body. The rate-mode `foamDt/yadeDt` integer check is the same as `FoamCoupling::setExchangeInterval`.
+- **Erased bodies.** YADE applies `λ̇` or `r` once per exchange, looking each body up by id with `BodyContainer::exists`. A body erased with `mp.bodyErase` is skipped, so a stale list cannot be dereferenced.
+- **Same mesh side.** Both paths feed `lambdaDotModel` the same per-rank particle list (`DEM/demParticle.H`), so `nParticles`, `UsDEM`, `lambdaDEM`, `Us` and `lambda` are built the same way.
+
 ### Limitations
 
 - **The YADE radius, mass and inertia do not follow λ** (#206). Nothing in YADE reads `lambda_` except the fixtures' springs. Slot 9 sends the unchanged radius, and the OpenFOAM side computes the Stokes drag from that diameter.

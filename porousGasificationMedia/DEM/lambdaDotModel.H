@@ -30,7 +30,7 @@ License
 #include "Map.H"
 #include "autoPtr.H"
 #include "fvMesh.H"
-#include "foamYadeApiCheck.H"
+#include "demParticle.H"
 
 namespace Foam
 {
@@ -51,7 +51,8 @@ private:
     scalar connectedBelowPorosity_; // from constant/pyrolysisProperties
     scalar lambdaDotNeutral_;     // what lambdaDot_ gates to: 0 rate, 1 factor
 
-    FoamYade& yade_;
+    // Particles located on this rank at the last exchange (either backend).
+    const demParticleList& particles_;
 
     // Us from UsDEM: raw per-cell average, smoothed over the solid region.
     Switch interpolateUs_;
@@ -79,7 +80,7 @@ public:
         volScalarField& lambdaDEM, // raw per-cell average of particle lambda
         volScalarField& lambda, // interpolated particle length scale
         volScalarField& porosityF, // from the main solver
-        FoamYade& yade
+        const demParticleList& particles
     );
 
     ~lambdaDotModel();
@@ -88,9 +89,8 @@ public:
     //  particles read it (volPyrolysis assembles the value itself).
     void updateLambdaDot();
 
-    //- Pull per-particle state from YADE onto the mesh (count, UsDEM_,
-    //  lambdaDEM_), smooth each into its continuous field (Us_, lambda_),
-    //  then push lambdaDot_ back out to the particles.
+    //- Average the located particles' state onto the mesh (count, UsDEM_,
+    //  lambdaDEM_), then smooth each into its continuous field (Us_, lambda_).
     void updateParticleFields();
 
     const DynamicList<label>& movedFromCells() const;

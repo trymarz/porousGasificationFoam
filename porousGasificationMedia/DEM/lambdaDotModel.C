@@ -41,7 +41,7 @@ lambdaDotModel::lambdaDotModel
     volScalarField& lambdaDEM,
     volScalarField& lambda,
     volScalarField& porosityF,
-    FoamYade& yade
+    const demParticleList& particles
 )
 :
     mesh_(mesh),
@@ -53,7 +53,7 @@ lambdaDotModel::lambdaDotModel
     lambda_(lambda),
     porosityF_(porosityF),
     lambdaDotNeutral_(0.0),
-    yade_(yade),
+    particles_(particles),
     interpolateUs_(true),
     solidPorosityCutoff_(1),
     interpolateLambda_(true),
@@ -173,41 +173,31 @@ void lambdaDotModel::updateParticleFields()
     movedFromCells_.clear();
     movedToCells_.clear();
 
-    for (const auto& procPtr : yade_.inCommProcs)
+    for (const demParticle& p : particles_)
     {
-        if (!procPtr) continue;
+        const label cellI = p.cell;
+        if (cellI < 0) continue;
 
-        for (const auto& partPtr : procPtr->foundParticles)
+        if (previousParticleCell_.found(p.id))
         {
-            if (!partPtr) continue;
+            const label oldCellI = previousParticleCell_[p.id];
 
-            label cellI = partPtr->inCell;
-            if (cellI < 0) continue;
-
-            const label particleI = partPtr->indx;
-
-            if (previousParticleCell_.found(particleI))
+            if (oldCellI >= 0 && oldCellI != cellI)
             {
-                const label oldCellI = previousParticleCell_[particleI];
-
-                if (oldCellI >= 0 && oldCellI != cellI)
-                {
-                    movedFromCells_.append(oldCellI);
-                    movedToCells_.append(cellI);
-                }
+                movedFromCells_.append(oldCellI);
+                movedToCells_.append(cellI);
             }
-
-            previousParticleCell_.set(particleI, cellI);
-
-            nParticles_[cellI] += 1.0;
-
-            // sum particle velocities into the cell
-            UsDEM_[cellI] += partPtr->linearVelocity;
-
-            // Length scale, owned by YADE (State::lambda_, advanced every
-            // DEM step from the lambdaDot PGF sends); PGF only reads it back.
-            lambdaDEM_[cellI] += partPtr->lambda;
         }
+
+        previousParticleCell_.set(p.id, cellI);
+
+        nParticles_[cellI] += 1.0;
+
+        // sum particle velocities into the cell
+        UsDEM_[cellI] += p.U;
+
+        // Length scale, owned by YADE (State::lambda_); PGF only reads it back.
+        lambdaDEM_[cellI] += p.lambda;
     }
 
     // Average over occupied cells; empty cells stay zero. Both are raw
@@ -269,23 +259,6 @@ void lambdaDotModel::updateParticleFields()
         }
 
         lambda_.correctBoundaryConditions();
-    }
-
-    // Push lambdaDot back to the particles in occupied cells.
-    for (const auto& procPtr : yade_.inCommProcs)
-    {
-        if (!procPtr) continue;
-
-        for (const auto& partPtr : procPtr->foundParticles)
-        {
-            if (!partPtr) continue;
-
-            label cellI = partPtr->inCell;
-            if (cellI < 0) continue;
-            if (nParticles_[cellI] < 0.5) continue;
-
-            partPtr->lambdaDot = lambdaDot_[cellI];
-        }
     }
 }
 
