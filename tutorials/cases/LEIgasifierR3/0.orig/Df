@@ -1,0 +1,49 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     |
+    \\  /    A nd           |
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       volTensorField;
+    location    "0";
+    object      Df;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// Darcy part of Ergun, 8 mm pellets (Table 1), porosity 0.4:
+// 150*(1 - 0.4)^2/(0.008^2*0.4^3) = 1.3e7 1/m2; used only where porosityF < 1.
+
+dimensions      [0 -2 0 0 0 0 0];
+
+internalField   uniform (1.3e+07 0 0 0 1.3e+07 0 0 0 1.3e+07);
+
+boundaryField
+{
+    primaryInlet
+    {
+        type            zeroGradient;
+    }
+    secondaryInlet
+    {
+        type            zeroGradient;
+    }
+    outlet
+    {
+        type            zeroGradient;
+    }
+    wall
+    {
+        type            zeroGradient;
+    }
+    frontAndBack
+    {
+        type            empty;
+    }
+}
+
+// ************************************************************************* //
