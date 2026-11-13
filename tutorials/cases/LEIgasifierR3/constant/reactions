@@ -1,0 +1,9 @@
+// R3 has no gas-phase reactions: pyrolysis gases are carried, not burnt.
+species
+(
+    N2 H2O CO CO2 H2 CH4 tar
+);
+
+reactions
+(
+);

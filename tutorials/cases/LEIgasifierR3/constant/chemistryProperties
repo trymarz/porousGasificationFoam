@@ -1,0 +1,75 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  v2406
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      chemistryProperties;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// R3: drying and pyrolysis only; the gas is oxygen-free and inert (README.md).
+chemistry           on;
+
+chemistryType
+{
+    solver            ode;
+}
+
+solidChemistryType
+{
+    solver              solidOde;
+    method              ODESolidHeterogeneousChemistryModel;
+    solidThermoType     const<constRad<constThermo<constRho>>>;
+}
+
+initialChemicalTimeStep 1e-7;
+
+turbulentReaction   off;
+
+// Reaction heats are the explicit hr below (J/kg reactant, > 0 endothermic).
+solidReactionEnergyFromEnthalpy false;
+stoichiometricReactions false;
+showRelativeReactionRates false;
+solidChemistryTimeStepControl false;
+diffusionLimitedReactions false;
+
+odeCoeffs
+{
+    solver      seulex;
+    absTol      1e-8;
+    relTol      1e-4;
+}
+
+solidOdeCoeffs
+{
+    solver      seulex;
+    absTol      1e-8;
+    relTol      1e-4;
+}
+
+#include "reactions"
+
+// Coefficients: (A [1/s]  Ta [K]  Tcrit [K]  hr [J/kg]  order). Mass-based.
+solidReactions
+(
+    // Drying: Chan et al. (1985) kinetics, latent heat at 100 C.
+    irreversibleSolidArrheniusHeterogeneousReaction
+    moisture = H2O
+    (5.13e10 10585 300 2.26e6 1)
+
+    // Pyrolysis: LEIgasifierDEM's kinetics and heat; yields assumed (README.md,
+    // "Pyrolysis yields"): 20 % char, element-consistent with C/H/O 50/6.2/43.8.
+    irreversibleSolidArrheniusHeterogeneousReaction
+    wood = 0.2 char + 0.105 CO + 0.2146 CO2 + 0.01 H2 + 0.25 H2O + 0.04 CH4 + 0.1804 tar
+    (1.38e10 1.9e4 300 3.85e5 1)
+);
+
+// ************************************************************************* //

@@ -29,6 +29,7 @@ tutorials/cases/**/*.local
 # Generated from the geometry table, which may read a .local file.
 tutorials/cases/LEIgasifierR1/system/blockMeshDict
 tutorials/cases/LEIgasifierR2/system/blockMeshDict
+tutorials/cases/LEIgasifierR3/system/blockMeshDict
 
 # --- pgf per-checkout settings (#257, #264) -------------------------------
 /.pgf-env.conf
