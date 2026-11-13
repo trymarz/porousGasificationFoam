@@ -230,9 +230,10 @@ for t, d in ts:
         fail("t = %s: T outside [%g, %g] K" % (d, lo, bed.T_hot + tolTgas))
     if max(T) > hi:
         c = max(range(n), key=lambda i: T[i])
-        print("[HOTBED]   T above T_hot: %d cells, max %.1f K at (%.3f, %.3f), "
-              "porosityF %.4f" % (sum(v > hi for v in T), T[c], C[c][0],
-                                  C[c][2], field(d, "porosityF")[c]))
+        print("[HOTBED]   T above T_hot: %d cells, max %.1f K %s the grate, "
+              "porosityF %.4f" % (sum(v > hi for v in T), T[c],
+              "below" if C[c][2] < lei.z_plate else "above",
+              field(d, "porosityF")[c]))
     if gmin < -tolY or gmax > 1 + tolY or gsum > tolY:
         fail("t = %s: gas mass fractions out of bounds" % d)
     if smin < -tolY or smax > 1 + tolY:
@@ -317,13 +318,13 @@ def fronts(d):
     return sum(zp) / len(zp), sum(zd) / len(zd)
 
 
-print("[HOTBED] fronts in the shaft (column mean of the 0.5 crossing):")
+print("[HOTBED] fronts above the ramp's foot (column mean of the 0.5 crossing):")
 hist = []
 for t, d in ts:
     zp, zd = fronts(d)
     hist.append((t, zp, zd))
-    print("[HOTBED]   t %-5s pyrolysis (X = 0.5) %.4f m   drying (M = 0.5) %.4f m"
-          % (d, zp, zd))
+    print("[HOTBED]   t %-5s pyrolysis (X = 0.5) %.1f mm   drying (M = 0.5) %.1f mm"
+          % (d, 1e3 * (zp - bed.z_hot), 1e3 * (zd - bed.z_hot)))
     if zd < zp:
         fail("t = %s: drying front below the pyrolysis front" % d)
     if not bed.z_hot <= zp <= bed.z_hot + bed.ramp:

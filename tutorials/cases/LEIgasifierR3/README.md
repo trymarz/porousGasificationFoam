@@ -31,7 +31,7 @@ Along the ramp, each height gets the moisture `M` and conversion `X` that a slow
 
     v_s dM/dz = k_dry(T) M,    v_s dX/dz = k_pyr(T) (1 − X)
 
-integrated down from the cold top with the kinetics in `constant/chemistryProperties`. That puts drying near 0.62 m and pyrolysis near 0.53 m, with fully converted char below.
+integrated down from the cold top with the kinetics in `constant/chemistryProperties`. That puts pyrolysis about 50 mm and drying about 140 mm above the ramp's foot, with fully converted char below.
 
 `relax.py` packs the bed in rows, each at the radius of its height (`λ = (V/V₀)^(1/3)`: 1 for wet wood, 0.82 for char). It gives each sphere the state of its height and settles the packing; `bedState.txt` keeps the per-sphere state. `hotBed.py` then averages the settled spheres onto the mesh for `Ywood`, `Ychar`, `Ymoisture`, `porosityF`, `Ts` and `T`, so the FVM fields and the DEM spheres start from the same bed. Cells above the settled bed keep R2's static fresh freeboard (cold); the ash pit below the grate is gas only, at 900 K.
 
@@ -69,7 +69,7 @@ The time step is fixed at 1e-3 s (R2: 4e-3). With pyrolysis gas flowing, R2's st
 
 - **Bounds**: Ts within [300, 900] K ± 1 K; gas T within [299, 909] K (see "Checks"); gas and solid mass fractions within [0, 1] ± 1e-6 and summing to 1; no `bounding` or `clamped` line in any log. Nothing in the case clips or floors a field.
 - **Element balance**: for C, H and O, inventory(t₀) − inventory(t) − outlet flow − inlet diffusion, over the window, within 1e-3 of what the solid released. Solid element masses come from the solid fields and the yields; gas from ρ, ε, Y and V; the outlet from a per-step `surfaceFieldValue` of φ·Y. Inlet diffusion: the inlets hold the products at Y = 0, so gas diffuses out through them (YEqn diffuses with μ, i.e. ρD = μ). It is μ(N2, 900 K)·Y_cell·|S_f|/(n·d) per face, integrated over the write times.
-- **Fronts**: the drying (M = 0.5) and pyrolysis (X = 0.5) heights in the shaft, the mean over columns of the highest crossing, interpolated between cells; that drying stays above pyrolysis and that the pyrolysis front stays inside the hot bed's ramp; and their speed.
+- **Fronts**: the drying (M = 0.5) and pyrolysis (X = 0.5) heights in the shaft, printed above the ramp's foot, the mean over columns of the highest crossing, interpolated between cells; that drying stays above pyrolysis and that the pyrolysis front stays inside the hot bed's ramp; and their speed.
 
 ## Checks
 
@@ -83,8 +83,8 @@ A 2.5 s run with `pgf exec --yade --mpi loopback` (Foam-Yade d5c33e0, 1 Yade wor
 | `bounding` / `clamped` in the logs | none |
 | Element residual / released, C H O | 1.5e-4, 6.0e-5, 5.3e-5 (limit 1e-3) |
 | Wood pyrolysed | 6.4 g per slab over 2.5 s |
-| Pyrolysis front (X = 0.5) | 0.537 → 0.530 m, −2.7 mm/s |
-| Drying front (M = 0.5) | 0.631 → 0.625 m, −2.6 mm/s, 94 mm above pyrolysis |
+| Pyrolysis front (X = 0.5) | moves down 7 mm over the window, −2.7 mm/s, inside the ramp |
+| Drying front (M = 0.5) | moves down 6 mm over the window, −2.6 mm/s, 94 mm above pyrolysis |
 | Feed / discharge / burnt | 249 / 249 / 0 (rate·t = 249), backlog 0 |
 | Solid mass `in − out − burnt − shrunk − Δinventory` | ≤ 2.0e-16 kg at all 250 rows; 1.35 g lost to shrinkage, smallest sphere 0.81 r₀ |
 | Bed level | 2.55 r range over the last half (limit 4 r) |
