@@ -432,4 +432,16 @@ fi
 
 # -- 8. run --------------------------------------------------------------------
 
+if [ "$sub" = run ]; then
+  # Wait instead of exec so the run record gets the exit status, even on Ctrl-C.
+  started="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  trap ':' INT TERM
+  "${cmd[@]}"
+  rc=$?
+  trap - INT TERM
+  python3 "$PGF_LIB/registry.py" record "$PWD" "$PGF_BUILD_ROOT" "$prefix" "$sel_src" \
+    "${yade_bin:-}" "$([ -n "${yade_bin:-}" ] && pgf_yade_commit "$yade_bin")" "$started" "$rc" "${cmd[@]}" ||
+    echo "pgf: warning: could not write the run record" >&2
+  exit "$rc"
+fi
 exec "${cmd[@]}"

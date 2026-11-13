@@ -112,6 +112,25 @@ check "run <case> Allclean from / exits 0 (rc=$rc)" [ "$rc" -eq 0 ]
 check "the script ran inside the case with its arguments" \
     bash -c 'grep -qx "$1" "$1/ran.txt" && grep -qx "args=a b" "$1/ran.txt"' _ "$case"
 check "a case without yadeProperties gets no yade" bash -c '! grep -q yade "$1/ran.txt"' _ "$case"
+python3 -c '
+import json, sys
+r = json.load(open(sys.argv[1] + "/.pgf-run.json"))
+assert r["exit_status"] == 0 and r["command"] == ["./Allclean", "a", "b"], r
+assert r["build"]["prefix"] == sys.argv[2] and r["build"]["source"] == "--prefix", r
+assert r["started_utc"] and r["finished_utc"] and r["yade"] is None, r
+' "$case" "$prefix" 2>"$TEST_TMP/rec.err"
+check "run writes <case>/.pgf-run.json (command, build, times, exit status)" [ $? -eq 0 ]
+printf '#!/bin/sh\nexit 3\n' >"$case/Allfail" && chmod +x "$case/Allfail"
+(cd / && penv run --prefix "$prefix" "$case" Allfail) >/dev/null 2>&1
+rc=$?
+check "run passes the script's exit status through (rc=$rc)" [ "$rc" -eq 3 ]
+check "and records it" grep -q '"exit_status": 3' "$case/.pgf-run.json"
+mkdir -p "$TEST_TMP/broot"
+(cd / && env -i PATH="$yadedir:/usr/bin:/bin" HOME="$home" TMPDIR="$TEST_TMP" PGF_BUILD_ROOT="$TEST_TMP/broot" \
+    "$tree/pgf" run --prefix "$prefix" "$case" Allclean) >/dev/null 2>&1
+check "runs.jsonl under the build root gets the run" \
+    grep -q "\"case\": \"$(realpath "$case")\"" "$TEST_TMP/broot/.pgf/runs.jsonl"
+rm -f "$case/Allfail" "$case/.pgf-run.json"
 rm -f "$case/ran.txt"
 (cd "$TEST_TMP/cases" && penv run --prefix "$prefix" plain) >/dev/null 2>&1
 check "a relative case dir resolves from the caller and Allrun is the default" [ -f "$case/ran.txt" ]
