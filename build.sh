@@ -429,6 +429,14 @@ write_build_metadata() {
   for t in "${ALL_TARGETS[@]}"; do
     [ "${BUILD_TARGETS[$t]:-0}" -eq 1 ] && targets+=("$t")
   done
+  local trunk="${YADE_TRUNK:-$PGF_ROOT/submodules/Foam-Yade}" dirty=""
+  if git -C "$PGF_ROOT" rev-parse --git-dir >/dev/null 2>&1; then
+    dirty=0
+    [ -z "$(git -C "$PGF_ROOT" status --porcelain --untracked-files=no 2>/dev/null)" ] || dirty=1
+  fi
+  PGF_M_BRANCH="$(git -C "$PGF_ROOT" symbolic-ref -q --short HEAD 2>/dev/null)" PGF_M_DIRTY="$dirty" \
+    PGF_M_PIN="$(pgf_coupling_pin)" PGF_M_API="$(pgf_coupling_api_hash "$trunk")" \
+    PGF_M_TRUNK="$trunk" PGF_M_TRUNK_HEAD="$(pgf_coupling_trunk_head "$trunk")" \
   python3 - "$PREFIX/.pgf-build.json" "$(source_fingerprint)" "$WITH_YADE" \
     "$WM_PROJECT_VERSION" "$WM_OPTIONS" "$(gcc -dumpversion)" \
     "$(git -C "$PGF_ROOT" rev-parse HEAD 2>/dev/null)" "$PGF_ROOT" \
@@ -436,19 +444,29 @@ write_build_metadata() {
 import datetime, json, os, sys
 path, fp, yade, foam, opts, cc, head, root, key, n = sys.argv[1:11]
 n = int(n)
+env = os.environ.get
 meta = {
+    "schema": 2,
     "key": key or None, "fingerprint": fp, "variant": "yade" + yade,
     "wm_project_version": foam, "wm_options": opts, "compiler": "gcc " + cc,
     "built_utc": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
     "targets": sys.argv[11:11 + n], "build_args": sys.argv[11 + n:],
     "git_head": head or None, "source_tree": root,
+    "checkout": {"path": root, "worktree": os.path.basename(root), "branch": env("PGF_M_BRANCH") or None,
+                 "dirty": env("PGF_M_DIRTY") == "1" if env("PGF_M_DIRTY") else None},
 }
+if yade == "1":
+    meta["foam_yade"] = {"pin": env("PGF_M_PIN") or None, "api_hash": env("PGF_M_API") or None,
+                         "trunk": env("PGF_M_TRUNK") or None, "trunk_head": env("PGF_M_TRUNK_HEAD") or None}
 with open(path + ".tmp", "w") as f:
     json.dump(meta, f, indent=2)
     f.write("\n")
 os.replace(path + ".tmp", path)
 PY
   clog INFO "Wrote $PREFIX/.pgf-build.json"
+  [ -z "${BUILD_KEY:-}" ] || python3 "$PGF_ROOT/utilities/pgf/registry.py" register "$PGF_BUILD_ROOT" \
+    "$PGF_ROOT" "yade$WITH_YADE" "$BUILD_KEY" "$(git -C "$PGF_ROOT" symbolic-ref -q --short HEAD 2>/dev/null)" ||
+    clog WARN "Could not register $PGF_ROOT in $PGF_BUILD_ROOT/.pgf/workspaces"
 }
 
 # The shared user dir is what automation must not overwrite by accident.

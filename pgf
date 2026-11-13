@@ -3,7 +3,8 @@
 # pgf: one entry point for porousGasificationFoam's environment, builds and
 # runs (#264; successor to pgf-env, #257). See doc/build.md.
 #
-#   pgf [status]                    settings and where each came from
+#   pgf [status] [PATH] [--json]    settings, where each came from, this checkout's builds
+#   pgf ls [--json]                 every build under the build root, and who uses it
 #   pgf doctor                      status plus checks, each with a fix
 #   pgf setup [--user | --checkout] [--yes] [--no-link] [--force]
 #   pgf config [get KEY | set KEY=VALUE | unset KEY] [--user | --checkout] [--json]
@@ -78,7 +79,7 @@ fi
 
 sub="status"
 case "${1:-}" in
-status | doctor | setup | config | build | exec | shell | run) sub="$1"; shift ;;
+status | doctor | setup | config | build | ls | exec | shell | run) sub="$1"; shift ;;
 help | -h | --help) usage; exit 0 ;;
 -*) die "give a subcommand first, e.g. pgf exec $* (see pgf --help)" ;;
 "") ;;
@@ -88,6 +89,16 @@ esac
 case "$sub" in
 config) pgf_config_cmd "$@"; exit $? ;;
 build) pgf_build_cmd "$@"; exit $? ;;
+ls) pgf_ls_cmd "$@"; exit $? ;;
+status)
+  # Another checkout answers for itself.
+  if [ -n "${1:-}" ] && [ "${1#-}" = "$1" ]; then
+    [ -x "$1/pgf" ] || die "$1 is not a porousGasificationFoam checkout (no $1/pgf)"
+    there="$1"
+    shift
+    exec "$there/pgf" status "$@"
+  fi
+  ;;
 esac
 
 setup_layer="user"
@@ -95,6 +106,7 @@ setup_yes=0
 setup_link=1
 shell_cmd=""
 force=0
+json=0
 
 mode="tree"
 prefix=""
@@ -132,6 +144,11 @@ while [ $# -gt 0 ]; do
   --no-link) setup_link=0; shift ;;
   --link-only) setup_link=2; shift ;;
   --force) force=1; shift ;;
+  --json)
+    [ "$sub" = "status" ] || die "--json is a 'pgf status' option"
+    json=1
+    shift
+    ;;
   -c)
     [ "$sub" = "shell" ] || die "-c is a 'pgf shell' option"
     shell_cmd="${2:-}"
@@ -160,7 +177,9 @@ yade="$PGF_YADE"
 mpi="$PGF_MPI"
 
 if [ "$sub" = "status" ]; then
+  [ "$json" -eq 1 ] && { pgf_status_json; exit $?; }
   pgf_conf_print
+  pgf_status_builds
   exit 0
 fi
 if [ "$sub" = "doctor" ]; then
