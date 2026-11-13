@@ -9,7 +9,7 @@
 ## Verification
 <!-- What did you actually run or check? Be specific.
      Examples:
-     - Built with `./Allwmake` (or affected sub-target).
+     - Built with `./Allwmake` / `pgf build` (or affected sub-target).
      - Tutorial(s) re-run: `tutorials/cases/<name>` — residuals look normal.
      - Regression suite: pass / N/A / baseline not yet captured.
      - Notes on numerical impact (if any).

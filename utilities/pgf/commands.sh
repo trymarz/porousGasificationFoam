@@ -138,7 +138,7 @@ pgf_doctor() {
       [ "$v" -eq 1 ] && [ "${PGF_YADE:-0}" != 1 ] && continue
       local flag=()
       [ "$v" -eq 1 ] && flag=(--yade)
-      p="$("$SELF" exec --bare --mpi default -- "$PGF_ROOT/build.sh" --print-prefix "${flag[@]}" 2>/dev/null | tail -1)"
+      p="$("$SELF" exec --bare --mpi default -- "$PGF_LIB/build.sh" --print-prefix "${flag[@]}" 2>/dev/null | tail -1)"
       if [ -n "$p" ] && [ -f "$p/.pgf-build.json" ]; then
         _r OK "yade$v build present: $p"
       else
@@ -253,12 +253,29 @@ pgf_build_cmd() {
     case "$1" in
     --yade) envopts+=(--yade); bopts+=(--yade) ;;
     --set | --foam-bashrc | --mpi) envopts+=("$1" "${2:-}"); shift ;;
-    -h | --help) echo "usage: pgf build [--yade] [--set K=V] [build.sh options; see build.sh --help]"; return 0 ;;
+    -h | --help) echo "usage: pgf build [--yade] [--set K=V] [build.sh options; see utilities/pgf/build.sh --help]"; return 0 ;;
     *) bopts+=("$1") ;;
     esac
     shift
   done
-  "$SELF" exec --bare "${envopts[@]}" -- "$PGF_ROOT/build.sh" --isolated "${bopts[@]}"
+  "$SELF" exec --bare "${envopts[@]}" -- "$PGF_LIB/build.sh" --isolated "${bopts[@]}"
+}
+
+# pgf_tools_cmd — the what / why / instead header of every tool at the root.
+pgf_tools_cmd() {
+  local f
+  local -A seen=()
+  [ $# -eq 0 ] || { echo "usage: pgf tools" >&2; return 2; }
+  echo "tools at $PGF_ROOT (pgf is the front door; the rest are conventions or shims):"
+  for f in pgf Allwmake Allwclean "$PGF_ROOT"/*; do
+    f="${f##*/}"
+    [ -z "${seen[$f]:-}" ] && [ -f "$PGF_ROOT/$f" ] && [ -x "$PGF_ROOT/$f" ] || continue
+    seen[$f]=1
+    awk -v t="$f" 'NR > 12 { exit }
+      /^# (what|why|instead): / { if (!n++) print "\n" t; sub(/^# /, "  "); print; more = 1; next }
+      more && /^#   +[^ ]/ { sub(/^# /, "  "); print; next }
+      { more = 0 }' "$PGF_ROOT/$f"
+  done
 }
 
 # pgf_build_info — set PGF_INFO_ROOT and PGF_INFO_KEY[yade0|yade1] for this
@@ -267,7 +284,7 @@ pgf_build_info() {
   local out
   declare -gA PGF_INFO_KEY=()
   out="$("$SELF" exec --bare --no-yade -- /bin/bash -c \
-    'printenv PGF_BUILD_ROOT; "$1" --print-key; "$1" --print-key --yade' _ "$PGF_ROOT/build.sh" 2>/dev/null)"
+    'printenv PGF_BUILD_ROOT; "$1" --print-key; "$1" --print-key --yade' _ "$PGF_LIB/build.sh" 2>/dev/null)"
   { read -r PGF_INFO_ROOT; read -r PGF_INFO_KEY[yade0]; read -r PGF_INFO_KEY[yade1]; } <<<"$out"
   [ -n "${PGF_INFO_ROOT:-}" ] || PGF_INFO_ROOT="${PGF_BUILD_ROOT:-}"
 }

@@ -1,7 +1,9 @@
 #!/bin/bash
 #
-# pgf: one entry point for porousGasificationFoam's environment, builds and
-# runs (#264; successor to pgf-env, #257). See doc/build.md.
+# pgf: the one entry point for porousGasificationFoam (#264, #274). See doc/build.md.
+# what:    settings, isolated builds, runs in a clean environment, test tiers
+# why:     one front door instead of hand-sourcing OpenFOAM and sharing $FOAM_USER_APPBIN
+# instead: ./Allwmake / ./Allwclean when the OpenFOAM-style entry point is all you need
 #
 #   pgf [status] [PATH] [--json]    settings, where each came from, this checkout's builds
 #   pgf ls [--json]                 registered workspaces, and every build under the build root
@@ -13,7 +15,9 @@
 #   pgf doctor                      status plus checks, each with a fix
 #   pgf setup [--user | --checkout] [--yes] [--no-link] [--force]
 #   pgf config [get KEY | set KEY=VALUE | unset KEY] [--user | --checkout] [--json]
-#   pgf build [--yade] [build.sh options]
+#   pgf build [--yade] [build.sh options]   (utilities/pgf/build.sh --help lists them)
+#   pgf test <tier|all> [--rebuild] [--if-stale AGE] | --status | --gc   (pgf test --help)
+#   pgf tools                       every tool at the checkout root: what, why, use instead
 #   pgf exec [options] -- <command ...>
 #   pgf shell [options] [-c COMMAND]
 #   pgf run [options] [--build] [--allow-stale] <caseDir> [Allrun | Allclean | script] [args ...]
@@ -22,8 +26,8 @@
 #   --use SEL     the build to use: a key or key prefix, a commit, a worktree, a
 #                 prefix path, or auto (the build of this checkout's sources). Later
 #                 wins: auto, PGF_BUILD in .pgf-env.conf, the terminal (pgf use), --use
-#   --prefix DIR  use this complete prefix as it is (also one from build.sh
-#                 --prefix outside the store); no staleness check
+#   --prefix DIR  use this complete prefix as it is (also one from
+#                 build.sh --prefix outside the store); no staleness check
 #   --for-tree    same as --use auto
 #   --bare        no prefix: OpenFOAM only, for running build.sh --isolated
 #   --yade        the WITH_YADE variant, plus yade, YADE_TRUNK and PYTHONPATH
@@ -57,6 +61,9 @@
 PGF_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 SELF="$PGF_ROOT/pgf"
 PGF_LIB="$PGF_ROOT/utilities/pgf"
+
+# pgf test keeps the caller's environment; it calls pgf exec itself.
+[ "${1:-}" = test ] && { shift; exec "$PGF_LIB/test.sh" "$@"; }
 
 die() {
   echo "pgf: $*" >&2
@@ -92,7 +99,7 @@ fi
 
 sub="status"
 case "${1:-}" in
-status | doctor | setup | config | build | ls | builds | use | gc | pack | exec | shell | run) sub="$1"; shift ;;
+status | doctor | setup | config | build | ls | builds | use | gc | pack | exec | shell | run | tools) sub="$1"; shift ;;
 help | -h | --help) usage; exit 0 ;;
 -*) die "give a subcommand first, e.g. pgf exec $* (see pgf --help)" ;;
 "") ;;
@@ -101,6 +108,7 @@ esac
 
 case "$sub" in
 config) pgf_config_cmd "$@"; exit $? ;;
+tools) pgf_tools_cmd "$@"; exit $? ;;
 build) pgf_build_cmd "$@"; exit $? ;;
 ls) pgf_ls_cmd "$@"; exit $? ;;
 builds) pgf_ls_cmd --builds-only "$@"; exit $? ;;
@@ -279,7 +287,7 @@ fi
 variant_flag=()
 [ "$yade" -eq 1 ] && variant_flag=(--yade)
 if [ "$mode" = tree ] && [ "$sel_src" != --prefix ]; then
-  auto="$("$PGF_ROOT/build.sh" --print-prefix "${variant_flag[@]}")" ||
+  auto="$("$PGF_LIB/build.sh" --print-prefix "${variant_flag[@]}")" ||
     die "cannot compute the build key for $PGF_ROOT"
   if [ "$sel" = auto ]; then
     prefix="$auto"
@@ -353,7 +361,7 @@ if [ "$yade" -eq 1 ] && { [ "$mode" != bare ] || [ -x "$yade_bin" ]; }; then
     grep '^WARN' <<<"$checks" | sed 's/^WARN /pgf: warning: /' >&2
   fi
   # Installs may only carry a suffixed binary; the tutorials call plain `yade`.
-  shim="$TMPDIR/pgf-env-bin"
+  shim="$TMPDIR/pgf-bin"
   mkdir -p "$shim" && ln -sfn "$yade_bin" "$shim/yade" || die "cannot create $shim/yade"
   PATH="$shim:$PATH"
   if [ -z "${YADE_PYTHONPATH:-}" ]; then

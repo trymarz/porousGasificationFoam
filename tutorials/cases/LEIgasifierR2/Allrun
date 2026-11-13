@@ -8,7 +8,7 @@
 # mass balance, the bed level and the gas flow. See README.md.
 #
 # PREREQUISITES
-#   - porousGasificationFoam built with --yade and on PATH (pgf-env --yade)
+#   - porousGasificationFoam built with pgf build --yade (pgf run . picks --yade)
 #   - Yade built with FoamCoupling support, `yade` on PATH
 #
 # CFD-only cold-flow check (README.md): set `active false` in

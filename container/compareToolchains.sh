@@ -8,8 +8,8 @@
 #
 # Each side gets its own git-archive copy of HEAD under DIR (default
 # ${PGF_RUN_ROOT:-${TMPDIR:-/tmp}/pgf-runs}/toolchains-<time>-<pid>), so their
-# in-tree objects never meet. Native: pgf-test with the caller's PGF_BUILD_ROOT
-# (a cache hit when HEAD is already built). Image: pgf-test inside the image with
+# in-tree objects never meet. Native: pgf test with the caller's PGF_BUILD_ROOT
+# (a cache hit when HEAD is already built). Image: pgf test inside the image with
 # its build and run roots under DIR. The report lists each case with both
 # outcomes and ends with how many cases fail in the image (#120, PR 4).
 #
@@ -71,7 +71,7 @@ export_tree() {
 run_native() {
   local tier="$1"
   export_tree "$WORK/native/src" || die "cannot export HEAD for the native side"
-  (cd "$WORK/native/src" && PGF_RUN_ROOT="$WORK/native/runs" ./pgf-test "$tier")
+  (cd "$WORK/native/src" && PGF_RUN_ROOT="$WORK/native/runs" ./pgf test "$tier")
 }
 
 run_image() {
@@ -79,7 +79,7 @@ run_image() {
   export_tree "$WORK/image/src" || die "cannot export HEAD for the image side"
   apptainer exec --cleanenv --bind "$WORK" --pwd "$WORK/image/src" \
     --env "PGF_BUILD_ROOT=$WORK/image/builds,PGF_RUN_ROOT=$WORK/image/runs" \
-    "$IMAGE" ./pgf-test "$tier"
+    "$IMAGE" ./pgf test "$tier"
 }
 
 for tier in $TIERS; do

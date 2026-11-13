@@ -1,11 +1,11 @@
 #!/bin/bash
-# pgf-test records last/<tier>.json, --if-stale skips a fresh PASS, and after a
+# pgf test records last/<tier>.json, --if-stale skips a fresh PASS, and after a
 # source change --status reports the tier stale. The tier is a one-case smoke
 # tier from a scratch tiers.conf; the change is an untracked probe .C file.
 
 . "$(dirname "${BASH_SOURCE[0]}")/toolingLib.sh"
 
-PGF_TEST="$PGF_ROOT/pgf-test"
+PGF_TEST="$PGF_LIB_TEST"
 export PGF_RUN_ROOT="$TEST_TMP/runs"
 export PGF_TIERS_CONF="$TEST_TMP/tiers.conf"
 echo 'pgf_tier smoke Allrun yade0 1 - - "--case tutorials/cases/canonical/darcy" "test"' >"$PGF_TIERS_CONF"
@@ -14,7 +14,7 @@ field() { python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))[sys.ar
 
 "$PGF_TEST" smoke >"$TEST_TMP/run.log" 2>&1
 rc=$?
-check "pgf-test smoke exits 0 (rc=$rc)" [ "$rc" -eq 0 ]
+check "pgf test smoke exits 0 (rc=$rc)" [ "$rc" -eq 0 ]
 check "it records last/smoke.json" [ -f "$record" ]
 key="$(tree_prefix)"
 key="${key##*/}"

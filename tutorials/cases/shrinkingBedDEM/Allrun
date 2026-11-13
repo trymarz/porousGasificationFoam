@@ -9,7 +9,7 @@
 # velocities come back to PGF as Us and move the FVM solid.
 #
 # PREREQUISITES
-#   - porousGasificationFoam built with ./build.sh build --yade
+#   - porousGasificationFoam built with pgf build --yade
 #   - Yade with FoamCoupling on PATH (source Foam-Yade-builds/bin/yade-env)
 #
 # STEPS (what this script runs)

@@ -18,8 +18,8 @@ set -u
 TOOLING_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PGF_ROOT="$(cd "$TOOLING_DIR/../../.." && pwd -P)"
 PGF="$PGF_ROOT/pgf"
-PGF_ENV="$PGF_ROOT/pgf-env"
-BUILD_SH="$PGF_ROOT/build.sh"
+BUILD_SH="$PGF_ROOT/utilities/pgf/build.sh"
+PGF_LIB_TEST="$PGF_ROOT/utilities/pgf/test.sh"  # what pgf test runs
 
 export PGF_BUILD_ROOT="${PGF_BUILD_ROOT:-${TMPDIR:-/tmp}/pgf-tooling-builds}"
 if [ -z "${PGF_FOAM_BASHRC:-}" ] && [ -n "${WM_PROJECT_DIR:-}" ]; then

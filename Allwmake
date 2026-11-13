@@ -1,6 +1,8 @@
 #!/bin/sh
-# Native build entry point: wmake every non-DEM target in this checkout.
-# DEM/Yade coupling is opt-in — pass --yade (see doc/build.md).
+# Allwmake: build this checkout (OpenFOAM convention).
+# what:    pgf build --all --no-DEM [args]: libraries, solver, utilities into this tree's isolated build
+# why:     ./Allwmake is where OpenFOAM users look first
+# instead: pgf build [--yade] for options; utilities/pgf/build.sh for an in-place wmake build
 cd "${0%/*}" || exit 1
 
-exec ./build.sh build --all --no-DEM "$@"
+exec ./pgf build --all --no-DEM "$@"

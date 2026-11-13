@@ -47,7 +47,7 @@ There are six `MicroTGA-DEM_lambdaDot*` fixtures. They differ only in
 
 ## Running it
 
-You need a solver built with `./build.sh --yade` against a matching
+You need a solver built with `pgf build --yade` against a matching
 Foam-Yade build. The particle buffer layout is a compile-time constant, so
 rebuild both together. `Allrun` launches `mpirun -n 2 yade MPI_lambda.py`.
 Yade then spawns the OpenFOAM ranks itself, so the run uses **4 MPI
