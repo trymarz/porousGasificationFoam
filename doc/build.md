@@ -193,6 +193,31 @@ export YADE_TRUNK=$PWD/submodules/Foam-Yade
 
 Use `--purge` here: it also removes the installed solver, so a rebuild that fails partway cannot leave the other variant's binary on your `PATH`. Only one variant can exist in `$FOAM_USER_APPBIN` at a time.
 
+## Apptainer images: `pgf pack`
+
+```bash
+./pgf pack                    # image of this checkout's HEAD, DEM variant
+./pgf pack <build> --no-yade  # image of a build's commit, without yade
+./pgf pack --dry-run          # write the build context and print the definition only
+```
+
+`pgf pack` writes `pgf-<commit12>-yade<0|1>.sif`, a self-contained image. It starts from the base image of `container/pgf-toolchain.def` (OpenFOAM v2406, gcc 13). Inside the image it compiles:
+- the Foam-Yade commit that this PGF commit pins as `submodules/Foam-Yade`, headless and with the pin in its version;
+- PGF itself, with `pgf build`.
+
+Nothing from the host build is copied. The tree must be committed and clean, because the image is built from the commit, not the working tree. The pin is taken from `YADE_TRUNK` or the submodule, whichever has it. `/opt/pgf/manifest.json` records the PGF commit, build key, Foam-Yade pin and coupling API hash, the base image, gcc and the OS.
+
+The image is named by commit, not by build key: the key depends on the compiler, and the image's gcc differs from the host's. The image's own key is in the manifest.
+
+On a server:
+
+```bash
+apptainer run pgf-<commit12>-yade1.sif ./Allrun     # run the case in the current directory
+apptainer run pgf-<commit12>-yade1.sif status       # pgf status inside the image
+```
+
+Inside the image `pgf` reads the Foam-Yade pin from the manifest, so the yade check from [Checking that the coupling is in](#checking-that-the-coupling-is-in) works there as well. Building an image needs `apptainer build --fakeroot` (unprivileged user namespaces) and, for the DEM variant, a long yade compile.
+
 ## Cleaning
 
 `./Allwclean` (or `./build.sh clean …`) removes `lnInclude/` and `Make/<WM_OPTIONS>/` through `wclean`. Like `wclean`, it leaves installed libraries and executables alone: `$FOAM_USER_LIBBIN` and `$FOAM_USER_APPBIN` are shared by every project built into this `$WM_PROJECT_USER_DIR`.

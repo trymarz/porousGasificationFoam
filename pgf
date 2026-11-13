@@ -9,6 +9,7 @@
 #   pgf use <key|commit|worktree|prefix|auto> [--yade]   this terminal's build:
 #                                   eval "$(pgf use SEL)" (pgf shell does the eval)
 #   pgf gc [--keep N] [--yes] [--dry-run] [--json]   remove old unused builds
+#   pgf pack [BUILD] [--no-yade] [--output FILE] [--dry-run]   Apptainer image of a commit
 #   pgf doctor                      status plus checks, each with a fix
 #   pgf setup [--user | --checkout] [--yes] [--no-link] [--force]
 #   pgf config [get KEY | set KEY=VALUE | unset KEY] [--user | --checkout] [--json]
@@ -87,10 +88,11 @@ fi
 . "$PGF_LIB/commands.sh"
 . "$PGF_LIB/coupling.sh"
 . "$PGF_LIB/mpi.sh"
+. "$PGF_LIB/pack.sh"
 
 sub="status"
 case "${1:-}" in
-status | doctor | setup | config | build | ls | builds | use | gc | exec | shell | run) sub="$1"; shift ;;
+status | doctor | setup | config | build | ls | builds | use | gc | pack | exec | shell | run) sub="$1"; shift ;;
 help | -h | --help) usage; exit 0 ;;
 -*) die "give a subcommand first, e.g. pgf exec $* (see pgf --help)" ;;
 "") ;;
@@ -104,6 +106,7 @@ ls) pgf_ls_cmd "$@"; exit $? ;;
 builds) pgf_ls_cmd --builds-only "$@"; exit $? ;;
 use) pgf_use_cmd "$@"; exit $? ;;
 gc) pgf_gc_cmd "$@"; exit $? ;;
+pack) pgf_pack_cmd "$@"; exit $? ;;
 status)
   # Another checkout answers for itself.
   if [ -n "${1:-}" ] && [ "${1#-}" = "$1" ]; then
