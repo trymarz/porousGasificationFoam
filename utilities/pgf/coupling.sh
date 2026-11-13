@@ -21,8 +21,13 @@ pgf_coupling_api_hash() {
 }
 
 # pgf_coupling_pin — the Foam-Yade commit this tree's index pins.
+# Inside a pgf pack image there is no git index; the manifest has the pin.
 pgf_coupling_pin() {
-  git -C "$PGF_ROOT" ls-files -s -- submodules/Foam-Yade 2>/dev/null | awk '$1 == "160000" {print $2}'
+  local pin
+  pin="$(git -C "$PGF_ROOT" ls-files -s -- submodules/Foam-Yade 2>/dev/null | awk '$1 == "160000" {print $2}')"
+  [ -z "$pin" ] && [ -r "${PGF_IMAGE_MANIFEST:-}" ] &&
+    pin="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("foam_yade_pin") or "")' "$PGF_IMAGE_MANIFEST")"
+  printf '%s\n' "$pin"
 }
 
 pgf_coupling_trunk_head() {
