@@ -28,6 +28,7 @@ run.log
 tutorials/cases/**/*.local
 # Generated from the geometry table, which may read a .local file.
 tutorials/cases/LEIgasifierR1/system/blockMeshDict
+tutorials/cases/LEIgasifierR2/system/blockMeshDict
 
 # --- pgf-env per-checkout settings (#257) ---------------------------------
 /.pgf-env.conf
