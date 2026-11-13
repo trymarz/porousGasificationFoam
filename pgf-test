@@ -7,7 +7,7 @@
 #   pgf-test --gc [--keep-runs N] [--keep-prefixes M] [--dry-run]
 #
 # A run builds (or reuses) the tier's prefix with build.sh --isolated, runs the
-# tier's driver under pgf-env with --state-dir below the run dir, and writes
+# tier's driver under pgf exec with --state-dir below the run dir, and writes
 # $PGF_RUN_ROOT/last/<tier>.json: key, fingerprint, git HEAD, start/end, counts,
 # outcome and where the state is. Tiers come from applications/test/tiers.conf
 # (PGF_TIERS_CONF overrides it).
@@ -23,14 +23,14 @@
 #                    record points at) and prefixes (keep M, default 5); never the
 #                    prefixes of this tree, nor one whose lock is held
 #
-# PGF_RUN_ROOT defaults to ${TMPDIR:-/tmp}/pgf-runs. pgf-env needs PGF_FOAM_BASHRC
+# PGF_RUN_ROOT defaults to ${TMPDIR:-/tmp}/pgf-runs. pgf needs PGF_FOAM_BASHRC
 # or WM_PROJECT_DIR. Exit codes: the driver's (0 PASS, 1 FAIL, 2 ERROR,
 # 124 TIMEOUT, 128+N CRASH); for 'all', the first non-zero one.
 
 set -u
 
 PGF_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
-PGF_ENV="$PGF_ROOT/pgf-env"
+PGF="$PGF_ROOT/pgf"
 BUILD_SH="$PGF_ROOT/build.sh"
 REG_DIR="$PGF_ROOT/applications/test/regression"
 TIERS_CONF="${PGF_TIERS_CONF:-$PGF_ROOT/applications/test/tiers.conf}"
@@ -70,7 +70,7 @@ variant_flag() {
 # current_key <tier> — this tree's build key for the tier's variant.
 current_key() {
   # shellcheck disable=SC2046
-  "$PGF_ENV" --bare -- "$BUILD_SH" --print-key $(variant_flag "$1") 2>/dev/null
+  "$PGF" exec --bare -- "$BUILD_SH" --print-key $(variant_flag "$1") 2>/dev/null
 }
 
 # -- ages and records ------------------------------------------------------------
@@ -161,7 +161,7 @@ run_tier() {
 
   if [ "$REBUILD" = true ]; then
     # shellcheck disable=SC2046
-    prefix="$("$PGF_ENV" --bare -- "$BUILD_SH" --print-prefix $(variant_flag "$tier") 2>/dev/null)"
+    prefix="$("$PGF" exec --bare -- "$BUILD_SH" --print-prefix $(variant_flag "$tier") 2>/dev/null)"
     case "${prefix##*/}" in
     "$key") [ -d "$prefix" ] && rm -rf "$prefix" && echo "pgf-test: removed $prefix" ;;
     *) die "refusing to remove unexpected prefix '$prefix'" ;;
@@ -172,7 +172,7 @@ run_tier() {
   echo "pgf-test: tier $tier, key $key, run dir $run"
   start="$(date +%s)"
   # shellcheck disable=SC2046
-  if ! "$PGF_ENV" --bare -- "$BUILD_SH" --isolated $(variant_flag "$tier") >"$run/build.log" 2>&1; then
+  if ! "$PGF" exec --bare -- "$BUILD_SH" --isolated $(variant_flag "$tier") >"$run/build.log" 2>&1; then
     tail -20 "$run/build.log" >&2
     echo "pgf-test: build failed; log $run/build.log" >&2
     write_record "$tier" "$key" 2 "$start" "$(date +%s)" "$run"
@@ -185,7 +185,7 @@ run_tier() {
   [ "${T_RUNNER[$tier]}" = "Allrun" ] && args+=(--run-root "$run/cases")
   [ -n "${T_TIMEOUT[$tier]}" ] && export YADE_TIMEOUT="${T_TIMEOUT[$tier]}"
 
-  "$PGF_ENV" "${envflags[@]}" -- "$REG_DIR/${T_RUNNER[$tier]}" "${args[@]}" 2>&1 | tee "$run/driver.log"
+  "$PGF" exec "${envflags[@]}" -- "$REG_DIR/${T_RUNNER[$tier]}" "${args[@]}" 2>&1 | tee "$run/driver.log"
   rc=${PIPESTATUS[0]}
   end="$(date +%s)"
   write_record "$tier" "$key" "$rc" "$start" "$end" "$run" || echo "pgf-test: could not write $LAST_DIR/$tier.json" >&2
@@ -250,13 +250,13 @@ gc() {
     [ "$n" -le "$keep_runs" ] || act "$d"
   done < <(newest_first "${runs[@]}")
 
-  build_root="$("$PGF_ENV" --bare -- printenv PGF_BUILD_ROOT 2>/dev/null)" ||
+  build_root="$("$PGF" exec --bare -- printenv PGF_BUILD_ROOT 2>/dev/null)" ||
     die "cannot resolve PGF_BUILD_ROOT"
   for tier in "${TIERS[@]}"; do
     protect_keys["$(current_key "$tier")"]=1
   done
-  protect_keys["$("$PGF_ENV" --bare -- "$BUILD_SH" --print-key 2>/dev/null)"]=1
-  protect_keys["$("$PGF_ENV" --bare -- "$BUILD_SH" --print-key --yade 2>/dev/null)"]=1
+  protect_keys["$("$PGF" exec --bare -- "$BUILD_SH" --print-key 2>/dev/null)"]=1
+  protect_keys["$("$PGF" exec --bare -- "$BUILD_SH" --print-key --yade 2>/dev/null)"]=1
   for d in "$build_root"/*-yade[01]-*; do
     [ -d "$d" ] && prefixes+=("$d")
   done

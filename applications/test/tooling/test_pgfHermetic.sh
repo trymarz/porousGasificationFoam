@@ -1,5 +1,5 @@
 #!/bin/bash
-# pgf-env from a polluted caller (set -u, WM_PROJECT_USER_DIR elsewhere, a stale
+# pgf exec from a polluted caller (set -u, WM_PROJECT_USER_DIR elsewhere, a stale
 # user dir with its own porousGasificationFoam on PATH) still prints its banner
 # and resolves the solver inside this tree's prefix.
 
@@ -19,12 +19,12 @@ bash -c '
     export WM_PROJECT_USER_DIR="$1/elsewhere" FOAM_USER_APPBIN="$1/bin" FOAM_USER_LIBBIN="$1/lib"
     export PATH="$1/bin:$PATH" LD_LIBRARY_PATH="$1/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
     command -v porousGasificationFoam | grep -q "^$1/bin/" || { echo "stale solver not first on PATH"; exit 3; }
-    "$2" -- bash -c "$3"
-' _ "$stale" "$PGF_ENV" "$probe" >"$TEST_TMP/out" 2>"$TEST_TMP/err"
+    "$2" exec -- bash -c "$3"
+' _ "$stale" "$PGF" "$probe" >"$TEST_TMP/out" 2>"$TEST_TMP/err"
 rc=$?
 
-check "pgf-env exits 0 from a polluted set -u caller (rc=$rc)" [ "$rc" -eq 0 ]
-check "banner names the prefix" grep -q "^pgf-env: prefix $prefix " "$TEST_TMP/err"
+check "pgf exec exits 0 from a polluted set -u caller (rc=$rc)" [ "$rc" -eq 0 ]
+check "banner names the prefix" grep -q "^pgf: prefix $prefix " "$TEST_TMP/err"
 check "solver resolves inside $prefix/bin" grep -qx "$prefix/bin/porousGasificationFoam" "$TEST_TMP/out"
 check "stale user dir dropped from PATH and LD_LIBRARY_PATH" bash -c '! grep -q "$1" "$2"' _ "$stale" "$TEST_TMP/out"
 check "WM_PROJECT_USER_DIR is the prefix" grep -qx "USERDIR=$prefix" "$TEST_TMP/out"

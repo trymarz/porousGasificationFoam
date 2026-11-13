@@ -7,16 +7,17 @@ Source OpenFOAM-v2406 (`etc/bashrc`) first. `wmake` runs in place in your checko
 In a new terminal, with nothing sourced or exported:
 
 ```bash
-./pgf-env init --yes             # finds OpenFOAM's etc/bashrc and yade; writes ~/.config/pgf/env.conf
-./pgf-env install-link           # optional: pgf-env on PATH via ~/.local/bin
-pgf-env status                   # what was recorded, and from which file
-pgf-env doctor                   # checks, each with a fix
-pgf-env --bare -- ./build.sh --isolated            # build this tree into its own prefix
-pgf-env run tutorials/cases/canonical/pyrolysis    # run a case from anywhere
-pgf-env shell                    # or work interactively in the same environment
+./pgf setup --yes                # finds OpenFOAM's etc/bashrc and yade; writes ~/.config/pgf/env.conf; links ~/.local/bin/pgf
+pgf status                       # what was recorded, and from which file
+pgf doctor                       # checks, each with a fix
+pgf build                        # build this tree into its own prefix
+pgf run tutorials/cases/canonical/pyrolysis    # run a case from anywhere
+pgf shell                        # or work interactively in the same environment
 ```
 
-For the DEM variant add `--yade` to the build (`pgf-env --bare --yade -- ./build.sh --isolated --yade`) after the [coupling libraries](#building-yade-and-the-coupling-libraries); `pgf-env run` picks `--yade` for a case with an active `constant/yadeProperties`. Settings that differ per worktree go in `./pgf-env init --checkout`. See [Remembered settings](#remembered-settings).
+For the DEM variant use `pgf build --yade` after the [coupling libraries](#building-yade-and-the-coupling-libraries); `pgf run` picks `--yade` for a case with an active `constant/yadeProperties`. Settings that differ per worktree go in `pgf config set KEY=VALUE --checkout`. See [Remembered settings](#remembered-settings).
+
+`pgf` replaced `pgf-env` (#264). `pgf-env` still works as a deprecated alias: `pgf-env [options] -- CMD` is `pgf exec [options] -- CMD`, `pgf-env init` is `pgf setup --no-link`, `pgf-env install-link` is `pgf setup --link-only`, and `status`, `doctor`, `shell` and `run` keep their names. It prints a deprecation note on stderr unless `PGF_ENV_QUIET=1`.
 
 The rest of this page covers the plain `wmake` route as well, where you source `etc/bashrc` yourself.
 
@@ -44,14 +45,14 @@ The rest of this page covers the plain `wmake` route as well, where you source `
 
 Nothing is copied into `$WM_PROJECT_USER_DIR`. `$FOAM_USER_LIBBIN` is already on the runtime library path after sourcing `etc/bashrc`, so no extra environment file is needed to build or run.
 
-## Isolated builds and `pgf-env`
+## Isolated builds and `pgf`
 
 `$FOAM_USER_APPBIN` and `$FOAM_USER_LIBBIN` are shared by every worktree and project in one `$WM_PROJECT_USER_DIR`, so a plain build replaces whatever solver is there. To keep builds apart, install into a prefix:
 
 ```bash
-./pgf-env --bare -- ./build.sh --isolated          # $PGF_BUILD_ROOT/<build key>/{bin,lib}
-./pgf-env --bare -- ./build.sh --prefix DIR        # DIR/{bin,lib}
-./pgf-env -- applications/test/regression/Allrun   # run with this tree's prefix
+./pgf build                                          # $PGF_BUILD_ROOT/<build key>/{bin,lib}
+./pgf exec --bare -- ./build.sh --prefix DIR         # DIR/{bin,lib}
+./pgf exec -- applications/test/regression/Allrun    # run with this tree's prefix
 ```
 
 - **Build key**: `<fingerprint12>-<yade0|yade1>-<OpenFOAM version>-gcc<version>`. The fingerprint (`./build.sh --fingerprint`) hashes the sources under the build targets with repo-relative paths, so two checkouts of the same sources share a key. `./build.sh --print-key` and `--print-prefix` print the key and the prefix for this tree (add `--yade` for the DEM variant).
@@ -61,16 +62,18 @@ Nothing is copied into `$WM_PROJECT_USER_DIR`. `$FOAM_USER_LIBBIN` is already on
 - **DEM variant**: `--isolated --yade` copies `libMeshTree.so`, `libYadeFoam.so` and `libYadeComm.so` into the prefix from `PGF_YADE_LIBDIR` (default: the user lib dir OpenFOAM's `bashrc` sets), and fails if any is missing.
 - Every build prints where it installs. OpenFOAM v2406 embeds no RPATH, so a prefix works anywhere as long as its `lib/` is on `LD_LIBRARY_PATH`.
 
-`pgf-env [--prefix DIR | --for-tree | --bare] [--yade] [--mpi loopback] -- <command>` runs a command in a clean environment. It drops the caller's environment except `HOME USER LANG TERM TMPDIR WM_PROJECT_DIR XDG_CONFIG_HOME PGF_* YADE_*` and sources `$PGF_FOAM_BASHRC` (default `$WM_PROJECT_DIR/etc/bashrc`) with `set +eu`. Then it points `WM_PROJECT_USER_DIR`, `FOAM_USER_APPBIN` and `FOAM_USER_LIBBIN` at the prefix and removes every `PATH` / `LD_LIBRARY_PATH` entry under the user dir `bashrc` chose. It also sets `UCX_VFS_ENABLE=n UCX_LOG_LEVEL=fatal`, `PGF_ISOLATED_ONLY=1` (`build.sh` then refuses to build without `--prefix` / `--isolated`) and `TMPDIR=$PGF_RUN_ROOT/tmp`. It checks that `porousGasificationFoam` resolves into the prefix and prints a one-line banner on stderr.
+`pgf build [--yade] [build.sh options]` is `pgf exec --bare [--yade] -- ./build.sh --isolated [--yade] [options]`.
+
+`pgf exec [--prefix DIR | --for-tree | --bare] [--yade] [--mpi loopback] -- <command>` runs a command in a clean environment. It drops the caller's environment except `HOME USER LANG TERM TMPDIR WM_PROJECT_DIR XDG_CONFIG_HOME PGF_* YADE_*` and sources `$PGF_FOAM_BASHRC` (default `$WM_PROJECT_DIR/etc/bashrc`) with `set +eu`. Then it points `WM_PROJECT_USER_DIR`, `FOAM_USER_APPBIN` and `FOAM_USER_LIBBIN` at the prefix and removes every `PATH` / `LD_LIBRARY_PATH` entry under the user dir `bashrc` chose. It also sets `UCX_VFS_ENABLE=n UCX_LOG_LEVEL=fatal`, `PGF_ISOLATED_ONLY=1` (`build.sh` then refuses to build without `--prefix` / `--isolated`) and `TMPDIR=$PGF_RUN_ROOT/tmp`. It checks that `porousGasificationFoam` resolves into the prefix and prints a one-line banner on stderr.
 
 - `--for-tree` (default) uses this checkout's `--isolated` prefix and exits 2 if it is not built. `--bare` uses no prefix; use it to run `build.sh`.
 - `--yade` adds `YADE_TRUNK` (default `submodules/Foam-Yade`), a `yade` on `PATH` (from `YADE_BIN` or the caller's `PATH`) and `PYTHONPATH` (`YADE_PYTHONPATH`, or derived from the install). If `/tmp` is read-only, it also preloads a small shim that moves Yade's `/tmp/yade-XXXXXX` into `$TMPDIR`.
 - `--mpi loopback` restricts Open MPI to `self,vader,tcp` on `lo`. The DEM coupling connects Yade's MPI job to the solver it spawns over TCP, and Open MPI leaves `lo` out by default, so on a host or sandbox whose only interface is `lo` the run hangs with `help-mca-bml-r2.txt / unreachable proc`; on a host with docker/libvirt bridges it can hang probing them. The default, `PGF_MPI=auto`, applies loopback when a `docker*`, `virbr*`, `br-*` or `veth*` interface is up or when not exactly one other interface is up, and says so in the banner (`MPI loopback (auto: …)`). `--mpi default` (or `PGF_MPI=default`) leaves Open MPI alone. Runs are single-host; `auto` does not handle multi-host jobs.
-- `pgf-env doctor` prints the settings and read-only checks, each `OK`, `WARN` or `FAIL` with a fix: the bashrc and OpenFOAM version, this tree's prefix, yade (binary, version against the pin, `MPI` in its features), the coupling stamp, the MPI decision and the interfaces it saw, and whether `pgf-env` is on `PATH`. It exits 1 on any `FAIL`.
+- `pgf doctor` prints the settings and read-only checks, each `OK`, `WARN` or `FAIL` with a fix: the bashrc and OpenFOAM version, this tree's prefix, yade (binary, version against the pin, `MPI` in its features), the coupling stamp, the MPI decision and the interfaces it saw, and whether `pgf` is on `PATH`. It exits 1 on any `FAIL`.
 
 ### Remembered settings
 
-`pgf-env` reads its settings (`PGF_FOAM_BASHRC`, `YADE_TRUNK`, `YADE_BIN`, `YADE_PYTHONPATH`, `PGF_YADE_LIBDIR`, `PGF_BUILD_ROOT`, `PGF_RUN_ROOT`, `PGF_YADE=0|1`, `PGF_MPI=default|loopback|auto`) from layers; a later layer wins:
+`pgf` reads its settings (`PGF_FOAM_BASHRC`, `YADE_TRUNK`, `YADE_BIN`, `YADE_PYTHONPATH`, `PGF_YADE_LIBDIR`, `PGF_BUILD_ROOT`, `PGF_RUN_ROOT`, `PGF_YADE=0|1`, `PGF_MPI=default|loopback|auto`) from layers; a later layer wins:
 
 1. built-in default;
 2. user file `${XDG_CONFIG_HOME:-~/.config}/pgf/env.conf`;
@@ -78,28 +81,31 @@ Nothing is copied into `$WM_PROJECT_USER_DIR`. `$FOAM_USER_LIBBIN` is already on
 4. the caller's environment;
 5. `--set KEY=VALUE` (or `--foam-bashrc FILE`, `--yade` / `--no-yade`, `--mpi …`).
 
-The files hold `KEY=value` lines and `#` comments. They are parsed, not sourced: an unknown key or a malformed line exits 2 naming `file:line`, and only the keys above are accepted, so a file cannot set `PATH` or run code. `PGF_YADE=1` makes `--yade` the default; `PGF_MPI=loopback` does what `--mpi loopback` does. `pgf-env status` prints every effective value and the layer (and `file:line`) it came from:
+The files hold `KEY=value` lines and `#` comments. They are parsed, not sourced: an unknown key or a malformed line exits 2 naming `file:line`, and only the keys above are accepted, so a file cannot set `PATH` or run code. `PGF_YADE=1` makes `--yade` the default; `PGF_MPI=loopback` does what `--mpi loopback` does. `pgf status` and `pgf config` print every effective value and the layer (and `file:line`) it came from; `pgf config --json` gives the same as JSON:
 
 ```bash
 printf 'PGF_FOAM_BASHRC=%s\n' ~/OpenFOAM/OpenFOAM-v2406/etc/bashrc >> ~/.config/pgf/env.conf
-./pgf-env status
+./pgf status
 ```
 
-### `init`, `shell`, `run`, `install-link`
+### `setup`, `config`, `shell`, `run`
 
 ```bash
-./pgf-env init --yes                       # detect OpenFOAM and yade, write ~/.config/pgf/env.conf
-./pgf-env init --checkout --yes --foam-bashrc FILE   # or this worktree's .pgf-env.conf
-./pgf-env install-link                     # ~/.local/bin/pgf-env -> this checkout's pgf-env
-./pgf-env shell                            # interactive bash in the env, prompt (pgf:<key>)
-./pgf-env shell -c 'command -v porousGasificationFoam'
-./pgf-env run tutorials/cases/<case> [Allrun | Allclean | script] [args]
+./pgf setup --yes                          # detect OpenFOAM and yade, write ~/.config/pgf/env.conf, link ~/.local/bin/pgf
+./pgf setup --checkout --yes --no-link --foam-bashrc FILE   # or this worktree's .pgf-env.conf, no link
+./pgf setup --link-only                    # only ~/.local/bin/pgf -> this checkout's pgf
+./pgf config get PGF_MPI                   # one resolved value (exit 1 if unset)
+./pgf config set PGF_MPI=loopback --checkout   # edit the user (default) or checkout file
+./pgf config unset PGF_MPI --checkout
+./pgf shell                                # interactive bash in the env, prompt (pgf:<worktree>@<key>)
+./pgf shell -c 'command -v porousGasificationFoam'
+./pgf run tutorials/cases/<case> [Allrun | Allclean | script] [args]
 ```
 
-- `init` looks for `$WM_PROJECT_DIR/etc/bashrc`, `~/OpenFOAM/*/etc/bashrc`, `/opt/openfoam*` and `/usr/lib/openfoam/*` (v2406 first), and for `yade` or a suffixed `yade-*` on your `PATH`. It asks when several candidates exist and a terminal is attached, unless `--yes`. Values given as `--foam-bashrc`, `--yade-bin`, `--yade-trunk` or `--set` win, and keys already in the file are kept. `--checkout` also records `submodules/Foam-Yade` as `YADE_TRUNK` when it is checked out.
-- `shell` takes the same options as a plain call (`--yade`, `--prefix`, `--bare`, …). Nested `pgf-env` calls inside it skip the `env -i` step.
+- `setup` looks for `$WM_PROJECT_DIR/etc/bashrc`, `~/OpenFOAM/*/etc/bashrc`, `/opt/openfoam*` and `/usr/lib/openfoam/*` (v2406 first), and for `yade` or a suffixed `yade-*` on your `PATH`. It asks when several candidates exist and a terminal is attached, unless `--yes`. Values given as `--foam-bashrc`, `--yade-bin`, `--yade-trunk` or `--set` win, and keys already in the file are kept. `--checkout` also records `submodules/Foam-Yade` as `YADE_TRUNK` when it is checked out.
+- `shell` takes the same options as `exec` (`--yade`, `--prefix`, `--bare`, …). Nested `pgf` calls inside it skip the `env -i` step.
 - `run` changes into the case directory (resolved from your current directory) before running, so it works from anywhere. A case whose `constant/yadeProperties` says `active true` gets `--yade` unless `--no-yade` is given or `PGF_YADE` is set in a file or the environment.
-- `install-link` refuses to replace a link to another checkout without `--force`. With several worktrees, the link picks one; call the others by path.
+- The link step refuses to replace a link to another checkout without `--force`. With several worktrees, the link picks one; call the others by path.
 
 Tests for this tooling live in `applications/test/tooling/test_*.sh`; each runs alone with `PGF_FOAM_BASHRC` set and builds under `PGF_BUILD_ROOT` (default `$TMPDIR/pgf-tooling-builds`).
 
@@ -134,18 +140,18 @@ When the pin moves, rebuild YADE, the coupling libraries and PGF's `--yade` buil
 2. **Coupling libraries** — three `wmake` libraries under `$YADE_TRUNK/pkg/openfoam/coupling/FoamYade` (`libMeshTree`, `libYadeComm`, `libYadeFoam`, in that order). Build and stamp them with
 
    ```bash
-   ./pgf-env --bare --yade -- utilities/pgf-env/buildCoupling.sh --libdir DIR   # default $PGF_YADE_LIBDIR
+   ./pgf exec --bare --yade -- utilities/pgf/buildCoupling.sh --libdir DIR   # default $PGF_YADE_LIBDIR
    ```
 
-   It writes `.foamyade-coupling.json` next to the libraries: the Foam-Yade commit, the `YADE_TRUNK` used and the coupling-header hash. `build.sh --yade` compares that hash with the headers it is about to compile against and stops before `wmake` on a mismatch, printing the command above; `pgf-env --yade` does the same for the copy in the prefix. Both warn when `YADE_TRUNK`'s `HEAD` differs from the submodule pin, or when the libraries carry no stamp (built by hand). An `--isolated --yade` build copies the libraries and the stamp into its prefix from `PGF_YADE_LIBDIR` (default: the user lib dir OpenFOAM's `bashrc` sets).
+   It writes `.foamyade-coupling.json` next to the libraries: the Foam-Yade commit, the `YADE_TRUNK` used and the coupling-header hash. `build.sh --yade` compares that hash with the headers it is about to compile against and stops before `wmake` on a mismatch, printing the command above; `pgf --yade` does the same for the copy in the prefix. Both warn when `YADE_TRUNK`'s `HEAD` differs from the submodule pin, or when the libraries carry no stamp (built by hand). An `--isolated --yade` build copies the libraries and the stamp into its prefix from `PGF_YADE_LIBDIR` (default: the user lib dir OpenFOAM's `bashrc` sets).
    As a last line, `porousGasificationMedia/DEM/foamYadeApiCheck.H` fails the compile by name when Foam-Yade's `FOAMYADE_COUPLING_API` differs from the one PGF needs; a Foam-Yade older than that macro is not caught there.
-3. **PGF** — `./build.sh build --yade`, or `./pgf-env --bare --yade -- ./build.sh --isolated --yade` for a prefix build.
+3. **PGF** — `./build.sh build --yade`, or `./pgf build --yade` for a prefix build.
 
 ### `YADE_TRUNK`
 
 `YADE_TRUNK` is the Foam-Yade source checkout. `porousGasificationMedia/DEM/Make/options` and the `WITH_YADE` blocks of `porousGasificationFoam/Make/options` read the coupling headers from `$(YADE_TRUNK)/pkg/openfoam/coupling/FoamYade/lnInclude` (and `meshtree/lnInclude`). Those `lnInclude/` directories appear once the coupling libraries are built, and `build.sh` checks for both.
 
-`build.sh` and `pgf-env --yade` default it to `submodules/Foam-Yade`. Only `pgf-env` exports that default, though, and `wmake` reads `$(YADE_TRUNK)` from the environment. Outside `pgf-env`, export it yourself:
+`build.sh` and `pgf --yade` default it to `submodules/Foam-Yade`. Only `pgf` exports that default, though, and `wmake` reads `$(YADE_TRUNK)` from the environment. Outside `pgf`, export it yourself:
 
 ```bash
 export YADE_TRUNK=$PWD/submodules/Foam-Yade

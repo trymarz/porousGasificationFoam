@@ -17,6 +17,7 @@ set -u
 
 TOOLING_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PGF_ROOT="$(cd "$TOOLING_DIR/../../.." && pwd -P)"
+PGF="$PGF_ROOT/pgf"
 PGF_ENV="$PGF_ROOT/pgf-env"
 BUILD_SH="$PGF_ROOT/build.sh"
 
@@ -62,17 +63,17 @@ tree_sums() {
     done | LC_ALL=C sort -z | xargs -0 -r sha256sum
 }
 
-# isolated_build [build.sh args] — build.sh --isolated under pgf-env --bare.
+# isolated_build [build.sh args] — build.sh --isolated under pgf exec --bare.
 isolated_build() {
-    "$PGF_ENV" --bare -- "$BUILD_SH" --isolated "$@"
+    "$PGF" exec --bare -- "$BUILD_SH" --isolated "$@"
 }
 
 tree_prefix() {
-    "$PGF_ENV" --bare -- "$BUILD_SH" --print-prefix "$@" 2>/dev/null
+    "$PGF" exec --bare -- "$BUILD_SH" --print-prefix "$@" 2>/dev/null
 }
 
 default_user_dir() {
-    "$PGF_ENV" --bare -- printenv PGF_DEFAULT_USER_DIR 2>/dev/null
+    "$PGF" exec --bare -- printenv PGF_DEFAULT_USER_DIR 2>/dev/null
 }
 
 REGRESSION_DIR="$PGF_ROOT/applications/test/regression"

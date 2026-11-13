@@ -12,7 +12,7 @@ tree_sums "${dirs[@]}" >"$TEST_TMP/before"
 echo "  default user dir: $default ($(wc -l <"$TEST_TMP/before") files)"
 
 fresh="$TEST_TMP/prefix"
-"$PGF_ENV" --bare -- "$BUILD_SH" --prefix "$fresh" >"$TEST_TMP/build.log" 2>&1
+"$PGF" exec --bare -- "$BUILD_SH" --prefix "$fresh" >"$TEST_TMP/build.log" 2>&1
 rc=$?
 check "build.sh --prefix exits 0 (rc=$rc)" [ "$rc" -eq 0 ]
 check "the build installed into the fresh prefix" [ -x "$fresh/bin/porousGasificationFoam" ]

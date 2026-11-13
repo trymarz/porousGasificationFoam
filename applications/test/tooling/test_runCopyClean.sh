@@ -9,7 +9,7 @@
 ensure_prefix
 tutorials_state >"$TEST_TMP/before"
 
-"$PGF_ENV" -- "$REGRESSION_DIR/Allrun" --case tutorials/cases/canonical/darcy \
+"$PGF" exec -- "$REGRESSION_DIR/Allrun" --case tutorials/cases/canonical/darcy \
     --run-root "$TEST_TMP/runs" --keep-runs >"$TEST_TMP/fast.log" 2>&1
 rc=$?
 check "fast case canonical/darcy passes in copy mode (rc=$rc)" [ "$rc" -eq 0 ]
@@ -23,7 +23,7 @@ check "DEM copy has symlinks into the common case" bash -c '[ "$(find "$1" -type
 check "every symlink in the DEM copy resolves" bash -c '[ -z "$(find "$1" -xtype l)" ]' _ "$staged"
 check "../../../applications/.../checkFieldSign.py resolves from the copy" \
     [ -f "$staged/../../../applications/test/regression/tools/checkFieldSign.py" ]
-"$PGF_ENV" -- bash -c 'cd "$1" && ./Allclean' _ "$staged" >"$TEST_TMP/dem-clean.log" 2>&1
+"$PGF" exec -- bash -c 'cd "$1" && ./Allclean' _ "$staged" >"$TEST_TMP/dem-clean.log" 2>&1
 rc=$?
 check "DEM Allclean runs in the copy (rc=$rc)" [ "$rc" -eq 0 ]
 

@@ -8,7 +8,7 @@
 
 ensure_prefix
 case_rel="tutorials/cases/charOnlyMoveCases/serial"
-"$PGF_ENV" -- "$REGRESSION_DIR/Allrun" --case "$case_rel" --run-root "$TEST_TMP/runs" --keep-runs \
+"$PGF" exec -- "$REGRESSION_DIR/Allrun" --case "$case_rel" --run-root "$TEST_TMP/runs" --keep-runs \
     >"$TEST_TMP/run.log" 2>&1
 rc=$?
 check "the run passes before perturbing (rc=$rc)" [ "$rc" -eq 0 ]

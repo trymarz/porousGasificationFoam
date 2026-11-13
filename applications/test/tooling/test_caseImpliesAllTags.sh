@@ -20,7 +20,7 @@ check "an explicit --tag still filters (rc=$rc, expect 2)" [ "$rc" -eq 2 ]
 
 if [ "${PGF_TOOLING_RUN_CASES:-0}" = "1" ]; then
     ensure_prefix
-    "$PGF_ENV" -- "$REGRESSION_DIR/Allrun" --case "$case_rel" --run-root "$TEST_TMP/runs" >"$TEST_TMP/run" 2>&1
+    "$PGF" exec -- "$REGRESSION_DIR/Allrun" --case "$case_rel" --run-root "$TEST_TMP/runs" >"$TEST_TMP/run" 2>&1
     rc=$?
     check "running $case_rel without --tag passes (rc=$rc)" [ "$rc" -eq 0 ]
     [ "$rc" -eq 0 ] || tail -40 "$TEST_TMP/run"

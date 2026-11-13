@@ -30,5 +30,5 @@ tutorials/cases/**/*.local
 tutorials/cases/LEIgasifierR1/system/blockMeshDict
 tutorials/cases/LEIgasifierR2/system/blockMeshDict
 
-# --- pgf-env per-checkout settings (#257) ---------------------------------
+# --- pgf per-checkout settings (#257, #264) -------------------------------
 /.pgf-env.conf

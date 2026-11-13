@@ -93,7 +93,7 @@ jobs:
         working-directory: pgf
         run: |
           set -eu
-          key="$(./pgf-env --bare -- ./build.sh --print-key)"
+          key="$(./pgf exec --bare -- ./build.sh --print-key)"
           echo "key=$key" >>"$GITHUB_OUTPUT"
           echo "build key: $key"
 
@@ -117,7 +117,7 @@ jobs:
         working-directory: pgf
         run: |
           set -o pipefail
-          runuser -u pgf -- ./pgf-env --bare -- ./build.sh --isolated 2>&1 |
+          runuser -u pgf -- ./pgf exec --bare -- ./build.sh --isolated 2>&1 |
             tee "$PGF_RUN_ROOT/ci-build.log" | tail -40
 
       - name: Save prefix
@@ -205,7 +205,7 @@ jobs:
         working-directory: pgf
         run: |
           set -eu
-          key="$(./pgf-env --bare -- ./build.sh --yade --print-key)"
+          key="$(./pgf exec --bare -- ./build.sh --yade --print-key)"
           fy="$(git -c safe.directory='*' rev-parse HEAD:submodules/Foam-Yade)"
           echo "key=$key" >>"$GITHUB_OUTPUT"
           echo "foam-yade=$fy" >>"$GITHUB_OUTPUT"
@@ -231,7 +231,7 @@ jobs:
         working-directory: pgf/submodules/Foam-Yade/pkg/openfoam/coupling/FoamYade
         run: |
           set -o pipefail
-          runuser -u pgf -- "$GITHUB_WORKSPACE/pgf/pgf-env" --bare -- bash -c '
+          runuser -u pgf -- "$GITHUB_WORKSPACE/pgf/pgf" exec --bare -- bash -c '
             set -e
             export FOAM_USER_LIBBIN="$PGF_YADE_LIBDIR"
             wmake -j libso meshtree
@@ -243,7 +243,7 @@ jobs:
         working-directory: pgf
         run: |
           set -o pipefail
-          runuser -u pgf -- ./pgf-env --bare -- ./build.sh --isolated --yade 2>&1 |
+          runuser -u pgf -- ./pgf exec --bare -- ./build.sh --isolated --yade 2>&1 |
             tee "$PGF_RUN_ROOT/ci-build.log" | tail -40
 
       - name: Check the coupling was built and linked
@@ -257,7 +257,7 @@ jobs:
           done
           python3 -c 'import json,sys; v=json.load(open(sys.argv[1]))["variant"]; print("variant:", v); sys.exit(v != "yade1")' \
             "$prefix/.pgf-build.json"
-          runuser -u pgf -- ./pgf-env --prefix "$prefix" -- \
+          runuser -u pgf -- ./pgf exec --prefix "$prefix" -- \
             bash -c 'ldd "$(command -v porousGasificationFoam)"' >"$PGF_RUN_ROOT/ldd.txt"
           grep -E 'lib(YadeFoam|MeshTree|lambdaDotModel)\.so' "$PGF_RUN_ROOT/ldd.txt"
           ! grep 'not found' "$PGF_RUN_ROOT/ldd.txt"

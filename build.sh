@@ -16,7 +16,7 @@
 . "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)/utilities/bash_utils/helpers.sh"
 
 PGF_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
-. "$PGF_ROOT/utilities/pgf-env/coupling.sh"
+. "$PGF_ROOT/utilities/pgf/coupling.sh"
 
 # ============================================================
 # CONFIGURATION
@@ -192,7 +192,7 @@ parse_arguments() {
       echo ""
       echo "Builds happen in this checkout ($PGF_ROOT); output goes to"
       echo "\$FOAM_USER_LIBBIN and \$FOAM_USER_APPBIN unless a prefix is given."
-      echo "PGF_ISOLATED_ONLY=1 (set by pgf-env) refuses a build without one."
+      echo "PGF_ISOLATED_ONLY=1 (set by pgf) refuses a build without one."
       exit 0
       ;;
     *)
@@ -332,7 +332,7 @@ build_key() {
   printf '%s-yade%s-%s-gcc%s\n' "${fp:0:12}" "$WITH_YADE" "$WM_PROJECT_VERSION" "$cc_version"
 }
 
-# PGF_DEFAULT_USER_DIR is what OpenFOAM's bashrc chose; pgf-env exports it
+# PGF_DEFAULT_USER_DIR is what OpenFOAM's bashrc chose; pgf exports it
 # because it overrides WM_PROJECT_USER_DIR afterwards.
 resolve_build_root() {
   local user_dir="${PGF_DEFAULT_USER_DIR:-${WM_PROJECT_USER_DIR:-}}"
@@ -353,7 +353,7 @@ resolve_prefix() {
     ;;
   isolated)
     [ -n "${WM_PROJECT_VERSION:-}" ] || {
-      clog ERROR "WM_PROJECT_VERSION is unset; source OpenFOAM's etc/bashrc (or use pgf-env --bare)."
+      clog ERROR "WM_PROJECT_VERSION is unset; source OpenFOAM's etc/bashrc (or use pgf exec --bare)."
       return 1
     }
     resolve_build_root || return 1
