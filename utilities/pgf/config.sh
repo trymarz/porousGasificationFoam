@@ -1,5 +1,5 @@
 #!/bin/bash
-# config.sh — pgf-env's layered settings (#257; doc/build.md). Source-only.
+# config.sh — pgf's layered settings (#257; doc/build.md). Source-only.
 # Later wins: default, user env.conf, checkout .pgf-env.conf, environment, CLI.
 # Files are parsed, never sourced, and only PGF_CONF_KEYS are accepted.
 
@@ -78,7 +78,7 @@ pgf_conf_resolve() {
   done
 }
 
-# pgf_conf_set_cli KEY=VALUE — the CLI layer (pgf-env --set).
+# pgf_conf_set_cli KEY=VALUE — the CLI layer (pgf --set).
 pgf_conf_set_cli() {
   local key="${1%%=*}" val="${1#*=}" why
   [ "$key" != "$1" ] || { echo "--set needs KEY=VALUE, got '$1'"; return 1; }
@@ -101,4 +101,41 @@ pgf_conf_print() {
       printf '  %-16s %-40s [%s]\n' "$k" "-" "unset"
     fi
   done
+}
+
+# pgf_conf_write FILE LAYER ASSOC — write the keys of the named associative
+#   array to FILE, in PGF_CONF_KEYS order, atomically.
+pgf_conf_write() {
+  local file="$1" layer="$2" k tmp
+  local -n _vals="$3"
+  mkdir -p "${file%/*}" || return 1
+  tmp="$file.tmp.$$"
+  {
+    echo "# pgf settings ($layer layer); see doc/build.md. KEY=value, parsed not sourced."
+    for k in "${PGF_CONF_KEYS[@]}"; do
+      if [ -n "${_vals[$k]+x}" ]; then printf '%s=%s\n' "$k" "${_vals[$k]}"; fi
+    done
+  } >"$tmp" && mv -f "$tmp" "$file" || { rm -f "$tmp"; return 1; }
+}
+
+# pgf_conf_json — the effective values and layers as one JSON object.
+pgf_conf_json() {
+  local k args=()
+  for k in "${PGF_CONF_KEYS[@]}"; do
+    if [ -n "${PGF_CONF_VAL[$k]+x}" ]; then
+      args+=("$k" 1 "${PGF_CONF_VAL[$k]}" "${PGF_CONF_SRC[$k]}")
+    else
+      args+=("$k" 0 "" unset)
+    fi
+  done
+  python3 - "$(pgf_conf_user_file)" "$(pgf_conf_checkout_file)" "${args[@]}" <<'PY'
+import json, os, sys
+user, checkout, rest = sys.argv[1], sys.argv[2], sys.argv[3:]
+settings = {}
+for i in range(0, len(rest), 4):
+    k, isset, val, src = rest[i:i + 4]
+    settings[k] = {"value": val if isset == "1" else None, "layer": src.split(" ")[0], "source": src}
+files = {n: {"path": p, "exists": os.path.exists(p)} for n, p in (("user", user), ("checkout", checkout))}
+print(json.dumps({"files": files, "settings": settings}, indent=2))
+PY
 }

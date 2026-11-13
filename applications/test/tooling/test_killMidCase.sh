@@ -10,7 +10,7 @@ touch "$TEST_TMP/stamp"
 tutorials_state >"$TEST_TMP/before"
 runs="$TEST_TMP/runs"
 
-setsid "$PGF_ENV" -- "$REGRESSION_DIR/Allrun" --case tutorials/cases/charOnlyMoveCases/serial_m2 \
+setsid "$PGF" exec -- "$REGRESSION_DIR/Allrun" --case tutorials/cases/charOnlyMoveCases/serial_m2 \
     --run-root "$runs" >"$TEST_TMP/run.log" 2>&1 &
 pid=$!
 

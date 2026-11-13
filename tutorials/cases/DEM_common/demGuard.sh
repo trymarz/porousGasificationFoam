@@ -4,7 +4,7 @@
 
 pgf_dem_guard_fail() {
     echo "Allrun: $1" >&2
-    echo "Allrun: run this via: pgf-env run $PWD   (or inside: pgf-env shell --yade)" >&2
+    echo "Allrun: run this via: pgf run $PWD   (or inside: pgf shell --yade)" >&2
     exit 2
 }
 if ! command -v porousGasificationFoam >/dev/null 2>&1; then

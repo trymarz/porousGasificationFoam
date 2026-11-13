@@ -13,7 +13,7 @@ $P <case> --png out/ --time 0.001 --size 1600x1200
 
 `<case>` is a tutorial or a finished run copy of one (for example a `--keep-runs` copy from the regression runner). Decomposed cases are read as decomposed when `processor0` has more time directories than the case root. A `<case>.foam` file is created on first use (`*.foam` is gitignored).
 
-`--png` renders the last mesh time unless `--time` is given; each view becomes one PNG named after it. It also works inside `./pgf-env`.
+`--png` renders the last mesh time unless `--time` is given; each view becomes one PNG named after it. It also works inside `./pgf exec`.
 
 ## Compare two cases
 

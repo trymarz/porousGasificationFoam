@@ -1,12 +1,12 @@
 #!/bin/bash
 # Foam-Yade coupling checks (#257 PR C): a coupling stamp from other headers
-# stops build.sh --yade before wmake and pgf-env --yade at setup, both naming
+# stops build.sh --yade before wmake and pgf --yade at setup, both naming
 # the rebuild command; the yade1 build key follows the submodule pin and the
 # coupling headers while the yade0 key does not; the compile-time guard trips
 # only on a different FOAMYADE_COUPLING_API. Needs a real PGF_FOAM_BASHRC.
 
 . "$(dirname "${BASH_SOURCE[0]}")/toolingLib.sh"
-. "$PGF_ROOT/utilities/pgf-env/coupling.sh"
+. "$PGF_ROOT/utilities/pgf/coupling.sh"
 
 # fake_trunk DIR TEXT — a Foam-Yade tree whose FoamYade.H holds TEXT.
 fake_trunk() {
@@ -24,31 +24,31 @@ pgf_coupling_write_stamp "$libdir" "$TEST_TMP/oldtrunk" || die "cannot write a s
 check "the stamp records the old trunk's header hash" \
     [ "$(pgf_coupling_stamp_field "$libdir" apiHash)" = "$(pgf_coupling_api_hash "$TEST_TMP/oldtrunk")" ]
 check "check fails against other headers" bash -c '! "$@" >/dev/null' _ \
-    bash -c '. "$1/utilities/pgf-env/coupling.sh"; PGF_ROOT="$1" pgf_coupling_check "$2" "$3"' _ "$PGF_ROOT" "$libdir" "$trunk"
+    bash -c '. "$1/utilities/pgf/coupling.sh"; PGF_ROOT="$1" pgf_coupling_check "$2" "$3"' _ "$PGF_ROOT" "$libdir" "$trunk"
 check "check passes against the stamped headers" \
-    bash -c '. "$1/utilities/pgf-env/coupling.sh"; PGF_ROOT="$1" pgf_coupling_check "$2" "$3" >/dev/null' _ "$PGF_ROOT" "$libdir" "$TEST_TMP/oldtrunk"
+    bash -c '. "$1/utilities/pgf/coupling.sh"; PGF_ROOT="$1" pgf_coupling_check "$2" "$3" >/dev/null' _ "$PGF_ROOT" "$libdir" "$TEST_TMP/oldtrunk"
 
 # build.sh --yade refuses before wmake.
-"$PGF_ENV" --bare -- env YADE_TRUNK="$trunk" PGF_YADE_LIBDIR="$libdir" \
+"$PGF" exec --bare -- env YADE_TRUNK="$trunk" PGF_YADE_LIBDIR="$libdir" \
     "$BUILD_SH" --prefix "$TEST_TMP/prefix" --yade >"$TEST_TMP/build.log" 2>&1
 rc=$?
 check "build.sh --yade exits non-zero on a stale stamp (rc=$rc)" [ "$rc" -ne 0 ]
 check "it prints the rebuild command" grep -q "rebuild coupling: .*buildCoupling.sh --libdir $libdir" "$TEST_TMP/build.log"
 check "nothing was built" bash -c '! grep -q "Building " "$1"' _ "$TEST_TMP/build.log"
 
-# pgf-env --yade refuses a prefix whose stamp does not match YADE_TRUNK.
+# pgf --yade refuses a prefix whose stamp does not match YADE_TRUNK.
 prefix="$TEST_TMP/yprefix"
 mkdir -p "$prefix/bin" "$prefix/lib"
 printf '#!/bin/sh\n' >"$prefix/bin/porousGasificationFoam"
 chmod +x "$prefix/bin/porousGasificationFoam"
 echo '{"variant": "yade1"}' >"$prefix/.pgf-build.json"
 cp "$libdir/$PGF_COUPLING_STAMP" "$prefix/lib/"
-YADE_TRUNK="$trunk" YADE_BIN=/bin/true "$PGF_ENV" --prefix "$prefix" --yade -- true 2>"$TEST_TMP/env.err"
+YADE_TRUNK="$trunk" YADE_BIN=/bin/true "$PGF" exec --prefix "$prefix" --yade -- true 2>"$TEST_TMP/env.err"
 rc=$?
-check "pgf-env --yade exits 2 on a stale stamp (rc=$rc)" [ "$rc" -eq 2 ]
-check "pgf-env names the rebuild command" grep -q "rebuild coupling: .*buildCoupling.sh" "$TEST_TMP/env.err"
-YADE_TRUNK="$TEST_TMP/oldtrunk" YADE_BIN=/bin/true "$PGF_ENV" --prefix "$prefix" --yade -- true 2>/dev/null
-check "pgf-env --yade accepts a matching stamp" [ $? -eq 0 ]
+check "pgf --yade exits 2 on a stale stamp (rc=$rc)" [ "$rc" -eq 2 ]
+check "pgf names the rebuild command" grep -q "rebuild coupling: .*buildCoupling.sh" "$TEST_TMP/env.err"
+YADE_TRUNK="$TEST_TMP/oldtrunk" YADE_BIN=/bin/true "$PGF" exec --prefix "$prefix" --yade -- true 2>/dev/null
+check "pgf --yade accepts a matching stamp" [ $? -eq 0 ]
 
 # Build key: a copy of the sources in a scratch repo whose pin we can move.
 repo="$TEST_TMP/repo"

@@ -18,7 +18,7 @@ cd applications/test/regression
 ./Allrun --run-root /scratch/r --keep-runs  # where the case copies go; keep passed ones too
 ```
 
-Exit `0` = every case passed; non-zero = at least one did not. A single case without the suite: `tools/runCase.sh tutorials/cases/canonical/pyrolysis [--no-run] [--run-dir D] [--rtol R] [--atol A]`. To run against an isolated build instead of the solver on your `PATH`, prefix the command with `./pgf-env --` (see [Isolated builds](build.md#isolated-builds-and-pgf-env)).
+Exit `0` = every case passed; non-zero = at least one did not. A single case without the suite: `tools/runCase.sh tutorials/cases/canonical/pyrolysis [--no-run] [--run-dir D] [--rtol R] [--atol A]`. To run against an isolated build instead of the solver on your `PATH`, prefix the command with `./pgf exec --` (see [Isolated builds](build.md#isolated-builds-and-pgf)).
 
 `--case` accepts the `cases.list` path, a trailing part of it or the basename, and selects every tag unless `--tag` is also given.
 
@@ -42,13 +42,13 @@ The suite is green only if at least one case ran and every case passed. There is
 
 ### Tiers with `pgf-test`
 
-`pgf-test` runs a whole tier against this checkout's isolated build (see [Isolated builds](build.md#isolated-builds-and-pgf-env)) and remembers the result. The tiers are rows in `applications/test/tiers.conf`: driver, build variant, jobs, timeout, `pgf-env` flags, selection and cadence.
+`pgf-test` runs a whole tier against this checkout's isolated build (see [Isolated builds](build.md#isolated-builds-and-pgf)) and remembers the result. The tiers are rows in `applications/test/tiers.conf`: driver, build variant, jobs, timeout, `pgf exec` flags, selection and cadence.
 
 | Tier | Driver and selection | Variant | Jobs | Cadence |
 |---|---|---|---|---|
 | `fast` | `Allrun --tag fast` | normal | 4 | every push |
 | `convergence` | `Allrun --tag convergence` | normal | 2 | nightly or `--if-stale 7d` |
-| `dem` | `Allrun.yade` | `--yade`, `pgf-env --mpi loopback` | 1 | before DEM-touching merges |
+| `dem` | `Allrun.yade` | `--yade`, `pgf exec --mpi loopback` | 1 | before DEM-touching merges |
 
 ```bash
 ./pgf-test fast                        # build or reuse the prefix, run the tier, record it
@@ -194,7 +194,7 @@ tools/runDEMCase.sh tutorials/experimental/simple_line_case [--timeout S] [--run
 - Serial suite: `Allrun`/`Allclean`, `cases.list`, `tools/runCase.sh`, `tools/compareScalars.py`, `tools/captureBaseline.sh`. DEM suite: `Allrun.yade`, `cases_yade.list`, `tools/runDEMCase.sh`.
 - `tools/regressionLib.sh` holds what both runners must agree on: loading the case list, mapping exit status to outcome, deciding if the suite is green, bounded concurrency, and copying a case into a run root (`reg_stage_case`). `tools/regressionState.py` writes run state as JSON (standard library only).
 - Both runners return the same outcomes as the suite and accept the state flags below.
-- `tools/porousResistanceStudy.py --workdir D` checks the porous resistance against an analytic estimate. It reruns copies of `canonical/darcy` over several `Df` values and inlet velocities, with and without the Forchheimer term. It reports mass closure and the pressure drop next to the isothermal ideal-gas Darcy–Forchheimer estimate. It is not part of the suite; prefix it with `./pgf-env --` to use an isolated build. Its `--expect CASE --df DF --forchheimer F` mode is what the `darcy`, `darcyE` and `forchheimer` Allruns call: it writes the measured over analytic steady pressure drop to `postProcessing/regressionDarcyForchheimer`, which their `system/regressionInvariants` hold at 1.
+- `tools/porousResistanceStudy.py --workdir D` checks the porous resistance against an analytic estimate. It reruns copies of `canonical/darcy` over several `Df` values and inlet velocities, with and without the Forchheimer term. It reports mass closure and the pressure drop next to the isothermal ideal-gas Darcy–Forchheimer estimate. It is not part of the suite; prefix it with `./pgf exec --` to use an isolated build. Its `--expect CASE --df DF --forchheimer F` mode is what the `darcy`, `darcyE` and `forchheimer` Allruns call: it writes the measured over analytic steady pressure drop to `postProcessing/regressionDarcyForchheimer`, which their `system/regressionInvariants` hold at 1.
 
 ### Machine-readable listing and run state
 

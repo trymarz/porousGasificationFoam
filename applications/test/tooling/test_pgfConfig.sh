@@ -1,8 +1,8 @@
 #!/bin/bash
-# pgf-env settings layers (#257): user file < checkout file < environment < CLI,
+# pgf settings layers (#257, #264): user file < checkout file < environment < CLI,
 # a malformed or unknown line exits 2 naming file:line, and no config key can
 # put a path under the default user dir back on PATH. Uses fake bashrcs and a
-# copy of pgf-env, so neither OpenFOAM nor this checkout's .pgf-env.conf is touched.
+# copy of pgf, so neither OpenFOAM nor this checkout's .pgf-env.conf is touched.
 
 FAKE="$(mktemp -d "${TMPDIR:-/tmp}/pgf-fakefoam-XXXXXX")" || exit 2
 : "${PGF_FOAM_BASHRC:=$FAKE/A/etc/bashrc}"
@@ -24,22 +24,28 @@ EOF
 A="$(fake_bashrc A)" B="$(fake_bashrc B)" C="$(fake_bashrc C)" D="$(fake_bashrc D)"
 
 tree="$TEST_TMP/tree"
-mkdir -p "$tree/utilities/pgf-env"
-cp "$PGF_ENV" "$tree/" && cp "$PGF_ROOT"/utilities/pgf-env/* "$tree/utilities/pgf-env/" || die "cannot copy pgf-env"
+mkdir -p "$tree/utilities/pgf"
+cp "$PGF" "$tree/" && cp "$PGF_ROOT"/utilities/pgf/* "$tree/utilities/pgf/" || die "cannot copy pgf"
 home="$TEST_TMP/home"
 user_conf="$home/.config/pgf/env.conf"
 mkdir -p "${user_conf%/*}"
 
-# penv [VAR=value ...] -- pgf-env args — a clean caller with only HOME/TMPDIR.
+# penv [VAR=value ...] -- pgf args — a clean caller with only HOME/TMPDIR.
 penv() {
     local vars=()
     while [ "$1" != "--" ]; do vars+=("$1"); shift; done
     shift
-    env -i PATH=/usr/bin:/bin HOME="$home" TMPDIR="$TEST_TMP" "${vars[@]}" "$tree/pgf-env" "$@"
+    env -i PATH=/usr/bin:/bin HOME="$home" TMPDIR="$TEST_TMP" "${vars[@]}" "$tree/pgf" "$@"
 }
-version() { penv "$@" --bare -- printenv WM_PROJECT_VERSION 2>"$TEST_TMP/err"; }
+# version [VAR=value ...] -- [pgf options] — WM_PROJECT_VERSION in that env.
+version() {
+    local vars=()
+    while [ "$1" != "--" ]; do vars+=("$1"); shift; done
+    shift
+    penv "${vars[@]}" -- exec "$@" --bare -- printenv WM_PROJECT_VERSION 2>"$TEST_TMP/err"
+}
 
-penv -- --bare -- true 2>"$TEST_TMP/err"
+penv -- exec --bare -- true 2>"$TEST_TMP/err"
 rc=$?
 check "no config, no env: exit 2 asking for PGF_FOAM_BASHRC (rc=$rc)" \
     bash -c '[ "$1" -eq 2 ] && grep -q PGF_FOAM_BASHRC "$2"' _ "$rc" "$TEST_TMP/err"
@@ -53,7 +59,7 @@ check "status names the user layer and line" grep -qE "^  PGF_FOAM_BASHRC +$B +\
 printf '# checkout\n\nPGF_FOAM_BASHRC="%s"\nPGF_MPI=loopback\n' "$C" >"$tree/.pgf-env.conf"
 check "checkout file overrides the user file" [ "$(version --)" = C ]
 check "PGF_MPI=loopback from the checkout file restricts Open MPI to lo" \
-    [ "$(penv -- --bare -- printenv OMPI_MCA_btl_tcp_if_include 2>/dev/null)" = lo ]
+    [ "$(penv -- exec --bare -- printenv OMPI_MCA_btl_tcp_if_include 2>/dev/null)" = lo ]
 check "environment overrides both files" [ "$(version PGF_FOAM_BASHRC="$A" --)" = A ]
 check "--foam-bashrc overrides the environment" \
     [ "$(version PGF_FOAM_BASHRC="$A" -- --foam-bashrc "$D")" = D ]
@@ -81,7 +87,7 @@ check "a bad PGF_YADE value exits 2" [ $? -eq 2 ]
 # Settings that name the default user dir must not put it back on PATH.
 default="$home/fake-user"
 printf 'PGF_YADE_LIBDIR=%s/lib\nPGF_RUN_ROOT=%s/run\n' "$default" "$default" >"$tree/.pgf-env.conf"
-path="$(penv -- --bare -- printenv PATH 2>"$TEST_TMP/err")"
+path="$(penv -- exec --bare -- printenv PATH 2>"$TEST_TMP/err")"
 check "config pointing into the default user dir still runs" [ -n "$path" ]
 check "PATH holds nothing under the default user dir $default" \
     bash -c '! tr ":" "\n" <<<"$1" | grep -qE "^$2(/|\$)"' _ "$path" "$default"

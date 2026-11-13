@@ -53,7 +53,7 @@ check "a non-integer endTime/deltaT counts the solver's steps (10.3 -> 10)" \
 before="$(git -C "$PGF_ROOT" diff -- tutorials | sha1sum)"
 dem="tutorials/cases/MicroTGA-DEM_lambdaDotOff"
 staged="$(reg_stage_case "$PGF_ROOT" "$dem" "$TEST_TMP/dem")" || die "cannot stage $dem"
-"$PGF_ENV" --bare -- python3 "$SHORTEN" "$staged/system/controlDict" 200 \
+"$PGF" exec --bare -- python3 "$SHORTEN" "$staged/system/controlDict" 200 \
     >"$TEST_TMP/shorten.log" 2>&1
 rc=$?
 check "shortenControlDict.py edits the copy (rc=$rc)" [ "$rc" -eq 0 ]

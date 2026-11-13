@@ -1,6 +1,6 @@
 #!/bin/bash
-# commands.sh — pgf-env's init / install-link helpers (#257). Source-only;
-# needs config.sh, PGF_ROOT, SELF and PGF_ENV_CALLER_PATH.
+# commands.sh — pgf's setup / config / build / doctor helpers (#257, #264).
+# Source-only; needs config.sh, PGF_ROOT, SELF and PGF_ENV_CALLER_PATH.
 
 # pgf_case_wants_yade DIR — DIR/constant/yadeProperties says active true.
 pgf_case_wants_yade() {
@@ -57,13 +57,13 @@ pgf_pick() {
 
 # pgf_init LAYER YES — merge CLI values (else detected ones) into the file.
 pgf_init() {
-  local layer="$1" file k v tmp
+  local layer="$1" file k v
   PGF_INIT_ASK=0
   [ "$2" -eq 0 ] && [ -t 0 ] && [ -r /dev/tty ] && PGF_INIT_ASK=1
   if [ "$layer" = "checkout" ]; then file="$(pgf_conf_checkout_file)"; else file="$(pgf_conf_user_file)"; fi
 
   PGF_CONF_VAL=() PGF_CONF_SRC=()
-  pgf_conf_parse "$file" "$layer" || { echo "pgf-env: $PGF_CONF_ERR" >&2; return 1; }
+  pgf_conf_parse "$file" "$layer" || { echo "pgf: $PGF_CONF_ERR" >&2; return 1; }
   local -A out=()
   for k in "${!PGF_CONF_VAL[@]}"; do out[$k]="${PGF_CONF_VAL[$k]}"; done
 
@@ -84,39 +84,32 @@ pgf_init() {
   fi
   for k in "${!PGF_CONF_CLI[@]}"; do out[$k]="${PGF_CONF_CLI[$k]}"; done
 
-  mkdir -p "${file%/*}" || return 1
-  tmp="$file.tmp.$$"
-  {
-    echo "# pgf-env settings ($layer layer); see doc/build.md. KEY=value, parsed not sourced."
-    for k in "${PGF_CONF_KEYS[@]}"; do
-      if [ -n "${out[$k]+x}" ]; then printf '%s=%s\n' "$k" "${out[$k]}"; fi
-    done
-  } >"$tmp" && mv -f "$tmp" "$file" || { rm -f "$tmp"; return 1; }
-  echo "pgf-env: wrote $file" >&2
+  pgf_conf_write "$file" "$layer" out || return 1
+  echo "pgf: wrote $file" >&2
   [ -n "${out[PGF_FOAM_BASHRC]:-}" ] ||
-    echo "pgf-env: no OpenFOAM bashrc found; add PGF_FOAM_BASHRC=... to $file" >&2
+    echo "pgf: no OpenFOAM bashrc found; run: pgf config set PGF_FOAM_BASHRC=... --$layer" >&2
 }
 
-# pgf_install_link FORCE — ~/.local/bin/pgf-env -> this checkout's pgf-env.
+# pgf_install_link FORCE — ~/.local/bin/pgf -> this checkout's pgf.
 pgf_install_link() {
-  local link="$HOME/.local/bin/pgf-env" cur
+  local link="$HOME/.local/bin/pgf" cur
   if [ -L "$link" ] || [ -e "$link" ]; then
     cur="$(readlink -f "$link")"
     if [ "$cur" = "$SELF" ]; then
-      echo "pgf-env: $link already points here" >&2
+      echo "pgf: $link already points here" >&2
       return 0
     fi
     [ "$1" -eq 1 ] || {
-      echo "pgf-env: $link points at ${cur:-a file}; rerun with --force to replace it" >&2
-      echo "pgf-env: (with several worktrees, the link picks one; call the others by path)" >&2
+      echo "pgf: $link points at ${cur:-a file}; rerun with --force to replace it" >&2
+      echo "pgf: (with several worktrees, the link picks one; call the others by path)" >&2
       return 2
     }
   fi
   mkdir -p "${link%/*}" && ln -sfn "$SELF" "$link" || return 2
-  echo "pgf-env: $link -> $SELF" >&2
+  echo "pgf: $link -> $SELF" >&2
   case ":$PGF_ENV_CALLER_PATH:" in
   *":${link%/*}:"*) ;;
-  *) echo "pgf-env: note: ${link%/*} is not on your PATH" >&2 ;;
+  *) echo "pgf: note: ${link%/*} is not on your PATH" >&2 ;;
   esac
 }
 
@@ -135,7 +128,7 @@ pgf_doctor() {
     info="$(env -i HOME="$HOME" PATH=/usr/bin:/bin bash -c 'f="$1"; set +eu; set --; . "$f" >/dev/null 2>&1; echo "$WM_PROJECT_VERSION"' _ "$bashrc")"
     ver="${info##*$'\n'}"
     if [ -z "$ver" ]; then
-      _r FAIL "$bashrc set no WM_PROJECT_VERSION; fix: pgf-env init --foam-bashrc <OpenFOAM-v2406>/etc/bashrc"
+      _r FAIL "$bashrc set no WM_PROJECT_VERSION; fix: pgf config set PGF_FOAM_BASHRC=<OpenFOAM-v2406>/etc/bashrc"
     elif [ "$ver" != v2406 ]; then
       _r WARN "OpenFOAM $ver from $bashrc; the solver targets v2406"
     else
@@ -145,22 +138,22 @@ pgf_doctor() {
       [ "$v" -eq 1 ] && [ "${PGF_YADE:-0}" != 1 ] && continue
       local flag=()
       [ "$v" -eq 1 ] && flag=(--yade)
-      p="$("$SELF" --bare --mpi default -- "$PGF_ROOT/build.sh" --print-prefix "${flag[@]}" 2>/dev/null | tail -1)"
+      p="$("$SELF" exec --bare --mpi default -- "$PGF_ROOT/build.sh" --print-prefix "${flag[@]}" 2>/dev/null | tail -1)"
       if [ -n "$p" ] && [ -f "$p/.pgf-build.json" ]; then
         _r OK "yade$v build present: $p"
       else
-        _r WARN "no yade$v build for this tree${p:+ at $p}; fix: $PGF_ROOT/pgf-env --bare${flag:+ --yade} -- $PGF_ROOT/build.sh --isolated${flag:+ --yade}"
+        _r WARN "no yade$v build for this tree${p:+ at $p}; fix: $SELF build${flag:+ --yade}"
       fi
     done
   else
-    _r FAIL "no readable OpenFOAM bashrc (${bashrc:-unset}); fix: pgf-env init, or --foam-bashrc FILE"
+    _r FAIL "no readable OpenFOAM bashrc (${bashrc:-unset}); fix: pgf setup, or pgf config set PGF_FOAM_BASHRC=FILE"
   fi
 
   yb="${YADE_BIN:-$(PATH="$PGF_ENV_CALLER_PATH" command -v yade)}"
   if [ -z "$yb" ] && [ "${PGF_YADE:-0}" != 1 ]; then
     _r OK "yade: not configured (only needed for --yade)"
   elif [ ! -x "$yb" ]; then
-    _r FAIL "no yade binary (${yb:-none}); fix: pgf-env init --yade-bin PATH (see doc/build.md, YADE DEM coupling)"
+    _r FAIL "no yade binary (${yb:-none}); fix: pgf config set YADE_BIN=PATH (see doc/build.md, YADE DEM coupling)"
   else
     out="$(timeout 60 "$yb" -v 2>/dev/null | grep -m1 -i 'version')"
     _r OK "yade $yb: ${out:-version unknown}"
@@ -194,13 +187,75 @@ pgf_doctor() {
   *) _r OK "MPI ${PGF_MPI} (set explicitly); interfaces: $(pgf_mpi_ifaces | tr '\n' ' ')" ;;
   esac
 
-  p="$(PATH="$PGF_ENV_CALLER_PATH" command -v pgf-env)"
+  p="$(PATH="$PGF_ENV_CALLER_PATH" command -v pgf)"
   if [ -z "$p" ]; then
-    _r WARN "pgf-env is not on PATH; fix: $SELF install-link"
+    _r WARN "pgf is not on PATH; fix: $SELF setup --link-only"
   elif [ "$(readlink -f "$p")" != "$SELF" ]; then
-    _r WARN "pgf-env on PATH is $(readlink -f "$p"), not this checkout; call this one by path"
+    _r WARN "pgf on PATH is $(readlink -f "$p"), not this checkout; call this one by path"
   else
-    _r OK "pgf-env on PATH is this checkout's"
+    _r OK "pgf on PATH is this checkout's"
   fi
   [ "$fails" -eq 0 ]
+}
+
+# pgf_config_cmd [get KEY | set KEY=VALUE | unset KEY] [--user | --checkout]
+#   [--json] — read the layered settings, or edit one settings file.
+pgf_config_cmd() {
+  local verb="" arg="" layer="user" json=0 file k
+  case "${1:-}" in get | set | unset) verb="$1" arg="${2:-}"; shift 2 || shift ;; esac
+  while [ $# -gt 0 ]; do
+    case "$1" in
+    --user | --checkout) layer="${1#--}" ;;
+    --json) json=1 ;;
+    -h | --help) echo "usage: pgf config [get KEY | set KEY=VALUE | unset KEY] [--user | --checkout] [--json]"; return 0 ;;
+    *) echo "pgf config: unexpected '$1'" >&2; return 2 ;;
+    esac
+    shift
+  done
+  case "$verb" in
+  "")
+    pgf_conf_resolve || { echo "pgf: $PGF_CONF_ERR" >&2; return 2; }
+    if [ "$json" -eq 1 ]; then pgf_conf_json; else pgf_conf_print; fi
+    ;;
+  get)
+    pgf_conf_known_key "$arg" || { echo "pgf config: unknown key '$arg' (known: ${PGF_CONF_KEYS[*]})" >&2; return 2; }
+    pgf_conf_resolve || { echo "pgf: $PGF_CONF_ERR" >&2; return 2; }
+    [ -n "${PGF_CONF_VAL[$arg]+x}" ] || return 1
+    printf '%s\n' "${PGF_CONF_VAL[$arg]}"
+    ;;
+  set | unset)
+    k="${arg%%=*}"
+    if [ "$verb" = set ]; then
+      local msg
+      msg="$(pgf_conf_set_cli "$arg")" || { echo "pgf config set: ${msg#--set: }" >&2; return 2; }
+    else
+      pgf_conf_known_key "$k" || { echo "pgf config: unknown key '$k'" >&2; return 2; }
+    fi
+    [ "$layer" = checkout ] && file="$(pgf_conf_checkout_file)" || file="$(pgf_conf_user_file)"
+    PGF_CONF_VAL=() PGF_CONF_SRC=()
+    pgf_conf_parse "$file" "$layer" || { echo "pgf: $PGF_CONF_ERR" >&2; return 2; }
+    local -A out=()
+    for k in "${!PGF_CONF_VAL[@]}"; do out[$k]="${PGF_CONF_VAL[$k]}"; done
+    k="${arg%%=*}"
+    if [ "$verb" = set ]; then out[$k]="${arg#*=}"; else unset "out[$k]"; fi
+    pgf_conf_write "$file" "$layer" out || { echo "pgf: cannot write $file" >&2; return 2; }
+    echo "pgf: $verb $k in $file" >&2
+    ;;
+  esac
+}
+
+# pgf_build_cmd [--yade] [pgf env options] [build.sh options] — build this tree
+#   into the shared store (build.sh --isolated); an identical build is reused.
+pgf_build_cmd() {
+  local envopts=() bopts=()
+  while [ $# -gt 0 ]; do
+    case "$1" in
+    --yade) envopts+=(--yade); bopts+=(--yade) ;;
+    --set | --foam-bashrc | --mpi) envopts+=("$1" "${2:-}"); shift ;;
+    -h | --help) echo "usage: pgf build [--yade] [--set K=V] [build.sh options; see build.sh --help]"; return 0 ;;
+    *) bopts+=("$1") ;;
+    esac
+    shift
+  done
+  "$SELF" exec --bare "${envopts[@]}" -- "$PGF_ROOT/build.sh" --isolated "${bopts[@]}"
 }

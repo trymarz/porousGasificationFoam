@@ -1,6 +1,6 @@
 #!/bin/bash
 # coupling.sh — Foam-Yade coupling stamp and API checks (#257). Source-only;
-# shared by build.sh, pgf-env and buildCoupling.sh. Needs PGF_ROOT.
+# shared by build.sh, pgf and buildCoupling.sh. Needs PGF_ROOT.
 
 PGF_COUPLING_STAMP=".foamyade-coupling.json"
 PGF_COUPLING_HEADERS=(FoamYade.H meshtree/meshTree.H commYade/yadeComm.H)
@@ -49,7 +49,7 @@ PY
 }
 
 pgf_coupling_rebuild_cmd() {
-  printf '%s/pgf-env --bare --yade -- %s/utilities/pgf-env/buildCoupling.sh --libdir %s' \
+  printf '%s/pgf exec --bare --yade -- %s/utilities/pgf/buildCoupling.sh --libdir %s' \
     "$PGF_ROOT" "$PGF_ROOT" "$1"
 }
 
