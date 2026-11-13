@@ -34,6 +34,9 @@ check "yade is built with the pin in its version" grep -q "YADE_VERSION=.*-git-$
 check "the manifest records the commit and pin" \
     bash -c 'grep -q "\"pgf_commit\": \"$2\"" "$1" && grep -q "\"foam_yade_pin\": \"$3\"" "$1"' _ "$TEST_TMP/def" "$head" "$pin"
 check "PGF builds the yade1 variant" grep -q "pgf build --yade" "$TEST_TMP/def"
+check "the pin manifest exists before pgf build" \
+    bash -c 'awk "/manifest.json\", \"w\"/{m=NR} /pgf build --yade/{b=NR} END{exit !(m && b && m<b)}" "$1"' _ "$TEST_TMP/def"
+check "the image defaults to the yade1 variant" grep -q "PGF_YADE=1" "$TEST_TMP/def"
 check "the default output names the commit" grep -q "pgf-${head:0:12}-yade1.sif" "$TEST_TMP/err"
 
 rm -rf "$TEST_TMP/ctx"

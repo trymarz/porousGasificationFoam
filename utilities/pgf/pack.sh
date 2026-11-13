@@ -62,17 +62,23 @@ EOF
   fi
   cat <<EOF
     export PGF_FOAM_BASHRC="\$(ls -d /usr/lib/openfoam/openfoam*/etc/bashrc | head -1)"
-    export PGF_BUILD_ROOT=/opt/pgf/builds HOME=/root
-    /opt/pgf/src/pgf build $build_flag
-    key="\$(ls /opt/pgf/builds | grep -v '^\.' | grep -v '\.lock\$' | head -1)"
-    python3 - "\$key" <<'PY'
-import json, subprocess, sys
+    export PGF_BUILD_ROOT=/opt/pgf/builds HOME=/root PGF_IMAGE_MANIFEST=/opt/pgf/manifest.json
+    # The manifest comes first: without git, the build key reads the pin from it.
+    python3 - <<'PY'
+import json, subprocess
 sh = lambda c: subprocess.run(c, shell=True, capture_output=True, text=True).stdout.strip()
-m = {"pgf_commit": "$commit", "variant": "$variant", "build_key": sys.argv[1],
+m = {"pgf_commit": "$commit", "variant": "$variant", "build_key": None,
      "foam_yade_pin": "$pin" or None, "foam_yade_api_hash": "$api" or None,
      "base_image": "$(pgf_pack_from)", "gcc": sh("gcc -dumpfullversion"),
      "os": sh(". /etc/os-release && echo \$PRETTY_NAME")}
 json.dump(m, open("/opt/pgf/manifest.json", "w"), indent=2)
+PY
+    /opt/pgf/src/pgf build $build_flag
+    key="\$(ls /opt/pgf/builds | grep -v '^\.' | grep -v '\.lock\$' | head -1)"
+    python3 - "\$key" <<'PY'
+import json, sys
+p = "/opt/pgf/manifest.json"; m = json.load(open(p)); m["build_key"] = sys.argv[1]
+json.dump(m, open(p, "w"), indent=2)
 PY
     chmod -R a+rX /opt/pgf
 
@@ -81,7 +87,7 @@ PY
     export PGF_BUILD_ROOT=/opt/pgf/builds PGF_IMAGE_MANIFEST=/opt/pgf/manifest.json
     export PATH="/opt/pgf/src:\$PATH"
 EOF
-  [ "$variant" = yade1 ] && echo '    export YADE_BIN=/opt/yade/bin/yade YADE_TRUNK=/opt/pgf/foam-yade'
+  [ "$variant" = yade1 ] && echo '    export YADE_BIN=/opt/yade/bin/yade YADE_TRUNK=/opt/pgf/foam-yade PGF_YADE=1'
   cat <<'EOF'
 
 %runscript
