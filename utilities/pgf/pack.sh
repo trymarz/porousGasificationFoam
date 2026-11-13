@@ -7,7 +7,7 @@ PGF_PACK_BASE_DEF="container/pgf-toolchain.def"
 
 # Build dependencies of a headless yade on the toolchain image (Ubuntu 24.04).
 PGF_PACK_YADE_DEPS="cmake git g++ python3-dev python3-numpy python3-mpi4py python3-mpmath \
-python3-matplotlib python3-ipython libboost-all-dev libeigen3-dev libgts-dev libcgal-dev \
+python3-matplotlib python3-ipython python3-pygraphviz python3-xlib python3-sphinx python3-tk libboost-all-dev libeigen3-dev libgts-dev libcgal-dev \
 libvtk9-dev libsqlite3-dev libbz2-dev zlib1g-dev libopenblas-dev libsuitesparse-dev \
 libmetis-dev coinor-libclp-dev libmpfr-dev libmpfrc++-dev libmpc-dev libloki-dev"
 
@@ -142,10 +142,10 @@ print(m.get("git_head") or "-", m.get("variant") or "-", int(bool((m.get("checko
   echo "pgf pack: ${commit:0:12} $variant${pin:+, Foam-Yade ${pin:0:10}}; context $ctx" >&2
   if [ "$dry" -eq 1 ]; then
     cat "$ctx/pgf-pack.def"
-    echo "pgf pack: dry run; would build $out with: (cd $ctx && apptainer build --fakeroot $out pgf-pack.def)" >&2
+    echo "pgf pack: dry run; would build $out with: (cd $ctx && apptainer build --fakeroot --ignore-subuid $out pgf-pack.def)" >&2
     return 0
   fi
   command -v apptainer >/dev/null || { echo "pgf pack: apptainer not found" >&2; return 2; }
-  (cd "$ctx" && apptainer build --fakeroot "$out" pgf-pack.def) || return 1
+  (cd "$ctx" && apptainer build --fakeroot --ignore-subuid "$out" pgf-pack.def) || return 1
   echo "pgf pack: wrote $out" >&2
 }
