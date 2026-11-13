@@ -1,6 +1,6 @@
 #!/bin/bash
 # config.sh — pgf's layered settings (#257; doc/build.md). Source-only.
-# Later wins: default, user env.conf, checkout .pgf-env.conf, environment, CLI.
+# Later wins: default, user env.conf, checkout .pgf.conf, environment, CLI.
 # Files are parsed, never sourced, and only PGF_CONF_KEYS are accepted.
 
 PGF_CONF_KEYS=(PGF_FOAM_BASHRC YADE_TRUNK YADE_BIN YADE_PYTHONPATH PGF_YADE_LIBDIR
@@ -14,7 +14,24 @@ pgf_conf_user_file() {
 }
 
 pgf_conf_checkout_file() {
-  printf '%s/.pgf-env.conf' "$PGF_ROOT"
+  printf '%s/.pgf.conf' "$PGF_ROOT"
+}
+
+# pgf_conf_checkout_read_file — the checkout file to read: .pgf.conf, else the
+#   old name .pgf-env.conf (#274), for a deprecation period.
+pgf_conf_checkout_read_file() {
+  local new old="$PGF_ROOT/.pgf-env.conf"
+  new="$(pgf_conf_checkout_file)"
+  if [ ! -e "$new" ] && [ -e "$old" ]; then
+    printf '%s' "$old"
+  else
+    printf '%s' "$new"
+  fi
+}
+
+# pgf_records_dir — small run records (pgf run log, pgf test results).
+pgf_records_dir() {
+  printf '%s/pgf/runs' "${XDG_STATE_HOME:-${HOME:-}/.local/state}"
 }
 
 pgf_conf_known_key() {
@@ -61,12 +78,17 @@ pgf_conf_parse() {
 #   error set PGF_CONF_ERR and return 1. Runs after env -i, so "env" means the
 #   allowlisted caller variables.
 pgf_conf_resolve() {
-  local k msg
+  local k msg f
   PGF_CONF_VAL=() PGF_CONF_SRC=()
   PGF_CONF_VAL[PGF_YADE]=0 PGF_CONF_SRC[PGF_YADE]="default"
   PGF_CONF_VAL[PGF_MPI]=auto PGF_CONF_SRC[PGF_MPI]="default"
   pgf_conf_parse "$(pgf_conf_user_file)" user || return 1
-  pgf_conf_parse "$(pgf_conf_checkout_file)" checkout || return 1
+  f="$(pgf_conf_checkout_read_file)"
+  if [ "${f##*/}" = .pgf-env.conf ] && [ -z "${PGF_NOTED_OLD_CONF:-}" ]; then
+    echo "pgf: note: reading $f (old name); rename it to .pgf.conf" >&2
+    export PGF_NOTED_OLD_CONF=1
+  fi
+  pgf_conf_parse "$f" checkout || return 1
   for k in "${PGF_CONF_KEYS[@]}"; do
     if [ -n "${PGF_CONF_CLI[$k]+x}" ]; then
       PGF_CONF_VAL[$k]="${PGF_CONF_CLI[$k]}" PGF_CONF_SRC[$k]="cli"
@@ -92,9 +114,11 @@ pgf_conf_set_cli() {
 # pgf_conf_print — the effective values and where each came from.
 pgf_conf_print() {
   local k
+  local cf
+  cf="$(pgf_conf_checkout_read_file)"
   printf 'config files:\n  user:     %s%s\n  checkout: %s%s\n' \
     "$(pgf_conf_user_file)" "$([ -e "$(pgf_conf_user_file)" ] || echo ' (absent)')" \
-    "$(pgf_conf_checkout_file)" "$([ -e "$(pgf_conf_checkout_file)" ] || echo ' (absent)')"
+    "$cf" "$([ -e "$cf" ] || echo ' (absent)')"
   echo "settings:"
   for k in "${PGF_CONF_KEYS[@]}"; do
     if [ -n "${PGF_CONF_VAL[$k]+x}" ]; then
@@ -118,6 +142,8 @@ pgf_conf_write() {
       if [ -n "${_vals[$k]+x}" ]; then printf '%s=%s\n' "$k" "${_vals[$k]}"; fi
     done
   } >"$tmp" && mv -f "$tmp" "$file" || { rm -f "$tmp"; return 1; }
+  [ "$layer" != checkout ] || [ ! -e "$PGF_ROOT/.pgf-env.conf" ] ||
+    echo "pgf: note: $PGF_ROOT/.pgf-env.conf (old name) is no longer read; delete it" >&2
 }
 
 # pgf_conf_json — the effective values and layers as one JSON object.
@@ -130,7 +156,7 @@ pgf_conf_json() {
       args+=("$k" 0 "" unset)
     fi
   done
-  python3 - "$(pgf_conf_user_file)" "$(pgf_conf_checkout_file)" "${args[@]}" <<'PY'
+  python3 - "$(pgf_conf_user_file)" "$(pgf_conf_checkout_read_file)" "${args[@]}" <<'PY'
 import json, os, sys
 user, checkout, rest = sys.argv[1], sys.argv[2], sys.argv[3:]
 settings = {}

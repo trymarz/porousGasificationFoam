@@ -1,15 +1,15 @@
 #!/bin/bash
-# pgf test records last/<tier>.json, --if-stale skips a fresh PASS, and after a
-# source change --status reports the tier stale. The tier is a one-case smoke
-# tier from a scratch tiers.conf; the change is an untracked probe .C file.
+# pgf test records <XDG state>/pgf/runs/last/<tier>.json, --if-stale skips a
+# fresh PASS, and after a source change --status reports the tier stale. The tier
+# is a one-case smoke tier from a scratch tiers.conf; the probe is an untracked .C.
 
 . "$(dirname "${BASH_SOURCE[0]}")/toolingLib.sh"
 
 PGF_TEST="$PGF_LIB_TEST"
-export PGF_RUN_ROOT="$TEST_TMP/runs"
+export PGF_RUN_ROOT="$TEST_TMP/runs" XDG_STATE_HOME="$TEST_TMP/state"
 export PGF_TIERS_CONF="$TEST_TMP/tiers.conf"
 echo 'pgf_tier smoke Allrun yade0 1 - - "--case tutorials/cases/canonical/darcy" "test"' >"$PGF_TIERS_CONF"
-record="$PGF_RUN_ROOT/last/smoke.json"
+record="$XDG_STATE_HOME/pgf/runs/last/smoke.json"
 field() { python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))[sys.argv[2]])' "$record" "$1"; }
 
 "$PGF_TEST" smoke >"$TEST_TMP/run.log" 2>&1

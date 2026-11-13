@@ -71,14 +71,14 @@ export_tree() {
 run_native() {
   local tier="$1"
   export_tree "$WORK/native/src" || die "cannot export HEAD for the native side"
-  (cd "$WORK/native/src" && PGF_RUN_ROOT="$WORK/native/runs" ./pgf test "$tier")
+  (cd "$WORK/native/src" && PGF_RUN_ROOT="$WORK/native/runs" XDG_STATE_HOME="$WORK/native/state" ./pgf test "$tier")
 }
 
 run_image() {
   local tier="$1"
   export_tree "$WORK/image/src" || die "cannot export HEAD for the image side"
   apptainer exec --cleanenv --bind "$WORK" --pwd "$WORK/image/src" \
-    --env "PGF_BUILD_ROOT=$WORK/image/builds,PGF_RUN_ROOT=$WORK/image/runs" \
+    --env "PGF_BUILD_ROOT=$WORK/image/builds,PGF_RUN_ROOT=$WORK/image/runs,XDG_STATE_HOME=$WORK/image/state" \
     "$IMAGE" ./pgf test "$tier"
 }
 
@@ -95,14 +95,14 @@ done
 
 [ "$DO_IMAGE" = 1 ] && apptainer exec "$IMAGE" cat /opt/pgf-toolchain-manifest.txt > "$WORK/image-manifest.txt" 2>/dev/null
 
-# Per-case table from both sides' last/<tier>.json -> result.json; exit 1 when
-# a case does not PASS in the image.
+# Per-case table from both sides' <side>/state/pgf/runs/last/<tier>.json ->
+# result.json; exit 1 when a case does not PASS in the image.
 python3 - "$WORK" "$HEAD" $TIERS <<'PY'
 import json, os, sys
 work, head, tiers = sys.argv[1], sys.argv[2], sys.argv[3:]
 
 def side(name, tier):
-    rec = os.path.join(work, name, "runs", "last", tier + ".json")
+    rec = os.path.join(work, name, "state", "pgf", "runs", "last", tier + ".json")
     if not os.path.exists(rec):
         return None, {}
     last = json.load(open(rec))

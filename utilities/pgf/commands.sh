@@ -63,7 +63,7 @@ pgf_init() {
   if [ "$layer" = "checkout" ]; then file="$(pgf_conf_checkout_file)"; else file="$(pgf_conf_user_file)"; fi
 
   PGF_CONF_VAL=() PGF_CONF_SRC=()
-  pgf_conf_parse "$file" "$layer" || { echo "pgf: $PGF_CONF_ERR" >&2; return 1; }
+  pgf_conf_parse "$([ "$layer" = checkout ] && pgf_conf_checkout_read_file || echo "$file")" "$layer" || { echo "pgf: $PGF_CONF_ERR" >&2; return 1; }
   local -A out=()
   for k in "${!PGF_CONF_VAL[@]}"; do out[$k]="${PGF_CONF_VAL[$k]}"; done
 
@@ -234,7 +234,8 @@ pgf_config_cmd() {
       { echo "pgf config: PGF_BUILD is per worktree (--checkout) or per terminal (pgf use)" >&2; return 2; }
     [ "$layer" = checkout ] && file="$(pgf_conf_checkout_file)" || file="$(pgf_conf_user_file)"
     PGF_CONF_VAL=() PGF_CONF_SRC=()
-    pgf_conf_parse "$file" "$layer" || { echo "pgf: $PGF_CONF_ERR" >&2; return 2; }
+    pgf_conf_parse "$([ "$layer" = checkout ] && pgf_conf_checkout_read_file || echo "$file")" "$layer" ||
+      { echo "pgf: $PGF_CONF_ERR" >&2; return 2; }
     local -A out=()
     for k in "${!PGF_CONF_VAL[@]}"; do out[$k]="${PGF_CONF_VAL[$k]}"; done
     k="${arg%%=*}"
@@ -276,6 +277,45 @@ pgf_tools_cmd() {
       more && /^#   +[^ ]/ { sub(/^# /, "  "); print; next }
       { more = 0 }' "$PGF_ROOT/$f"
   done
+}
+
+# pgf_where_cmd — settings files, build store, run records, run dir and the
+#   active build with the layer that chose it, one line each.
+pgf_where_cmd() {
+  local f out=() variant sel src key prefix state
+  [ $# -eq 0 ] || { echo "usage: pgf where" >&2; return 2; }
+  pgf_conf_resolve || { echo "pgf: $PGF_CONF_ERR" >&2; return 2; }
+  pgf_build_info
+  for f in "$(pgf_conf_user_file)" "$(pgf_conf_checkout_read_file)"; do
+    if [ -e "$f" ]; then out+=("$f"); else out+=("$f (absent)"); fi
+  done
+  _layer() {
+    case "${PGF_CONF_SRC[$1]:-default}" in
+    env) echo "${2:-environment}" ;;
+    cli) echo "command line" ;;
+    default) echo default ;;
+    *) echo "${PGF_CONF_SRC[$1]}" ;;
+    esac
+  }
+  variant="yade${PGF_YADE:-0}" sel="${PGF_BUILD:-auto}" src="$(_layer PGF_BUILD "terminal: pgf use")"
+  if [ "$sel" = auto ]; then
+    key="${PGF_INFO_KEY[$variant]}"
+    src="auto: this checkout's sources"
+  elif prefix="$(python3 "$PGF_LIB/registry.py" resolve "$PGF_INFO_ROOT" "$variant" "$sel" 2>&1)"; then
+    key="${prefix##*/}"
+  else
+    key="$sel" state="${prefix#*: }"
+  fi
+  if [ -z "${state:-}" ]; then
+    if [ -z "$key" ]; then key="?" state="key unknown: cannot source OpenFOAM"
+    elif [ -f "$PGF_INFO_ROOT/$key/.pgf-build.json" ]; then state="built"
+    else state="not built: run pgf build"; [ "$variant" = yade1 ] && state+=" --yade"; fi
+  fi
+  printf 'settings  %s\n          %s\n' "${out[0]}" "${out[1]}"
+  printf 'builds    %s [%s]\n' "${PGF_INFO_ROOT:-unknown}" "$(_layer PGF_BUILD_ROOT)"
+  printf 'records   %s\n' "$(pgf_records_dir)"
+  printf 'run dir   %s [%s]\n' "${PGF_RUN_ROOT:-${TMPDIR:-/tmp}/pgf-runs}" "$(_layer PGF_RUN_ROOT)"
+  printf 'build     %s [%s; %s] %s\n' "$key" "$variant" "$src" "$state"
 }
 
 # pgf_build_info — set PGF_INFO_ROOT and PGF_INFO_KEY[yade0|yade1] for this

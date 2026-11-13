@@ -18,6 +18,7 @@
 #   pgf build [--yade] [build.sh options]   (utilities/pgf/build.sh --help lists them)
 #   pgf test <tier|all> [--rebuild] [--if-stale AGE] | --status | --gc   (pgf test --help)
 #   pgf tools                       every tool at the checkout root: what, why, use instead
+#   pgf where                       settings files, build store, run records, run dir, active build
 #   pgf exec [options] -- <command ...>
 #   pgf shell [options] [-c COMMAND]
 #   pgf run [options] [--build] [--allow-stale] <caseDir> [Allrun | Allclean | script] [args ...]
@@ -25,7 +26,7 @@
 # options (exec, shell, run, status, doctor):
 #   --use SEL     the build to use: a key or key prefix, a commit, a worktree, a
 #                 prefix path, or auto (the build of this checkout's sources). Later
-#                 wins: auto, PGF_BUILD in .pgf-env.conf, the terminal (pgf use), --use
+#                 wins: auto, PGF_BUILD in .pgf.conf, the terminal (pgf use), --use
 #   --prefix DIR  use this complete prefix as it is (also one from
 #                 build.sh --prefix outside the store); no staleness check
 #   --for-tree    same as --use auto
@@ -54,9 +55,10 @@
 #
 # Settings: PGF_FOAM_BASHRC, PGF_BUILD_ROOT, PGF_RUN_ROOT, YADE_TRUNK, YADE_BIN,
 # YADE_PYTHONPATH, PGF_YADE_LIBDIR, PGF_YADE, PGF_MPI, PGF_BUILD. Each comes from, later
-# winning: default, ~/.config/pgf/env.conf, <checkout>/.pgf-env.conf, the
-# environment, the CLI. Exit 2 when the environment cannot be set up;
-# otherwise the command's status.
+# winning: default, ~/.config/pgf/env.conf, <checkout>/.pgf.conf, the
+# environment, the CLI. Run records go to ${XDG_STATE_HOME:-~/.local/state}/pgf/runs,
+# case dirs and scratch to PGF_RUN_ROOT. Exit 2 when the environment cannot be
+# set up; otherwise the command's status.
 
 PGF_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 SELF="$PGF_ROOT/pgf"
@@ -78,7 +80,7 @@ usage() {
 
 if [ -z "${PGF_ENV_ACTIVE:-}" ]; then
   keep=()
-  for v in HOME USER LANG TERM TMPDIR WM_PROJECT_DIR XDG_CONFIG_HOME; do
+  for v in HOME USER LANG TERM TMPDIR WM_PROJECT_DIR XDG_CONFIG_HOME XDG_STATE_HOME; do
     [ -n "${!v+x}" ] && keep+=("$v=${!v}")
   done
   while IFS= read -r v; do
@@ -99,7 +101,7 @@ fi
 
 sub="status"
 case "${1:-}" in
-status | doctor | setup | config | build | ls | builds | use | gc | pack | exec | shell | run | tools) sub="$1"; shift ;;
+status | doctor | setup | config | build | ls | builds | use | gc | pack | exec | shell | run | tools | where) sub="$1"; shift ;;
 help | -h | --help) usage; exit 0 ;;
 -*) die "give a subcommand first, e.g. pgf exec $* (see pgf --help)" ;;
 "") ;;
@@ -109,6 +111,7 @@ esac
 case "$sub" in
 config) pgf_config_cmd "$@"; exit $? ;;
 tools) pgf_tools_cmd "$@"; exit $? ;;
+where) pgf_where_cmd "$@"; exit $? ;;
 build) pgf_build_cmd "$@"; exit $? ;;
 ls) pgf_ls_cmd "$@"; exit $? ;;
 builds) pgf_ls_cmd --builds-only "$@"; exit $? ;;
@@ -450,7 +453,7 @@ if [ "$sub" = run ]; then
   "${cmd[@]}"
   rc=$?
   trap - INT TERM
-  python3 "$PGF_LIB/registry.py" record "$PWD" "$PGF_BUILD_ROOT" "$prefix" "$sel_src" \
+  python3 "$PGF_LIB/registry.py" record "$PWD" "$(pgf_records_dir)" "$prefix" "$sel_src" \
     "${yade_bin:-}" "$([ -n "${yade_bin:-}" ] && pgf_yade_commit "$yade_bin")" "$started" "$rc" "${cmd[@]}" ||
     echo "pgf: warning: could not write the run record" >&2
   exit "$rc"

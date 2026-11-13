@@ -292,8 +292,8 @@ def remove(root, key):
             os.close(fd)
 
 
-def record(case, root, prefix, source, yade_bin, yade_commit, started, rc, *cmd):
-    """Write CASE/.pgf-run.json and append the same record to ROOT/.pgf/runs.jsonl."""
+def record(case, records, prefix, source, yade_bin, yade_commit, started, rc, *cmd):
+    """Write CASE/.pgf-run.json and append the same record to RECORDS/runs.jsonl."""
     meta = load(os.path.join(prefix, ".pgf-build.json")) or {}
     rec = {
         "case": os.path.realpath(case), "command": list(cmd),
@@ -305,11 +305,11 @@ def record(case, root, prefix, source, yade_bin, yade_commit, started, rc, *cmd)
     if yade_bin:
         rec["yade"] = {"bin": yade_bin, "commit": yade_commit or None, "foam_yade_pin": (meta.get("foam_yade") or {}).get("pin")}
     write_atomic(os.path.join(case, ".pgf-run.json"), rec)
-    # The log is optional: a read-only root (an Apptainer image) keeps the case record only.
+    # The log is optional: a read-only home (an Apptainer image) keeps the case record only.
     try:
-        if root and os.path.isdir(root):
-            os.makedirs(os.path.join(root, ".pgf"), exist_ok=True)
-            with open(os.path.join(root, ".pgf", "runs.jsonl"), "a") as f:
+        if records:
+            os.makedirs(records, exist_ok=True)
+            with open(os.path.join(records, "runs.jsonl"), "a") as f:
                 f.write(json.dumps(rec) + "\n")
     except OSError:
         pass

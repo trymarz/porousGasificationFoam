@@ -6,8 +6,9 @@
 . "$(dirname "${BASH_SOURCE[0]}")/toolingLib.sh"
 
 PGF_TEST="$PGF_LIB_TEST"
-export PGF_BUILD_ROOT="$TEST_TMP/builds" PGF_RUN_ROOT="$TEST_TMP/runs"
-mkdir -p "$PGF_BUILD_ROOT" "$PGF_RUN_ROOT/last"
+export PGF_BUILD_ROOT="$TEST_TMP/builds" PGF_RUN_ROOT="$TEST_TMP/runs" XDG_STATE_HOME="$TEST_TMP/state"
+LAST="$XDG_STATE_HOME/pgf/runs/last"
+mkdir -p "$PGF_BUILD_ROOT" "$PGF_RUN_ROOT" "$LAST"
 
 current="$(tree_prefix)" || die "cannot resolve this tree's prefix"
 current="${current##*/}"
@@ -25,7 +26,7 @@ for i in 1 2 3 4; do
     mkdir -p "$PGF_RUN_ROOT/pgf-test-fast-$i"
     touch -d "-$((i * 10)) minutes" "$PGF_RUN_ROOT/pgf-test-fast-$i"
 done
-printf '{"run_dir": "%s"}\n' "$PGF_RUN_ROOT/pgf-test-fast-4" >"$PGF_RUN_ROOT/last/fast.json"
+printf '{"run_dir": "%s"}\n' "$PGF_RUN_ROOT/pgf-test-fast-4" >"$LAST/fast.json"
 
 "$PGF_TEST" --gc --keep-prefixes 2 --keep-runs 1 >"$TEST_TMP/gc.log" 2>&1
 rc=$?

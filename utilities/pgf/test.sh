@@ -8,8 +8,8 @@
 #
 # A run builds (or reuses) the tier's prefix with build.sh --isolated, runs the
 # tier's driver under pgf exec with --state-dir below the run dir, and writes
-# $PGF_RUN_ROOT/last/<tier>.json: key, fingerprint, git HEAD, start/end, counts,
-# outcome and where the state is. Tiers come from applications/test/tiers.conf
+# <records>/last/<tier>.json: key, fingerprint, git HEAD, start/end, counts,
+# outcome and where the state is; <records> is ${XDG_STATE_HOME:-~/.local/state}/pgf/runs. Tiers come from applications/test/tiers.conf
 # (PGF_TIERS_CONF overrides it).
 #
 #   --rebuild        delete the tier's prefix first, then build it again
@@ -35,7 +35,7 @@ BUILD_SH="$PGF_ROOT/utilities/pgf/build.sh"
 REG_DIR="$PGF_ROOT/applications/test/regression"
 TIERS_CONF="${PGF_TIERS_CONF:-$PGF_ROOT/applications/test/tiers.conf}"
 export PGF_RUN_ROOT="${PGF_RUN_ROOT:-${TMPDIR:-/tmp}/pgf-runs}"
-LAST_DIR="$PGF_RUN_ROOT/last"
+LAST_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/pgf/runs/last"
 
 die() {
   echo "pgf test: $*" >&2

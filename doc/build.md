@@ -1,5 +1,26 @@
 # Building porousGasificationFoam
 
+## Settings → builds → runs
+
+`pgf` keeps three kinds of state, each in one place:
+
+```
+  settings                     builds                        runs
+  what to use          ──▶     compiled prefixes     ──▶     case output and records
+  ~/.config/pgf/env.conf       $PGF_BUILD_ROOT/<key>/        scratch: $PGF_RUN_ROOT
+  <checkout>/.pgf.conf         one per sources + variant     records: ~/.local/state/pgf/runs
+```
+
+| | Where | What is there | Commands |
+|---|---|---|---|
+| **Settings** | user file `${XDG_CONFIG_HOME:-~/.config}/pgf/env.conf`; checkout file `.pgf.conf` (git-ignored, one per worktree) | `KEY=value` layers: OpenFOAM, yade, roots, the selected build | `pgf setup`, `pgf config`, `pgf status` |
+| **Builds** | `$PGF_BUILD_ROOT/<key>/{bin,lib}` (default `$WM_PROJECT_USER_DIR/pgf-builds`) | one prefix per source fingerprint, variant, OpenFOAM and compiler; reused, never overwritten | `pgf build`, `pgf builds`, `pgf use`, `pgf gc` |
+| **Runs** | scratch in `$PGF_RUN_ROOT` (default `${TMPDIR:-/tmp}/pgf-runs`, configurable): `FOAM_RUN`, `TMPDIR`, test-tier run dirs and case copies. Records in `${XDG_STATE_HOME:-~/.local/state}/pgf/runs`: `runs.jsonl` and `last/<tier>.json` | `pgf run` runs in the case dir you name and also writes `<case>/.pgf-run.json` | `pgf run`, `pgf test` |
+
+`pgf where` prints these for this checkout in six lines, ending with the active build and the layer that chose it. Scratch may live in tmp; the records are small and kept across reboots.
+
+## Entry points
+
 `pgf` is the front door: `pgf --help` lists its commands and `pgf tools` explains every tool at the checkout root (what it does, why it exists, what to use instead). `./Allwmake` and `./Allwclean` keep the OpenFOAM convention and call `pgf build`. `wmake` runs in place in your checkout, which may live anywhere; every tool behaves the same from any working directory.
 
 ## First-time setup
@@ -9,6 +30,7 @@ In a new terminal, with nothing sourced or exported:
 ```bash
 ./pgf setup --yes                # finds OpenFOAM's etc/bashrc and yade; writes ~/.config/pgf/env.conf; links ~/.local/bin/pgf
 pgf status                       # what was recorded, and from which file
+pgf where                        # where settings, builds, run records and scratch live
 pgf doctor                       # checks, each with a fix
 pgf build                        # build this tree into its own prefix
 pgf run tutorials/cases/canonical/pyrolysis    # run a case from anywhere
@@ -65,7 +87,7 @@ This is the in-place route (`utilities/pgf/build.sh` with `etc/bashrc` sourced);
 
 ### Choosing a build
 
-Each command uses one build. It comes from, later winning: **auto** (the build of this checkout's sources as they are now), `PGF_BUILD` in the checkout's `.pgf-env.conf`, the terminal (`PGF_BUILD` in the environment, which `pgf use` sets), and `--use SEL` on the command line. `PGF_BUILD` is refused in the user file. `SEL` is a key or unique key prefix, a commit (the newest build made from it), a worktree name or path (its last build), a prefix path, or `auto`. `--prefix DIR` uses that complete prefix as it is (also one built with `build.sh --prefix` outside the store) and skips the staleness check.
+Each command uses one build. It comes from, later winning: **auto** (the build of this checkout's sources as they are now), `PGF_BUILD` in the checkout's `.pgf.conf`, the terminal (`PGF_BUILD` in the environment, which `pgf use` sets), and `--use SEL` on the command line. `PGF_BUILD` is refused in the user file. `SEL` is a key or unique key prefix, a commit (the newest build made from it), a worktree name or path (its last build), a prefix path, or `auto`. `--prefix DIR` uses that complete prefix as it is (also one built with `build.sh --prefix` outside the store) and skips the staleness check.
 
 `pgf use SEL` prints the line that sets the terminal layer; apply it with `eval "$(pgf use SEL)"`. Inside `pgf shell` a `pgf` function does the `eval`; the shell itself keeps the build it started with, so later `pgf exec` / `pgf run` calls follow the new choice.
 
@@ -77,7 +99,7 @@ A selected build that is not this checkout's sources is **stale**: `pgf exec` an
 
 `pgf build [--yade] [build.sh options]` is `pgf exec --bare [--yade] -- utilities/pgf/build.sh --isolated [--yade] [options]`.
 
-`pgf exec [--prefix DIR | --for-tree | --bare] [--yade] [--mpi loopback] -- <command>` runs a command in a clean environment. It drops the caller's environment except `HOME USER LANG TERM TMPDIR WM_PROJECT_DIR XDG_CONFIG_HOME PGF_* YADE_*` and sources `$PGF_FOAM_BASHRC` (default `$WM_PROJECT_DIR/etc/bashrc`) with `set +eu`. Then it points `WM_PROJECT_USER_DIR`, `FOAM_USER_APPBIN` and `FOAM_USER_LIBBIN` at the prefix and removes every `PATH` / `LD_LIBRARY_PATH` entry under the user dir `bashrc` chose. It also sets `UCX_VFS_ENABLE=n UCX_LOG_LEVEL=fatal`, `PGF_ISOLATED_ONLY=1` (`build.sh` then refuses to build without `--prefix` / `--isolated`) and `TMPDIR=$PGF_RUN_ROOT/tmp`. It checks that `porousGasificationFoam` resolves into the prefix and prints a one-line banner on stderr.
+`pgf exec [--prefix DIR | --for-tree | --bare] [--yade] [--mpi loopback] -- <command>` runs a command in a clean environment. It drops the caller's environment except `HOME USER LANG TERM TMPDIR WM_PROJECT_DIR XDG_CONFIG_HOME XDG_STATE_HOME PGF_* YADE_*` and sources `$PGF_FOAM_BASHRC` (default `$WM_PROJECT_DIR/etc/bashrc`) with `set +eu`. Then it points `WM_PROJECT_USER_DIR`, `FOAM_USER_APPBIN` and `FOAM_USER_LIBBIN` at the prefix and removes every `PATH` / `LD_LIBRARY_PATH` entry under the user dir `bashrc` chose. It also sets `UCX_VFS_ENABLE=n UCX_LOG_LEVEL=fatal`, `PGF_ISOLATED_ONLY=1` (`build.sh` then refuses to build without `--prefix` / `--isolated`) and `TMPDIR=$PGF_RUN_ROOT/tmp`. It checks that `porousGasificationFoam` resolves into the prefix and prints a one-line banner on stderr.
 
 - `--for-tree` (default) uses this checkout's `--isolated` prefix and exits 2 if it is not built. `--bare` uses no prefix; use it to run `build.sh`.
 - `--yade` adds `YADE_TRUNK` (default `submodules/Foam-Yade`), a `yade` on `PATH` (from `YADE_BIN` or the caller's `PATH`) and `PYTHONPATH` (`YADE_PYTHONPATH`, or derived from the install). If `/tmp` is read-only, it also preloads a small shim that moves Yade's `/tmp/yade-XXXXXX` into `$TMPDIR`.
@@ -90,7 +112,7 @@ A selected build that is not this checkout's sources is **stale**: `pgf exec` an
 
 1. built-in default;
 2. user file `${XDG_CONFIG_HOME:-~/.config}/pgf/env.conf`;
-3. checkout file `.pgf-env.conf` at the tree root (git-ignored, so each worktree has its own);
+3. checkout file `.pgf.conf` at the tree root (git-ignored, so each worktree has its own). The old name `.pgf-env.conf` is still read, with a note, while no `.pgf.conf` exists; the next `pgf config set --checkout` or `pgf setup --checkout` writes its keys to `.pgf.conf`;
 4. the caller's environment;
 5. `--set KEY=VALUE` (or `--foam-bashrc FILE`, `--yade` / `--no-yade`, `--mpi …`).
 
@@ -105,7 +127,7 @@ printf 'PGF_FOAM_BASHRC=%s\n' ~/OpenFOAM/OpenFOAM-v2406/etc/bashrc >> ~/.config/
 
 ```bash
 ./pgf setup --yes                          # detect OpenFOAM and yade, write ~/.config/pgf/env.conf, link ~/.local/bin/pgf
-./pgf setup --checkout --yes --no-link --foam-bashrc FILE   # or this worktree's .pgf-env.conf, no link
+./pgf setup --checkout --yes --no-link --foam-bashrc FILE   # or this worktree's .pgf.conf, no link
 ./pgf setup --link-only                    # only ~/.local/bin/pgf -> this checkout's pgf
 ./pgf config get PGF_MPI                   # one resolved value (exit 1 if unset)
 ./pgf config set PGF_MPI=loopback --checkout   # edit the user (default) or checkout file
@@ -118,7 +140,7 @@ printf 'PGF_FOAM_BASHRC=%s\n' ~/OpenFOAM/OpenFOAM-v2406/etc/bashrc >> ~/.config/
 - `setup` looks for `$WM_PROJECT_DIR/etc/bashrc`, `~/OpenFOAM/*/etc/bashrc`, `/opt/openfoam*` and `/usr/lib/openfoam/*` (v2406 first), and for `yade` or a suffixed `yade-*` on your `PATH`. It asks when several candidates exist and a terminal is attached, unless `--yes`. Values given as `--foam-bashrc`, `--yade-bin`, `--yade-trunk` or `--set` win, and keys already in the file are kept. `--checkout` also records `submodules/Foam-Yade` as `YADE_TRUNK` when it is checked out.
 - `shell` takes the same options as `exec` (`--yade`, `--prefix`, `--bare`, …). Nested `pgf` calls inside it skip the `env -i` step.
 - `run` changes into the case directory (resolved from your current directory) before running, so it works from anywhere. A case whose `constant/yadeProperties` says `active true` gets `--yade` unless `--no-yade` is given or `PGF_YADE` is set in a file or the environment.
-- After the script ends, `run` writes a run record to `<case>/.pgf-run.json`: the command, start and end times, exit status, the build (key, prefix, variant, commit, and the layer it was selected by) and, for a DEM run, the yade binary, its commit and the Foam-Yade pin. The same record is appended as one line to `$PGF_BUILD_ROOT/.pgf/runs.jsonl` when the build root is writable. `run` exits with the script's status, and still writes the record after Ctrl-C.
+- After the script ends, `run` writes a run record to `<case>/.pgf-run.json`: the command, start and end times, exit status, the build (key, prefix, variant, commit, and the layer it was selected by) and, for a DEM run, the yade binary, its commit and the Foam-Yade pin. The same record is appended as one line to `${XDG_STATE_HOME:-~/.local/state}/pgf/runs/runs.jsonl` when that is writable (before #274 this log lived under the build root). `run` exits with the script's status, and still writes the record after Ctrl-C.
 - The link step refuses to replace a link to another checkout without `--force`. With several worktrees, the link picks one; call the others by path.
 
 Tests for this tooling live in `applications/test/tooling/test_*.sh`; each runs alone with `PGF_FOAM_BASHRC` set and builds under `PGF_BUILD_ROOT` (default `$TMPDIR/pgf-tooling-builds`).

@@ -79,6 +79,8 @@ jobs:
         run: |
           echo "PGF_BUILD_ROOT=$GITHUB_WORKSPACE/pgf-builds" >>"$GITHUB_ENV"
           echo "PGF_RUN_ROOT=$GITHUB_WORKSPACE/pgf-runs" >>"$GITHUB_ENV"
+          # pgf test writes its record to $XDG_STATE_HOME/pgf/runs/last/<tier>.json.
+          echo "XDG_STATE_HOME=$GITHUB_WORKSPACE/pgf-runs/state" >>"$GITHUB_ENV"
 
       - name: Toolchain
         working-directory: pgf
@@ -139,7 +141,7 @@ jobs:
           out="$GITHUB_WORKSPACE/artifacts"
           mkdir -p "$out"
           cd "$PGF_RUN_ROOT" || exit 0
-          for f in ci-build.log run/build.log run/driver.log "last/$TIER.json"; do
+          for f in ci-build.log run/build.log run/driver.log "state/pgf/runs/last/$TIER.json"; do
             [ -f "$f" ] && cp --parents "$f" "$out/"
           done
           [ -d run/state ] && cp -r --parents run/state "$out/"
