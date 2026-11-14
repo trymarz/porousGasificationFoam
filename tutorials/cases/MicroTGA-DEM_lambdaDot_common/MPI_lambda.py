@@ -287,7 +287,13 @@ def apply_spring_forces():
 #----------
 
 
-fluidCoupling = FoamCoupling()
+# The engine must match 'coupler' in constant/yadeProperties (#271): the
+# solver's handshake stops by name on a mismatch. Default foamYade.
+import re
+with open("constant/yadeProperties") as f:
+    _coupler = re.search(r"^\s*coupler\s+(\w+)\s*;", re.sub(r"//.*", "", f.read()), re.M)
+_coupler = _coupler.group(1) if _coupler else "foamYade"
+fluidCoupling = PgfCoupling() if _coupler == "pgf" else FoamCoupling()
 fluidCoupling.couplingModeParallel = parallelYade
 
 

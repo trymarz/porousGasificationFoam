@@ -8,10 +8,9 @@ EXE_INC = \
     -IlambdaDotModels/constantLambdaDot \
     -IlambdaDotModels/exactDifferentialLambdaDot \
     -IlambdaDotModels/apparentVolumeLambdaDot \
+    -IpgfYadeCoupler \
     -I$(LIB_SRC)/finiteVolume/lnInclude \
     -I$(LIB_SRC)/meshTools/lnInclude \
-    -I$(YADE_TRUNK)/pkg/openfoam/coupling/FoamYade/lnInclude \
-    -I$(YADE_TRUNK)/pkg/openfoam/coupling/FoamYade/meshtree/lnInclude \
     -I$(LIB_SRC)/Pstream/mpi/lnInclude \
     $(PFLAGS) $(PINC) \
     -DfoamVersion=$(shell echo $(WM_PROJECT_VERSION) | sed 's/v//g')
@@ -20,7 +19,5 @@ EXE_LIBS = \
     -lfiniteVolume \
     -lmeshTools \
     -L$(FOAM_USER_LIBBIN) \
-    -lMeshTree \
-    -lYadeFoam \
     -L$(FOAM_LIBBIN)/$(FOAM_MPI)/lPstream \
     $(PLIBS)

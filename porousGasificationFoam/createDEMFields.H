@@ -44,6 +44,22 @@ if (yadeCouplingProperties.size() > 0 && !DEM)
     WarningIn("createDEMFields.H")
         << "yadeProperties found but DEM coupling is disabled (active != true)" << nl;
 
+// Which OpenFOAM half talks to Yade (#271): foamYade, the legacy Foam-Yade
+// FoamYade with Stokes drag; or pgf, the minimal pgfYadeCoupler (no drag).
+// The DEM script must build the matching engine; the handshake checks it.
+const word demCoupler
+(
+    yadeCouplingProperties.lookupOrDefault<word>("coupler", "foamYade")
+);
+
+if (DEM && demCoupler != "foamYade" && demCoupler != "pgf")
+{
+    FatalIOErrorInFunction(yadeCouplingProperties)
+        << "Unknown coupler " << demCoupler
+        << " in constant/yadeProperties; valid: foamYade, pgf"
+        << exit(FatalIOError);
+}
+
 
 dimensionedScalar nu (
     "nu",
