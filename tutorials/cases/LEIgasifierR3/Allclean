@@ -1,6 +1,6 @@
 #!/bin/sh
 
-cd "$(dirname "$(realpath "$0")")"
+cd "${0%/*}" || exit
 rm -rf processor* 0 [1-9]* 0.? 0.?? 0.??? log.* *.foam postProcessing
 rm -rf constant/polyMesh system/blockMeshDict
 rm -rf spheres relaxedSpheres.txt bedState.txt __pycache__ dtInfo.txt balance.txt
