@@ -121,7 +121,7 @@ pgf_tilde() {
 # pgf_setup_summary LINKED COMPLETION — what pgf setup decided, after pgf_init:
 #   one "OK|WARN|FAIL message" line per decision, then the next steps.
 pgf_setup_summary() {
-  local linked="$1" completion="$2" k old new bashrc ver yb p link="$HOME/.local/bin/pgf"
+  local linked="$1" completion="$2" k old new bashrc ver yb p link="$HOME/.local/bin/pgf" pgf=pgf
   _s() { printf '  %-4s %s\n' "$1" "$2"; }
   pgf_conf_resolve 2>/dev/null || true
   echo
@@ -158,8 +158,15 @@ pgf_setup_summary() {
   fi
 
   yb="${YADE_BIN:-}"
-  if [ -n "$yb" ]; then
-    _s OK "yade: $(pgf_tilde "$yb")"
+  if [ -n "$yb" ] && [ ! -x "$yb" ]; then
+    _s WARN "yade: $(pgf_tilde "$yb") is not executable; DEM (--yade) needs it; fix: pgf config set YADE_BIN=PATH"
+  elif [ -n "$yb" ]; then
+    local line lvl
+    while IFS= read -r line; do
+      lvl="${line%% *}"
+      [ "$lvl" = FAIL ] && lvl=WARN # DEM only; pgf doctor --yade fails on it
+      _s "$lvl" "$(sed -E "s/^[A-Z]+ +//; s|$HOME/|~/|g" <<<"$line")"
+    done < <(pgf_yade_check "$yb" "${YADE_TRUNK:-$PGF_ROOT/submodules/Foam-Yade}")
   else
     _s OK "yade: not found; DEM coupling (--yade) unavailable, the CFD solver is unaffected"
   fi
@@ -168,22 +175,25 @@ pgf_setup_summary() {
   if [ -n "$p" ] && [ "$(readlink -f "$p")" = "$SELF" ]; then
     _s OK "pgf on PATH is this checkout's"
   elif [ -n "$p" ]; then
-    _s WARN "pgf on PATH is $(readlink -f "$p"), not this checkout; call this one by path"
+    pgf="./pgf"
+    _s WARN "pgf on PATH is $(pgf_tilde "$(readlink -f "$p")"), not this checkout; here call ./pgf"
+    _s "" "or make the link point here: ./pgf setup --link-only --force"
   elif [ "$(readlink -f "$link")" = "$SELF" ]; then
     _s WARN "$(pgf_tilde "$link") is set, but ~/.local/bin is not on your PATH; fix:"
     _s "" 'export PATH="$HOME/.local/bin:$PATH"   (add it to ~/.bashrc)'
   elif [ "$linked" -eq 0 ]; then
     _s OK "pgf not linked (--no-link); call $(pgf_tilde "$SELF") by path"
   else
-    _s WARN "$(pgf_tilde "$link") does not point here; fix: $(pgf_tilde "$SELF") setup --link-only --force"
+    pgf="./pgf"
+    _s WARN "$(pgf_tilde "$link") points at $(pgf_tilde "$(readlink -f "$link")"), not here; fix: ./pgf setup --link-only --force"
   fi
 
   if [ "$completion" -eq 1 ]; then
     _s OK "bash completion: $(pgf_tilde "$(pgf_completion_file)"); takes effect in a new shell"
   fi
   echo "next:"
-  echo "  pgf config     every setting and the layer it comes from"
-  echo "  pgf status     settings plus the builds for this checkout"
+  printf '  %-14s every setting and the layer it comes from\n' "$pgf config"
+  printf '  %-14s settings plus the builds for this checkout\n' "$pgf status"
   echo "  ./Allwmake     build the solver here (≈1.5 min first build)"
 }
 
@@ -207,15 +217,22 @@ pgf_run_summary() {
   else
     echo "pgf: $script FAILED (exit $rc$([ "$rc" -eq 130 ] && echo ', interrupted')) after $dt ($(pgf_tilde "$PWD"))" >&2
     if [ -n "$log" ]; then
-      echo "pgf:   last 20 lines of $log:" >&2
-      tail -n 20 "$log" | sed 's/^/    /' >&2
+      local fatal
+      fatal="$(grep -n -m1 'FOAM FATAL' "$log" | cut -d: -f1)"
+      if [ -n "$fatal" ]; then
+        echo "pgf:   $log from its FOAM FATAL message:" >&2
+        tail -n "+$((fatal > 2 ? fatal - 2 : 1))" "$log" | head -n 25 | sed 's/^/    /' >&2
+      else
+        echo "pgf:   last 20 lines of $log:" >&2
+        tail -n 20 "$log" | sed 's/^/    /' >&2
+      fi
     else
       echo "pgf:   no log.* written by this run; the script's own output is above" >&2
     fi
   fi
   echo "pgf:   record:      .pgf-run.json" >&2
   [ "$rc" -eq 0 ] && [ -n "$last" ] && [ "$last" != 0 ] &&
-    echo "pgf: next: $(pgf_tilde "$PGF_ROOT")/applications/utilities/paraview/pgfView . (doc/paraview.md)" >&2
+    echo "pgf: next: $(pgf_tilde "$PGF_ROOT")/applications/utilities/paraview/pgfView $(pgf_tilde "$PWD") (doc/paraview.md)" >&2
   return 0
 }
 
@@ -229,6 +246,7 @@ pgf_install_link() {
       return 0
     fi
     [ "$1" -eq 1 ] || {
+      [ "${PGF_SETUP_QUIET:-0}" -eq 1 ] && return 2 # the setup summary warns
       echo "pgf: $link points at ${cur:-a file}; rerun with --force to replace it" >&2
       echo "pgf: (with several worktrees, the link picks one; call the others by path)" >&2
       return 2
@@ -390,7 +408,7 @@ pgf_build_cmd() {
     esac
     shift
   done
-  "$SELF" exec --bare "${envopts[@]}" -- "$PGF_LIB/build.sh" --isolated "${bopts[@]}" || return $?
+  PGF_BANNER_BUILD=1 "$SELF" exec --bare "${envopts[@]}" -- "$PGF_LIB/build.sh" --isolated "${bopts[@]}" || return $?
   [ "$build" -eq 0 ] ||
     echo "next: pgf run <copy of a tutorial case> (README, Quick start), or pgf test fast" >&2
 }

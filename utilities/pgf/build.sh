@@ -427,7 +427,6 @@ sys.exit(0 if set(sys.argv[2:]) <= built else 1)' "$PREFIX/.pgf-build.json" "${w
 report_cache_hit() {
   clog SUCCESS "Cache hit: $PREFIX is complete for key $BUILD_KEY; nothing compiled."
   register_workspace
-  printf '%s\n' "$PREFIX"
 }
 
 # Point wmake's output at the prefix, under a lock so two builds of the same
@@ -647,9 +646,9 @@ execute_target() {
     cmd="${BUILD_COMMANDS[$target]}"
     if yade_sensitive_target "$target" && [ "$WITH_YADE" -eq 1 ]; then
       cmd="WITH_YADE=1 ${cmd}"
-      clog INFO "${2:-}Building $target (WITH_YADE=1)..."
+      progress "${2:-}Building $target (WITH_YADE=1)..."
     else
-      clog INFO "${2:-}Building $target..."
+      progress "${2:-}Building $target..."
     fi
   else
     cmd="${CLEAN_COMMANDS[$target]}"
@@ -662,6 +661,7 @@ execute_target() {
     from=$(($(wc -l <"$BUILD_LOG") + 1))
     echo "== $target: $cmd" >>"$BUILD_LOG"
     if ! (cd "$dir" && eval "$cmd") >>"$BUILD_LOG" 2>&1; then
+      progress_done
       tail -n "+$from" "$BUILD_LOG" | tail -n 30 | sed 's/^/    /'
       clog ERROR "full log: $BUILD_LOG"
       return 1
@@ -685,6 +685,7 @@ build_all_targets() {
     if [ "${BUILD_TARGETS[$target]:-0}" -eq 1 ]; then
       n=$((n + 1)) t0=$SECONDS
       if execute_target "$target" "[$n/$total] "; then
+        progress_done
         clog SUCCESS "[$n/$total] $target done ($(fmt_seconds $((SECONDS - t0))))"
       else
         clog ERROR "Failed on $target"
@@ -701,6 +702,18 @@ build_all_targets() {
     clog ERROR "Failed: ${failed[*]}"
     return 1
   fi
+}
+
+# progress MSG — with a build log, a line that the next one overwrites on a
+#   terminal (nothing otherwise); without one, an INFO line as before.
+progress() {
+  if [ -z "$BUILD_LOG" ]; then clog INFO "$1"
+  elif [ -t 1 ]; then printf '%s' "$1"; PROGRESS_OPEN=1
+  fi
+}
+progress_done() {
+  [ "${PROGRESS_OPEN:-0}" -eq 1 ] && printf '\r\033[K'
+  PROGRESS_OPEN=0
 }
 
 # fmt_seconds S — "42s" or "1m32s".
@@ -855,7 +868,7 @@ main() {
   if [ "$PREFIX_MODE" != "none" ]; then
     if [ "$MODE" = "build" ]; then
       write_build_metadata || exit 1
-      printf '%s\n' "$PREFIX"
+      printf 'prefix: %s\n' "$PREFIX"
     elif [ "$PURGE" -eq 1 ]; then
       rm -f "$PREFIX/.pgf-build.json"
     fi

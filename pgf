@@ -200,7 +200,10 @@ if [ "$sub" = "setup" ]; then
   if [ "$setup_link" -ne 2 ]; then
     pgf_init "$setup_layer" "$setup_yes" || exit 2
   fi
-  [ "$setup_link" -eq 0 ] || pgf_install_link "$force" || exit $?
+  # A refused link fails --link-only; full setup goes on and its summary warns.
+  if [ "$setup_link" -ne 0 ]; then
+    pgf_install_link "$force" || { rc=$?; [ "$setup_link" -eq 2 ] && exit "$rc"; }
+  fi
   if [ "$setup_link" -ne 2 ] && [ "$setup_completion" -eq 1 ]; then
     ask=0
     [ "$setup_yes" -eq 0 ] && [ -t 0 ] && [ -r /dev/tty ] && ask=1
@@ -419,9 +422,10 @@ fi
 echo "pgf: OpenFOAM $WM_PROJECT_VERSION${mpi_note/#; /, }" >&2
 if [ "$mode" != "bare" ]; then
   echo "pgf: prefix $prefix (${variant:-?}, chosen by $sel_src${stale:+, stale})" >&2
-else
+elif [ -z "${PGF_BANNER_BUILD:-}" ]; then # pgf build: build.sh names its destination
   echo "pgf: no prefix (--bare: OpenFOAM only); builds go under $PGF_BUILD_ROOT" >&2
 fi
+unset PGF_BANNER_BUILD
 
 # Cases include shared data as "$PGF_ROOT/thermoData/...", so a copied case still finds it.
 export PGF_ROOT

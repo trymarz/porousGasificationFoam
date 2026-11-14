@@ -28,8 +28,10 @@ targets=(--libs-only --no-DEM --no-thermophysicalModels)
 fb "${targets[@]}" >"$TEST_TMP/out" 2>&1
 rc=$?
 check "a prefix build exits 0 (rc=$rc)" [ "$rc" -eq 0 ]
-check "  shows [n/N] per target" \
-    bash -c 'grep -q "\[1/3\] Building fieldPorosityModel" "$1" && grep -q "\[3/3\] pyrolysisModels done (" "$1"' _ "$TEST_TMP/out"
+check "  shows one [n/N] line per target, no separate Building line off a terminal" \
+    bash -c 'grep -q "\[1/3\] fieldPorosityModel done (" "$1" && grep -q "\[3/3\] pyrolysisModels done (" "$1" &&
+        ! grep -q "Building" "$1"' _ "$TEST_TMP/out"
+check "  and labels the prefix it prints last" grep -qx "prefix: $TEST_TMP/pre" "$TEST_TMP/out"
 check "  keeps wmake's output off the terminal" bash -c '! grep -q "a-very-long-compile-line" "$1"' _ "$TEST_TMP/out"
 check "  and logs it to <prefix>/build.log" grep -q "a-very-long-compile-line" "$TEST_TMP/pre/build.log"
 check "  and ends with the time and the log path" \
