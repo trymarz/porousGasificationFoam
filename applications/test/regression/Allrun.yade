@@ -402,7 +402,7 @@ reg_summary "Yade regression summary"
 suite_rc=$?
 
 if [ -n "$RUN_ROOT" ]; then
-    rmdir "$RUN_ROOT" 2>/dev/null || clog INFO "case copies kept under $RUN_ROOT"
+    rmdir "$RUN_ROOT" 2>/dev/null || clog INFO "case copies kept under $RUN_ROOT (case files are real copies; the dirs beside each case link into the checkout)"
 fi
 
 if [ "$STATE_ACTIVE" = true ]; then

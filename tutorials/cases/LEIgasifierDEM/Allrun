@@ -34,11 +34,11 @@
 #   Time-step coupling log:     dtInfo.txt
 
 cd "${0%/*}" || exit
-. ../DEM_common/demGuard.sh   # stop early outside a --yade env (#257)
+. "${PGF_ROOT:-../../..}/tutorials/cases/DEM_common/demGuard.sh"   # stop early outside a --yade env (#257)
 set -e   # abort on first error
 
 CASE_DIR="$(dirname "$(realpath "$0")")"
-PY_UTILS="$CASE_DIR/../../../utilities/py_utils"
+PY_UTILS="${PGF_ROOT:-$CASE_DIR/../../..}/utilities/py_utils"
 
 # 1. Generate blockMeshDict from the classy_blocks mesh script.
 uv run --project "$PY_UTILS" python "$CASE_DIR/system/make_mesh.py"

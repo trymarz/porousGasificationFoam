@@ -288,9 +288,9 @@ reg_summary() {
     [ "$n" -gt 0 ] && [ "$nPass" -eq "$n" ]
 }
 
-# reg_stage_case <repo-root> <case-rel> <mirror-root> — cp -a the case to <mirror-root>/<case-rel>
-#   and symlink every sibling on the way up back into <repo-root>, so ../../../applications
-#   resolves. No hard links: foamDictionary -set rewrites in place. Prints the copy's path.
+# reg_stage_case <repo-root> <case-rel> <mirror-root> — copy the case, links followed, to
+#   <mirror-root>/<case-rel> and symlink each sibling on the way up back into <repo-root>, so
+#   ../../../applications resolves; editing the copy never edits the checkout. Prints its path.
 reg_stage_case() {
     local root="$1" rel="$2" mirror="$3" parent="" part entry
     local -a parts
@@ -308,6 +308,6 @@ reg_stage_case() {
         parent="${parent:+$parent/}$part"
         [ "$parent" = "$rel" ] || mkdir "$mirror/$parent" || return 2
     done
-    cp -a "$root/$rel" "$mirror/$rel" || return 2
+    cp -RL --preserve=mode,timestamps "$root/$rel" "$mirror/$rel" || return 2
     printf '%s\n' "$mirror/$rel"
 }
