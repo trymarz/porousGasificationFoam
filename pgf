@@ -457,6 +457,8 @@ fi
 
 if [ "$sub" = run ]; then
   # Wait instead of exec so the run record gets the exit status, even on Ctrl-C.
+  pgf_run_precheck "${cmd[0]}"
+  logs_before="$(pgf_case_logs)"
   started="$(date -u +%Y-%m-%dT%H:%M:%SZ)" t0="$(date +%s)"
   trap ':' INT TERM
   "${cmd[@]}"
@@ -465,7 +467,7 @@ if [ "$sub" = run ]; then
   python3 "$PGF_LIB/registry.py" record "$PWD" "$(pgf_records_dir)" "$prefix" "$sel_src" \
     "${yade_bin:-}" "$([ -n "${yade_bin:-}" ] && pgf_yade_commit "$yade_bin")" "$started" "$rc" "${cmd[@]}" ||
     echo "pgf: warning: could not write the run record" >&2
-  pgf_run_summary "$rc" "$t0" "${cmd[0]}"
+  pgf_run_summary "$rc" "$t0" "${cmd[0]}" "$logs_before"
   exit "$rc"
 fi
 exec "${cmd[@]}"

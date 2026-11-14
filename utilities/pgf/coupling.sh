@@ -61,7 +61,7 @@ pgf_coupling_rebuild_cmd() {
 # pgf_coupling_check LIBDIR TRUNK — print "LEVEL message" lines (OK, WARN,
 #   FAIL); return 1 when any is FAIL. A missing stamp is a WARN, not a FAIL.
 pgf_coupling_check() {
-  local libdir="$1" trunk="$2" want have pin head rc=0
+  local libdir="$1" trunk="$2" want have rc=0
   want="$(pgf_coupling_api_hash "$trunk")" || {
     echo "FAIL no coupling headers under YADE_TRUNK=$trunk"
     return 1
@@ -77,12 +77,22 @@ pgf_coupling_check() {
       rc=1
     fi
   fi
-  pin="$(pgf_coupling_pin)"
-  head="$(pgf_coupling_trunk_head "$trunk")"
-  if [ -n "$pin" ] && [ -n "$head" ] && [ "$pin" != "$head" ]; then
-    echo "WARN YADE_TRUNK is at ${head:0:10}, the submodule pin is ${pin:0:10}"
-  fi
+  pgf_trunk_pin_check "$trunk"
   return "$rc"
+}
+
+# pgf_trunk_pin_check TRUNK — a WARN line when TRUNK's HEAD is not the
+#   submodule pin: headers that differ from the yade binary give wrong data.
+pgf_trunk_pin_check() {
+  local trunk="$1" pin head own="$PGF_ROOT/submodules/Foam-Yade"
+  [ -e "$trunk/.git" ] || return 0 # else git -C would read an enclosing repo
+  pin="$(pgf_coupling_pin)" head="$(pgf_coupling_trunk_head "$trunk")"
+  [ -n "$pin" ] && [ -n "$head" ] && [ "$pin" != "$head" ] || return 0
+  if [ "$(cd "$trunk" 2>/dev/null && pwd -P)" = "$(cd "$own" 2>/dev/null && pwd -P)" ]; then
+    echo "WARN submodules/Foam-Yade is at ${head:0:10}, off its pin ${pin:0:10}; fix: git submodule update submodules/Foam-Yade"
+  else
+    echo "WARN YADE_TRUNK is at ${head:0:10}, the submodule pin is ${pin:0:10} ($trunk); a --yade build would use other headers than the pinned yade"
+  fi
 }
 
 # pgf_coupling_api_hash_at REPO COMMIT — the API hash of the coupling headers

@@ -42,6 +42,8 @@ if [ -n "$compare" ]; then
     [ -d "$compare" ] || { echo "pgfView: not a directory: $compare" >&2; exit 2; }
     export PGFVIEW_COMPARE="$(cd "$compare" && pwd)"
 fi
+# paraview --script execs the main script without __file__; it finds pgfViews here.
+export PGFVIEW_DIR="$here"
 export PGFVIEW_TIME="$time" PGFVIEW_SIZE="$size"
 # Open MPI's UCX probe prints a harmless VFS error under ParaView.
 export UCX_VFS_ENABLE="${UCX_VFS_ENABLE:-n}"

@@ -3,13 +3,18 @@ pgfViewMain -- the script pgfView hands to paraview / pvbatch.
 
 The GUI's --script takes no arguments, so pgfView passes them in the
 environment: PGFVIEW_CASE, PGFVIEW_COMPARE for --compare, and for --png
-also PGFVIEW_PNG, PGFVIEW_TIME, PGFVIEW_SIZE.
+also PGFVIEW_PNG, PGFVIEW_TIME, PGFVIEW_SIZE. PGFVIEW_DIR is this directory,
+for the GUI, which runs the script as <string> without __file__.
 """
 
 import os
 import sys
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+try:
+    here = os.path.dirname(os.path.abspath(__file__))
+except NameError:
+    here = os.environ["PGFVIEW_DIR"]
+sys.path.insert(0, here)
 import pgfViews  # noqa: E402
 
 case = pgfViews.Case(os.environ["PGFVIEW_CASE"])

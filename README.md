@@ -55,7 +55,7 @@ pgf run ~/pgf-serial                        # 4. copies 0.orig to 0, runs blockM
                                             #    then the solver (output stays in ~/pgf-serial)
 ```
 
-Run cases from a copy, not inside `tutorials/`: results written there are left in the checkout and picked up by later copies. `-L` copies the files a case shares with its family (symlinks such as `system/paraviewViews.py`); shared material data is found through `$PGF_ROOT`, which pgf sets.
+Run cases from a copy, not inside `tutorials/`: results written there are left in the checkout and picked up by later copies. `-L` copies the files a case shares with its family (symlinks such as `system/paraviewViews.py`); shared material data is found through `$PGF_ROOT`, which pgf sets. If the copy brings output from an earlier run along (`log.*`, `processor*/`, time directories), clean it first with `pgf run ~/pgf-serial Allclean`: `runApplication` skips every step whose `log.*` exists. `pgf run` warns about both.
 
 Next: `tutorials/cases/gasifier` is a full reactive-flow demo. `pgf shell` gives an interactive shell with the build on `PATH`; `./Allwclean` cleans the build. Build options, DEM (`--yade`) builds and clean/purge rules are in [doc/build.md](doc/build.md). To run your own case, start from [doc/case-setup.md](doc/case-setup.md).
 
