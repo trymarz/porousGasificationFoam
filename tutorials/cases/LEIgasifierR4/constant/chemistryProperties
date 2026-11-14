@@ -1,0 +1,97 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  v2406
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      chemistryProperties;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// R4: R3's drying and pyrolysis, char conversion, gas-phase oxidation (README.md).
+chemistry           on;
+
+chemistryType
+{
+    solver            ode;
+}
+
+solidChemistryType
+{
+    solver              solidOde;
+    method              ODESolidHeterogeneousChemistryModel;
+    solidThermoType     const<constRad<constThermo<constRho>>>;
+}
+
+initialChemicalTimeStep 1e-7;
+
+turbulentReaction   off;
+
+// Reaction heats from the species enthalpies (solid Hf, gas JANAF), so total
+// enthalpy is conserved exactly; the hr below are their 298 K values, unused.
+solidReactionEnergyFromEnthalpy true;
+stoichiometricReactions false;
+showRelativeReactionRates false;
+solidChemistryTimeStepControl false;
+// Eq. 10 mass-transfer ceiling on O2, CO2, H2O (specieTransferProperties).
+diffusionLimitedReactions true;
+
+odeCoeffs
+{
+    solver      seulex;
+    absTol      1e-8;
+    relTol      1e-4;
+}
+
+solidOdeCoeffs
+{
+    solver      seulex;
+    absTol      1e-8;
+    relTol      1e-4;
+}
+
+#include "reactions"
+
+// Coefficients: (A [1/s]  Ta [K]  Tcrit [K]  hr [J/kg]  order). Mass-based,
+// per kg of solid reactant; char coefficients are element-exact for C 12.011.
+solidReactions
+(
+    // Drying: Chan et al. (1985) kinetics.
+    irreversibleSolidArrheniusHeterogeneousReaction
+    moisture = H2O
+    (5.13e10 10585 300 2.4467e6 1)
+
+    // Pyrolysis: R3's kinetics and yields; wood Hf gives R3's 0.385 MJ/kg.
+    irreversibleSolidArrheniusHeterogeneousReaction
+    wood = 0.2 char + 0.105 CO + 0.2146 CO2 + 0.01 H2 + 0.25 H2O + 0.04 CH4 + 0.1804 tar
+    (1.38e10 1.9e4 300 3.85e5 1)
+
+    // Char: R6 partial and R7 full oxidation, R3 Boudouard, R4 water-gas
+    // (Ibrahim 2025, Table 5.4; A per kg of char, #201). R7 and R3 as
+    // LEIgasifierDEM; R6 and R4, which it dropped, as solidAdvection.
+    irreversibleSolidArrheniusHeterogeneousReaction
+    char + 1.33203 O2 = 2.33203 CO
+    (2.40772532e+09 1.96e4 300 -9.181e6 1 1)
+
+    irreversibleSolidArrheniusHeterogeneousReaction
+    char + 2.66406 O2 = 3.66406 CO2
+    (1.53278689e+09 1.96e4 300 -3.2741e7 1 1)
+
+    irreversibleSolidArrheniusHeterogeneousReaction
+    char + 3.66406 CO2 = 4.66406 CO
+    (7759.65665 9308.39 300 1.4379e7 1 1)
+
+    // R4 is commented out in solidAdvection: A/2.5 as #201 converted the rest.
+    irreversibleSolidArrheniusHeterogeneousReaction
+    char + 1.49988 H2O = 2.33203 CO + 0.16785 H2
+    (6.068e6 1.46e4 300 1.0952e7 1 1)
+);
+
+// ************************************************************************* //

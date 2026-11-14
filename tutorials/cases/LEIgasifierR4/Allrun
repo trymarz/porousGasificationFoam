@@ -1,0 +1,49 @@
+#!/bin/sh
+#
+# LEIgasifierR4 — Allrun
+# ======================
+# Rung R4 of issue #64: R3 (the hot bed on R2's outline, feed and discharge)
+# blown with air: a hot char strip at the primary ports ignites the bed,
+# with full gas-phase and heterogeneous chemistry. Builds the hot bed and the
+# strip, runs coupled over the evaluation window, then checks the solid
+# bookkeeping, the bounds, the element and energy balances and the reaction
+# zone. See README.md.
+#
+# PREREQUISITES
+#   - porousGasificationFoam built with pgf build --yade (pgf run . picks --yade)
+#   - Yade built with FoamCoupling support, `yade` on PATH
+
+set -e   # abort on first error
+
+cd "$(dirname "$(realpath "$0")")"
+
+# 1. Mesh from the geometry table.
+python3 leiGeometry.py
+cp -r 0.orig 0
+blockMesh
+checkMesh
+
+# 2. Pack the hot bed, settle it, check walls and packing.
+yade -n -x relax.py
+yade -n -x checkDemWalls.py
+
+# 3. FVM fields from the settled spheres, plus the ignition strip (hotBed.py).
+postProcess -func writeCellCentres -time 0
+postProcess -func writeCellVolumes -time 0
+python3 hotBed.py
+
+# 4. Coupled run (2 Yade ranks; FoamCoupling spawns 2 OpenFOAM ranks).
+#    Yade must run exactly endTime/dem_dt substeps: no early-exit handshake.
+decomposePar
+YADE_DT=$(sed -n 's/^dem_dt *= *\([0-9.eE+-]*\).*/\1/p' demGeometry.py)
+END_TIME=$(foamDictionary -entry endTime -value system/controlDict)
+export YADE_NSTEPS=$(awk -v t="$END_TIME" -v dt="$YADE_DT" 'BEGIN { printf "%d", t / dt + 0.5 }')
+echo "YADE_NSTEPS = $YADE_NSTEPS (endTime $END_TIME / yadeDt $YADE_DT)"
+# The log feeds checkIgnition.py's scan for bounded fields.
+mpirun -n 2 yade MPI_lambda.py > log.coupled 2>&1 || { tail -40 log.coupled; exit 1; }
+tail -5 log.coupled
+
+# 5. Checks: R2's solid bookkeeping, then R4's bounds, balances and zone.
+reconstructPar
+python3 checkFeed.py
+python3 checkIgnition.py

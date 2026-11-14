@@ -1,0 +1,85 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  8
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      solidThermophysicalProperties;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+thermoType solidMixtureThermo<constHeterogeneous>;
+
+// Wet wood dries (moisture) and pyrolyses to char (README.md, "Solid").
+solidComponents
+(
+    wood char moisture
+);
+
+woodCoeffs
+{
+    transport
+    {
+        K           0.23;  // Park et al. via Ibrahim (2025)
+    }
+    thermodynamics
+    {
+        Cp          2000;  // Park et al. via Ibrahim (2025)
+        // R3's pyrolysis heat at 298 K: sum of product Hf (JANAF) - 0.385 MJ/kg.
+        Hf          -6.0728e6;
+    }
+    density
+    {
+        rho          1050;
+        rhoApparent  630;  // = rho*(1 - 0.4): Park et al. (2010) wood porosity
+    }
+};
+
+// Transport and Cp as thermoData's park2010Char. rhoApparent: a char particle
+// keeps 55 % of the wood particle's volume, so 0.2*630/0.55 (assumed).
+charCoeffs
+{
+    transport
+    {
+        K           0.156;
+    }
+    thermodynamics
+    {
+        Cp          1054;
+        Hf          -2.12e4;
+    }
+    density
+    {
+        rho          1050;
+        rhoApparent  229;
+    }
+};
+
+// Liquid water in the wood's pores. A huge rhoApparent gives it no particle
+// volume of its own, so drying does not shrink the spheres (lambdaDict).
+moistureCoeffs
+{
+    transport
+    {
+        K           0.6;
+    }
+    thermodynamics
+    {
+        Cp          4180;
+        Hf          -15.87e6; // liquid water, -285.8 kJ/mol
+    }
+    density
+    {
+        rho          1000;
+        rhoApparent  1e5;
+    }
+};
+
+// ************************************************************************* //

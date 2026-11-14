@@ -1,0 +1,55 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     |
+    \\  /    A nd           |
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       volVectorField;
+    location    "0";
+    object      U;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// Inlet mass flows: pure O2, Table 3's primary/secondary split, mapped to the
+// slab by R1's planar-2D rule (README.md, "O2 supply").
+
+dimensions      [0 1 -1 0 0 0 0];
+
+internalField   uniform (0 0 0);
+
+boundaryField
+{
+    primaryInlet
+    {
+        type            flowRateInletVelocity;
+        massFlowRate    constant 1.0926e-3;  // Table 3's 30 Nm3/h air (21/79 O2/N2)
+        value           uniform (0 0 0);
+    }
+    secondaryInlet
+    {
+        type            flowRateInletVelocity;
+        massFlowRate    constant 1.2140e-4;  // Table 3's 5 Nm3/h air
+        value           uniform (0 0 0);
+    }
+    outlet
+    {
+        type            inletOutlet;
+        inletValue      uniform (0 0 0);
+        value           uniform (0 0 0);
+    }
+    wall
+    {
+        type            noSlip;
+    }
+    frontAndBack
+    {
+        type            empty;
+    }
+}
+
+// ************************************************************************* //
