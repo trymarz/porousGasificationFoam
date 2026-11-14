@@ -58,7 +58,7 @@ After the R3 profile is mapped, char cells within 30 mm of a primary port face c
 ./Allclean
 ```
 
-The time step is 1e-3 s, as in R3. The run uses 2 Yade ranks (one Yade worker, which R2's bookkeeping needs) plus 2 OpenFOAM ranks, on the default `foamYade` coupler. A 0.6 s window takes about 6.5 min of wall time, so the full 2.5 s should take about 30–40 min.
+The time step is 1e-3 s, as in R3. The run uses 2 Yade ranks (one Yade worker, which R2's bookkeeping needs) plus 2 OpenFOAM ranks, on the default `foamYade` coupler. A 0.6 s window took 6.5 min of wall time in the smoke run, and 0.84 s took 3.6 min in the full run.
 
 `checkFeed.py` runs R2/R3's solid bookkeeping. `checkIgnition.py` replaces R3's `checkHotBed.py`:
 
@@ -86,12 +86,19 @@ The time step is 1e-3 s, as in R3. The run uses 2 Yade ranks (one Yade worker, w
 | Fronts above the ramp's foot | pyrolysis 63 mm, drying 154 mm, unchanged over the window |
 | Feed bookkeeping (`checkFeed.py`) | OK |
 
-The full 2.5 s run has not been made yet.
+**Full 2.5 s run: crashes at 0.84 s** (SIGFPE in the gas solver, 3 min 37 s wall; same setup, the build before the rebase). It runs as the smoke run did until 0.807 s: the char at the ports reaches 1321 K, the balances close (C/H/O ≤ 2.7e-4, energy 3.0e-4 at 0.8 s), O2 slip is 6.1 %, and there are no `bounding` lines. Then the gas ignites by itself in the ash pit below the grate:
+
+- At 0.8 s the pit is gas only (ε = 1), with up to Y_O2 0.37 and Y_CO 0.73. Pit cells 140 mm below the grate already hold a combustible mix (Y_O2 ≈ 0.2, Y_CO ≈ 0.22) at 1180 K, up from the 900 K inflow, and the axis probe 100 mm below the grate is heating.
+- At 0.808 s the maximum gas T jumps from 1579 to 1841 K in one step, then reaches 2800 K by 0.82 s and 4100 K by 0.84 s. The gas–solid exchange does not change, so this is gas-phase combustion with no solid heat sink.
+- The maximum Courant number rises from 0.41 to 2.5 at the fixed 1e-3 s step, the solid model reports a negative gas density, Y exceeds 2 in the species solve, and a field division traps.
+
+The descent measured in the shaft, as the median sphere velocity between the ramp's foot and the bed top, is 0.18–0.19 mm/s from 0.5 to 0.8 s, against 0.19 mm/s set.
 
 ## Open points
 
 1. **Gas T overshoot in the ash pit (R3).** It is still untraced. Now that reactions release heat, it cannot be isolated in R4, so R4 has no gas-T slack above the JANAF range.
-2. **Feed vs profile (R3).** Settled above for R4: ER 0.30 on the slab. The measured descent still has to be compared with 0.19 mm/s over the full run.
+0. **Ash-pit gas ignition crashes the run at 0.84 s** (see "Checks"). O2 that slips through the bed mixes with CO and pyrolysis gas in the empty pit, which has no solid to absorb the heat of a pure-O2 flame, and nothing in the model removes it: radiation is off, and the gas set has no dissociation. Whether to resolve it with a smaller or Courant-limited step, radiation, a diluted supply, or by accepting it as R4's finding is not decided.
+2. **Feed vs profile (R3).** Settled above for R4: ER 0.30 on the slab. The descent measured up to the crash agrees with 0.19 mm/s.
 3. **Char yield and char `rhoApparent`** are still assumed (R3).
 4. **Spheres are parked, not erased** (`mp.bodyErase` segfaults on Foam-Yade d5c33e0; R2).
 5. **One Yade worker only** (R2's bookkeeping).
