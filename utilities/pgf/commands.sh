@@ -187,6 +187,38 @@ pgf_setup_summary() {
   echo "  ./Allwmake     build the solver here (≈1.5 min first build)"
 }
 
+# pgf_run_summary RC T0 SCRIPT — after pgf run in the case dir: OK or FAILED,
+#   the time taken, the newest log (its tail on failure), the record, next step.
+pgf_run_summary() {
+  local rc="$1" t0="$2" script="${3##*/}" dt log last="" d
+  dt=$(($(date +%s) - t0))
+  dt="$([ "$dt" -ge 60 ] && printf '%dm%02ds' $((dt / 60)) $((dt % 60)) || printf '%ds' "$dt")"
+  log="$(ls -t log.* 2>/dev/null | head -1)"
+  [ -n "$log" ] && [ "$(stat -c %Y "$log")" -ge "$t0" ] || log=""
+  for d in . processor0; do
+    [ -d "$d" ] && last="$(cd "$d" && ls -d [0-9]* 2>/dev/null | grep -E '^[0-9.e+-]+$' | sort -g | tail -1)"
+    [ -n "$last" ] && [ "$last" != 0 ] && break
+  done
+  echo >&2
+  if [ "$rc" -eq 0 ]; then
+    echo "pgf: $script OK in $dt ($(pgf_tilde "$PWD"))" >&2
+    [ -z "$last" ] || [ "$last" = 0 ] || echo "pgf:   latest time: $last" >&2
+    [ -z "$log" ] || echo "pgf:   last log:    $log" >&2
+  else
+    echo "pgf: $script FAILED (exit $rc$([ "$rc" -eq 130 ] && echo ', interrupted')) after $dt ($(pgf_tilde "$PWD"))" >&2
+    if [ -n "$log" ]; then
+      echo "pgf:   last 20 lines of $log:" >&2
+      tail -n 20 "$log" | sed 's/^/    /' >&2
+    else
+      echo "pgf:   no log.* written by this run; the script's own output is above" >&2
+    fi
+  fi
+  echo "pgf:   record:      .pgf-run.json" >&2
+  [ "$rc" -eq 0 ] && [ -n "$last" ] && [ "$last" != 0 ] &&
+    echo "pgf: next: $(pgf_tilde "$PGF_ROOT")/applications/utilities/paraview/pgfView . (doc/paraview.md)" >&2
+  return 0
+}
+
 # pgf_install_link FORCE — ~/.local/bin/pgf -> this checkout's pgf.
 pgf_install_link() {
   local link="$HOME/.local/bin/pgf" cur
@@ -345,17 +377,20 @@ pgf_config_cmd() {
 # pgf_build_cmd [--yade] [pgf env options] [build.sh options] — build this tree
 #   into the shared store (build.sh --isolated); an identical build is reused.
 pgf_build_cmd() {
-  local envopts=() bopts=()
+  local envopts=() bopts=() build=1
   while [ $# -gt 0 ]; do
     case "$1" in
     --yade) envopts+=(--yade); bopts+=(--yade) ;;
     --set | --foam-bashrc | --mpi) envopts+=("$1" "${2:-}"); shift ;;
-    -h | --help) echo "usage: pgf build [--yade] [--set K=V] [build.sh options; see utilities/pgf/build.sh --help]"; return 0 ;;
+    -h | --help) echo "usage: pgf build [--yade] [--set K=V] [-v] [build.sh options; see utilities/pgf/build.sh --help]"; return 0 ;;
+    clean | --dry-run | --print-* | --fingerprint) bopts+=("$1"); build=0 ;;
     *) bopts+=("$1") ;;
     esac
     shift
   done
-  "$SELF" exec --bare "${envopts[@]}" -- "$PGF_LIB/build.sh" --isolated "${bopts[@]}"
+  "$SELF" exec --bare "${envopts[@]}" -- "$PGF_LIB/build.sh" --isolated "${bopts[@]}" || return $?
+  [ "$build" -eq 0 ] ||
+    echo "next: pgf run <copy of a tutorial case> (README, Quick start), or pgf test fast" >&2
 }
 
 # pgf_tools_cmd — the what / why / instead header of every tool at the root.

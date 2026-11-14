@@ -412,9 +412,13 @@ if [ "$mode" != "bare" ]; then
   esac
   variant="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("variant","?"))' "$prefix/.pgf-build.json" 2>/dev/null)"
   [ "$yade" -eq 1 ] && [ "$variant" != "yade1" ] && die "--yade given, but $prefix is variant $variant"
-  echo "pgf: prefix $prefix (key ${prefix##*/}, variant ${variant:-?}, $sel_src${stale:+, stale}, OpenFOAM $WM_PROJECT_VERSION$mpi_note)" >&2
+fi
+# Two short lines: the environment, then the build (its key is the last path part).
+echo "pgf: OpenFOAM $WM_PROJECT_VERSION${mpi_note/#; /, }" >&2
+if [ "$mode" != "bare" ]; then
+  echo "pgf: prefix $prefix (${variant:-?}, chosen by $sel_src${stale:+, stale})" >&2
 else
-  echo "pgf: bare (no prefix; build root $PGF_BUILD_ROOT, OpenFOAM $WM_PROJECT_VERSION$mpi_note)" >&2
+  echo "pgf: no prefix (--bare: OpenFOAM only); builds go under $PGF_BUILD_ROOT" >&2
 fi
 
 # Cases include shared data as "$PGF_ROOT/thermoData/...", so a copied case still finds it.
@@ -447,7 +451,7 @@ fi
 
 if [ "$sub" = run ]; then
   # Wait instead of exec so the run record gets the exit status, even on Ctrl-C.
-  started="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  started="$(date -u +%Y-%m-%dT%H:%M:%SZ)" t0="$(date +%s)"
   trap ':' INT TERM
   "${cmd[@]}"
   rc=$?
@@ -455,6 +459,7 @@ if [ "$sub" = run ]; then
   python3 "$PGF_LIB/registry.py" record "$PWD" "$(pgf_records_dir)" "$prefix" "$sel_src" \
     "${yade_bin:-}" "$([ -n "${yade_bin:-}" ] && pgf_yade_commit "$yade_bin")" "$started" "$rc" "${cmd[@]}" ||
     echo "pgf: warning: could not write the run record" >&2
+  pgf_run_summary "$rc" "$t0" "${cmd[0]}"
   exit "$rc"
 fi
 exec "${cmd[@]}"

@@ -98,6 +98,8 @@ PREFIX=""
 QUERY=""
 # Arguments as given, recorded in .pgf-build.json.
 BUILD_ARGS=()
+VERBOSE=0
+BUILD_LOG=""
 
 # ============================================================
 # ARGUMENT PARSING
@@ -149,6 +151,9 @@ parse_arguments() {
     --dry-run)
       DRY_RUN=1
       ;;
+    --verbose | -v)
+      VERBOSE=1
+      ;;
     --fingerprint)
       source_fingerprint
       exit 0
@@ -186,6 +191,8 @@ parse_arguments() {
       echo "  --isolated     Install into \$PGF_BUILD_ROOT/<build key>; reuse it"
       echo "           without compiling when it is already complete."
       echo "           PGF_BUILD_ROOT defaults to \$WM_PROJECT_USER_DIR/pgf-builds."
+      echo "  --verbose, -v  Stream wmake's output. Without it, a prefix build"
+      echo "           shows one line per target and logs wmake to DIR/build.log."
       echo "  --print-key, --print-prefix  Print the build key or the --isolated"
       echo "           prefix for this tree and variant (honours --yade), and exit."
       echo ""
@@ -297,7 +304,11 @@ build_coupling_in_prefix() {
   # libYadeFoam links libMeshTree, so meshtree goes first.
   for d in meshtree commYade .; do
     clog INFO "Building the Foam-Yade coupling: ${d/#./FoamYade}"
-    (cd "$dst/$d" && wmake libso) || { clog ERROR "Coupling build failed in $dst/$d"; return 1; }
+    if [ -n "$BUILD_LOG" ]; then
+      (cd "$dst/$d" && wmake libso) >>"$BUILD_LOG" 2>&1
+    else
+      (cd "$dst/$d" && wmake libso)
+    fi || { clog ERROR "Coupling build failed in $dst/$d${BUILD_LOG:+; log: $BUILD_LOG}"; return 1; }
   done
   pgf_coupling_write_stamp "$FOAM_USER_LIBBIN" "$YADE_TRUNK" || return 1
   YADE_SOURCE_TRUNK="$YADE_TRUNK"
@@ -636,17 +647,28 @@ execute_target() {
     cmd="${BUILD_COMMANDS[$target]}"
     if yade_sensitive_target "$target" && [ "$WITH_YADE" -eq 1 ]; then
       cmd="WITH_YADE=1 ${cmd}"
-      clog INFO "Building $target (WITH_YADE=1)..."
+      clog INFO "${2:-}Building $target (WITH_YADE=1)..."
     else
-      clog INFO "Building $target..."
+      clog INFO "${2:-}Building $target..."
     fi
   else
     cmd="${CLEAN_COMMANDS[$target]}"
-    clog INFO "Cleaning $target..."
+    clog INFO "${2:-}Cleaning $target..."
   fi
 
   # Run from the target's own directory, so Make/options paths are relative.
-  (cd "$dir" && eval "$cmd") || return 1
+  if [ -n "$BUILD_LOG" ]; then
+    local from
+    from=$(($(wc -l <"$BUILD_LOG") + 1))
+    echo "== $target: $cmd" >>"$BUILD_LOG"
+    if ! (cd "$dir" && eval "$cmd") >>"$BUILD_LOG" 2>&1; then
+      tail -n "+$from" "$BUILD_LOG" | tail -n 30 | sed 's/^/    /'
+      clog ERROR "full log: $BUILD_LOG"
+      return 1
+    fi
+  else
+    (cd "$dir" && eval "$cmd") || return 1
+  fi
 
   [ "$MODE" = "clean" ] && [ "$PURGE" -eq 1 ] && remove_target_artifacts "$dir"
 
@@ -654,12 +676,16 @@ execute_target() {
 }
 
 build_all_targets() {
-  local failed=()
+  local failed=() target n=0 total=0 t0 start=$SECONDS
 
   for target in "${LIBRARY_TARGETS[@]}" "${APP_TARGETS[@]}"; do
+    [ "${BUILD_TARGETS[$target]:-0}" -eq 1 ] && total=$((total + 1))
+  done
+  for target in "${LIBRARY_TARGETS[@]}" "${APP_TARGETS[@]}"; do
     if [ "${BUILD_TARGETS[$target]:-0}" -eq 1 ]; then
-      if execute_target "$target"; then
-        clog SUCCESS "$target done"
+      n=$((n + 1)) t0=$SECONDS
+      if execute_target "$target" "[$n/$total] "; then
+        clog SUCCESS "[$n/$total] $target done ($(fmt_seconds $((SECONDS - t0))))"
       else
         clog ERROR "Failed on $target"
         failed+=("$target")
@@ -669,12 +695,17 @@ build_all_targets() {
 
   if [ ${#failed[@]} -eq 0 ]; then
     [ "$MODE" = "build" ] && stamp_source_revision
-    clog SUCCESS "$MODE complete!"
+    clog SUCCESS "$MODE complete in $(fmt_seconds $((SECONDS - start)))${BUILD_LOG:+; wmake log: $BUILD_LOG}"
     return 0
   else
     clog ERROR "Failed: ${failed[*]}"
     return 1
   fi
+}
+
+# fmt_seconds S — "42s" or "1m32s".
+fmt_seconds() {
+  if [ "$1" -ge 60 ]; then printf '%dm%02ds' $(($1 / 60)) $(($1 % 60)); else printf '%ds' "$1"; fi
 }
 
 # Content hash of every source file the targets compile. Not a git revision:
@@ -812,6 +843,11 @@ main() {
   check_build_variant || exit 1
 
   [ "$PREFIX_MODE" = "none" ] || invalidate_prefix
+  # A prefix build logs wmake to the prefix and shows one line per target.
+  if [ "$MODE" = build ] && [ "$PREFIX_MODE" != none ] && [ "$VERBOSE" -eq 0 ]; then
+    BUILD_LOG="$PREFIX/build.log"
+    : >"$BUILD_LOG" || exit 1
+  fi
   [ "$yade" -eq 0 ] || check_yade_libs || exit 1
 
   build_all_targets || exit 1

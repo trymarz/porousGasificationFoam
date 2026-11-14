@@ -162,11 +162,29 @@ assert r["build"]["prefix"] == sys.argv[2] and r["build"]["source"] == "--prefix
 assert r["started_utc"] and r["finished_utc"] and r["yade"] is None, r
 ' "$case" "$prefix" 2>"$TEST_TMP/rec.err"
 check "run writes <case>/.pgf-run.json (command, build, times, exit status)" [ $? -eq 0 ]
-printf '#!/bin/sh\nexit 3\n' >"$case/Allfail" && chmod +x "$case/Allfail"
-(cd / && penv run --prefix "$prefix" "$case" Allfail) >/dev/null 2>&1
+check "run's banner: OpenFOAM on one line, the prefix and how it was chosen on the next" \
+    bash -c 'grep -qx "pgf: OpenFOAM fake.*" "$1" && grep -qx "pgf: prefix $2 (yade1, chosen by --prefix)" "$1"' \
+    _ "$TEST_TMP/err" "$prefix"
+check "run without time dirs prints OK and no pgfView hint" \
+    bash -c 'grep -q "^pgf: Allclean OK in [0-9]*s" "$1" && ! grep -q pgfView "$1"' _ "$TEST_TMP/err"
+printf '#!/bin/sh\nprintf "line1\\nFOAM FATAL ERROR: bad\\n" >log.solver\nexit 3\n' >"$case/Allfail" && chmod +x "$case/Allfail"
+(cd / && penv run --prefix "$prefix" "$case" Allfail) >/dev/null 2>"$TEST_TMP/err"
 rc=$?
 check "run passes the script's exit status through (rc=$rc)" [ "$rc" -eq 3 ]
 check "and records it" grep -q '"exit_status": 3' "$case/.pgf-run.json"
+check "a failed run says FAILED with the exit status" grep -q "^pgf: Allfail FAILED (exit 3) after " "$TEST_TMP/err"
+check "  and shows the tail of the newest log" \
+    bash -c 'grep -q "last 20 lines of log.solver" "$1" && grep -qx "    FOAM FATAL ERROR: bad" "$1"' _ "$TEST_TMP/err"
+rm -f "$case/log.solver"
+printf '#!/bin/sh\nexit 4\n' >"$case/Allfail"
+(cd / && penv run --prefix "$prefix" "$case" Allfail) >/dev/null 2>"$TEST_TMP/err"
+check "  or says no log was written" grep -q "no log.\* written by this run" "$TEST_TMP/err"
+printf '#!/bin/sh\nmkdir -p 0 0.5 0.25; echo done >log.porousGasificationFoam\n' >"$case/Allok" && chmod +x "$case/Allok"
+(cd / && penv run --prefix "$prefix" "$case" Allok) >/dev/null 2>"$TEST_TMP/err"
+check "a run with results gives the latest time, last log and the pgfView next step" \
+    bash -c 'grep -q "^pgf: Allok OK in " "$1" && grep -q "latest time: 0.5$" "$1" &&
+        grep -q "last log: *log.porousGasificationFoam" "$1" && grep -q "^pgf: next: .*pgfView \." "$1"' _ "$TEST_TMP/err"
+rm -rf "$case/Allok" "$case/0" "$case/0.5" "$case/0.25" "$case/log.porousGasificationFoam"
 check "runs.jsonl in the XDG state dir gets the run" \
     grep -q "\"case\": \"$(realpath "$case")\"" "$home/.local/state/pgf/runs/runs.jsonl"
 (cd / && env -i PATH="$yadedir:/usr/bin:/bin" HOME="$home" TMPDIR="$TEST_TMP" XDG_STATE_HOME="$TEST_TMP/xdg" \
