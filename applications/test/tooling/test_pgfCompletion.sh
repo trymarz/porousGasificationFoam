@@ -71,10 +71,11 @@ env -i PATH=/usr/bin:/bin HOME="$home" TMPDIR="$TEST_TMP" "$tree/pgf" setup --ch
     --foam-bashrc "$PGF_FOAM_BASHRC" --no-completion >/dev/null 2>&1
 check "setup --no-completion installs nothing" [ ! -e "$home/.local/share/bash-completion/completions/pgf" ]
 env -i PATH=/usr/bin:/bin HOME="$home" TMPDIR="$TEST_TMP" "$tree/pgf" setup --checkout --yes --no-link \
-    --foam-bashrc "$PGF_FOAM_BASHRC" >/dev/null 2>"$TEST_TMP/err"
+    --foam-bashrc "$PGF_FOAM_BASHRC" >"$TEST_TMP/err" 2>&1
 check "setup --yes installs the completion script" \
     grep -q '^complete -F _pgf pgf' "$home/.local/share/bash-completion/completions/pgf"
-check "  and says where" grep -q "bash completion in $home/.local/share/bash-completion/completions/pgf" "$TEST_TMP/err"
+check "  and says where once, in the summary" bash -c 'grep -q "bash completion: ~/.local/share/bash-completion/completions/pgf; takes effect in a new shell" "$1" &&
+    ! grep -q "^pgf: bash completion in" "$1"' _ "$TEST_TMP/err"
 
 [ "$TEST_FAILURES" -eq 0 ] || { echo "--- last stderr"; cat "$TEST_TMP/err"; }
 finish

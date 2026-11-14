@@ -195,15 +195,21 @@ while [ $# -gt 0 ]; do
 done
 
 if [ "$sub" = "setup" ]; then
+  # The summary at the end repeats the link and completion lines; skip them.
+  [ "$setup_link" -eq 2 ] || PGF_SETUP_QUIET=1
   if [ "$setup_link" -ne 2 ]; then
     pgf_init "$setup_layer" "$setup_yes" || exit 2
   fi
-  [ "$setup_link" -eq 0 ] || pgf_install_link "$force" || exit $?
+  # A refused link fails --link-only; full setup goes on and its summary warns.
+  if [ "$setup_link" -ne 0 ]; then
+    pgf_install_link "$force" || { rc=$?; [ "$setup_link" -eq 2 ] && exit "$rc"; }
+  fi
   if [ "$setup_link" -ne 2 ] && [ "$setup_completion" -eq 1 ]; then
     ask=0
     [ "$setup_yes" -eq 0 ] && [ -t 0 ] && [ -r /dev/tty ] && ask=1
     pgf_install_completion "$ask" || exit $?
   fi
+  [ "$setup_link" -eq 2 ] || pgf_setup_summary "$setup_link" "${PGF_COMPLETION_INSTALLED:-0}"
   exit 0
 fi
 
@@ -411,10 +417,15 @@ if [ "$mode" != "bare" ]; then
   esac
   variant="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("variant","?"))' "$prefix/.pgf-build.json" 2>/dev/null)"
   [ "$yade" -eq 1 ] && [ "$variant" != "yade1" ] && die "--yade given, but $prefix is variant $variant"
-  echo "pgf: prefix $prefix (key ${prefix##*/}, variant ${variant:-?}, $sel_src${stale:+, stale}, OpenFOAM $WM_PROJECT_VERSION$mpi_note)" >&2
-else
-  echo "pgf: bare (no prefix; build root $PGF_BUILD_ROOT, OpenFOAM $WM_PROJECT_VERSION$mpi_note)" >&2
 fi
+# Two short lines: the environment, then the build (its key is the last path part).
+echo "pgf: OpenFOAM $WM_PROJECT_VERSION${mpi_note/#; /, }" >&2
+if [ "$mode" != "bare" ]; then
+  echo "pgf: prefix $prefix (${variant:-?}, chosen by $sel_src${stale:+, stale})" >&2
+elif [ -z "${PGF_BANNER_BUILD:-}" ]; then # pgf build: build.sh names its destination
+  echo "pgf: no prefix (--bare: OpenFOAM only); builds go under $PGF_BUILD_ROOT" >&2
+fi
+unset PGF_BANNER_BUILD
 
 # Cases include shared data as "$PGF_ROOT/thermoData/...", so a copied case still finds it.
 export PGF_ROOT
@@ -446,7 +457,7 @@ fi
 
 if [ "$sub" = run ]; then
   # Wait instead of exec so the run record gets the exit status, even on Ctrl-C.
-  started="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  started="$(date -u +%Y-%m-%dT%H:%M:%SZ)" t0="$(date +%s)"
   trap ':' INT TERM
   "${cmd[@]}"
   rc=$?
@@ -454,6 +465,7 @@ if [ "$sub" = run ]; then
   python3 "$PGF_LIB/registry.py" record "$PWD" "$(pgf_records_dir)" "$prefix" "$sel_src" \
     "${yade_bin:-}" "$([ -n "${yade_bin:-}" ] && pgf_yade_commit "$yade_bin")" "$started" "$rc" "${cmd[@]}" ||
     echo "pgf: warning: could not write the run record" >&2
+  pgf_run_summary "$rc" "$t0" "${cmd[0]}"
   exit "$rc"
 fi
 exec "${cmd[@]}"

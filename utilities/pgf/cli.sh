@@ -226,5 +226,7 @@ pgf_install_completion() {
     case "$ans" in [nN]*) echo "pgf: skipped; later: pgf completion bash > $file" >&2; return 0 ;; esac
   fi
   mkdir -p "${file%/*}" && pgf_completion_cmd bash >"$file" || { echo "pgf: cannot write $file" >&2; return 2; }
-  echo "pgf: bash completion in $file (bash-completion loads it; else source it from ~/.bashrc)" >&2
+  PGF_COMPLETION_INSTALLED=1
+  [ "${PGF_SETUP_QUIET:-0}" -eq 1 ] ||
+    echo "pgf: bash completion in $file (bash-completion loads it; else source it from ~/.bashrc)" >&2
 }

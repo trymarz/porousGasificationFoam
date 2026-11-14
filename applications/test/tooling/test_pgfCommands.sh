@@ -73,6 +73,76 @@ out="$(env -i PATH=/usr/bin:/bin HOME="$home" TMPDIR="$TEST_TMP" YADE_TRUNK="$tr
     "$home/.local/bin/pgf" config get PGF_FOAM_BASHRC 2>&1)"
 check "pgf called through the ~/.local/bin/pgf symlink finds its checkout ($out)" [ "$out" = "$bashrc" ]
 
+# setup ends with a summary of what it decided (#280).
+check "setup summary says it wrote the file" grep -q "OK   settings: wrote .*\.pgf\.conf (checkout layer)" "$TEST_TMP/out"
+check "  shows the new value" grep -qE "^ +PGF_FOAM_BASHRC +$bashrc \(new\)$" "$TEST_TMP/out"
+check "  warns that the OpenFOAM version is not v2406, with a fix" \
+    bash -c 'grep -q "WARN OpenFOAM fake: .*PGF targets v2406" "$1" && grep -q "fix: pgf config set PGF_FOAM_BASHRC=" "$1"' _ "$TEST_TMP/out"
+check "  names the yade it found and checks it against the pin" \
+    grep -q "WARN yade $yadedir/yade-2026.1 reports no git commit; cannot check it against the Foam-Yade pin" "$TEST_TMP/out"
+check "  says --no-link left pgf unlinked" grep -q "pgf not linked (--no-link)" "$TEST_TMP/out"
+check "  points at pgf config, pgf status and ./Allwmake" \
+    bash -c 'grep -q "^  pgf config " "$1" && grep -q "^  pgf status " "$1" && grep -q "^  ./Allwmake .*1.5 min" "$1"' _ "$TEST_TMP/out"
+echo "# hand-written comment" >>"$tree/.pgf.conf"
+penv setup --checkout --yes --no-link --no-completion >"$TEST_TMP/out2" 2>&1
+check "a setup that changes nothing says unchanged, not wrote" \
+    bash -c 'grep -q "settings: .* unchanged (checkout layer)" "$1" && ! grep -q "wrote" "$1"' _ "$TEST_TMP/out2"
+check "  shows kept values" grep -qE "^ +PGF_FOAM_BASHRC +$bashrc \(kept\)$" "$TEST_TMP/out2"
+check "  and leaves the file untouched" grep -qx "# hand-written comment" "$tree/.pgf.conf"
+check "  and does not claim a completion install with --no-completion" \
+    bash -c '! grep -q "completion" "$1"' _ "$TEST_TMP/out2"
+bashrc2406="$FAKE/foam2406/etc/bashrc"
+mkdir -p "${bashrc2406%/*}"
+echo 'export WM_PROJECT_VERSION=v2406' >"$bashrc2406"
+home2="$TEST_TMP/home2"  # a fresh user, no yade, and no checkout file in the way
+mkdir -p "$home2"
+mv "$tree/.pgf.conf" "$tree/.pgf.conf.keep"
+env -i PATH=/usr/bin:/bin HOME="$home2" TMPDIR="$TEST_TMP" "$tree/pgf" setup --user --yes --no-completion \
+    --foam-bashrc "$bashrc" >/dev/null 2>&1
+env -i PATH=/usr/bin:/bin HOME="$home2" TMPDIR="$TEST_TMP" "$tree/pgf" setup --user --yes --no-completion \
+    --foam-bashrc "$bashrc2406" >"$TEST_TMP/out3" 2>&1
+check "setup summary reports OpenFOAM v2406 as OK" grep -q "OK   OpenFOAM v2406: " "$TEST_TMP/out3"
+check "  shows a changed value with the old one" grep -qE "^ +PGF_FOAM_BASHRC +.*foam2406/etc/bashrc \(was $bashrc\)$" "$TEST_TMP/out3"
+check "  says yade is optional when none is found" grep -q "OK   yade: not found; DEM coupling (--yade) unavailable" "$TEST_TMP/out3"
+check "  gives the PATH fix when ~/.local/bin is not on PATH" \
+    grep -qF 'export PATH="$HOME/.local/bin:$PATH"' "$TEST_TMP/out3"
+env -i PATH="$home2/.local/bin:/usr/bin:/bin" HOME="$home2" TMPDIR="$TEST_TMP" "$tree/pgf" setup --user --yes \
+    >"$TEST_TMP/out4" 2>&1
+mv "$tree/.pgf.conf.keep" "$tree/.pgf.conf"
+check "  and OK when it is" bash -c 'grep -q "OK   pgf on PATH is this checkout" "$1" && ! grep -q "export PATH" "$1"' _ "$TEST_TMP/out4"
+check "  and says where completion went and that it takes effect in a new shell" \
+    grep -q "OK   bash completion: ~/.local/share/bash-completion/completions/pgf; takes effect in a new shell" "$TEST_TMP/out4"
+check "  without the step lines the summary repeats" \
+    bash -c '! grep -qE "^pgf: (.*already points here|bash completion in|.* -> )" "$1"' _ "$TEST_TMP/out4"
+
+# setup in a second checkout, while ~/.local/bin/pgf points at another one
+home3="$TEST_TMP/home3"
+mkdir -p "$home3/.local/bin" "$home3/other"
+printf '#!/bin/sh\n' >"$home3/other/pgf" && chmod +x "$home3/other/pgf"
+ln -s "$home3/other/pgf" "$home3/.local/bin/pgf"
+mv "$tree/.pgf.conf" "$tree/.pgf.conf.keep"
+env -i PATH="$home3/.local/bin:/usr/bin:/bin" HOME="$home3" TMPDIR="$TEST_TMP" "$tree/pgf" setup --user --yes \
+    --foam-bashrc "$bashrc" >"$TEST_TMP/out5" 2>&1
+rc=$?
+check "setup with the link pointing at another checkout exits 0 (rc=$rc)" [ "$rc" -eq 0 ]
+check "  leaves the link alone" [ "$(readlink "$home3/.local/bin/pgf")" = "$home3/other/pgf" ]
+check "  still installs completion and prints the summary" \
+    bash -c '[ -f "$2/.local/share/bash-completion/completions/pgf" ] && grep -q "^pgf setup summary" "$1"' _ "$TEST_TMP/out5" "$home3"
+check "  without the pre-summary --force lines" bash -c '! grep -q "rerun with --force" "$1"' _ "$TEST_TMP/out5"
+check "  warns with a ~ path and the --link-only --force fix" \
+    bash -c 'grep -q "WARN pgf on PATH is ~/other/pgf, not this checkout" "$1" && grep -q "./pgf setup --link-only --force" "$1"' _ "$TEST_TMP/out5"
+check "  and its next steps call ./pgf" \
+    bash -c 'grep -q "^  ./pgf config " "$1" && grep -q "^  ./pgf status " "$1"' _ "$TEST_TMP/out5"
+env -i PATH=/usr/bin:/bin HOME="$home3" TMPDIR="$TEST_TMP" "$tree/pgf" setup --user --yes --no-completion \
+    >"$TEST_TMP/out6" 2>&1
+check "  off PATH, it says where the link points" \
+    grep -q "WARN ~/.local/bin/pgf points at ~/other/pgf, not here; fix: ./pgf setup --link-only --force" "$TEST_TMP/out6"
+env -i PATH=/usr/bin:/bin HOME="$home3" TMPDIR="$TEST_TMP" "$tree/pgf" setup --link-only >/dev/null 2>"$TEST_TMP/err"
+rc=$?
+check "  while --link-only still refuses with exit 2 and says why (rc=$rc)" \
+    bash -c '[ "$1" -eq 2 ] && grep -q "rerun with --force" "$2"' _ "$rc" "$TEST_TMP/err"
+mv "$tree/.pgf.conf.keep" "$tree/.pgf.conf"
+
 # config
 check "config get reads the resolved value" [ "$(penv config get PGF_MPI)" = loopback ]
 penv config get PGF_YADE_LIBDIR >/dev/null 2>&1
@@ -124,11 +194,35 @@ assert r["build"]["prefix"] == sys.argv[2] and r["build"]["source"] == "--prefix
 assert r["started_utc"] and r["finished_utc"] and r["yade"] is None, r
 ' "$case" "$prefix" 2>"$TEST_TMP/rec.err"
 check "run writes <case>/.pgf-run.json (command, build, times, exit status)" [ $? -eq 0 ]
-printf '#!/bin/sh\nexit 3\n' >"$case/Allfail" && chmod +x "$case/Allfail"
-(cd / && penv run --prefix "$prefix" "$case" Allfail) >/dev/null 2>&1
+check "run's banner: OpenFOAM on one line, the prefix and how it was chosen on the next" \
+    bash -c 'grep -qx "pgf: OpenFOAM fake.*" "$1" && grep -qx "pgf: prefix $2 (yade1, chosen by --prefix)" "$1"' \
+    _ "$TEST_TMP/err" "$prefix"
+check "run without time dirs prints OK and no pgfView hint" \
+    bash -c 'grep -q "^pgf: Allclean OK in [0-9]*s" "$1" && ! grep -q pgfView "$1"' _ "$TEST_TMP/err"
+printf '#!/bin/sh\nseq -f "header %%g" 30 >log.solver; printf "near\\nFOAM FATAL ERROR: bad\\n" >>log.solver\nseq -f "after %%g" 40 >>log.solver; exit 3\n' \
+    >"$case/Allfail" && chmod +x "$case/Allfail"
+(cd / && penv run --prefix "$prefix" "$case" Allfail) >/dev/null 2>"$TEST_TMP/err"
 rc=$?
 check "run passes the script's exit status through (rc=$rc)" [ "$rc" -eq 3 ]
 check "and records it" grep -q '"exit_status": 3' "$case/.pgf-run.json"
+check "a failed run says FAILED with the exit status" grep -q "^pgf: Allfail FAILED (exit 3) after " "$TEST_TMP/err"
+check "  and shows the newest log from just before its FOAM FATAL message" \
+    bash -c 'grep -q "log.solver from its FOAM FATAL message" "$1" && grep -qx "    header 30" "$1" &&
+        grep -qx "    FOAM FATAL ERROR: bad" "$1" && ! grep -qx "    header 29" "$1"' _ "$TEST_TMP/err"
+printf '#!/bin/sh\nseq -f "plain %%g" 30 >log.solver; exit 3\n' >"$case/Allfail"
+(cd / && penv run --prefix "$prefix" "$case" Allfail) >/dev/null 2>"$TEST_TMP/err"
+check "  or its last 20 lines without one" \
+    bash -c 'grep -q "last 20 lines of log.solver" "$1" && grep -qx "    plain 30" "$1" && ! grep -qx "    plain 10" "$1"' _ "$TEST_TMP/err"
+rm -f "$case/log.solver"
+printf '#!/bin/sh\nexit 4\n' >"$case/Allfail"
+(cd / && penv run --prefix "$prefix" "$case" Allfail) >/dev/null 2>"$TEST_TMP/err"
+check "  or says no log was written" grep -q "no log.\* written by this run" "$TEST_TMP/err"
+printf '#!/bin/sh\nmkdir -p 0 0.5 0.25; echo done >log.porousGasificationFoam\n' >"$case/Allok" && chmod +x "$case/Allok"
+(cd / && penv run --prefix "$prefix" "$case" Allok) >/dev/null 2>"$TEST_TMP/err"
+check "a run with results gives the latest time, last log and the pgfView next step" \
+    bash -c 'grep -q "^pgf: Allok OK in " "$1" && grep -q "latest time: 0.5$" "$1" &&
+        grep -q "last log: *log.porousGasificationFoam" "$1" && grep -qF "pgfView $2 (" "$1"' _ "$TEST_TMP/err" "$case"
+rm -rf "$case/Allok" "$case/0" "$case/0.5" "$case/0.25" "$case/log.porousGasificationFoam"
 check "runs.jsonl in the XDG state dir gets the run" \
     grep -q "\"case\": \"$(realpath "$case")\"" "$home/.local/state/pgf/runs/runs.jsonl"
 (cd / && env -i PATH="$yadedir:/usr/bin:/bin" HOME="$home" TMPDIR="$TEST_TMP" XDG_STATE_HOME="$TEST_TMP/xdg" \
@@ -161,14 +255,17 @@ check "a missing case dir exits 2" [ $? -eq 2 ]
 ln -sfn /elsewhere/pgf "$home/.local/bin/pgf"
 penv setup --link-only >/dev/null 2>&1
 check "setup --link-only refuses to replace another link without --force" [ $? -eq 2 ]
-penv setup --link-only --force >/dev/null 2>&1
+penv setup --link-only --force >/dev/null 2>"$TEST_TMP/err"
+check "setup --link-only still prints its link line" grep -q "^pgf: .*/.local/bin/pgf -> " "$TEST_TMP/err"
 check "setup --link-only --force replaces it" \
     [ "$(readlink -f "$home/.local/bin/pgf")" = "$(readlink -f "$tree/pgf")" ]
 
 # build hands --isolated (and --yade) to build.sh under exec --bare
 printf '#!/bin/sh\necho "build.sh $*"; echo "user=$WM_PROJECT_USER_DIR"\n' >"$tree/utilities/pgf/build.sh"
 chmod +x "$tree/utilities/pgf/build.sh"
-out="$(penv build --yade --libs-only 2>/dev/null)"
+out="$(penv build --yade --libs-only 2>"$TEST_TMP/err")"
+check "pgf build's banner leaves the prefix line to build.sh" \
+    bash -c 'grep -q "^pgf: OpenFOAM" "$1" && ! grep -q "no prefix" "$1"' _ "$TEST_TMP/err"
 check "build runs build.sh --isolated --yade with the extra options" grep -qx "build.sh --isolated --yade --libs-only" <<<"$out"
 check "  in a bare env (user dir is the build root)" grep -qx "user=/keep" <<<"$out"
 out="$(root Allwmake --yade 2>/dev/null)"

@@ -84,10 +84,156 @@ pgf_init() {
   fi
   for k in "${!PGF_CONF_CLI[@]}"; do out[$k]="${PGF_CONF_CLI[$k]}"; done
 
+  # Remember old and new values for pgf_setup_summary; leave an unchanged file alone.
+  PGF_SETUP_LAYER="$layer" PGF_SETUP_FILE="$file" PGF_SETUP_WROTE=0
+  PGF_SETUP_OLD=() PGF_SETUP_NEW=()
+  for k in "${!PGF_CONF_VAL[@]}"; do PGF_SETUP_OLD[$k]="${PGF_CONF_VAL[$k]}"; done
+  for k in "${!out[@]}"; do PGF_SETUP_NEW[$k]="${out[$k]}"; done
+  if [ -e "$file" ] && pgf_assoc_equal PGF_SETUP_OLD PGF_SETUP_NEW; then return 0; fi
   pgf_conf_write "$file" "$layer" out || return 1
-  echo "pgf: wrote $file" >&2
-  [ -n "${out[PGF_FOAM_BASHRC]:-}" ] ||
-    echo "pgf: no OpenFOAM bashrc found; run: pgf config set PGF_FOAM_BASHRC=... --$layer" >&2
+  PGF_SETUP_WROTE=1
+}
+
+declare -gA PGF_SETUP_OLD=() PGF_SETUP_NEW=()
+
+# pgf_assoc_equal A B — the two named associative arrays hold the same pairs.
+pgf_assoc_equal() {
+  local -n _a="$1" _b="$2"
+  local k
+  [ "${#_a[@]}" -eq "${#_b[@]}" ] || return 1
+  for k in "${!_a[@]}"; do
+    [ -n "${_b[$k]+x}" ] && [ "${_b[$k]}" = "${_a[$k]}" ] || return 1
+  done
+}
+
+# pgf_foam_version BASHRC — WM_PROJECT_VERSION after sourcing BASHRC in a child.
+pgf_foam_version() {
+  local info
+  info="$(env -i HOME="$HOME" PATH=/usr/bin:/bin bash -c 'f="$1"; set +eu; set --; . "$f" >/dev/null 2>&1; echo "$WM_PROJECT_VERSION"' _ "$1")"
+  printf '%s' "${info##*$'\n'}"
+}
+
+# pgf_tilde PATH — PATH with $HOME shown as ~.
+pgf_tilde() {
+  case "$1" in "$HOME"/*) printf '~/%s' "${1#"$HOME"/}" ;; *) printf '%s' "$1" ;; esac
+}
+
+# pgf_setup_summary LINKED COMPLETION — what pgf setup decided, after pgf_init:
+#   one "OK|WARN|FAIL message" line per decision, then the next steps.
+pgf_setup_summary() {
+  local linked="$1" completion="$2" k old new bashrc ver yb p link="$HOME/.local/bin/pgf" pgf=pgf
+  _s() { printf '  %-4s %s\n' "$1" "$2"; }
+  pgf_conf_resolve 2>/dev/null || true
+  echo
+  echo "pgf setup summary"
+  if [ "$PGF_SETUP_WROTE" -eq 1 ]; then
+    _s OK "settings: wrote $(pgf_tilde "$PGF_SETUP_FILE") ($PGF_SETUP_LAYER layer)"
+  else
+    _s OK "settings: $(pgf_tilde "$PGF_SETUP_FILE") unchanged ($PGF_SETUP_LAYER layer)"
+  fi
+  for k in "${PGF_CONF_KEYS[@]}"; do
+    [ -n "${PGF_SETUP_NEW[$k]+x}" ] || continue
+    new="${PGF_SETUP_NEW[$k]}"
+    if [ -z "${PGF_SETUP_OLD[$k]+x}" ]; then
+      printf '         %-16s %s (new)\n' "$k" "$(pgf_tilde "$new")"
+    elif [ "${PGF_SETUP_OLD[$k]}" = "$new" ]; then
+      printf '         %-16s %s (kept)\n' "$k" "$(pgf_tilde "$new")"
+    else
+      old="${PGF_SETUP_OLD[$k]}"
+      printf '         %-16s %s (was %s)\n' "$k" "$(pgf_tilde "$new")" "$(pgf_tilde "$old")"
+    fi
+  done
+
+  bashrc="${PGF_FOAM_BASHRC:-}"
+  if [ -z "$bashrc" ] || [ ! -r "$bashrc" ]; then
+    _s FAIL "no readable OpenFOAM bashrc (${bashrc:-none found}); fix: pgf config set PGF_FOAM_BASHRC=<OpenFOAM-v2406>/etc/bashrc"
+  else
+    ver="$(pgf_foam_version "$bashrc")"
+    if [ "$ver" = v2406 ]; then
+      _s OK "OpenFOAM $ver: $(pgf_tilde "$bashrc")"
+    else
+      _s WARN "OpenFOAM ${ver:-version unknown}: $(pgf_tilde "$bashrc"); PGF targets v2406"
+      _s "" "fix: pgf config set PGF_FOAM_BASHRC=<OpenFOAM-v2406>/etc/bashrc"
+    fi
+  fi
+
+  yb="${YADE_BIN:-}"
+  if [ -n "$yb" ] && [ ! -x "$yb" ]; then
+    _s WARN "yade: $(pgf_tilde "$yb") is not executable; DEM (--yade) needs it; fix: pgf config set YADE_BIN=PATH"
+  elif [ -n "$yb" ]; then
+    local line lvl
+    while IFS= read -r line; do
+      lvl="${line%% *}"
+      [ "$lvl" = FAIL ] && lvl=WARN # DEM only; pgf doctor --yade fails on it
+      _s "$lvl" "$(sed -E "s/^[A-Z]+ +//; s|$HOME/|~/|g" <<<"$line")"
+    done < <(pgf_yade_check "$yb" "${YADE_TRUNK:-$PGF_ROOT/submodules/Foam-Yade}")
+  else
+    _s OK "yade: not found; DEM coupling (--yade) unavailable, the CFD solver is unaffected"
+  fi
+
+  p="$(PATH="$PGF_ENV_CALLER_PATH" command -v pgf)"
+  if [ -n "$p" ] && [ "$(readlink -f "$p")" = "$SELF" ]; then
+    _s OK "pgf on PATH is this checkout's"
+  elif [ -n "$p" ]; then
+    pgf="./pgf"
+    _s WARN "pgf on PATH is $(pgf_tilde "$(readlink -f "$p")"), not this checkout; here call ./pgf"
+    _s "" "or make the link point here: ./pgf setup --link-only --force"
+  elif [ "$(readlink -f "$link")" = "$SELF" ]; then
+    _s WARN "$(pgf_tilde "$link") is set, but ~/.local/bin is not on your PATH; fix:"
+    _s "" 'export PATH="$HOME/.local/bin:$PATH"   (add it to ~/.bashrc)'
+  elif [ "$linked" -eq 0 ]; then
+    _s OK "pgf not linked (--no-link); call $(pgf_tilde "$SELF") by path"
+  else
+    pgf="./pgf"
+    _s WARN "$(pgf_tilde "$link") points at $(pgf_tilde "$(readlink -f "$link")"), not here; fix: ./pgf setup --link-only --force"
+  fi
+
+  if [ "$completion" -eq 1 ]; then
+    _s OK "bash completion: $(pgf_tilde "$(pgf_completion_file)"); takes effect in a new shell"
+  fi
+  echo "next:"
+  printf '  %-14s every setting and the layer it comes from\n' "$pgf config"
+  printf '  %-14s settings plus the builds for this checkout\n' "$pgf status"
+  echo "  ./Allwmake     build the solver here (≈1.5 min first build)"
+}
+
+# pgf_run_summary RC T0 SCRIPT — after pgf run in the case dir: OK or FAILED,
+#   the time taken, the newest log (its tail on failure), the record, next step.
+pgf_run_summary() {
+  local rc="$1" t0="$2" script="${3##*/}" dt log last="" d
+  dt=$(($(date +%s) - t0))
+  dt="$([ "$dt" -ge 60 ] && printf '%dm%02ds' $((dt / 60)) $((dt % 60)) || printf '%ds' "$dt")"
+  log="$(ls -t log.* 2>/dev/null | head -1)"
+  [ -n "$log" ] && [ "$(stat -c %Y "$log")" -ge "$t0" ] || log=""
+  for d in . processor0; do
+    [ -d "$d" ] && last="$(cd "$d" && ls -d [0-9]* 2>/dev/null | grep -E '^[0-9.e+-]+$' | sort -g | tail -1)"
+    [ -n "$last" ] && [ "$last" != 0 ] && break
+  done
+  echo >&2
+  if [ "$rc" -eq 0 ]; then
+    echo "pgf: $script OK in $dt ($(pgf_tilde "$PWD"))" >&2
+    [ -z "$last" ] || [ "$last" = 0 ] || echo "pgf:   latest time: $last" >&2
+    [ -z "$log" ] || echo "pgf:   last log:    $log" >&2
+  else
+    echo "pgf: $script FAILED (exit $rc$([ "$rc" -eq 130 ] && echo ', interrupted')) after $dt ($(pgf_tilde "$PWD"))" >&2
+    if [ -n "$log" ]; then
+      local fatal
+      fatal="$(grep -n -m1 'FOAM FATAL' "$log" | cut -d: -f1)"
+      if [ -n "$fatal" ]; then
+        echo "pgf:   $log from its FOAM FATAL message:" >&2
+        tail -n "+$((fatal > 2 ? fatal - 2 : 1))" "$log" | head -n 25 | sed 's/^/    /' >&2
+      else
+        echo "pgf:   last 20 lines of $log:" >&2
+        tail -n 20 "$log" | sed 's/^/    /' >&2
+      fi
+    else
+      echo "pgf:   no log.* written by this run; the script's own output is above" >&2
+    fi
+  fi
+  echo "pgf:   record:      .pgf-run.json" >&2
+  [ "$rc" -eq 0 ] && [ -n "$last" ] && [ "$last" != 0 ] &&
+    echo "pgf: next: $(pgf_tilde "$PGF_ROOT")/applications/utilities/paraview/pgfView $(pgf_tilde "$PWD") (doc/paraview.md)" >&2
+  return 0
 }
 
 # pgf_install_link FORCE — ~/.local/bin/pgf -> this checkout's pgf.
@@ -96,16 +242,19 @@ pgf_install_link() {
   if [ -L "$link" ] || [ -e "$link" ]; then
     cur="$(readlink -f "$link")"
     if [ "$cur" = "$SELF" ]; then
-      echo "pgf: $link already points here" >&2
+      [ "${PGF_SETUP_QUIET:-0}" -eq 1 ] || echo "pgf: $link already points here" >&2
       return 0
     fi
     [ "$1" -eq 1 ] || {
+      [ "${PGF_SETUP_QUIET:-0}" -eq 1 ] && return 2 # the setup summary warns
       echo "pgf: $link points at ${cur:-a file}; rerun with --force to replace it" >&2
       echo "pgf: (with several worktrees, the link picks one; call the others by path)" >&2
       return 2
     }
   fi
   mkdir -p "${link%/*}" && ln -sfn "$SELF" "$link" || return 2
+  # The setup summary reports the link and PATH; --link-only has no summary.
+  [ "${PGF_SETUP_QUIET:-0}" -eq 1 ] && return 0
   echo "pgf: $link -> $SELF" >&2
   case ":$PGF_ENV_CALLER_PATH:" in
   *":${link%/*}:"*) ;;
@@ -116,7 +265,7 @@ pgf_install_link() {
 # pgf_doctor — read-only checks, one "OK|WARN|FAIL message" line each; returns
 #   1 when any FAIL. Runs before OpenFOAM is sourced, so it sources in a child.
 pgf_doctor() {
-  local fails=0 bashrc info ver v p yb out pin trunk why
+  local fails=0 bashrc ver v p yb out pin trunk why
   _r() {
     printf '  %-4s %s\n' "$1" "$2"
     [ "$1" = FAIL ] && fails=$((fails + 1))
@@ -125,8 +274,7 @@ pgf_doctor() {
   echo "checks:"
   bashrc="${PGF_FOAM_BASHRC:-${WM_PROJECT_DIR:+$WM_PROJECT_DIR/etc/bashrc}}"
   if [ -n "$bashrc" ] && [ -r "$bashrc" ]; then
-    info="$(env -i HOME="$HOME" PATH=/usr/bin:/bin bash -c 'f="$1"; set +eu; set --; . "$f" >/dev/null 2>&1; echo "$WM_PROJECT_VERSION"' _ "$bashrc")"
-    ver="${info##*$'\n'}"
+    ver="$(pgf_foam_version "$bashrc")"
     if [ -z "$ver" ]; then
       _r FAIL "$bashrc set no WM_PROJECT_VERSION; fix: pgf config set PGF_FOAM_BASHRC=<OpenFOAM-v2406>/etc/bashrc"
     elif [ "$ver" != v2406 ]; then
@@ -249,17 +397,20 @@ pgf_config_cmd() {
 # pgf_build_cmd [--yade] [pgf env options] [build.sh options] — build this tree
 #   into the shared store (build.sh --isolated); an identical build is reused.
 pgf_build_cmd() {
-  local envopts=() bopts=()
+  local envopts=() bopts=() build=1
   while [ $# -gt 0 ]; do
     case "$1" in
     --yade) envopts+=(--yade); bopts+=(--yade) ;;
     --set | --foam-bashrc | --mpi) envopts+=("$1" "${2:-}"); shift ;;
-    -h | --help) echo "usage: pgf build [--yade] [--set K=V] [build.sh options; see utilities/pgf/build.sh --help]"; return 0 ;;
+    -h | --help) echo "usage: pgf build [--yade] [--set K=V] [-v] [build.sh options; see utilities/pgf/build.sh --help]"; return 0 ;;
+    clean | --dry-run | --print-* | --fingerprint) bopts+=("$1"); build=0 ;;
     *) bopts+=("$1") ;;
     esac
     shift
   done
-  "$SELF" exec --bare "${envopts[@]}" -- "$PGF_LIB/build.sh" --isolated "${bopts[@]}"
+  PGF_BANNER_BUILD=1 "$SELF" exec --bare "${envopts[@]}" -- "$PGF_LIB/build.sh" --isolated "${bopts[@]}" || return $?
+  [ "$build" -eq 0 ] ||
+    echo "next: pgf run <copy of a tutorial case> (README, Quick start), or pgf test fast" >&2
 }
 
 # pgf_tools_cmd — the what / why / instead header of every tool at the root.
