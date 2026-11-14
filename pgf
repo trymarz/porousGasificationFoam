@@ -29,7 +29,8 @@
 #         user (default) or checkout file
 # exec    the command in a clean env: caller's environment dropped (env -i, small
 #         allowlist), OpenFOAM's bashrc sourced, then the user dirs pointed at
-#         the prefix and the default user dir removed from PATH/LD_LIBRARY_PATH
+#         the prefix and the default user dir removed from PATH/LD_LIBRARY_PATH;
+#         PGF_ROOT is exported as this checkout
 # shell   interactive bash (or bash -c COMMAND); prompt (pgf:<worktree>@<key>)
 # run     cd into caseDir (relative to the caller) and run a script there
 #         (default Allrun); an active constant/yadeProperties selects --yade
@@ -44,7 +45,8 @@
 # case dirs and scratch to PGF_RUN_ROOT. Exit 2 when the environment cannot be
 # set up; otherwise the command's status.
 
-PGF_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+# readlink -f: pgf is usually called through the ~/.local/bin/pgf symlink.
+PGF_ROOT="$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")"
 SELF="$PGF_ROOT/pgf"
 PGF_LIB="$PGF_ROOT/utilities/pgf"
 
@@ -414,6 +416,8 @@ else
   echo "pgf: bare (no prefix; build root $PGF_BUILD_ROOT, OpenFOAM $WM_PROJECT_VERSION$mpi_note)" >&2
 fi
 
+# Cases include shared data as "$PGF_ROOT/thermoData/...", so a copied case still finds it.
+export PGF_ROOT
 export PGF_ENV_ACTIVE=1
 unset PGF_ENV_CALLER_PATH
 

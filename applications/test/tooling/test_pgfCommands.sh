@@ -69,6 +69,9 @@ penv setup --user --yes --foam-bashrc "$bashrc" >/dev/null 2>&1
 check "setup --user writes ~/.config/pgf/env.conf" grep -qx "PGF_FOAM_BASHRC=$bashrc" "$home/.config/pgf/env.conf"
 check "  and links ~/.local/bin/pgf to this checkout" \
     [ "$(readlink -f "$home/.local/bin/pgf")" = "$(readlink -f "$tree/pgf")" ]
+out="$(env -i PATH=/usr/bin:/bin HOME="$home" TMPDIR="$TEST_TMP" YADE_TRUNK="$trunk" \
+    "$home/.local/bin/pgf" config get PGF_FOAM_BASHRC 2>&1)"
+check "pgf called through the ~/.local/bin/pgf symlink finds its checkout ($out)" [ "$out" = "$bashrc" ]
 
 # config
 check "config get reads the resolved value" [ "$(penv config get PGF_MPI)" = loopback ]
