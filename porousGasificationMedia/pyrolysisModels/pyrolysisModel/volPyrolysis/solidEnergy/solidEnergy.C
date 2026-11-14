@@ -174,10 +174,10 @@ Foam::tmp<Foam::volScalarField> SolidEnergy::carrierHeatCapacity
     return solidState_.withSolidHeatCapacityFloor(rhoCp);
 }
 
-void SolidEnergy::applyRegimeRules(const volScalarField& totalYm)
+void SolidEnergy::applyRegimeRules()
 {
     T_ = solidState_.withDispersedRule(T_, gasThermo_.T());
-    T_ = solidState_.withTraceRule(T_, totalYm, rho_, gasThermo_.T());
+    T_ = solidState_.withTraceRule(T_, gasThermo_.T());
 }
 
 void SolidEnergy::storeH(const volScalarField& rhoCp)
@@ -395,16 +395,6 @@ void SolidEnergy::settleTs
     T_.max(dimensionedScalar("zero", dimTemperature, 0.0));
 
     solidThermo_.correct();
-    applyRegimeRules(totalYm);
-
-    abortOnInvalidTs
-    (
-        "the regime rules on Ts in SolidEnergy::solve()",
-        solidDiagnostics_.firstInvalidTemperature(T_),
-        HOld,
-        rhoCpCarrier,
-        totalYm
-    );
 }
 
 
@@ -451,6 +441,33 @@ void SolidEnergy::solve(const PtrList<surfaceScalarField>& phiYm)
     solveEnthalpyBalance(composedK, rhoCpCarrier, HOld, phiYm);
 
     settleTs(HOld, rhoCpCarrier, totalYm);
+}
+
+
+void SolidEnergy::finishStep()
+{
+    if (!active_ || equilibrium_)
+    {
+        return;
+    }
+
+    applyRegimeRules();
+
+    // solidH_ is still the old-time value: storeH() comes after this check.
+    const label badCell = solidDiagnostics_.firstInvalidTemperature(T_);
+    const volScalarField totalYm(SolidState::totalMass(Ym_));
+
+    if (badCell != -1)
+    {
+        abortOnInvalidTs
+        (
+            "the regime rules on Ts in SolidEnergy::finishStep()",
+            badCell,
+            solidH_,
+            carrierHeatCapacity(totalYm)(),
+            totalYm
+        );
+    }
 
     // The one place solidH_ is paired with a heat capacity: the mass that
     // remains, so the next step's old-time term is this Ts.

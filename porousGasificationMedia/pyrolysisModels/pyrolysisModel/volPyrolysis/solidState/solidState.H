@@ -52,21 +52,23 @@ Description
     which cells to empty.
 
     Written fields: solidPresent (1 where alpha > 0) and solidRegime
-    (0 empty, 1 trace, 2 dispersed, 3 connected), both as at the step's
-    start. solidConnectedAtStepStart, the source gate, is registered but
-    not written.
+    (0 empty, 1 trace, 2 dispersed, 3 connected). solidConnectedAtStepStart,
+    the source gate, is registered but not written.
 
-    Two snapshots, at the points of the step the solver has always taken
-    them at:
+    One classification per step, classify(), on the post-step state: the
+    mass the species step left, the rho the energy step corrected, and the
+    porosity they give. It runs after Ts is recovered and before porosity
+    is written (#173), and sets solidRegime and the gate together. Both Ts
+    rules read it. Only when the bed motion rewrites cells is it redone, on
+    what the motion left; the rules are not re-applied.
 
-    - refreshSolidPresent(): solidPresent, from the recovered porosity;
-    - freezeConnectedAtStepStart(): the source gate the next step's
-      explicit sources read. Taken at the end of the step, so it lags
-      whatever writes porosity before the next one (#127 leaves that to
-      step 2).
+    The gate is the step-start state for the next step's sources: the
+    radiation, the reacting flags and the exchange are all fixed before
+    that step's species step, and the solid energy equation reads the same
+    gate, so every reaction heat and exchanged joule is booked on both sides.
 
-    The trace test is not a snapshot: it is evaluated on the mass the
-    caller passes in.
+    refreshSolidPresent() keeps solidPresent on the porosity as it stands,
+    for the flip search and the checks around the bed motion.
 
     Read from the owning model's coefficients:
 
@@ -176,6 +178,10 @@ private:
         //  recomputed so the radiation model can hold a reference to it.
         volScalarField connectedAtStepStart_;
 
+        //- Cells a step's reaction emptied: present at its start, empty after
+        //  They take the trace rule, so their Ts stays defined.
+        boolList emptiedThisStep_;
+
 
     // Private member functions
 
@@ -196,6 +202,9 @@ private:
 
         //- Log the regimes and their thresholds, least solid first
         void printRegimes() const;
+
+        //- The gate's patch values, from the porosity and solidPresent patches
+        void setGatePatches();
 
 
 public:
@@ -332,32 +341,32 @@ public:
                 const volScalarField& rho
             ) const;
 
-            //- 1 in a cell holding solid, but only trace, else 0
-            tmp<volScalarField> isTrace
+            //- Porosity 1 - totalYm/rho, rho floored by SMALL [-]
+            //  The one expression for it: classify() and the porosity
+            //  recovery must agree on it bit for bit.
+            static tmp<volScalarField> porosityFromMass
             (
                 const volScalarField& totalYm,
                 const volScalarField& rho
-            ) const;
+            );
 
 
         // Solid temperature, one rule per regime
 
-            //- Ts with the dispersed rule applied: Tgas where dispersed, if
-            //  dispersedSolidTemperature is gas; otherwise Ts as given
+            //- Ts with the dispersed rule applied: Tgas where classify() found
+            //  no connected solid, if dispersedSolidTemperature is gas
             tmp<volScalarField> withDispersedRule
             (
                 const volScalarField& Ts,
                 const volScalarField& Tgas
             ) const;
 
-            //- Ts with the trace rule applied: Tgas where the cell holds trace
+            //- Ts with the trace rule applied: Tgas where classify() found trace
             //  solidH/rhoCp is scale-invariant in the mass, so a trace cell
             //  would echo its donor's Ts at full strength.
             tmp<volScalarField> withTraceRule
             (
                 const volScalarField& Ts,
-                const volScalarField& totalYm,
-                const volScalarField& rho,
                 const volScalarField& Tgas
             ) const;
 
@@ -385,19 +394,21 @@ public:
             //- solidPresent from the porosity just recovered, internal cells only
             void refreshSolidPresent();
 
-            //- Freeze the source gate the next step's explicit sources read
-            void freezeConnectedAtStepStart();
-
-            //- Record each cell's regime in solidRegime
-            //  The trace test reads the mass passed in, as withTraceRule does.
+            //- Each cell's regime into solidRegime, and the gate from it
+            //  The step's one classification; the gate's patches follow in
+            //  correctBoundaryConditions().
             void classify
             (
+                const volScalarField& porosity,
                 const volScalarField& totalYm,
                 const volScalarField& rho
             );
 
             //- Refresh solidPresent's patch values
             void correctSolidPresentBoundaryConditions();
+
+            //- Refresh solidPresent's and the gate's patch values
+            void correctBoundaryConditions();
 };
 
 

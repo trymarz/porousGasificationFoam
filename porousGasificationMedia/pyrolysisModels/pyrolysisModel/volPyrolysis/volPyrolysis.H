@@ -135,15 +135,19 @@ private:
         //  then the gas-solid heat transfer unless in equilibrium
         void exchangeHeatWithGas();
 
+        //- Regimes and next step's gate, from the post-step mass, once
+        void classifyPostStep();
+
         //- Hand the flip cells to the bed collapse or empty them, then
-        //  refresh the solid mask
-        void moveBed();
+        //  refresh the solid mask; true if any cell was rewritten
+        bool moveBed();
 
         //- Guard the porosity the bed motion left, and check it against Ym
         void checkPorosity() const;
 
-        //- Porosity patches, bed border, next step's gate and regimes
-        void updateSolidState();
+        //- Porosity patches, the classification again if the bed moved,
+        //  mask and gate patches, bed border
+        void updateSolidState(const bool bedMoved);
 
         //- The solid mass budget, derived species, run totals and info()
         void reportStep();

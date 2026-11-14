@@ -180,6 +180,19 @@ void SolidState::checkThresholds(const dictionary& regimes) const
 }
 
 
+void SolidState::setGatePatches()
+{
+    volScalarField::Boundary& gateBf = connectedAtStepStart_.boundaryFieldRef();
+
+    forAll(gateBf, patchI)
+    {
+        gateBf[patchI] ==
+            solidPresent_.boundaryField()[patchI]
+           *pos(connectedBelowPorosity_ - porosity_.boundaryField()[patchI]);
+    }
+}
+
+
 void SolidState::printRegimes() const
 {
     Info<< "Solid regimes by solid fraction alpha = 1 - porosity"
@@ -271,7 +284,8 @@ SolidState::SolidState
         ),
         mesh_,
         dimensionedScalar("zero", dimless, 0.0)
-    )
+    ),
+    emptiedThisStep_(porosity.size(), false)
 {
     rejectReplacedKeys(coeffs);
     checkThresholds(coeffs.subOrEmptyDict("solidRegimes"));
@@ -362,13 +376,15 @@ tmp<volScalarField> SolidState::massBeyondTrace
 }
 
 
-tmp<volScalarField> SolidState::isTrace
+tmp<volScalarField> SolidState::porosityFromMass
 (
     const volScalarField& totalYm,
     const volScalarField& rho
-) const
+)
 {
-    return solidPresent_*(1 - pos(massBeyondTrace(totalYm, rho)));
+    const dimensionedScalar rhoSolidFloor("rhoSolidFloor", dimDensity, SMALL);
+
+    return 1.0 - totalYm/max(rho, rhoSolidFloor);
 }
 
 
@@ -383,30 +399,43 @@ tmp<volScalarField> SolidState::withDispersedRule
         return tmp<volScalarField>(new volScalarField(Ts));
     }
 
-    // pos0 and neg, not pos and neg: pos(0) = neg(0) = 0 would leave a cell
-    // exactly at the connected threshold with Ts = 0.
-    const volScalarField porosityHeadroomBelowConnected
-    (
-        connectedBelowPorosity_ - porosity_
-    );
+    tmp<volScalarField> tTs(new volScalarField(Ts));
+    volScalarField& ruled = tTs.ref();
 
-    return
-        Ts*pos0(porosityHeadroomBelowConnected)
-      + Tgas*neg(porosityHeadroomBelowConnected);
+    forAll(ruled, cellI)
+    {
+        if (solidRegime_[cellI] != scalar(label(Regime::connected)))
+        {
+            ruled[cellI] = Tgas[cellI];
+        }
+    }
+
+    return tTs;
 }
 
 
 tmp<volScalarField> SolidState::withTraceRule
 (
     const volScalarField& Ts,
-    const volScalarField& totalYm,
-    const volScalarField& rho,
     const volScalarField& Tgas
 ) const
 {
-    const volScalarField traceOnly(isTrace(totalYm, rho));
+    tmp<volScalarField> tTs(new volScalarField(Ts));
+    volScalarField& ruled = tTs.ref();
 
-    return Ts*(1 - traceOnly) + Tgas*traceOnly;
+    forAll(ruled, cellI)
+    {
+        if
+        (
+            solidRegime_[cellI] == scalar(label(Regime::trace))
+         || emptiedThisStep_[cellI]
+        )
+        {
+            ruled[cellI] = Tgas[cellI];
+        }
+    }
+
+    return tTs;
 }
 
 
@@ -455,17 +484,9 @@ void SolidState::refreshSolidPresent()
 }
 
 
-void SolidState::freezeConnectedAtStepStart()
-{
-    // solidPresent_ is porosity < 1; the connected test is the stricter
-    // of the two at the default thresholds.
-    connectedAtStepStart_ =
-        solidPresent_*pos(connectedBelowPorosity_ - porosity_);
-}
-
-
 void SolidState::classify
 (
+    const volScalarField& porosity,
     const volScalarField& totalYm,
     const volScalarField& rho
 )
@@ -476,7 +497,7 @@ void SolidState::classify
     {
         Regime regime = Regime::connected;
 
-        if (solidPresent_[cellI] == 0)
+        if (porosity[cellI] >= 1.0)
         {
             regime = Regime::empty;
         }
@@ -484,12 +505,18 @@ void SolidState::classify
         {
             regime = Regime::trace;
         }
-        else if (porosity_[cellI] > connectedBelowPorosity_)
+        else if (porosity[cellI] >= connectedBelowPorosity_)
         {
             regime = Regime::dispersed;
         }
 
         solidRegime_[cellI] = scalar(label(regime));
+        connectedAtStepStart_[cellI] = (regime == Regime::connected) ? 1.0 : 0.0;
+
+        // Read by withTraceRule after the step's first classification,
+        // while solidPresent_ still holds the step start.
+        emptiedThisStep_[cellI] =
+            regime == Regime::empty && solidPresent_[cellI] != 0;
     }
 
     solidRegime_.correctBoundaryConditions();
@@ -499,6 +526,13 @@ void SolidState::classify
 void SolidState::correctSolidPresentBoundaryConditions()
 {
     solidPresent_.correctBoundaryConditions();
+}
+
+
+void SolidState::correctBoundaryConditions()
+{
+    solidPresent_.correctBoundaryConditions();
+    setGatePatches();
 }
 
 
