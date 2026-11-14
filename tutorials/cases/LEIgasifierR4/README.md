@@ -1,22 +1,24 @@
-# LEIgasifierR4 — O2-blown ignition
+# LEIgasifierR4 — air-blown ignition
 
-Rung R4 of issue #64. It is a sibling of `LEIgasifierR3` that changes one thing: the bed is blown with pure O2 and the chemistry is complete. A strip of hot char at the primary ports ignites the bed. Pyrolysis gas burns in the gas phase, and char reacts with O2, CO2 and H2O. Everything else is R3: the hot-bed profile, the outline, the mesh, the feed and discharge, the shrinkage and the bookkeeping.
+Rung R4 of issue #64. It is a sibling of `LEIgasifierR3` that changes two things: the inert N2 supply becomes air, and the chemistry is complete. A strip of hot char at the primary ports ignites the bed. Pyrolysis gas burns in the gas phase, and char reacts with O2, CO2 and H2O. Everything else is R3: the hot-bed profile, the outline, the mesh, the feed and discharge, the shrinkage and the bookkeeping.
 
 Geometry, sources, the site-drawing file and the planar-2D flow mapping are R1's; see `../LEIgasifierR1/README.md`. `leiGeometry.py` reads `constant/LEIgeometry.local` the same way (git-ignored, never committed). Feed and discharge are R2's, and the hot bed, the solid species and the shrinkage are R3's; see their READMEs.
 
 ## Gas supply
 
-Both supplies blow pure O2 at 900 K (R3's inflow temperature). Each carries the O2 content of its Table 3 air flow (Striugas et al. 2014: primary 30, secondary 5 Nm³/h, so a 6:1 split). The flows go through R1's planar-2D map and use ρ_N(O2) = 1.4276 kg/m³: 2.545e-4 and 2.828e-5 kg/s per slab. The 900 K inflow and the absence of radiation (`radiation off`) are carried over from R3, so neither is calibrated yet.
+Both supplies blow air at 900 K (R3's inflow temperature), at their Table 3 normal flows (Striugas et al. 2014: primary 30, secondary 5 Nm³/h). The flows go through R1's planar-2D map. The air is 21/79 O2/N2 by volume, with ρ_N 1.4276 (O2) and 1.2498 (N2) kg/m³, which gives Y_O2 = 0.2329 and 1.0926e-3 and 1.214e-4 kg/s per slab. The 900 K inflow and the absence of radiation (`radiation off`) are carried over from R3, so neither is calibrated yet.
 
-## Feed and O2 (#64 R3 open point: feed vs profile)
+**Why air, not pure O2.** #64 asked for an O2-blown R4, and the first version blew pure O2 carrying the same O2 mass. It ignited, and its balances closed, but the full run crashed at 0.84 s. O2 that slipped through the bed mixed with CO in the empty ash pit and burnt there with no solid to take the heat. The gas went from 1579 to 4100 K in 30 ms, the Courant number reached 2.5 at the fixed step, the gas density went negative and the solver trapped a floating-point error. Nothing in the model removes that heat: radiation is off and the gas set has no dissociation. The user chose to blow air instead. The O2 mass and the ER stay the same, and the N2 dilutes any gas flame in the pit.
+
+## Feed and ER (#64 R3 open point: feed vs profile)
 
 R3 found that R2's placeholder feed lowers the bed much faster than the 0.5 mm/s used to build the hot-bed profile. With O2 flowing, the feed and the O2 must also agree on an equivalence ratio. R4 sets both from the O2:
 
-- **ER = 0.30 on the slab.** R1's planar map scales each supply by the area ratio at its own diameter, so the 3D ER is not preserved in the slab, and R4 defines ER on the slab itself. Stoichiometric O2 for this wood is 1.386 kg per kg of dry wood (C/H/O 50/6.2/43.8 wt %). At the slab O2 of 2.83e-4 kg/s, that gives a dry feed of 0.68 g/s.
+- **ER = 0.30 on the slab.** R1's planar map scales each supply by the area ratio at its own diameter, so the 3D ER is not preserved in the slab, and R4 defines ER on the slab itself. Stoichiometric O2 for this wood is 1.386 kg per kg of dry wood (C/H/O 50/6.2/43.8 wt %). At the slab O2 of 2.83e-4 kg/s (the air's), that gives a dry feed of 0.68 g/s.
 - **Descent speed** 0.19 mm/s. That is 0.68 g/s divided by the fresh bed's dry wood density (564 kg/m³ of bed) and the shaft's slab section (6.4e-3 m²). `hotBed.py` builds the profile with `v_solid = 1.9e-4`.
 - **DEM feed** 1.37 spheres/s, from the same volume rate: the single hex layer holds 7217 spheres per metre of shaft height. The descent in a coupled run is measured (`balance.txt`), not imposed.
 
-The user chose this option over keeping R3's 0.5 mm/s profile, which would need 2.6 times the Table 3 O2 at ER 0.30.
+The user chose this option over keeping R3's 0.5 mm/s profile, which would need 2.6 times the Table 3 air at ER 0.30.
 
 ## Chemistry
 
@@ -39,7 +41,7 @@ The coefficients are exact in the elements, taking char as pure carbon. The inhe
 
 ## Mass-transfer coefficient h
 
-R3's h = 0.017 m/s came from the gasifier tutorial. R3 never tested it, because it had no O2. In R4 it caps char oxidation below ignition. A 0.6 s smoke run at h = 0.017 cooled the strip from 1200 to 1191 K, and 41 % of the O2 left through the outlet unused.
+R3's h = 0.017 m/s came from the gasifier tutorial. R3 never tested it, because it had no O2. In R4 it caps char oxidation below ignition. A 0.6 s smoke run of the pure-O2 version at h = 0.017 cooled the strip from 1200 to 1191 K, and 41 % of the O2 left through the outlet unused.
 
 Wakao–Funazkri for packed beds gives
 
@@ -58,7 +60,7 @@ After the R3 profile is mapped, char cells within 30 mm of a primary port face c
 ./Allclean
 ```
 
-The time step is 1e-3 s, as in R3. The run uses 2 Yade ranks (one Yade worker, which R2's bookkeeping needs) plus 2 OpenFOAM ranks, on the default `foamYade` coupler. A 0.6 s window took 6.5 min of wall time in the smoke run, and 0.84 s took 3.6 min in the full run.
+The time step is 1e-3 s, as in R3. The run uses 2 Yade ranks (one Yade worker, which R2's bookkeeping needs) plus 2 OpenFOAM ranks, on the default `foamYade` coupler. A 1.0 s window takes about 8 min of wall time, so the full 2.5 s should take about 20–25 min.
 
 `checkFeed.py` runs R2/R3's solid bookkeeping. `checkIgnition.py` replaces R3's `checkHotBed.py`:
 
@@ -71,39 +73,39 @@ The time step is 1e-3 s, as in R3. The run uses 2 Yade ranks (one Yade worker, w
 
 ## Checks
 
-**0.6 s smoke run** with `pgf exec --yade --mpi loopback` (Foam-Yade d5c33e0, 1 Yade worker plus 2 OpenFOAM ranks, 6 min 26 s wall), written every 0.1 s:
+**1.0 s check, air** with `pgf exec --yade --mpi loopback` (Foam-Yade d5c33e0, 1 Yade worker plus 2 OpenFOAM ranks, 8 min 11 s wall, maximum Courant number 0.61), written every 0.1 s:
 
 | Check | Result |
 |---|---|
-| Ts | 300.0–1277.1 K |
-| Gas T | 300.0–1505.5 K |
-| Y (gas, solid) | within [0, 1]; \|ΣY − 1\| ≤ 1.5e-8 |
+| Ts | 300.0–1220.9 K |
+| Gas T | 300.0–1191.1 K |
+| Y (gas, solid) | within [0, 1]; \|ΣY − 1\| ≤ 1.7e-8 |
 | `bounding` / `clamped` in the logs | none |
-| Element residual / (released + in), C H O | 2.8e-4, 1.9e-4, 2.9e-4 (limit 1e-3) |
-| Energy residual / formation enthalpy moved | 4.8e-4 (limit 1e-2) |
-| O2 | 5.4 % slip, 85 % consumed |
-| Reaction zone | hottest char 1200 → 1277 K, still rising at 0.6 s, 14 mm from a primary port, 60–80 mm below the ramp's foot |
-| Fronts above the ramp's foot | pyrolysis 63 mm, drying 154 mm, unchanged over the window |
+| Element residual / (released + in), C H O | 3.4e-4, 3.9e-4, 1.5e-4 (limit 1e-3) |
+| Energy residual / formation enthalpy moved | 3.5e-4 (limit 1e-2) |
+| O2 | 8.5 % slip, 86 % consumed |
+| Reaction zone | hottest char 1200 → 1221 K, rising about 2 K per 0.1 s, 29 mm from a primary port |
+| Ash-pit gas T | 900 K up to 0.5 s, then 906, 913, 922, 936, 948 K at 0.6 … 1.0 s |
+| Fronts above the ramp's foot | pyrolysis 63 mm, drying 154 mm, unchanged |
 | Feed bookkeeping (`checkFeed.py`) | OK |
 
-**Full 2.5 s run: crashes at 0.84 s** (SIGFPE in the gas solver, 3 min 37 s wall; same setup, the build before the rebase). It runs as the smoke run did until 0.807 s: the char at the ports reaches 1321 K, the balances close (C/H/O ≤ 2.7e-4, energy 3.0e-4 at 0.8 s), O2 slip is 6.1 %, and there are no `bounding` lines. Then the gas ignites by itself in the ash pit below the grate:
+It runs past the pure-O2 crash time (0.84 s). The char at the ports heats much more slowly than with pure O2 (1217 K against 1321 K at 0.8 s). The gas there stays below the strip's 1200 K, because the N2 carries heat away.
 
-- At 0.8 s the pit is gas only (ε = 1), with up to Y_O2 0.37 and Y_CO 0.73. Pit cells 140 mm below the grate already hold a combustible mix (Y_O2 ≈ 0.2, Y_CO ≈ 0.22) at 1180 K, up from the 900 K inflow, and the axis probe 100 mm below the grate is heating.
-- At 0.808 s the maximum gas T jumps from 1579 to 1841 K in one step, then reaches 2800 K by 0.82 s and 4100 K by 0.84 s. The gas–solid exchange does not change, so this is gas-phase combustion with no solid heat sink.
-- The maximum Courant number rises from 0.41 to 2.5 at the fixed 1e-3 s step, the solid model reports a negative gas density, Y exceeds 2 in the species solve, and a field division traps.
+**Ash pit (open point 0).** The hottest pit cell sits just below the grate. At 1.0 s it holds Y_O2 0.076 and Y_CO 0.24 at 948 K, and the pit as a whole holds up to Y_O2 0.20 and Y_CO 0.45. Its temperature rise is speeding up. This is the mixture that ignited with pure O2, now diluted by N2. Burning all of its O2 would heat it by roughly 1000 K, against about 3000 K with pure O2. Whether it ignites within the 2.5 s window, and whether the run survives that at the fixed 1e-3 s step, is not known yet.
 
-The descent measured in the shaft, as the median sphere velocity between the ramp's foot and the bed top, is 0.18–0.19 mm/s from 0.5 to 0.8 s, against 0.19 mm/s set.
+**Pure-O2 version (superseded).** A 0.6 s smoke run passed every check: the char reached 1277 K, O2 slip was 5.4 %, element residuals were ≤ 2.9e-4 and the energy residual 4.8e-4. The full run crashed at 0.84 s on ash-pit gas ignition, as described under "Gas supply". The shaft descent measured in that run was a median sphere velocity of 0.18–0.19 mm/s from 0.5 to 0.8 s, against 0.19 mm/s set.
 
 ## Open points
 
+0. **Ash-pit gas.** O2 that slips through the bed mixes with CO in the empty pit, and the pit gas is heating (see "Checks"). With pure O2 it ignited and crashed the run. With air it has not ignited by 1.0 s. Radiation is off and the gas set has no dissociation, so nothing in the model limits a pit flame.
 1. **Gas T overshoot in the ash pit (R3).** It is still untraced. Now that reactions release heat, it cannot be isolated in R4, so R4 has no gas-T slack above the JANAF range.
-0. **Ash-pit gas ignition crashes the run at 0.84 s** (see "Checks"). O2 that slips through the bed mixes with CO and pyrolysis gas in the empty pit, which has no solid to absorb the heat of a pure-O2 flame, and nothing in the model removes it: radiation is off, and the gas set has no dissociation. Whether to resolve it with a smaller or Courant-limited step, radiation, a diluted supply, or by accepting it as R4's finding is not decided.
-2. **Feed vs profile (R3).** Settled above for R4: ER 0.30 on the slab. The descent measured up to the crash agrees with 0.19 mm/s.
+2. **Feed vs profile (R3).** Settled for R4 at ER 0.30 on the slab. The descent measured in the pure-O2 run agrees with 0.19 mm/s.
 3. **Char yield and char `rhoApparent`** are still assumed (R3).
 4. **Spheres are parked, not erased** (`mp.bodyErase` segfaults on Foam-Yade d5c33e0; R2).
 5. **One Yade worker only** (R2's bookkeeping).
 6. **h is uniform.** It is 0.1 m/s from Wakao–Funazkri at the ports' Re_p; away from the ports the flow is slower and the true h is lower.
 7. **Inflow at 900 K, radiation off**, both carried over from R3.
-8. **Gas chemistry.** It is LEIgasifierDEM's set as published, not re-validated for pure O2.
+8. **Gas chemistry.** It is LEIgasifierDEM's set as published, not re-validated for this case.
+9. **#64 asked for O2-blown.** R4 blows air (see "Gas supply"). An O2-blown rung would need the pit flame resolved first.
 
 The case is not in `applications/test/regression/cases.list` or `cases_yade.list`.

@@ -1,4 +1,4 @@
-"""Post-run checks for LEIgasifierR4's O2-blown ignition window (README.md).
+"""Post-run checks for LEIgasifierR4's air-blown ignition window (README.md).
 
 Reads the reconstructed write times, 0/V, 0/C, the per-step port flows and
 the solver log, then checks:
@@ -289,12 +289,14 @@ def inlet_faces(patches=("primaryInlet", "secondaryInlet")):
     return out
 
 
-# The inlet faces hold pure O2 at T_IN (0.orig): its mu and alpha = kappa/Cp
+# The inlet faces hold air at T_IN (0.orig): its mass-mixed mu and kappa/Cp
 # are the boundary diffusivities of YEqn (rho D = mu) and EEqn.
 T_IN = 900.0
-MU_IN = mu("O2", T_IN)
-ALPHA_IN = kappa("O2", T_IN) / Cp("O2", T_IN)
-Y_IN = {s: (1.0 if s == "O2" else 0.0) for s in GAS}
+Y_IN = {s: 0.0 for s in GAS}
+Y_IN.update(O2=0.2329, N2=0.7671)
+MU_IN = sum(Y_IN[s] * mu(s, T_IN) for s in GAS)
+ALPHA_IN = (sum(Y_IN[s] * kappa(s, T_IN) for s in GAS)
+            / sum(Y_IN[s] * Cp(s, T_IN) for s in GAS))
 
 
 def inlet_diffusion(d, faces):
@@ -303,7 +305,7 @@ def inlet_diffusion(d, faces):
     _, Y, T, _ = gas_state(d)
     el = {e: 0.0 for e in ELEMENTS}
     H = Hf = 0.0
-    hs_in = Ha("O2", T_IN) - HF["O2"]
+    hs_in = sum(Y_IN[s] * (Ha(s, T_IN) - HF[s]) for s in GAS)
     for c, w in faces:
         dY = {s: Y[s][c] - Y_IN[s] for s in GAS if s != "N2"}
         for e in ELEMENTS:
@@ -457,11 +459,13 @@ for t, d in ts:
     c = max(cand, key=lambda i: Ts[i])
     dist = port_distance(C[c][0], C[c][2])
     reach = [port_distance(C[k][0], C[k][2]) for k in range(n)
-             if Y_O2[k] > 0.5 and C[k][2] > lei.z_grate]
+             if Y_O2[k] > 0.5 * Y_IN["O2"] and C[k][2] > lei.z_grate]
+    Tg = field(d, "T")
+    pit = max(Tg[k] for k in range(n) if C[k][2] < lei.z_grate)
     print("[IGNITION]   t %-5s Ts %.0f K at %+.0f mm, %.0f mm from a port; "
-          "Y_O2 > 0.5 up to %.0f mm from a port"
-          % (d, Ts[c], 1e3 * (C[c][2] - bed.z_hot), 1e3 * dist,
-             1e3 * max(reach) if reach else 0.0))
+          "Y_O2 > half the inflow's up to %.0f mm from a port; ash pit "
+          "gas T max %.0f K" % (d, Ts[c], 1e3 * (C[c][2] - bed.z_hot),
+          1e3 * dist, 1e3 * max(reach) if reach else 0.0, pit))
     if t >= zoneFrom:
         if Ts[c] <= bed.T_ign:
             fail("t = %s: char not ignited (hottest %.0f K, strip started at "

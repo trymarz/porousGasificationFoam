@@ -3,7 +3,7 @@
 # LEIgasifierR4 — Allrun
 # ======================
 # Rung R4 of issue #64: R3 (the hot bed on R2's outline, feed and discharge)
-# blown with pure O2: a hot char strip at the primary ports ignites the bed,
+# blown with air: a hot char strip at the primary ports ignites the bed,
 # with full gas-phase and heterogeneous chemistry. Builds the hot bed and the
 # strip, runs coupled over the evaluation window, then checks the solid
 # bookkeeping, the bounds, the element and energy balances and the reaction

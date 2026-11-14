@@ -24,12 +24,12 @@ boundaryField
     primaryInlet
     {
         type            fixedValue;
-        value           uniform 0;
+        value           uniform 0.7671;
     }
     secondaryInlet
     {
         type            fixedValue;
-        value           uniform 0;
+        value           uniform 0.7671;
     }
     outlet
     {
