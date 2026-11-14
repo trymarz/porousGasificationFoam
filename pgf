@@ -204,6 +204,7 @@ if [ "$sub" = "setup" ]; then
     [ "$setup_yes" -eq 0 ] && [ -t 0 ] && [ -r /dev/tty ] && ask=1
     pgf_install_completion "$ask" || exit $?
   fi
+  [ "$setup_link" -eq 2 ] || pgf_setup_summary "$setup_link" "${PGF_COMPLETION_INSTALLED:-0}"
   exit 0
 fi
 

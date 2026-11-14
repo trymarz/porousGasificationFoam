@@ -84,10 +84,107 @@ pgf_init() {
   fi
   for k in "${!PGF_CONF_CLI[@]}"; do out[$k]="${PGF_CONF_CLI[$k]}"; done
 
+  # Remember old and new values for pgf_setup_summary; leave an unchanged file alone.
+  PGF_SETUP_LAYER="$layer" PGF_SETUP_FILE="$file" PGF_SETUP_WROTE=0
+  PGF_SETUP_OLD=() PGF_SETUP_NEW=()
+  for k in "${!PGF_CONF_VAL[@]}"; do PGF_SETUP_OLD[$k]="${PGF_CONF_VAL[$k]}"; done
+  for k in "${!out[@]}"; do PGF_SETUP_NEW[$k]="${out[$k]}"; done
+  if [ -e "$file" ] && pgf_assoc_equal PGF_SETUP_OLD PGF_SETUP_NEW; then return 0; fi
   pgf_conf_write "$file" "$layer" out || return 1
-  echo "pgf: wrote $file" >&2
-  [ -n "${out[PGF_FOAM_BASHRC]:-}" ] ||
-    echo "pgf: no OpenFOAM bashrc found; run: pgf config set PGF_FOAM_BASHRC=... --$layer" >&2
+  PGF_SETUP_WROTE=1
+}
+
+declare -gA PGF_SETUP_OLD=() PGF_SETUP_NEW=()
+
+# pgf_assoc_equal A B — the two named associative arrays hold the same pairs.
+pgf_assoc_equal() {
+  local -n _a="$1" _b="$2"
+  local k
+  [ "${#_a[@]}" -eq "${#_b[@]}" ] || return 1
+  for k in "${!_a[@]}"; do
+    [ -n "${_b[$k]+x}" ] && [ "${_b[$k]}" = "${_a[$k]}" ] || return 1
+  done
+}
+
+# pgf_foam_version BASHRC — WM_PROJECT_VERSION after sourcing BASHRC in a child.
+pgf_foam_version() {
+  local info
+  info="$(env -i HOME="$HOME" PATH=/usr/bin:/bin bash -c 'f="$1"; set +eu; set --; . "$f" >/dev/null 2>&1; echo "$WM_PROJECT_VERSION"' _ "$1")"
+  printf '%s' "${info##*$'\n'}"
+}
+
+# pgf_tilde PATH — PATH with $HOME shown as ~.
+pgf_tilde() {
+  case "$1" in "$HOME"/*) printf '~/%s' "${1#"$HOME"/}" ;; *) printf '%s' "$1" ;; esac
+}
+
+# pgf_setup_summary LINKED COMPLETION — what pgf setup decided, after pgf_init:
+#   one "OK|WARN|FAIL message" line per decision, then the next steps.
+pgf_setup_summary() {
+  local linked="$1" completion="$2" k old new bashrc ver yb p link="$HOME/.local/bin/pgf"
+  _s() { printf '  %-4s %s\n' "$1" "$2"; }
+  pgf_conf_resolve 2>/dev/null || true
+  echo
+  echo "pgf setup summary"
+  if [ "$PGF_SETUP_WROTE" -eq 1 ]; then
+    _s OK "settings: wrote $(pgf_tilde "$PGF_SETUP_FILE") ($PGF_SETUP_LAYER layer)"
+  else
+    _s OK "settings: $(pgf_tilde "$PGF_SETUP_FILE") unchanged ($PGF_SETUP_LAYER layer)"
+  fi
+  for k in "${PGF_CONF_KEYS[@]}"; do
+    [ -n "${PGF_SETUP_NEW[$k]+x}" ] || continue
+    new="${PGF_SETUP_NEW[$k]}"
+    if [ -z "${PGF_SETUP_OLD[$k]+x}" ]; then
+      printf '         %-16s %s (new)\n' "$k" "$(pgf_tilde "$new")"
+    elif [ "${PGF_SETUP_OLD[$k]}" = "$new" ]; then
+      printf '         %-16s %s (kept)\n' "$k" "$(pgf_tilde "$new")"
+    else
+      old="${PGF_SETUP_OLD[$k]}"
+      printf '         %-16s %s (was %s)\n' "$k" "$(pgf_tilde "$new")" "$(pgf_tilde "$old")"
+    fi
+  done
+
+  bashrc="${PGF_FOAM_BASHRC:-}"
+  if [ -z "$bashrc" ] || [ ! -r "$bashrc" ]; then
+    _s FAIL "no readable OpenFOAM bashrc (${bashrc:-none found}); fix: pgf config set PGF_FOAM_BASHRC=<OpenFOAM-v2406>/etc/bashrc"
+  else
+    ver="$(pgf_foam_version "$bashrc")"
+    if [ "$ver" = v2406 ]; then
+      _s OK "OpenFOAM $ver: $(pgf_tilde "$bashrc")"
+    else
+      _s WARN "OpenFOAM ${ver:-version unknown}: $(pgf_tilde "$bashrc"); PGF targets v2406"
+      _s "" "fix: pgf config set PGF_FOAM_BASHRC=<OpenFOAM-v2406>/etc/bashrc"
+    fi
+  fi
+
+  yb="${YADE_BIN:-}"
+  if [ -n "$yb" ]; then
+    _s OK "yade: $(pgf_tilde "$yb")"
+  else
+    _s OK "yade: not found; DEM coupling (--yade) unavailable, the CFD solver is unaffected"
+  fi
+
+  p="$(PATH="$PGF_ENV_CALLER_PATH" command -v pgf)"
+  if [ -n "$p" ] && [ "$(readlink -f "$p")" = "$SELF" ]; then
+    _s OK "pgf on PATH is this checkout's"
+  elif [ -n "$p" ]; then
+    _s WARN "pgf on PATH is $(readlink -f "$p"), not this checkout; call this one by path"
+  elif [ "$(readlink -f "$link")" = "$SELF" ]; then
+    _s WARN "$(pgf_tilde "$link") is set, but ~/.local/bin is not on your PATH; fix:"
+    _s "" 'export PATH="$HOME/.local/bin:$PATH"   (add it to ~/.bashrc)'
+  elif [ "$linked" -eq 0 ]; then
+    _s OK "pgf not linked (--no-link); call $(pgf_tilde "$SELF") by path"
+  else
+    _s WARN "$(pgf_tilde "$link") does not point here; fix: $(pgf_tilde "$SELF") setup --link-only --force"
+  fi
+
+  if [ "$completion" -eq 1 ]; then
+    _s OK "bash completion installed; takes effect in a new shell"
+  fi
+  echo "next:"
+  echo "  pgf config     every setting and the layer it comes from"
+  echo "  pgf status     settings plus the builds for this checkout"
+  echo "  ./Allwmake     build the solver here (≈1.5 min first build)"
 }
 
 # pgf_install_link FORCE — ~/.local/bin/pgf -> this checkout's pgf.
@@ -116,7 +213,7 @@ pgf_install_link() {
 # pgf_doctor — read-only checks, one "OK|WARN|FAIL message" line each; returns
 #   1 when any FAIL. Runs before OpenFOAM is sourced, so it sources in a child.
 pgf_doctor() {
-  local fails=0 bashrc info ver v p yb out pin trunk why
+  local fails=0 bashrc ver v p yb out pin trunk why
   _r() {
     printf '  %-4s %s\n' "$1" "$2"
     [ "$1" = FAIL ] && fails=$((fails + 1))
@@ -125,8 +222,7 @@ pgf_doctor() {
   echo "checks:"
   bashrc="${PGF_FOAM_BASHRC:-${WM_PROJECT_DIR:+$WM_PROJECT_DIR/etc/bashrc}}"
   if [ -n "$bashrc" ] && [ -r "$bashrc" ]; then
-    info="$(env -i HOME="$HOME" PATH=/usr/bin:/bin bash -c 'f="$1"; set +eu; set --; . "$f" >/dev/null 2>&1; echo "$WM_PROJECT_VERSION"' _ "$bashrc")"
-    ver="${info##*$'\n'}"
+    ver="$(pgf_foam_version "$bashrc")"
     if [ -z "$ver" ]; then
       _r FAIL "$bashrc set no WM_PROJECT_VERSION; fix: pgf config set PGF_FOAM_BASHRC=<OpenFOAM-v2406>/etc/bashrc"
     elif [ "$ver" != v2406 ]; then

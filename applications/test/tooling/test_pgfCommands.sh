@@ -73,6 +73,44 @@ out="$(env -i PATH=/usr/bin:/bin HOME="$home" TMPDIR="$TEST_TMP" YADE_TRUNK="$tr
     "$home/.local/bin/pgf" config get PGF_FOAM_BASHRC 2>&1)"
 check "pgf called through the ~/.local/bin/pgf symlink finds its checkout ($out)" [ "$out" = "$bashrc" ]
 
+# setup ends with a summary of what it decided (#280).
+check "setup summary says it wrote the file" grep -q "OK   settings: wrote .*\.pgf\.conf (checkout layer)" "$TEST_TMP/out"
+check "  shows the new value" grep -qE "^ +PGF_FOAM_BASHRC +$bashrc \(new\)$" "$TEST_TMP/out"
+check "  warns that the OpenFOAM version is not v2406, with a fix" \
+    bash -c 'grep -q "WARN OpenFOAM fake: .*PGF targets v2406" "$1" && grep -q "fix: pgf config set PGF_FOAM_BASHRC=" "$1"' _ "$TEST_TMP/out"
+check "  names the yade it found" grep -q "OK   yade: $yadedir/yade-2026.1" "$TEST_TMP/out"
+check "  says --no-link left pgf unlinked" grep -q "pgf not linked (--no-link)" "$TEST_TMP/out"
+check "  points at pgf config, pgf status and ./Allwmake" \
+    bash -c 'grep -q "^  pgf config " "$1" && grep -q "^  pgf status " "$1" && grep -q "^  ./Allwmake .*1.5 min" "$1"' _ "$TEST_TMP/out"
+echo "# hand-written comment" >>"$tree/.pgf.conf"
+penv setup --checkout --yes --no-link --no-completion >"$TEST_TMP/out2" 2>&1
+check "a setup that changes nothing says unchanged, not wrote" \
+    bash -c 'grep -q "settings: .* unchanged (checkout layer)" "$1" && ! grep -q "wrote" "$1"' _ "$TEST_TMP/out2"
+check "  shows kept values" grep -qE "^ +PGF_FOAM_BASHRC +$bashrc \(kept\)$" "$TEST_TMP/out2"
+check "  and leaves the file untouched" grep -qx "# hand-written comment" "$tree/.pgf.conf"
+check "  and does not claim a completion install with --no-completion" \
+    bash -c '! grep -q "completion" "$1"' _ "$TEST_TMP/out2"
+bashrc2406="$FAKE/foam2406/etc/bashrc"
+mkdir -p "${bashrc2406%/*}"
+echo 'export WM_PROJECT_VERSION=v2406' >"$bashrc2406"
+home2="$TEST_TMP/home2"  # a fresh user, no yade, and no checkout file in the way
+mkdir -p "$home2"
+mv "$tree/.pgf.conf" "$tree/.pgf.conf.keep"
+env -i PATH=/usr/bin:/bin HOME="$home2" TMPDIR="$TEST_TMP" "$tree/pgf" setup --user --yes --no-completion \
+    --foam-bashrc "$bashrc" >/dev/null 2>&1
+env -i PATH=/usr/bin:/bin HOME="$home2" TMPDIR="$TEST_TMP" "$tree/pgf" setup --user --yes --no-completion \
+    --foam-bashrc "$bashrc2406" >"$TEST_TMP/out3" 2>&1
+check "setup summary reports OpenFOAM v2406 as OK" grep -q "OK   OpenFOAM v2406: " "$TEST_TMP/out3"
+check "  shows a changed value with the old one" grep -qE "^ +PGF_FOAM_BASHRC +.*foam2406/etc/bashrc \(was $bashrc\)$" "$TEST_TMP/out3"
+check "  says yade is optional when none is found" grep -q "OK   yade: not found; DEM coupling (--yade) unavailable" "$TEST_TMP/out3"
+check "  gives the PATH fix when ~/.local/bin is not on PATH" \
+    grep -qF 'export PATH="$HOME/.local/bin:$PATH"' "$TEST_TMP/out3"
+env -i PATH="$home2/.local/bin:/usr/bin:/bin" HOME="$home2" TMPDIR="$TEST_TMP" "$tree/pgf" setup --user --yes \
+    >"$TEST_TMP/out4" 2>&1
+mv "$tree/.pgf.conf.keep" "$tree/.pgf.conf"
+check "  and OK when it is" bash -c 'grep -q "OK   pgf on PATH is this checkout" "$1" && ! grep -q "export PATH" "$1"' _ "$TEST_TMP/out4"
+check "  and says completion takes effect in a new shell" grep -q "completion installed; takes effect in a new shell" "$TEST_TMP/out4"
+
 # config
 check "config get reads the resolved value" [ "$(penv config get PGF_MPI)" = loopback ]
 penv config get PGF_YADE_LIBDIR >/dev/null 2>&1

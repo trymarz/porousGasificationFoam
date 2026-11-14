@@ -126,7 +126,7 @@ printf 'PGF_FOAM_BASHRC=%s\n' ~/OpenFOAM/OpenFOAM-v2406/etc/bashrc >> ~/.config/
 ### `setup`, `config`, `shell`, `run`
 
 ```bash
-./pgf setup --yes                          # detect OpenFOAM and yade, write ~/.config/pgf/env.conf, link ~/.local/bin/pgf
+./pgf setup --yes                          # detect OpenFOAM and yade, write ~/.config/pgf/env.conf, link ~/.local/bin/pgf, then summarise the choices
 ./pgf setup --checkout --yes --no-link --foam-bashrc FILE   # or this worktree's .pgf.conf, no link
 ./pgf setup --link-only                    # only ~/.local/bin/pgf -> this checkout's pgf
 ./pgf config get PGF_MPI                   # one resolved value (exit 1 if unset)
