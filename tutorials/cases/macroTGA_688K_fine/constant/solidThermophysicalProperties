@@ -16,7 +16,7 @@ FoamFile
 
 thermoType solidMixtureThermo<constHeterogeneous>;
 
-#include "../../../../thermoData/solidThermoData"
+#include "${PGF_ROOT:-../../../..}/thermoData/solidThermoData"
 
 solidComponents
 (

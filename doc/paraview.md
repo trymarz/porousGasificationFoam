@@ -69,7 +69,7 @@ views = [
 
 A case without the file gets `meshFields`, `solidRegime` and `overTime`. Do not list species or field names that come from the case: `meshFields` reads `solidComponents`, so renaming or removing a specie needs no edit to the view file.
 
-A family of cases shares one file the same way it shares its dicts: the MicroTGA-DEM lambdaDot fixtures symlink `system/paraviewViews.py` from `MicroTGA-DEM_lambdaDot_common`, and `charOnlyMoveCases`, `canonical`, `canonical/conservation` and `prescribedUsCases` keep one `paraviewViews.py` in the family directory that each case links as `system/paraviewViews.py` (the regression runner's run copy links the family directory's files too).
+A family of cases shares one file the same way it shares its dicts: the MicroTGA-DEM lambdaDot fixtures symlink `system/paraviewViews.py` from `MicroTGA-DEM_lambdaDot_common`, and `charOnlyMoveCases`, `canonical`, `canonical/conservation` and `prescribedUsCases` keep one `paraviewViews.py` in the family directory that each case links as `system/paraviewViews.py` (the regression runner's run copy links the family directory's files too). Copy such a case with `cp -rL`, which copies the linked files instead of links that dangle outside the family.
 
 To add a new kind of view, write a function `(case, opts) -> [(title, view), ...]` in `pgfViews.py` and add it to `VIEWS`. `--compare` calls it once per case, so it works there too; pass `opts` on to `_color` so the second case grows the first one's colour range.
 

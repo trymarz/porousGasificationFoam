@@ -17,7 +17,7 @@ FoamFile
 
 thermoType solidMixtureThermo<constHeterogeneous>;
 
-#include "../../../../thermoData/solidThermoData"
+#include "${PGF_ROOT:-../../../..}/thermoData/solidThermoData"
 
 // Char is the only solid specie. With one specie its rhoApparent cancels in
 // the apparentVolume factor r = cbrt(1 + dV/V), so r = cbrt(m_new/m_old):

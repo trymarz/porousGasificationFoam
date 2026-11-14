@@ -15,7 +15,7 @@
 
 set -e   # abort on first error
 
-cd "$(dirname "$(realpath "$0")")"
+cd "${0%/*}" || exit
 
 # 1. Mesh from the geometry table.
 python3 leiGeometry.py

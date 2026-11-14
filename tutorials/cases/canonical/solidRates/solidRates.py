@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import argparse
 import math
+import os
 import re
 import shutil
 import sys
@@ -146,13 +147,19 @@ def block(text: str, name: str, path: Path) -> str:
     return text[m.end():i - 1]
 
 
+def include_path(raw: str) -> str:
+    """An #include path with ${VAR:-default} and $VAR expanded as OpenFOAM does."""
+    raw = re.sub(r"\$\{(\w+):-([^}]*)\}", lambda m: os.environ.get(m.group(1)) or m.group(2), raw)
+    return os.path.expandvars(raw)
+
+
 def solid_density(case: Path, name: str) -> float:
     path = case / "constant/solidThermophysicalProperties"
     text = path.read_text()
     body = block(text, f"{name}Coeffs", path)
     ref = re.fullmatch(r"\s*\$(\w+);\s*", body)
     if ref:
-        data = (path.parent / re.search(r'#include\s+"([^"]+)"', text).group(1)).resolve()
+        data = (path.parent / include_path(re.search(r'#include\s+"([^"]+)"', text).group(1))).resolve()
         body = block(data.read_text(), ref.group(1), data)
     return float(re.search(r"\brho\s+([-+0-9.eE]+);", body).group(1))
 

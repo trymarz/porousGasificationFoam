@@ -18,7 +18,7 @@ FoamFile
 thermoType solidMixtureThermo<constHeterogeneous>;
 
 // Single inert solid species: the thing the prescribed Us advects.
-#include "../../../../../thermoData/solidThermoData"
+#include "${PGF_ROOT:-../../../../..}/thermoData/solidThermoData"
 
 solidComponents ( char );
 

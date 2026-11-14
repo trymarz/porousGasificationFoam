@@ -13,7 +13,7 @@ mkdir -p "$stale/bin" "$stale/lib"
 printf '#!/bin/sh\necho stale solver\n' >"$stale/bin/porousGasificationFoam"
 chmod +x "$stale/bin/porousGasificationFoam"
 
-probe='command -v porousGasificationFoam; echo "PATH=$PATH"; echo "LD=$LD_LIBRARY_PATH"; echo "USERDIR=$WM_PROJECT_USER_DIR"'
+probe='command -v porousGasificationFoam; echo "PATH=$PATH"; echo "LD=$LD_LIBRARY_PATH"; echo "USERDIR=$WM_PROJECT_USER_DIR"; echo "ROOT=$PGF_ROOT"'
 bash -c '
     set -u
     export WM_PROJECT_USER_DIR="$1/elsewhere" FOAM_USER_APPBIN="$1/bin" FOAM_USER_LIBBIN="$1/lib"
@@ -28,6 +28,7 @@ check "banner names the prefix" grep -q "^pgf: prefix $prefix " "$TEST_TMP/err"
 check "solver resolves inside $prefix/bin" grep -qx "$prefix/bin/porousGasificationFoam" "$TEST_TMP/out"
 check "stale user dir dropped from PATH and LD_LIBRARY_PATH" bash -c '! grep -q "$1" "$2"' _ "$stale" "$TEST_TMP/out"
 check "WM_PROJECT_USER_DIR is the prefix" grep -qx "USERDIR=$prefix" "$TEST_TMP/out"
+check "PGF_ROOT is exported as this checkout" grep -qx "ROOT=$(readlink -f "$PGF_ROOT")" "$TEST_TMP/out"
 
 # The prefix may itself sit under the default user dir (the default build root).
 default_entries() {

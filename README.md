@@ -50,10 +50,12 @@ You need OpenFOAM-v2406 (installed and sourceable), a C++ compiler and `wmake` (
 ```bash
 ./pgf setup --yes                           # 1. find OpenFOAM, remember it, put pgf on PATH (+ Tab completion)
 ./Allwmake                                  # 2. build libraries, solver, utilities (pgf build)
-pgf run tutorials/cases/charOnlyMoveCases/serial   # 3. a small serial case: copies 0.orig
-                                            #    to 0, runs blockMesh and setFields, then
-                                            #    the solver (output stays in the case dir)
+cp -rL tutorials/cases/charOnlyMoveCases/serial ~/pgf-serial   # 3. copy a small case out of the checkout
+pgf run ~/pgf-serial                        # 4. copies 0.orig to 0, runs blockMesh and setFields,
+                                            #    then the solver (output stays in ~/pgf-serial)
 ```
+
+Run cases from a copy, not inside `tutorials/`: results written there are left in the checkout and picked up by later copies. `-L` copies the files a case shares with its family (symlinks such as `system/paraviewViews.py`); shared material data is found through `$PGF_ROOT`, which pgf sets.
 
 Next: `tutorials/cases/gasifier` is a full reactive-flow demo. `pgf shell` gives an interactive shell with the build on `PATH`; `./Allwclean` cleans the build. Build options, DEM (`--yade`) builds and clean/purge rules are in [doc/build.md](doc/build.md). To run your own case, start from [doc/case-setup.md](doc/case-setup.md).
 

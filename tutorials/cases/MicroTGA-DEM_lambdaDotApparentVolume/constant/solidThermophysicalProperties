@@ -17,7 +17,7 @@ FoamFile
 
 thermoType solidMixtureThermo<constHeterogeneous>;
 
-#include "../../../../thermoData/solidThermoData"
+#include "${PGF_ROOT:-../../../..}/thermoData/solidThermoData"
 
 // The shared reactions (wood -> targas, wood -> char1 -> 0.65 char).
 // lambdaMode apparentVolume needs rhoApparent for every specie; the Park
