@@ -179,7 +179,7 @@ pgf_setup_summary() {
   fi
 
   if [ "$completion" -eq 1 ]; then
-    _s OK "bash completion installed; takes effect in a new shell"
+    _s OK "bash completion: $(pgf_tilde "$(pgf_completion_file)"); takes effect in a new shell"
   fi
   echo "next:"
   echo "  pgf config     every setting and the layer it comes from"
@@ -225,7 +225,7 @@ pgf_install_link() {
   if [ -L "$link" ] || [ -e "$link" ]; then
     cur="$(readlink -f "$link")"
     if [ "$cur" = "$SELF" ]; then
-      echo "pgf: $link already points here" >&2
+      [ "${PGF_SETUP_QUIET:-0}" -eq 1 ] || echo "pgf: $link already points here" >&2
       return 0
     fi
     [ "$1" -eq 1 ] || {
@@ -235,6 +235,8 @@ pgf_install_link() {
     }
   fi
   mkdir -p "${link%/*}" && ln -sfn "$SELF" "$link" || return 2
+  # The setup summary reports the link and PATH; --link-only has no summary.
+  [ "${PGF_SETUP_QUIET:-0}" -eq 1 ] && return 0
   echo "pgf: $link -> $SELF" >&2
   case ":$PGF_ENV_CALLER_PATH:" in
   *":${link%/*}:"*) ;;

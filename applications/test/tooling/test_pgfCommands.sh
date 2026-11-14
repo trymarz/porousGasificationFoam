@@ -109,7 +109,10 @@ env -i PATH="$home2/.local/bin:/usr/bin:/bin" HOME="$home2" TMPDIR="$TEST_TMP" "
     >"$TEST_TMP/out4" 2>&1
 mv "$tree/.pgf.conf.keep" "$tree/.pgf.conf"
 check "  and OK when it is" bash -c 'grep -q "OK   pgf on PATH is this checkout" "$1" && ! grep -q "export PATH" "$1"' _ "$TEST_TMP/out4"
-check "  and says completion takes effect in a new shell" grep -q "completion installed; takes effect in a new shell" "$TEST_TMP/out4"
+check "  and says where completion went and that it takes effect in a new shell" \
+    grep -q "OK   bash completion: ~/.local/share/bash-completion/completions/pgf; takes effect in a new shell" "$TEST_TMP/out4"
+check "  without the step lines the summary repeats" \
+    bash -c '! grep -qE "^pgf: (.*already points here|bash completion in|.* -> )" "$1"' _ "$TEST_TMP/out4"
 
 # config
 check "config get reads the resolved value" [ "$(penv config get PGF_MPI)" = loopback ]
@@ -217,7 +220,8 @@ check "a missing case dir exits 2" [ $? -eq 2 ]
 ln -sfn /elsewhere/pgf "$home/.local/bin/pgf"
 penv setup --link-only >/dev/null 2>&1
 check "setup --link-only refuses to replace another link without --force" [ $? -eq 2 ]
-penv setup --link-only --force >/dev/null 2>&1
+penv setup --link-only --force >/dev/null 2>"$TEST_TMP/err"
+check "setup --link-only still prints its link line" grep -q "^pgf: .*/.local/bin/pgf -> " "$TEST_TMP/err"
 check "setup --link-only --force replaces it" \
     [ "$(readlink -f "$home/.local/bin/pgf")" = "$(readlink -f "$tree/pgf")" ]
 

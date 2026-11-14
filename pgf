@@ -195,6 +195,8 @@ while [ $# -gt 0 ]; do
 done
 
 if [ "$sub" = "setup" ]; then
+  # The summary at the end repeats the link and completion lines; skip them.
+  [ "$setup_link" -eq 2 ] || PGF_SETUP_QUIET=1
   if [ "$setup_link" -ne 2 ]; then
     pgf_init "$setup_layer" "$setup_yes" || exit 2
   fi

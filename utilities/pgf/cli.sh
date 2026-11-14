@@ -227,5 +227,6 @@ pgf_install_completion() {
   fi
   mkdir -p "${file%/*}" && pgf_completion_cmd bash >"$file" || { echo "pgf: cannot write $file" >&2; return 2; }
   PGF_COMPLETION_INSTALLED=1
-  echo "pgf: bash completion in $file (bash-completion loads it; else source it from ~/.bashrc)" >&2
+  [ "${PGF_SETUP_QUIET:-0}" -eq 1 ] ||
+    echo "pgf: bash completion in $file (bash-completion loads it; else source it from ~/.bashrc)" >&2
 }
