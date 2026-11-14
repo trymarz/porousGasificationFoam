@@ -56,8 +56,18 @@ Each stage reads what the stages above it left, so the order sets the results.
 
 **7. `SolidEnergy::solve(phiYm)`** — equation.
 - Reads: `Ym`, `rho`, `K`, the `phiYm` from stage 6, the radiation, reaction and exchange sources, the gas `T`, the SolidState masks and gate; `Us` and `porosity` only for the abort report.
-- Writes: `Ts` (the unknown), `solidH` from `Ts`, the solid thermo through `solidThermo.correct()` (which sets the `rho` read by stage 9), and its own `radiationSh`.
-- Checks: **`abortOnInvalidTs`** twice: after the enthalpy balance, on cells holding more than trace mass; and after the regime rules on `Ts`, on all cells.
+- Writes: `Ts` (the unknown), the solid thermo through `solidThermo.correct()` (which sets the `rho` read by stages 7a and 9), and its own `radiationSh`.
+- Checks: **`abortOnInvalidTs`** after the enthalpy balance, on cells holding more than trace mass.
+
+**7a. `classifyPostStep()`** — state update (`SolidState::classify()`).
+- Reads: `Ym`, `rho` from stage 7, the porosity they give (the expression stage 9 writes), and `solidPresent` as the step started.
+- Writes: `solidRegime` and the gate `connectedAtStepStart` for the next step, together. This is the step's one classification; both regime rules read it.
+- Checks: none.
+
+**7b. `SolidEnergy::finishStep()`** — equation.
+- Reads: the classification from stage 7a, the gas `T`.
+- Writes: `Ts`: the gas `T` where the cell holds trace solid or its reaction emptied it this step, and, with `dispersedSolidTemperature gas`, where it holds no connected solid; then `solidH` from `Ts` on the mass that remains.
+- Checks: **`abortOnInvalidTs`** after the regime rules, on all cells.
 
 **8. `DemCoupling::addTemperatureTerm()`, `finishStep()`** — model (DEM `λ̇`). No-ops unless built with Yade and DEM is active.
 - Reads: this step's `Ts`.
@@ -88,7 +98,7 @@ Each stage reads what the stages above it left, so the order sets the results.
 
 **12. `updateSolidState()`** — state update.
 - Reads: `porosity`, `Ym`, `rho`, `solidPresent`.
-- Writes: the `porosity` and `solidPresent` patches; `cellOnBedBorder` (`PorosityRecovery::markBedBorderCells()`); the gate `connectedAtStepStart` for the next step, from the new `porosity`; `solidRegime` from the mass the bed motion left.
+- Writes: the `porosity` patches; if stage 10 rewrote any cell, `solidRegime` and the gate again, from what the motion left (the `Ts` rules are not re-applied); the `solidPresent` and gate patches; `cellOnBedBorder` (`PorosityRecovery::markBedBorderCells()`).
 - Checks: none.
 
 ### Reports

@@ -47,8 +47,9 @@ Description
       - sources: reaction heat and radiation gated by connectedAtStepStart,
         gas-solid exchange and the agent heat-up (GasSolidHeatExchange).
 
-    Then the dispersed and trace rules on Ts, once, and solidH = rhoCp*Ts
-    on the mass that remains.
+    finishStep(), after SolidState::classify() has classified the post-step
+    state, applies the dispersed and trace rules to Ts, once, and stores
+    solidH = rhoCp*Ts on the mass that remains.
 
     In equilibrium mode only the radiation source is refreshed.
 
@@ -167,7 +168,7 @@ class SolidEnergy
         ) const;
 
         //- The dispersed rule, then the trace rule, on Ts
-        void applyRegimeRules(const volScalarField& totalYm);
+        void applyRegimeRules();
 
         //- solidH = rhoCp*Ts
         void storeH(const volScalarField& rhoCp);
@@ -207,8 +208,7 @@ class SolidEnergy
             const volScalarField& totalYm
         ) const;
 
-        //- After the balance: check Ts, clip it at zero, correct the
-        //  thermo and apply the regime rules, then check Ts again
+        //- After the balance: check Ts, clip it at zero, correct the thermo
         void settleTs
         (
             const volScalarField& HOld,
@@ -250,9 +250,13 @@ public:
 
     // Member Functions
 
-        //- The solidH balance on the mass the species step left, then the
-        //  regime rules on Ts; phiYm is that step's specie mass fluxes
+        //- The solidH balance on the mass the species step left, solved
+        //  for Ts; phiYm is that step's specie mass fluxes
         void solve(const PtrList<surfaceScalarField>& phiYm);
+
+        //- The regime rules on Ts, as SolidState::classify() left them,
+        //  then solidH = rhoCp*Ts on the mass that remains
+        void finishStep();
 };
 
 

@@ -490,9 +490,8 @@ volPyrolysis::volPyrolysis
     // The radiation model is constructed next and holds a reference to the
     // gate, so it has to be valid before the first correct() rather than
     // after the first porosity recovery.
-    solidState_->freezeConnectedAtStepStart();
-
-    solidState_->classify(SolidState::totalMass(Ym_)(), rho_);
+    solidState_->classify(porosity_, SolidState::totalMass(Ym_)(), rho_);
+    solidState_->correctBoundaryConditions();
 
     // porosity_ is assigned by porosityRecovery_, not solved; storeOldTimes()
     // is a no-op on the first call, so seed oldTime() here or the gas-side
@@ -605,12 +604,28 @@ void volPyrolysis::exchangeHeatWithGas()
     }
 }
 
-void volPyrolysis::moveBed()
+void volPyrolysis::classifyPostStep()
+{
+    // On the porosity updatePorosity() is about to write, from the same
+    // expression, so the regimes and the porosity cannot disagree.
+    const volScalarField totalYm(SolidState::totalMass(Ym_));
+
+    solidState_->classify
+    (
+        SolidState::porosityFromMass(totalYm, rho_)(),
+        totalYm,
+        rho_
+    );
+}
+
+bool volPyrolysis::moveBed()
 {
     const FlipCells flips(porosityRecovery_->findFlipCells());
 
     // After the flip cells: they read the gradient of last step's mask.
     solidState_->refreshSolidPresent();
+
+    bool moved = false;
 
     if (bedCollapse_->active())
     {
@@ -618,15 +633,19 @@ void volPyrolysis::moveBed()
         if (bedCollapse_->collapseOnto(flips.allRanks))
         {
             SolidState::deriveYiFromYm(Ym_, Ys_);
+            moved = true;
         }
     }
     else if (porosityRecovery_->emptyFlippedCells())
     {
         porosityRecovery_->emptyCells(flips);
+        moved = flips.nGlobal > 0;
     }
 
     // Before checkPorosity(), whose reports print solidPresent
     solidState_->refreshSolidPresent();
+
+    return moved;
 }
 
 void volPyrolysis::checkPorosity() const
@@ -635,17 +654,19 @@ void volPyrolysis::checkPorosity() const
     solidDiagnostics_->checkConsistency(porosity_, Ym_, rho_);
 }
 
-void volPyrolysis::updateSolidState()
+void volPyrolysis::updateSolidState(const bool bedMoved)
 {
     porosity_.correctBoundaryConditions();
-    solidState_->correctSolidPresentBoundaryConditions();
+
+    // The motion rewrote cells after classifyPostStep(): classify what it
+    // left, so the gate never opens on a cell it emptied.
+    if (bedMoved)
+    {
+        solidState_->classify(porosity_, SolidState::totalMass(Ym_)(), rho_);
+    }
+
+    solidState_->correctBoundaryConditions();
     porosityRecovery_->markBedBorderCells();
-
-    // porosity_ has just been rewritten; the gate is derived from it.
-    solidState_->freezeConnectedAtStepStart();
-
-    // On the mass the bed motion left, for the written regime record.
-    solidState_->classify(SolidState::totalMass(Ym_)(), rho_);
 }
 
 void volPyrolysis::reportStep()
@@ -707,15 +728,20 @@ void volPyrolysis::evolveRegion()
     speciesTransport_->solve();
     solidEnergy_->solve(speciesTransport_->specieMassFlux());
 
+    // One classification of the post-step state: both Ts rules and the
+    // next step's gate read it (#173).
+    classifyPostStep();
+    solidEnergy_->finishStep();
+
     // The DEM temperature term differences this step's Ts.
     demCoupling_->addTemperatureTerm();
     demCoupling_->finishStep();
 
     // Porosity and bed
     porosityRecovery_->updatePorosity();  // 1 - porosity = sum_i Ym_i/rho_i
-    moveBed();                            // collapse onto flip cells, or empty them
+    const bool bedMoved = moveBed();      // collapse onto flip cells, or empty them
     checkPorosity();
-    updateSolidState();                   // masks, bed border, next step's gate
+    updateSolidState(bedMoved);           // masks, bed border, gate patches
 
     reportStep();
 }

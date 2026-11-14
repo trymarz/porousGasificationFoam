@@ -113,16 +113,9 @@ void PorosityRecovery::updatePorosity()
     // por is not transported: 1 - por = sum_i Ym_i/rho_i = totalYm/rho_,
     // an identity from multiComponentSolidMixture's 1/rho_ = sum Ys_i/rho_i.
     // Internal field only: a fixedValue porosity patch keeps its value.
-    const dimensionedScalar rhoSolidFloor
-    (
-        "rhoSolidFloor",
-        dimDensity,
-        SMALL
-    );
-
     const volScalarField voidFraction
     (
-        1.0 - totalYm/max(rho_, rhoSolidFloor)
+        SolidState::porosityFromMass(totalYm, rho_)
     );
 
     por.primitiveFieldRef() = voidFraction.primitiveField();
