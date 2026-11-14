@@ -223,6 +223,35 @@ check "a run with results gives the latest time, last log and the pgfView next s
     bash -c 'grep -q "^pgf: Allok OK in " "$1" && grep -q "latest time: 0.5$" "$1" &&
         grep -q "last log: *log.porousGasificationFoam" "$1" && grep -qF "pgfView $2 (" "$1"' _ "$TEST_TMP/err" "$case"
 rm -rf "$case/Allok" "$case/0" "$case/0.5" "$case/0.25" "$case/log.porousGasificationFoam"
+# A copy with stale output: runApplication skips each step whose log.* exists.
+mkdir -p "$case/2" "$case/processor0" && echo old >"$case/log.blockMesh"
+printf '#!/bin/sh\n[ -f log.blockMesh ] || echo new >log.blockMesh\n' >"$case/Allskip" && chmod +x "$case/Allskip"
+(cd / && penv run --prefix "$prefix" "$case" Allskip) >/dev/null 2>"$TEST_TMP/err"
+rc=$?
+check "a run that skips every step exits as the script did (rc=$rc)" [ "$rc" -eq 0 ]
+check "  warns up front that the case holds earlier output and how to clean it" \
+    bash -c 'grep -q "already holds output from an earlier run: .*log.blockMesh" "$1" &&
+        grep -q "processor0" "$1" && grep -qF "clean first: pgf run $2 Allclean" "$1"' _ "$TEST_TMP/err" "$case"
+check "  says it ran nothing instead of OK, and gives no pgfView hint" \
+    bash -c 'grep -q "^pgf: WARNING: Allskip ran nothing" "$1" && ! grep -q "Allskip OK" "$1" &&
+        ! grep -q "latest time" "$1" && ! grep -q pgfView "$1"' _ "$TEST_TMP/err"
+(cd / && penv run --prefix "$prefix" "$case" Allclean) >/dev/null 2>"$TEST_TMP/err"
+check "  while Allclean on it gets neither warning" \
+    bash -c '! grep -q "earlier run" "$1" && ! grep -q "ran nothing" "$1"' _ "$TEST_TMP/err"
+printf '#!/bin/sh\necho new >log.blockMesh\n' >"$case/Allskip"
+(cd / && penv run --prefix "$prefix" "$case" Allskip) >/dev/null 2>"$TEST_TMP/err"
+check "  and a run that rewrites a stale log is OK" \
+    bash -c 'grep -q "^pgf: Allskip OK" "$1" && grep -q "last log: *log.blockMesh" "$1"' _ "$TEST_TMP/err"
+rm -rf "$case/Allskip" "$case/2" "$case/processor0" "$case/log.blockMesh"
+(cd / && penv run --prefix "$prefix" "$case") >/dev/null 2>"$TEST_TMP/err"
+check "  and a clean case gets no earlier-output warning" \
+    bash -c '! grep -q "earlier run" "$1"' _ "$TEST_TMP/err"
+intree="$tree/tutorials/plain"
+mkdir -p "$intree" && cp "$case/Allrun" "$intree/"
+(cd / && penv run --prefix "$prefix" "$intree") >/dev/null 2>"$TEST_TMP/err"
+check "a case inside the checkout gets a warning to run on a copy" \
+    grep -q "is inside this checkout; .*git-ignored" "$TEST_TMP/err"
+rm -rf "$tree/tutorials"
 check "runs.jsonl in the XDG state dir gets the run" \
     grep -q "\"case\": \"$(realpath "$case")\"" "$home/.local/state/pgf/runs/runs.jsonl"
 (cd / && env -i PATH="$yadedir:/usr/bin:/bin" HOME="$home" TMPDIR="$TEST_TMP" XDG_STATE_HOME="$TEST_TMP/xdg" \

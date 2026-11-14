@@ -6,7 +6,7 @@ A PGF case is a normal OpenFOAM case plus extra files for the solid and its chem
 
 Start from `tutorials/cases/canonical/pyrolysis`: one solid (`wood`), one reaction (`wood = targas`), a 1-D mesh, about a second to run.
 
-1. **Copy it:** `cp -rL tutorials/cases/canonical/pyrolysis myCase` (`-L` copies files the case links from its family). `./Allrun` restores `0/` from `0.orig/`, runs `blockMesh`, then the solver. `reference/` and `system/regressionFunctions` are for the regression tests and can go.
+1. **Copy it:** `cp -rL tutorials/cases/canonical/pyrolysis myCase` (`-L` copies files the case links from its family). `./Allrun` restores `0/` from `0.orig/`, runs `blockMesh`, then the solver. `reference/` and `system/regressionFunctions` are for the regression tests and can go. If the source was run in place, the copy carries its output along; `./Allclean` it first, since `runApplication` skips every step whose `log.*` exists.
 2. **Mesh and fields:** edit `system/blockMeshDict` and `0.orig/` ([required fields](#required-initial-fields)). Values here are uniform; for a partial bed use `setFields` ([how](#biomass-distribution-initial-porosityf)).
 3. **Solid:** list components in `constant/solidThermophysicalProperties`, with true (not bulk) density ([why](#solid-thermophysical-properties-true-density-not-bulk)). Each needs a `Y<name>` field.
 4. **Chemistry:** set gas `species` and `solidReactions` in `constant/chemistryProperties` ([reference](#constantchemistryproperties)). No reactions means both phases stay inert.

@@ -62,5 +62,30 @@ YADE_TRUNK="$TEST_TMP/fy" YADE_BIN="$(fake_yade "$same")" "$PGF" exec --prefix "
 check "pgf exec --yade runs with a warning on a commit-only difference" \
     bash -c '[ "$1" -eq 0 ] && grep -q "warning: yade .* same coupling API" "$2"' _ $? "$TEST_TMP/err"
 
+# doctor --yade (#280): a trunk off the pin, from the environment, or the
+# checkout's own submodule off its pin each warn.
+. "$PGF_ROOT/utilities/pgf/commands.sh"
+_r() { echo "$1 $2"; }
+declare -A PGF_CONF_SRC=()
+check "a trunk at the pin: no warning" [ -z "$(PGF_ROOT="$tree" pgf_trunk_pin_check "$TEST_TMP/fy")" ]
+g checkout -q "$same"
+check "a trunk off the pin warns with both commits" \
+    bash -c 'grep -q "^WARN YADE_TRUNK is at ${2:0:10}, the submodule pin is ${3:0:10}" <<<"$1"' \
+    _ "$(PGF_ROOT="$tree" pgf_trunk_pin_check "$TEST_TMP/fy")" "$same" "$pin"
+PGF_CONF_SRC[YADE_TRUNK]=env
+check "a trunk from the environment warns and says how to find the export" \
+    bash -c 'grep -q "^WARN YADE_TRUNK=.* comes from the environment.*grep -n YADE_TRUNK" <<<"$1"' \
+    _ "$(PGF_ROOT="$tree" pgf_doctor_trunk_source "$TEST_TMP/fy")"
+PGF_CONF_SRC[YADE_TRUNK]=checkout
+mkdir -p "$tree/submodules" && git -c advice.detachedHead=false clone -q "$TEST_TMP/fy" "$tree/submodules/Foam-Yade" &&
+    git -C "$tree/submodules/Foam-Yade" -c advice.detachedHead=false checkout -q "$other" || die "cannot clone the submodule"
+g checkout -q "$pin"
+check "the checkout's own submodule off its pin warns, with the fix" \
+    bash -c 'grep -q "^WARN submodules/Foam-Yade is at ${2:0:10}, off its pin.*git submodule update" <<<"$1"' \
+    _ "$(PGF_ROOT="$tree" pgf_doctor_trunk_source "$TEST_TMP/fy")" "$other"
+check "  also when it is the trunk itself" \
+    bash -c 'grep -q "^WARN submodules/Foam-Yade is at" <<<"$1"' \
+    _ "$(PGF_ROOT="$tree" pgf_trunk_pin_check "$tree/submodules/Foam-Yade")"
+
 [ "$TEST_FAILURES" -eq 0 ] || { echo "--- last stderr"; cat "$TEST_TMP/err"; }
 finish

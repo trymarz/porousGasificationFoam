@@ -197,20 +197,50 @@ pgf_setup_summary() {
   echo "  ./Allwmake     build the solver here (≈1.5 min first build)"
 }
 
-# pgf_run_summary RC T0 SCRIPT — after pgf run in the case dir: OK or FAILED,
-#   the time taken, the newest log (its tail on failure), the record, next step.
+# pgf_case_logs — "name mtime" per log.* in the case dir; a run that changes
+#   none of them ran nothing (runApplication skips a step whose log exists).
+pgf_case_logs() {
+  find . -maxdepth 1 -name 'log.*' -type f -printf '%f %T@\n' 2>/dev/null | LC_ALL=C sort
+}
+
+# pgf_run_precheck SCRIPT — before pgf run: warn when the case sits inside this
+#   checkout or already holds output (log.*, processor*, time dirs) it did not write.
+pgf_run_precheck() {
+  local script="${1##*/}" here root old
+  [ "$script" = Allclean ] && return 0
+  here="$(pwd -P)" root="$(cd "$PGF_ROOT" && pwd -P)"
+  case "$here/" in "$root"/*)
+    echo "pgf: warning: $(pgf_tilde "$here") is inside this checkout; results go into git-ignored files there," >&2
+    echo "pgf:   and a later cp -rL of the case takes them along. Run on a copy: cp -rL <case> ~/run/ (README)" >&2
+    ;;
+  esac
+  old="$( { ls -d log.* processor[0-9]* 2>/dev/null
+    ls -d [0-9]* 2>/dev/null | grep -E '^[0-9.e+-]+$' | grep -vx '0'; } | head -6 | tr '\n' ' ')"
+  [ -n "$old" ] || return 0
+  echo "pgf: warning: the case already holds output from an earlier run: ${old% }" >&2
+  echo "pgf:   runApplication skips every step whose log.* exists; clean first: pgf run $(pgf_tilde "$here") Allclean" >&2
+}
+
+# pgf_run_summary RC T0 SCRIPT LOGS_BEFORE — after pgf run in the case dir: OK,
+#   FAILED or ran nothing; the time, the newest log this run wrote, next step.
 pgf_run_summary() {
-  local rc="$1" t0="$2" script="${3##*/}" dt log last="" d
+  local rc="$1" t0="$2" script="${3##*/}" before="$4" dt log last="" d changed
   dt=$(($(date +%s) - t0))
   dt="$([ "$dt" -ge 60 ] && printf '%dm%02ds' $((dt / 60)) $((dt % 60)) || printf '%ds' "$dt")"
-  log="$(ls -t log.* 2>/dev/null | head -1)"
-  [ -n "$log" ] && [ "$(stat -c %Y "$log")" -ge "$t0" ] || log=""
+  changed="$(LC_ALL=C comm -13 <(printf '%s\n' "$before") <(pgf_case_logs) | sort -k2 -g | tail -1)"
+  log="${changed% *}"
   for d in . processor0; do
     [ -d "$d" ] && last="$(cd "$d" && ls -d [0-9]* 2>/dev/null | grep -E '^[0-9.e+-]+$' | sort -g | tail -1)"
     [ -n "$last" ] && [ "$last" != 0 ] && break
   done
   echo >&2
-  if [ "$rc" -eq 0 ]; then
+  if [ "$rc" -eq 0 ] && [ -z "$log" ] && [ -n "$before" ] && [ "$script" != Allclean ]; then
+    echo "pgf: WARNING: $script ran nothing (exit 0 after $dt, $(pgf_tilde "$PWD"))" >&2
+    echo "pgf:   no log.* written by this run: every step was skipped because its log.* already existed," >&2
+    echo "pgf:   so the results here are from an earlier run. Clean first: pgf run $(pgf_tilde "$PWD") Allclean" >&2
+    echo "pgf:   record:      .pgf-run.json" >&2
+    return 0
+  elif [ "$rc" -eq 0 ]; then
     echo "pgf: $script OK in $dt ($(pgf_tilde "$PWD"))" >&2
     [ -z "$last" ] || [ "$last" = 0 ] || echo "pgf:   latest time: $last" >&2
     [ -z "$log" ] || echo "pgf:   last log:    $log" >&2
@@ -260,6 +290,18 @@ pgf_install_link() {
   *":${link%/*}:"*) ;;
   *) echo "pgf: note: ${link%/*} is not on your PATH" >&2 ;;
   esac
+}
+
+# pgf_doctor_trunk_source TRUNK — warn (via _r) when YADE_TRUNK comes from the
+#   environment, and when the checkout's own submodule is off its pin.
+pgf_doctor_trunk_source() {
+  local own="$PGF_ROOT/submodules/Foam-Yade" line
+  if [ "${PGF_CONF_SRC[YADE_TRUNK]:-}" = env ]; then
+    _r WARN "YADE_TRUNK=$1 comes from the environment and overrides the checkout's submodule; find the export: grep -n YADE_TRUNK ~/.bashrc ~/.profile, or unset it"
+  fi
+  [ "$(cd "$1" 2>/dev/null && pwd -P)" = "$(cd "$own" 2>/dev/null && pwd -P)" ] && return 0
+  [ -e "$own/.git" ] || return 0
+  while IFS= read -r line; do _r "${line%% *}" "${line#* }"; done < <(pgf_trunk_pin_check "$own")
 }
 
 # pgf_doctor — read-only checks, one "OK|WARN|FAIL message" line each; returns
@@ -322,7 +364,9 @@ pgf_doctor() {
       while IFS= read -r line; do _r "${line%% *}" "${line#* }"; done < <(pgf_coupling_check "$libdir" "$trunk")
     else
       _r OK "Foam-Yade headers at $trunk (set PGF_YADE_LIBDIR to check the coupling libs)"
+      while IFS= read -r line; do _r "${line%% *}" "${line#* }"; done < <(pgf_trunk_pin_check "$trunk")
     fi
+    pgf_doctor_trunk_source "$trunk"
   elif [ "${PGF_YADE:-0}" = 1 ]; then
     _r FAIL "no Foam-Yade coupling headers under $trunk; fix: git submodule update --init submodules/Foam-Yade, or set YADE_TRUNK"
   fi
