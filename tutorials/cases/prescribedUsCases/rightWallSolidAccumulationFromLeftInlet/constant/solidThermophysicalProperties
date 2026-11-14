@@ -20,7 +20,7 @@ thermoType solidMixtureThermo<constHeterogeneous>;
 // Four inert components with deliberately different skeletal densities. The
 // prescribed Us advects their mixed mass concentrations with one shared solid
 // volume flux, so density weighting is exercised independently of chemistry.
-#include "../../../../../thermoData/solidThermoData"
+#include "${PGF_ROOT:-../../../../..}/thermoData/solidThermoData"
 
 solidComponents ( char ash wood mineral );
 

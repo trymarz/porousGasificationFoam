@@ -6,7 +6,7 @@ A PGF case is a normal OpenFOAM case plus extra files for the solid and its chem
 
 Start from `tutorials/cases/canonical/pyrolysis`: one solid (`wood`), one reaction (`wood = targas`), a 1-D mesh, about a second to run.
 
-1. **Copy it:** `cp -r tutorials/cases/canonical/pyrolysis myCase`. `./Allrun` restores `0/` from `0.orig/`, runs `blockMesh`, then the solver. `reference/` and `system/regressionFunctions` are for the regression tests and can go.
+1. **Copy it:** `cp -rL tutorials/cases/canonical/pyrolysis myCase` (`-L` copies files the case links from its family). `./Allrun` restores `0/` from `0.orig/`, runs `blockMesh`, then the solver. `reference/` and `system/regressionFunctions` are for the regression tests and can go.
 2. **Mesh and fields:** edit `system/blockMeshDict` and `0.orig/` ([required fields](#required-initial-fields)). Values here are uniform; for a partial bed use `setFields` ([how](#biomass-distribution-initial-porosityf)).
 3. **Solid:** list components in `constant/solidThermophysicalProperties`, with true (not bulk) density ([why](#solid-thermophysical-properties-true-density-not-bulk)). Each needs a `Y<name>` field.
 4. **Chemistry:** set gas `species` and `solidReactions` in `constant/chemistryProperties` ([reference](#constantchemistryproperties)). No reactions means both phases stay inert.
@@ -430,7 +430,7 @@ Entries in `solidThermophysicalProperties` (`rho`, `K`, `Cp`, `Hf`) describe the
 
 `rhoApparent` is a third, separate quantity: the apparent (envelope) density of **one particle**, i.e. its mass over its own volume including internal pores. It lies below the true `rho`, and it is not the bulk density of a packed bed, which also counts the gaps between particles. It is optional, except under `lambdaMode apparentVolume`, which needs it for every solid specie and stops at startup naming any specie without it. Only the ratios between species matter there, so a consistent set matters more than the absolute values. A given value must be positive.
 
-Material data lives in one database, `thermoData/solidThermoData`, one entry per material with its source; the file header states the basis of each value. A case includes it and maps its reaction names onto entries, e.g. `#include "../../../../thermoData/solidThermoData"` (path relative to the including file) and then `woodCoeffs { $park2010Wood; }`. Numerical fixtures may keep local values instead.
+Material data lives in one database, `thermoData/solidThermoData`, one entry per material with its source; the file header states the basis of each value. A case includes it and maps its reaction names onto entries, e.g. `#include "${PGF_ROOT:-../../../..}/thermoData/solidThermoData"` and then `woodCoeffs { $park2010Wood; }`. pgf exports `PGF_ROOT` as the checkout, so a case copied anywhere still finds the database; the fallback after `:-` is a path relative to the including file, used when the case runs inside the checkout without pgf. Numerical fixtures may keep local values instead.
 
 ### Gas species without JANAF data
 
