@@ -15,7 +15,7 @@
 #   steps 1-2 and `porousGasificationFoam` serially.
 
 cd "${0%/*}" || exit
-. ../DEM_common/demGuard.sh   # stop early outside a --yade env (#257)
+. "${PGF_ROOT:-../../..}/tutorials/cases/DEM_common/demGuard.sh"   # stop early outside a --yade env (#257)
 set -e   # abort on first error
 
 # 1. Mesh from the geometry table, then fields.

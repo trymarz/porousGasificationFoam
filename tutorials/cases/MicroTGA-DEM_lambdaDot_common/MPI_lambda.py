@@ -48,7 +48,9 @@ young = 25e6 #5e6
 density = 1200
 # Yade's step count follows the solver's controlDict (one exchange per solver
 # step, see DEM_common/yadeEndpoint.py); a mismatch leaves one side hanging.
-sys.path.insert(0, os.path.join(os.getcwd(), '..', 'DEM_common'))
+# PGF_ROOT (set by pgf) also finds it from a copy outside the checkout.
+sys.path.insert(0, os.path.join(os.environ['PGF_ROOT'], 'tutorials', 'cases', 'DEM_common')
+                if os.environ.get('PGF_ROOT') else os.path.join(os.getcwd(), '..', 'DEM_common'))
 import yadeEndpoint
 NSTEPS = yadeEndpoint.yadeSteps(O.dt, dynDt=O.dynDt)
 

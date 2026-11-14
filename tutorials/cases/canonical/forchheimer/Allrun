@@ -6,5 +6,5 @@ runApplication blockMesh
 runApplication $(getApplication) || exit
 # Resistance pinned for the dp invariant: change it with 0.orig/Df and
 # constant/porosityProperties, or system/regressionInvariants fails (#179).
-python3 ../../../../applications/test/regression/tools/porousResistanceStudy.py \
+python3 "${PGF_ROOT:-../../../..}/applications/test/regression/tools/porousResistanceStudy.py" \
     --expect . --df 1e8 --forchheimer 1e5 > log.dpExpectation 2>&1 || exit

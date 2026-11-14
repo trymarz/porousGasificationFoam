@@ -1,7 +1,7 @@
 #!/bin/bash
 # A copy-mode run leaves the source tree as it was: a real run of a fast case,
-# and a symlink-heavy DEM case staged and cleaned (Allclean) in its copy, whose
-# links and ../../../applications path must resolve there.
+# and a symlink-heavy DEM case staged (links followed) and cleaned (Allclean)
+# in its copy, whose ../../../applications path must resolve there.
 
 . "$(dirname "${BASH_SOURCE[0]}")/toolingLib.sh"
 . "$REGRESSION_DIR/tools/regressionLib.sh"
@@ -19,8 +19,11 @@ check "its output is in the copy" [ -d "$copy/postProcessing" ]
 dem="tutorials/cases/MicroTGA-DEM_lambdaDotOff"
 staged="$(reg_stage_case "$PGF_ROOT" "$dem" "$TEST_TMP/dem")"
 check "DEM case staged as a real directory" bash -c '[ -d "$1" ] && [ ! -L "$1" ]' _ "$staged"
-check "DEM copy has symlinks into the common case" bash -c '[ "$(find "$1" -type l | wc -l)" -gt 0 ]' _ "$staged"
-check "every symlink in the DEM copy resolves" bash -c '[ -z "$(find "$1" -xtype l)" ]' _ "$staged"
+check "DEM source case has symlinks into the common case" \
+    bash -c '[ "$(find "$1" -type l | wc -l)" -gt 0 ]' _ "$PGF_ROOT/$dem"
+check "  the copy has none: editing it cannot edit the checkout (#280)" \
+    bash -c '[ -z "$(find "$1" -type l)" ]' _ "$staged"
+check "  and holds the linked inputs as real files" [ -f "$staged/constant/yadeProperties" ]
 check "../../../applications/.../checkFieldSign.py resolves from the copy" \
     [ -f "$staged/../../../applications/test/regression/tools/checkFieldSign.py" ]
 "$PGF" exec -- bash -c 'cd "$1" && ./Allclean' _ "$staged" >"$TEST_TMP/dem-clean.log" 2>&1

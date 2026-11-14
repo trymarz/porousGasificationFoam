@@ -1,6 +1,6 @@
 #!/bin/sh
 cd "${0%/*}" || exit
-. ../DEM_common/demGuard.sh   # stop early outside a --yade env (#257)
+. "${PGF_ROOT:-../../..}/tutorials/cases/DEM_common/demGuard.sh"   # stop early outside a --yade env (#257)
 . ${WM_PROJECT_DIR:?}/bin/tools/RunFunctions
 # Requires a Yade-enabled solver build: pgf build --yade
 
@@ -17,7 +17,7 @@ mpirun --allow-run-as-root -n 2 yade MPI_lambda.py 2>&1 | tee log.yade
 # Case-specific assertion: lambdaDot is the dimensionless factor r > 0. Per step
 # r is ~1-4e-9, below writePrecision, so shrinkage is checked on lambda instead
 # (started at 1, must end below 1).
-python3 ../../../applications/test/regression/tools/checkFieldSign.py . \
+python3 "${PGF_ROOT:-../../..}/applications/test/regression/tools/checkFieldSign.py" . \
     --dims lambdaDot="0 0 0 0 0 0 0" \
     --dims lambda="0 1 0 0 0 0 0" \
     --sign lambdaDot=positive \

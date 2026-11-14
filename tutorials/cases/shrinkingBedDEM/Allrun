@@ -26,7 +26,7 @@
 #   postProcessing/solidMass, postProcessing/axisProbes
 
 cd "${0%/*}" || exit
-. ../DEM_common/demGuard.sh   # stop early outside a --yade env (#257)
+. "${PGF_ROOT:-../../..}/tutorials/cases/DEM_common/demGuard.sh"   # stop early outside a --yade env (#257)
 set -e
 
 # 1. Mesh and initial fields.

@@ -503,7 +503,7 @@ if [ -n "$RUN_ROOT" ]; then
     if rmdir "$RUN_ROOT" 2>/dev/null; then
         :
     else
-        clog INFO "case copies kept under $RUN_ROOT"
+        clog INFO "case copies kept under $RUN_ROOT (case files are real copies; the dirs beside each case link into the checkout)"
     fi
 fi
 
