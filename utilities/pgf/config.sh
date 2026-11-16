@@ -5,6 +5,19 @@
 
 PGF_CONF_KEYS=(PGF_FOAM_BASHRC YADE_TRUNK YADE_BIN YADE_PYTHONPATH PGF_YADE_LIBDIR
   PGF_BUILD_ROOT PGF_RUN_ROOT PGF_YADE PGF_MPI PGF_BUILD)
+# What each key means, for pgf setup and pgf help config.
+declare -gA PGF_CONF_DESC=(
+  [PGF_FOAM_BASHRC]="OpenFOAM etc/bashrc sourced before every build and run"
+  [YADE_TRUNK]="Foam-Yade source tree (coupling headers); default: the submodule"
+  [YADE_BIN]="yade binary for DEM (--yade) runs"
+  [YADE_PYTHONPATH]="yade's Python modules; default: found beside YADE_BIN"
+  [PGF_YADE_LIBDIR]="directory of prebuilt Foam-Yade coupling libraries"
+  [PGF_BUILD_ROOT]="the build store; default: \$WM_PROJECT_USER_DIR/pgf-builds"
+  [PGF_RUN_ROOT]="run dirs and scratch; default: \$TMPDIR/pgf-runs"
+  [PGF_YADE]="1: use the DEM (--yade) variant by default"
+  [PGF_MPI]="Open MPI networking: auto, loopback (lo only) or default"
+  [PGF_BUILD]="the build to use (pgf use); default auto: this checkout's"
+)
 
 # Resolved value and its layer per key: PGF_CONF_VAL[k], PGF_CONF_SRC[k].
 declare -gA PGF_CONF_VAL=() PGF_CONF_SRC=() PGF_CONF_CLI=()

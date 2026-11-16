@@ -118,31 +118,33 @@ pgf_tilde() {
   case "$1" in "$HOME"/*) printf '~/%s' "${1#"$HOME"/}" ;; *) printf '%s' "$1" ;; esac
 }
 
-# pgf_setup_summary LINKED COMPLETION — what pgf setup decided, after pgf_init:
-#   one "OK|WARN|FAIL message" line per decision, then the next steps.
+# pgf_setup_summary LINKED COMPLETION — what pgf setup is for and what it
+#   decided, after pgf_init: one status line per decision, then next steps.
 pgf_setup_summary() {
-  local linked="$1" completion="$2" k old new bashrc ver yb p link="$HOME/.local/bin/pgf" pgf=pgf
-  _s() { printf '  %-4s %s\n' "$1" "$2"; }
+  local linked="$1" completion="$2" k old new bashrc ver yb p link="$HOME/.local/bin/pgf" pgf=pgf note
+  _s() { if [ -n "$1" ]; then st "$@"; else st_more "$2"; fi; }
   pgf_conf_resolve 2>/dev/null || true
   echo
-  echo "pgf setup summary"
+  st_head "pgf setup"
+  echo "pgf runs every build and case in a clean environment, so it has to know where"
+  echo "OpenFOAM (and, for DEM cases, yade) lives. setup finds them and saves them in a"
+  echo "settings file that every pgf call reads; rerun it any time."
   if [ "$PGF_SETUP_WROTE" -eq 1 ]; then
-    _s OK "settings: wrote $(pgf_tilde "$PGF_SETUP_FILE") ($PGF_SETUP_LAYER layer)"
+    st OK "settings: wrote $(pgf_tilde "$PGF_SETUP_FILE") ($PGF_SETUP_LAYER layer)"
   else
-    _s OK "settings: $(pgf_tilde "$PGF_SETUP_FILE") unchanged ($PGF_SETUP_LAYER layer)"
+    st OK "settings: $(pgf_tilde "$PGF_SETUP_FILE") unchanged ($PGF_SETUP_LAYER layer)"
   fi
   for k in "${PGF_CONF_KEYS[@]}"; do
     [ -n "${PGF_SETUP_NEW[$k]+x}" ] || continue
     new="${PGF_SETUP_NEW[$k]}"
-    if [ -z "${PGF_SETUP_OLD[$k]+x}" ]; then
-      printf '         %-16s %s (new)\n' "$k" "$(pgf_tilde "$new")"
-    elif [ "${PGF_SETUP_OLD[$k]}" = "$new" ]; then
-      printf '         %-16s %s (kept)\n' "$k" "$(pgf_tilde "$new")"
-    else
-      old="${PGF_SETUP_OLD[$k]}"
-      printf '         %-16s %s (was %s)\n' "$k" "$(pgf_tilde "$new")" "$(pgf_tilde "$old")"
-    fi
+    if [ -z "${PGF_SETUP_OLD[$k]+x}" ]; then note="new"
+    elif [ "${PGF_SETUP_OLD[$k]}" = "$new" ]; then note="kept"
+    else note="was $(pgf_tilde "${PGF_SETUP_OLD[$k]}")"; fi
+    printf '       %-16s %s (%s)\n' "$k" "$(pgf_tilde "$new")" "$note"
+    printf '       %-16s %s\n' "" "$(pgf_ui_paint 2 "${PGF_CONF_DESC[$k]:-}")"
   done
+  st_more "layers, later winning: default, user file, checkout .pgf.conf, environment, flags"
+  st_more "change a value: pgf config set KEY=VALUE (--checkout for this checkout only)"
 
   bashrc="${PGF_FOAM_BASHRC:-}"
   if [ -z "$bashrc" ] || [ ! -r "$bashrc" ]; then
@@ -191,10 +193,9 @@ pgf_setup_summary() {
   if [ "$completion" -eq 1 ]; then
     _s OK "bash completion: $(pgf_tilde "$(pgf_completion_file)"); takes effect in a new shell"
   fi
-  echo "next:"
-  printf '  %-14s every setting and the layer it comes from\n' "$pgf config"
-  printf '  %-14s settings plus the builds for this checkout\n' "$pgf status"
-  echo "  ./Allwmake     build the solver here (≈1.5 min first build)"
+  st_next "$pgf config" "every setting and the layer it comes from" \
+    "$pgf status" "settings plus the builds for this checkout" \
+    "./Allwmake" "build the solver here (≈1.5 min first build)"
 }
 
 # pgf_case_logs — "name mtime" per log.* in the case dir; a run that changes
@@ -210,15 +211,15 @@ pgf_run_precheck() {
   [ "$script" = Allclean ] && return 0
   here="$(pwd -P)" root="$(cd "$PGF_ROOT" && pwd -P)"
   case "$here/" in "$root"/*)
-    echo "pgf: warning: $(pgf_tilde "$here") is inside this checkout; results go into git-ignored files there," >&2
-    echo "pgf:   and a later cp -rL of the case takes them along. Run on a copy: cp -rL <case> ~/run/ (README)" >&2
+    { st WARN "$(pgf_tilde "$here") is inside this checkout; results go into git-ignored files there,"
+      st_more "and a later cp -rL of the case takes them along. Run on a copy: cp -rL <case> ~/run/ (README)"; } >&2
     ;;
   esac
   old="$( { ls -d log.* processor[0-9]* 2>/dev/null
     ls -d [0-9]* 2>/dev/null | grep -E '^[0-9.e+-]+$' | grep -vx '0'; } | head -6 | tr '\n' ' ')"
   [ -n "$old" ] || return 0
-  echo "pgf: warning: the case already holds output from an earlier run: ${old% }" >&2
-  echo "pgf:   runApplication skips every step whose log.* exists; clean first: pgf run $(pgf_tilde "$here") Allclean" >&2
+  { st WARN "the case already holds output from an earlier run: ${old% }"
+    st_more "runApplication skips every step whose log.* exists; clean first: pgf run $(pgf_tilde "$here") Allclean"; } >&2
 }
 
 # pgf_run_summary RC T0 SCRIPT LOGS_BEFORE — after pgf run in the case dir: OK,
@@ -234,35 +235,38 @@ pgf_run_summary() {
     [ -n "$last" ] && [ "$last" != 0 ] && break
   done
   echo >&2
-  if [ "$rc" -eq 0 ] && [ -z "$log" ] && [ -n "$before" ] && [ "$script" != Allclean ]; then
-    echo "pgf: WARNING: $script ran nothing (exit 0 after $dt, $(pgf_tilde "$PWD"))" >&2
-    echo "pgf:   no log.* written by this run: every step was skipped because its log.* already existed," >&2
-    echo "pgf:   so the results here are from an earlier run. Clean first: pgf run $(pgf_tilde "$PWD") Allclean" >&2
-    echo "pgf:   record:      .pgf-run.json" >&2
-    return 0
-  elif [ "$rc" -eq 0 ]; then
-    echo "pgf: $script OK in $dt ($(pgf_tilde "$PWD"))" >&2
-    [ -z "$last" ] || [ "$last" = 0 ] || echo "pgf:   latest time: $last" >&2
-    [ -z "$log" ] || echo "pgf:   last log:    $log" >&2
-  else
-    echo "pgf: $script FAILED (exit $rc$([ "$rc" -eq 130 ] && echo ', interrupted')) after $dt ($(pgf_tilde "$PWD"))" >&2
-    if [ -n "$log" ]; then
-      local fatal
-      fatal="$(grep -n -m1 'FOAM FATAL' "$log" | cut -d: -f1)"
-      if [ -n "$fatal" ]; then
-        echo "pgf:   $log from its FOAM FATAL message:" >&2
-        tail -n "+$((fatal > 2 ? fatal - 2 : 1))" "$log" | head -n 25 | sed 's/^/    /' >&2
-      else
-        echo "pgf:   last 20 lines of $log:" >&2
-        tail -n 20 "$log" | sed 's/^/    /' >&2
-      fi
+  {
+    if [ "$rc" -eq 0 ] && [ -z "$log" ] && [ -n "$before" ] && [ "$script" != Allclean ]; then
+      st WARN "$script ran nothing (exit 0 after $dt, $(pgf_tilde "$PWD"))"
+      st_more "no log.* written by this run: every step was skipped because its log.* already existed,"
+      st_more "so the results here are from an earlier run."
+      st_more "record: .pgf-run.json"
+      st_next "pgf run $(pgf_tilde "$PWD") Allclean" "clean first, then run again"
+      return 0
+    elif [ "$rc" -eq 0 ]; then
+      st OK "$script in $dt ($(pgf_tilde "$PWD"))"
+      [ -z "$last" ] || [ "$last" = 0 ] || st_more "latest time: $last"
+      [ -z "$log" ] || st_more "last log:    $log"
     else
-      echo "pgf:   no log.* written by this run; the script's own output is above" >&2
+      st FAIL "$script (exit $rc$([ "$rc" -eq 130 ] && echo ', interrupted')) after $dt ($(pgf_tilde "$PWD"))"
+      if [ -n "$log" ]; then
+        local fatal
+        fatal="$(grep -n -m1 'FOAM FATAL' "$log" | cut -d: -f1)"
+        if [ -n "$fatal" ]; then
+          st_more "$log from its FOAM FATAL message:"
+          tail -n "+$((fatal > 2 ? fatal - 2 : 1))" "$log" | head -n 25 | sed 's/^/    /'
+        else
+          st_more "last 20 lines of $log:"
+          tail -n 20 "$log" | sed 's/^/    /'
+        fi
+      else
+        st_more "no log.* written by this run; the script's own output is above"
+      fi
     fi
-  fi
-  echo "pgf:   record:      .pgf-run.json" >&2
-  [ "$rc" -eq 0 ] && [ -n "$last" ] && [ "$last" != 0 ] &&
-    echo "pgf: next: $(pgf_tilde "$PGF_ROOT")/applications/utilities/paraview/pgfView $(pgf_tilde "$PWD") (doc/paraview.md)" >&2
+    st_more "record:      .pgf-run.json"
+    [ "$rc" -eq 0 ] && [ -n "$last" ] && [ "$last" != 0 ] &&
+      st_next "$(pgf_tilde "$PGF_ROOT")/applications/utilities/paraview/pgfView $(pgf_tilde "$PWD")" "view the results (doc/paraview.md)"
+  } >&2
   return 0
 }
 
@@ -309,11 +313,11 @@ pgf_doctor_trunk_source() {
 pgf_doctor() {
   local fails=0 bashrc ver v p yb out pin trunk why
   _r() {
-    printf '  %-4s %s\n' "$1" "$2"
+    st "$1" "$2"
     [ "$1" = FAIL ] && fails=$((fails + 1))
     return 0
   }
-  echo "checks:"
+  st_head "checks:"
   bashrc="${PGF_FOAM_BASHRC:-${WM_PROJECT_DIR:+$WM_PROJECT_DIR/etc/bashrc}}"
   if [ -n "$bashrc" ] && [ -r "$bashrc" ]; then
     ver="$(pgf_foam_version "$bashrc")"
@@ -433,7 +437,7 @@ pgf_config_cmd() {
     k="${arg%%=*}"
     if [ "$verb" = set ]; then out[$k]="${arg#*=}"; else unset "out[$k]"; fi
     pgf_conf_write "$file" "$layer" out || { echo "pgf: cannot write $file" >&2; return 2; }
-    echo "pgf: $verb $k in $file" >&2
+    st OK "$verb $k in $(pgf_tilde "$file")" >&2
     ;;
   esac
 }
@@ -446,7 +450,6 @@ pgf_build_cmd() {
     case "$1" in
     --yade) envopts+=(--yade); bopts+=(--yade) ;;
     --set | --foam-bashrc | --mpi) envopts+=("$1" "${2:-}"); shift ;;
-    -h | --help) echo "usage: pgf build [--yade] [--set K=V] [-v] [build.sh options; see utilities/pgf/build.sh --help]"; return 0 ;;
     clean | --dry-run | --print-* | --fingerprint) bopts+=("$1"); build=0 ;;
     *) bopts+=("$1") ;;
     esac
@@ -454,7 +457,8 @@ pgf_build_cmd() {
   done
   PGF_BANNER_BUILD=1 "$SELF" exec --bare "${envopts[@]}" -- "$PGF_LIB/build.sh" --isolated "${bopts[@]}" || return $?
   [ "$build" -eq 0 ] ||
-    echo "next: pgf run <copy of a tutorial case> (README, Quick start), or pgf test fast" >&2
+    st_next "pgf run <copy of a tutorial case>" "run a case (README, Quick start)" \
+      "pgf test fast" "the fast test tier" >&2
 }
 
 # pgf_tools_cmd — the what / why / instead header of every tool at the root.

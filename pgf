@@ -5,68 +5,74 @@
 # why:     one front door instead of hand-sourcing OpenFOAM and sharing $FOAM_USER_APPBIN
 # instead: ./Allwmake / ./Allwclean when the OpenFOAM-style entry point is all you need
 #
-#   @commands  (pgf --help lists them from the table in utilities/pgf/cli.sh)
-#
-# options (exec, shell, run, status, doctor):
-#   --use SEL     the build to use: a key or key prefix, a commit, a worktree, a
-#                 prefix path, or auto (the build of this checkout's sources). Later
-#                 wins: auto, PGF_BUILD in .pgf.conf, the terminal (pgf use), --use
-#   --prefix DIR  use this complete prefix as it is (also one from
-#                 build.sh --prefix outside the store); no staleness check
-#   --for-tree    same as --use auto
-#   --bare        no prefix: OpenFOAM only, for running build.sh --isolated
-#   --yade        the WITH_YADE variant, plus yade, YADE_TRUNK and PYTHONPATH
-#                 (PGF_YADE=1 makes it the default; --no-yade overrides that)
-#   --mpi loopback|default|auto   Open MPI on lo only, untouched, or decided
-#                 from the interfaces (PGF_MPI, default auto)
-#   --set KEY=VALUE  override one setting for this call (the CLI layer)
-#   --foam-bashrc FILE, --yade-bin FILE, --yade-trunk DIR   shorthands for --set
-#
-# setup   detect OpenFOAM / yade / Foam-Yade, write the user (default) or
-#         checkout settings file and link ~/.local/bin/pgf to this checkout;
-#         asks only with a terminal and without --yes
-# config  without a verb, every setting with its layer; set/unset edit the
-#         user (default) or checkout file
-# exec    the command in a clean env: caller's environment dropped (env -i, small
-#         allowlist), OpenFOAM's bashrc sourced, then the user dirs pointed at
-#         the prefix and the default user dir removed from PATH/LD_LIBRARY_PATH;
-#         PGF_ROOT is exported as this checkout
-# shell   interactive bash (or bash -c COMMAND); prompt (pgf:<worktree>@<key>)
-# run     cd into caseDir (relative to the caller) and run a script there
-#         (default Allrun); an active constant/yadeProperties selects --yade
-#
-# A selected build that is not this checkout's sources is stale: exec and shell
-# warn, run refuses (run --build builds first; --allow-stale runs anyway).
-#
-# Settings: PGF_FOAM_BASHRC, PGF_BUILD_ROOT, PGF_RUN_ROOT, YADE_TRUNK, YADE_BIN,
-# YADE_PYTHONPATH, PGF_YADE_LIBDIR, PGF_YADE, PGF_MPI, PGF_BUILD. Each comes from, later
-# winning: default, ~/.config/pgf/env.conf, <checkout>/.pgf.conf, the
-# environment, the CLI. Run records go to ${XDG_STATE_HOME:-~/.local/state}/pgf/runs,
-# case dirs and scratch to PGF_RUN_ROOT. Exit 2 when the environment cannot be
-# set up; otherwise the command's status.
+# The help pages, options and command table are in utilities/pgf/cli.sh (pgf help);
+# the output style is utilities/pgf/ui.sh. Exit 2 when the environment cannot
+# be set up; otherwise the command's status.
 
 # readlink -f: pgf is usually called through the ~/.local/bin/pgf symlink.
 PGF_ROOT="$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")"
 SELF="$PGF_ROOT/pgf"
 PGF_LIB="$PGF_ROOT/utilities/pgf"
 
-# pgf test keeps the caller's environment; it calls pgf exec itself.
-[ "${1:-}" = test ] && { shift; exec "$PGF_LIB/test.sh" "$@"; }
-
 die() {
   echo "pgf: $*" >&2
   exit 2
 }
 
-usage() {
-  pgf_cli_usage "$SELF"
+# --color WHEN anywhere before "--" sets PGF_COLOR for pgf and what it runs.
+args=()
+while [ $# -gt 0 ]; do
+  case "$1" in
+  --) args+=("$@"); break ;;
+  --color=*) export PGF_COLOR="${1#--color=}" ;;
+  --color) export PGF_COLOR="${2:-}"; shift ;;
+  *) args+=("$1") ;;
+  esac
+  shift
+done
+set -- "${args[@]}"
+case "${PGF_COLOR:-auto}" in auto | always | never) ;; *) die "--color takes auto, always or never, not '$PGF_COLOR'" ;; esac
+
+# pgf_help [CMD] — the global help page, or CMD's.
+pgf_help() {
+  . "$PGF_LIB/ui.sh"
+  . "$PGF_LIB/config.sh"
+  . "$PGF_LIB/cli.sh"
+  if [ -z "${1:-}" ]; then pgf_cli_help; exit 0; fi
+  pgf_cli_help_cmd "$1" || die "unknown command '$1' (see pgf help)"
+  exit 0
 }
+
+# wants_help ARGS — -h/--help among the options: before "--", and for run
+#   before the case dir.
+wants_help() {
+  local sub="$1" a
+  shift
+  for a in "$@"; do
+    case "$a" in
+    -h | --help) return 0 ;;
+    --) return 1 ;;
+    -*) ;;
+    *) [ "$sub" = run ] && return 1 ;;
+    esac
+  done
+  return 1
+}
+
+case "${1:-}" in
+help) case "${2:-}" in -h | --help) pgf_help help ;; *) pgf_help "${2:-}" ;; esac ;;
+-h | --help) pgf_help ;;
+esac
+[ -n "${1:-}" ] && wants_help "$@" && pgf_help "$1"
+
+# pgf test keeps the caller's environment; it calls pgf exec itself.
+[ "${1:-}" = test ] && { shift; exec "$PGF_LIB/test.sh" "$@"; }
 
 # -- 1. drop the caller's environment ------------------------------------------
 
 if [ -z "${PGF_ENV_ACTIVE:-}" ]; then
   keep=()
-  for v in HOME USER LANG TERM TMPDIR WM_PROJECT_DIR XDG_CONFIG_HOME XDG_STATE_HOME; do
+  for v in HOME USER LANG TERM TMPDIR NO_COLOR WM_PROJECT_DIR XDG_CONFIG_HOME XDG_STATE_HOME; do
     [ -n "${!v+x}" ] && keep+=("$v=${!v}")
   done
   while IFS= read -r v; do
@@ -79,6 +85,7 @@ fi
 
 # -- arguments -----------------------------------------------------------------
 
+. "$PGF_LIB/ui.sh"
 . "$PGF_LIB/config.sh"
 . "$PGF_LIB/commands.sh"
 . "$PGF_LIB/coupling.sh"
@@ -89,10 +96,9 @@ fi
 sub="status"
 case "${1:-}" in
 status | doctor | setup | config | build | ls | builds | use | gc | pack | exec | shell | run | tools | where | completion | __complete) sub="$1"; shift ;;
-help | -h | --help) usage; exit 0 ;;
--*) die "give a subcommand first, e.g. pgf exec $* (see pgf --help)" ;;
+-*) die "give a command first, e.g. pgf exec $* (see pgf help)" ;;
 "") ;;
-*) die "unknown subcommand '$1' (see pgf --help)" ;;
+*) die "unknown command '$1' (see pgf help)" ;;
 esac
 
 case "$sub" in
@@ -169,7 +175,7 @@ while [ $# -gt 0 ]; do
     shift 2
     ;;
   --user | --checkout) setup_layer="${1#--}"; shift ;;
-  --yes) setup_yes=1; shift ;;
+  -y | --yes) setup_yes=1; shift ;;
   --no-link) setup_link=0; shift ;;
   --no-completion) setup_completion=0; shift ;;
   --link-only) setup_link=2; shift ;;
@@ -185,7 +191,6 @@ while [ $# -gt 0 ]; do
     shift 2
     ;;
   --) shift; break ;;
-  -h | --help) usage; exit 0 ;;
   -*) die "unknown option '$1' (the command goes after --)" ;;
   *)
     [ "$sub" = "run" ] && break
@@ -248,7 +253,7 @@ run)
   cmd=("$script" "$@")
   if [ "${PGF_CONF_SRC[PGF_YADE]}" = "default" ] && pgf_case_wants_yade .; then
     yade=1
-    echo "pgf: $PWD has an active constant/yadeProperties; using --yade" >&2
+    st INFO "$PWD has an active constant/yadeProperties; using --yade" >&2
   fi
   ;;
 esac
@@ -303,7 +308,7 @@ if [ "$mode" = tree ] && [ "$sel_src" != --prefix ]; then
     if [ "$sub" = run ] && [ "$allow_stale" -eq 0 ]; then
       die "$stale; run: $SELF use auto, then $SELF run --build; or pass --allow-stale"
     fi
-    echo "pgf: warning: $stale" >&2
+    st WARN "$stale" >&2
   fi
 fi
 
@@ -354,7 +359,7 @@ if [ "$yade" -eq 1 ]; then
   export YADE_TRUNK="${YADE_TRUNK:-$PGF_ROOT/submodules/Foam-Yade}"
   if [ "$mode" != "bare" ]; then
     checks="$(pgf_coupling_check "$prefix/lib" "$YADE_TRUNK")" || die "$(grep '^FAIL' <<<"$checks" | cut -c6-)"
-    grep '^WARN' <<<"$checks" | sed 's/^WARN /pgf: warning: /' >&2
+    grep '^WARN' <<<"$checks" | while IFS= read -r l; do st WARN "${l#WARN }"; done >&2
   fi
   yade_bin="${YADE_BIN:-$(PATH="$PGF_ENV_CALLER_PATH" command -v yade)}"
 fi
@@ -363,7 +368,7 @@ if [ "$yade" -eq 1 ] && { [ "$mode" != bare ] || [ -x "$yade_bin" ]; }; then
   [ -x "$yade_bin" ] || die "no yade binary: set YADE_BIN or put yade on PATH"
   if [ "$mode" != bare ]; then
     checks="$(pgf_yade_check "$yade_bin" "$YADE_TRUNK")" || die "$(grep '^FAIL' <<<"$checks" | cut -c6-)"
-    grep '^WARN' <<<"$checks" | sed 's/^WARN /pgf: warning: /' >&2
+    grep '^WARN' <<<"$checks" | while IFS= read -r l; do st WARN "${l#WARN }"; done >&2
   fi
   # Installs may only carry a suffixed binary; the tutorials call plain `yade`.
   shim="$TMPDIR/pgf-bin"
@@ -419,11 +424,13 @@ if [ "$mode" != "bare" ]; then
   [ "$yade" -eq 1 ] && [ "$variant" != "yade1" ] && die "--yade given, but $prefix is variant $variant"
 fi
 # Two short lines: the environment, then the build (its key is the last path part).
-echo "pgf: OpenFOAM $WM_PROJECT_VERSION${mpi_note/#; /, }" >&2
+# A build needs no MPI, so pgf build leaves it out.
+[ -n "${PGF_BANNER_BUILD:-}" ] && mpi_note=""
+st INFO "OpenFOAM $WM_PROJECT_VERSION${mpi_note/#; /, }" >&2
 if [ "$mode" != "bare" ]; then
-  echo "pgf: prefix $prefix (${variant:-?}, chosen by $sel_src${stale:+, stale})" >&2
+  st INFO "prefix $prefix (${variant:-?}, chosen by $sel_src${stale:+, stale})" >&2
 elif [ -z "${PGF_BANNER_BUILD:-}" ]; then # pgf build: build.sh names its destination
-  echo "pgf: no prefix (--bare: OpenFOAM only); builds go under $PGF_BUILD_ROOT" >&2
+  st INFO "no prefix (--bare: OpenFOAM only); builds go under $PGF_BUILD_ROOT" >&2
 fi
 unset PGF_BANNER_BUILD
 
@@ -466,7 +473,7 @@ if [ "$sub" = run ]; then
   trap - INT TERM
   python3 "$PGF_LIB/registry.py" record "$PWD" "$(pgf_records_dir)" "$prefix" "$sel_src" \
     "${yade_bin:-}" "$([ -n "${yade_bin:-}" ] && pgf_yade_commit "$yade_bin")" "$started" "$rc" "${cmd[@]}" ||
-    echo "pgf: warning: could not write the run record" >&2
+    st WARN "could not write the run record" >&2
   pgf_run_summary "$rc" "$t0" "${cmd[0]}" "$logs_before"
   exit "$rc"
 fi

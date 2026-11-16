@@ -1,73 +1,31 @@
-# utilis/helpers.sh
+# utilities/bash_utils/helpers.sh — clog, kept for the build and regression scripts;
+# it prints pgf's one status style (utilities/pgf/ui.sh, #285).
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
     echo "helpers.sh is a source-only library — do not execute it directly." >&2
     echo "Use: source utilities/bash_utils/helpers.sh" >&2
     exit 1
 fi
 
-[[ -n "$HELPERS_SOURCED" ]] && return
+[[ -n "${HELPERS_SOURCED:-}" ]] && return
 HELPERS_SOURCED=1
-
-# Color codes
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-MAGENTA='\033[0;35m'
-CYAN='\033[0;36m'
-NC='\033[0m' # No Color
+. "$(dirname "${BASH_SOURCE[0]}")/../pgf/ui.sh"
 
 # Enable/disable timestamps (default: disabled)
 ENABLE_LOG_TIMESTAMPS=false
 
-# Logging function
+# clog LEVEL MESSAGE — INFO, SUCCESS (OK), WARNING|WARN, ERROR (FAIL, stderr),
+#   SKIP, DEBUG (INFO); anything else is an INFO line of all its words.
 clog() {
-
-  local level=$1
+  local level="${1:-}" message timestamp=""
   shift
-  local message="$*"
-  local timestamp=""
-
-  # Add timestamp only if enabled
-  if [[ "$ENABLE_LOG_TIMESTAMPS" == true ]]; then
-    timestamp="$(date '+%Y-%m-%d %H:%M:%S') - "
-  fi
-
-  case $level in
-  INFO)
-    echo -e "${BLUE}[INFO]${NC} ${timestamp}${message}"
-    ;;
-  SUCCESS)
-    echo -e "${GREEN}[✓ SUCCESS]${NC} ${timestamp}${message}"
-    ;;
-  WARNING)
-    echo -e "${YELLOW}[⚠ WARNING]${NC} ${timestamp}${message}"
-    ;;
-  ERROR)
-    echo -e "${RED}[✗ ERROR]${NC} ${timestamp}${message}" >&2
-    ;;
-  DEBUG)
-    echo -e "${MAGENTA}[DEBUG]${NC} ${timestamp}${message}"
-    ;;
-  SKIP)
-    echo -e "${MAGENTA}[-> SKIP]${NC} ${timestamp}${message}"
-    ;;
-  *)
-    echo -e "${CYAN}[LOG]${NC} ${timestamp}${message}"
-    ;;
+  message="$*"
+  [[ "$ENABLE_LOG_TIMESTAMPS" == true ]] && timestamp="$(date '+%Y-%m-%d %H:%M:%S') - "
+  case "$level" in
+  INFO | DEBUG) st INFO "${timestamp}${message}" ;;
+  SUCCESS) st OK "${timestamp}${message}" ;;
+  WARNING | WARN) st WARN "${timestamp}${message}" ;;
+  ERROR) st FAIL "${timestamp}${message}" >&2 ;;
+  SKIP) st SKIP "${timestamp}${message}" ;;
+  *) st INFO "${timestamp}${level}${message:+ $message}" ;;
   esac
 }
-
-# Completion function for the log command
-_clog_completion() {
-  local cur="${COMP_WORDS[COMP_CWORD]}"
-
-  # If completing the first argument (log level)
-  if [[ ${COMP_CWORD} -eq 1 ]]; then
-    local levels="info success warning error debug"
-    COMPREPLY=($(compgen -W "$levels" -- "$cur"))
-  fi
-}
-
-# Register the completion function
-complete -F _clog_completion clog

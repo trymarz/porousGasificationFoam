@@ -27,11 +27,14 @@ comp() {
 has() { grep -qx -- "$1" <<<"$2"; }
 
 out="$(comp "pgf ")"
-for c in $("$PGF" --help | sed -n 's/^  pgf \([a-z]*\).*/\1/p'); do
-    check "every subcommand in --help completes: $c" has "$c" "$out"
+cmds="$("$PGF" --help | sed -n '/^Available Commands:/,/^$/s/^  \([a-z]*\) .*/\1/p')"
+for c in $cmds; do
+    check "every command in --help completes: $c" has "$c" "$out"
 done
-check "the table drives --help: one usage line per subcommand" \
-    [ "$("$PGF" --help | grep -c '^  pgf ')" -eq "$(grep -c '^pgf_cmd ' "$PGF_ROOT/utilities/pgf/cli.sh")" ]
+check "the table drives --help: one row per command" \
+    [ "$(wc -w <<<"$cmds")" -eq "$(grep -c '^pgf_cmd ' "$PGF_ROOT/utilities/pgf/cli.sh")" ]
+check "the command menu does not offer --help" bash -c '! grep -q -- "^-" <<<"$1"' _ "$out"
+check "help completes the commands" has setup "$(comp "pgf help se")"
 check "a prefix narrows the subcommands" [ "$(comp "pgf bu")" = "$(printf 'build\nbuilds')" ]
 check "exec options include the environment options" has --use "$(comp "pgf exec --")"
 check "build options come from build.sh" has --libs-only "$(comp "pgf build --")"

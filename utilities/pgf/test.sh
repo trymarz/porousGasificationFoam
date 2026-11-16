@@ -36,6 +36,7 @@ REG_DIR="$PGF_ROOT/applications/test/regression"
 TIERS_CONF="${PGF_TIERS_CONF:-$PGF_ROOT/applications/test/tiers.conf}"
 export PGF_RUN_ROOT="${PGF_RUN_ROOT:-${TMPDIR:-/tmp}/pgf-runs}"
 LAST_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/pgf/runs/last"
+. "$PGF_ROOT/utilities/pgf/ui.sh"
 
 die() {
   echo "pgf test: $*" >&2
@@ -109,6 +110,11 @@ fresh() {
   [ -n "$ended" ] && [ $(($(date +%s) - ${ended%.*})) -le "$3" ]
 }
 
+# fmt_time S — "42s" or "1m46s".
+fmt_time() {
+  if [ "$1" -ge 60 ]; then printf '%dm%02ds' $(($1 / 60)) $(($1 % 60)); else printf '%ds' "$1"; fi
+}
+
 classify() {
   case "$1" in
   0) echo PASS ;;
@@ -155,7 +161,7 @@ run_tier() {
   key="$(current_key "$tier")" || die "cannot compute the build key (is PGF_FOAM_BASHRC set?)"
 
   if [ -n "$IF_STALE" ] && fresh "$tier" "$key" "$max_age"; then
-    echo "pgf test: $tier is fresh (PASS of $key at $(record_field "$tier" ended_utc)); not run"
+    st SKIP "$tier is fresh (PASS of $key at $(record_field "$tier" ended_utc)); not run"
     return 0
   fi
 
@@ -163,18 +169,20 @@ run_tier() {
     # shellcheck disable=SC2046
     prefix="$("$PGF" exec --bare -- "$BUILD_SH" --print-prefix $(variant_flag "$tier") 2>/dev/null)"
     case "${prefix##*/}" in
-    "$key") [ -d "$prefix" ] && rm -rf "$prefix" && echo "pgf test: removed $prefix" ;;
+    "$key") [ -d "$prefix" ] && rm -rf "$prefix" && st INFO "removed $prefix" ;;
     *) die "refusing to remove unexpected prefix '$prefix'" ;;
     esac
   fi
 
   mkdir -p "$run" || die "cannot create $run"
-  echo "pgf test: tier $tier, key $key, run dir $run"
+  st_head "pgf test $tier"
+  st INFO "build $key" "(building or reusing it; log: $run/build.log)"
+  st INFO "run dir $run"
   start="$(date +%s)"
   # shellcheck disable=SC2046
   if ! "$PGF" exec --bare -- "$BUILD_SH" --isolated $(variant_flag "$tier") >"$run/build.log" 2>&1; then
     tail -20 "$run/build.log" >&2
-    echo "pgf test: build failed; log $run/build.log" >&2
+    st FAIL "build failed; log $run/build.log" >&2
     write_record "$tier" "$key" 2 "$start" "$(date +%s)" "$run"
     return 2
   fi
@@ -185,11 +193,24 @@ run_tier() {
   [ "${T_RUNNER[$tier]}" = "Allrun" ] && args+=(--run-root "$run/cases")
   [ -n "${T_TIMEOUT[$tier]}" ] && export YADE_TIMEOUT="${T_TIMEOUT[$tier]}"
 
-  "$PGF" exec "${envflags[@]}" -- "$REG_DIR/${T_RUNNER[$tier]}" "${args[@]}" 2>&1 | tee "$run/driver.log"
+  # The driver colours what this terminal shows; driver.log gets the plain text.
+  local color=never
+  pgf_ui_color && color=always
+  PGF_COLOR="$color" "$PGF" exec "${envflags[@]}" -- "$REG_DIR/${T_RUNNER[$tier]}" "${args[@]}" 2>&1 |
+    tee "$run/driver.log"
   rc=${PIPESTATUS[0]}
+  [ "$color" = never ] || sed -i 's/\x1b\[[0-9;]*m//g' "$run/driver.log"
   end="$(date +%s)"
-  write_record "$tier" "$key" "$rc" "$start" "$end" "$run" || echo "pgf test: could not write $LAST_DIR/$tier.json" >&2
-  echo "pgf test: $tier $(classify "$rc") (exit $rc, $((end - start))s); record $LAST_DIR/$tier.json"
+  write_record "$tier" "$key" "$rc" "$start" "$end" "$run" || st WARN "could not write $LAST_DIR/$tier.json" >&2
+  echo
+  if [ "$rc" -eq 0 ]; then
+    st PASS "pgf test $tier in $(fmt_time $((end - start)))" "record $LAST_DIR/$tier.json"
+    st_next "pgf test --status" "every tier: last outcome and whether it is current"
+  else
+    st FAIL "pgf test $tier: $(classify "$rc") (exit $rc) after $(fmt_time $((end - start)))" "record $LAST_DIR/$tier.json"
+    st_next "less $run/driver.log" "the whole run" \
+      "pgf test $tier --run-root DIR" "run it again into a dir you choose"
+  fi
   return "$rc"
 }
 

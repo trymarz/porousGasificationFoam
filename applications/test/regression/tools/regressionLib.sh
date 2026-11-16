@@ -159,8 +159,9 @@ reg_run_pool() {
     local -n _ids="$3"
     local -n _todo="$4"
     local _runfn="$5"
-    local _slot _pids=() _pid
+    local _slot _pids=() _pid _total="${#_todo[@]}"
 
+    mkdir -p "$_root/.done" || return 2
     for _slot in $(seq 1 "$_jobs"); do
         (
             for w_idx in "${_todo[@]}"; do
@@ -172,10 +173,10 @@ reg_run_pool() {
                 w_secs=$(( $(date +%s) - w_t0 ))
                 printf '%s\n' "$w_secs" > "$w_cs/secs"
                 printf '%s\n' "$w_rc"   > "$w_cs/rc"
-                # One short line per completion: a single write, so concurrent
-                # workers cannot tear each other's progress output.
-                printf '  %-7s %5s   %s\n' \
-                    "$(reg_classify "$w_rc")" "${w_secs}s" "${_ids[$w_idx]}"
+                # The n of [n/N]: the first free slot dir, claimed as atomically as a case.
+                w_n=1
+                until mkdir "$_root/.done/$w_n" 2>/dev/null; do w_n=$(( w_n + 1 )); done
+                reg_row "$w_rc" "$w_n" "$_total" "${w_secs}s" "${_ids[$w_idx]}"
             done
         ) &
         _pids+=("$!")
@@ -233,59 +234,43 @@ reg_record() {
     REG_TIMES+=("$3")
 }
 
-# reg_summary [<title>] — print the outcome table + counts and return 0 iff at
+# reg_row <rc> <n> <total> <time> <name> — one line of the case list:
+#   "PASS [ n/N]   12s  name"; a non-PASS outcome is FAIL with its class after the name.
+reg_row() {
+    local label=PASS note=""
+    [ "$1" -eq 0 ] || { label=FAIL; note="  ($(reg_classify "$1"))"; }
+    st "$label" "$(printf '[%*d/%d] %5s  %s%s' "${#3}" "$2" "$3" "$4" "$5" "$note")"
+}
+
+# reg_summary [<title>] — print the failures and "n/N passed", and return 0 iff at
 # least one case was recorded and every recorded case PASSed. Nothing recorded
 # (e.g. a filter that matched no case) is never green — a gate that compared
 # nothing must not report success.
 reg_summary() {
     local title="${1:-regression summary}"
-    local n="${#REG_NAMES[@]}"
-    local nPass=0 nFail=0 nError=0 nTimeout=0 nCrash=0
-    local i rc label
+    local n="${#REG_NAMES[@]}" nPass=0 i rc counts=""
+    local -A nClass=()
 
     echo
-    clog INFO "=================================================="
-    clog INFO "  $title   ($n cases)"
-    clog INFO "=================================================="
-
-    # PASS rows first, then the non-green rows labelled by class.
-    i=0
-    while [ "$i" -lt "$n" ]; do
-        if [ "${REG_RCS[$i]}" -eq 0 ]; then
-            clog SUCCESS "  PASS      ${REG_TIMES[$i]}   ${REG_NAMES[$i]}"
-            nPass=$(( nPass + 1 ))
-        fi
-        i=$(( i + 1 ))
-    done
-
-    i=0
-    while [ "$i" -lt "$n" ]; do
+    st_head "$title"
+    for ((i = 0; i < n; i++)); do
         rc="${REG_RCS[$i]}"
-        if [ "$rc" -ne 0 ]; then
-            label="$(reg_classify "$rc")"
-            clog ERROR "  ${label}   ${REG_TIMES[$i]}   ${REG_NAMES[$i]}"
-            if [ "$rc" -eq 1 ]; then
-                nFail=$(( nFail + 1 ))
-            elif [ "$rc" -eq 124 ]; then
-                nTimeout=$(( nTimeout + 1 ))
-            elif [ "$rc" -gt 128 ]; then
-                nCrash=$(( nCrash + 1 ))
-            else
-                nError=$(( nError + 1 ))
-            fi
+        if [ "$rc" -eq 0 ]; then
+            nPass=$(( nPass + 1 ))
+            continue
         fi
-        i=$(( i + 1 ))
+        st FAIL "$(printf '%5s  %s  (%s)' "${REG_TIMES[$i]}" "${REG_NAMES[$i]}" "$(reg_classify "$rc")")"
+        nClass[$(reg_classify "$rc" | cut -d' ' -f1)]=$(( ${nClass[$(reg_classify "$rc" | cut -d' ' -f1)]:-0} + 1 ))
     done
-
-    echo
-    local counts="  passed: $nPass   failed: $nFail"
-    [ "$nError"   -gt 0 ] && counts="$counts   error: $nError"
-    [ "$nTimeout" -gt 0 ] && counts="$counts   timeout: $nTimeout"
-    [ "$nCrash"   -gt 0 ] && counts="$counts   crash: $nCrash"
-    clog INFO "$counts"
-    clog INFO "=================================================="
-
-    [ "$n" -gt 0 ] && [ "$nPass" -eq "$n" ]
+    for i in FAIL ERROR TIMEOUT CRASH; do
+        [ -n "${nClass[$i]:-}" ] && counts+="${counts:+, }${nClass[$i]} ${i,,}"
+    done
+    if [ "$n" -gt 0 ] && [ "$nPass" -eq "$n" ]; then
+        st PASS "$nPass/$n passed"
+        return 0
+    fi
+    st FAIL "$nPass/$n passed${counts:+ ($counts)}"
+    return 1
 }
 
 # reg_stage_case <repo-root> <case-rel> <mirror-root> — copy the case, links followed, to

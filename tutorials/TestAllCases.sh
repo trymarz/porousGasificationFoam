@@ -80,14 +80,14 @@ for case_dir in "$CASES_DIR"/*/; do
         clog INFO "Running simulation for $TIMEOUT_SECONDS seconds..."
 
         if timeout -k 5 "$TIMEOUT_SECONDS" ./Allrun >"$log_file" 2>&1; then
-            clog SUCESS "Case $case_name completed"
+            clog SUCCESS "Case $case_name completed"
             exit 0
         else
             exit_code=$?
 
             if [ $exit_code -eq 124 ]; then
                 # Timeout occurred (normal, expected behavior)
-                clog SUCESS "Case $case_name ran for allocated time and stopped (timeout)"
+                clog SUCCESS "Case $case_name ran for allocated time and stopped (timeout)"
                 exit 0
             else
                 # Actual error occurred

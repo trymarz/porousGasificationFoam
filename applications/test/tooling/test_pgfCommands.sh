@@ -83,6 +83,38 @@ check "  names the yade it found and checks it against the pin" \
 check "  says --no-link left pgf unlinked" grep -q "pgf not linked (--no-link)" "$TEST_TMP/out"
 check "  points at pgf config, pgf status and ./Allwmake" \
     bash -c 'grep -q "^  pgf config " "$1" && grep -q "^  pgf status " "$1" && grep -q "^  ./Allwmake .*1.5 min" "$1"' _ "$TEST_TMP/out"
+check "  says what setup is for" grep -q "^pgf runs every build and case in a clean environment" "$TEST_TMP/out"
+check "  gives each key a meaning" grep -q "OpenFOAM etc/bashrc sourced before every build and run" "$TEST_TMP/out"
+check "  explains the layers and how to change a value" \
+    bash -c 'grep -q "layers, later winning: default, user file" "$1" && grep -q "change a value: pgf config set KEY=VALUE" "$1"' _ "$TEST_TMP/out"
+check "  ends with the next: block" grep -qx "next:" "$TEST_TMP/out"
+check "  and writes no colour codes into a file" bash -c '! grep -q $'"'"'\e'"'"' "$1"' _ "$TEST_TMP/out"
+penv --color=always setup --checkout --yes --no-link --no-completion >"$TEST_TMP/outc" 2>&1
+check "--color=always colours the status labels" grep -q $'\e\[32mOK  \e\[0m' "$TEST_TMP/outc"
+NO_COLOR=1 penv --color never status >/dev/null 2>&1
+check "--color never is accepted" [ $? -eq 0 ]
+penv --color=sometimes status >/dev/null 2>"$TEST_TMP/err"
+check "  and a bad --color value is refused" grep -q "color takes auto, always or never" "$TEST_TMP/err"
+
+# help: one page per command, the same as <cmd> --help (#285)
+penv help >"$TEST_TMP/help" 2>&1
+check "pgf help has Usage, Description, Available Commands, Options, Examples, in order" \
+    bash -c '[ "$(grep -E "^(Usage|Description|Available Commands|Options|Examples):$" "$1" | tr "\n" " ")" = \
+        "Usage: Description: Available Commands: Options: Examples: " ] && grep -q "^Use \"pgf help <command>\"" "$1"' _ "$TEST_TMP/help"
+check "  and pgf --help is the same page" cmp -s "$TEST_TMP/help" <(penv --help 2>&1)
+for c in $(sed -n '/^Available Commands:/,/^$/s/^  \([a-z]*\) .*/\1/p' "$TEST_TMP/help"); do
+    check "pgf help $c = pgf $c --help, with Usage and Description" \
+        bash -c 'cmp -s <("$1" help "$2" 2>&1) <("$1" "$2" --help 2>&1) && "$1" help "$2" | grep -q "^Description:$"' \
+        _ "$tree/pgf" "$c"
+done
+penv setup --yes --help >"$TEST_TMP/help" 2>&1
+check "setup --help explains --yes, --checkout and --link-only" \
+    bash -c 'grep -qE "^  -y, --yes +do not ask" "$1" && grep -qE "^  --checkout +save to" "$1" && grep -qE "^  --link-only +only link" "$1"' _ "$TEST_TMP/help"
+check "run --help lists the environment options" bash -c '"$1" run --help | grep -qE "^  --use SEL +the build"' _ "$tree/pgf"
+check "config --help gives each key a meaning" bash -c '"$1" help config | grep -qE "^  PGF_MPI +Open MPI"' _ "$tree/pgf"
+penv help nosuch >/dev/null 2>"$TEST_TMP/err"
+check "help of an unknown command fails (rc=$?)" grep -q "unknown command 'nosuch'" "$TEST_TMP/err"
+
 echo "# hand-written comment" >>"$tree/.pgf.conf"
 penv setup --checkout --yes --no-link --no-completion >"$TEST_TMP/out2" 2>&1
 check "a setup that changes nothing says unchanged, not wrote" \
@@ -127,7 +159,7 @@ rc=$?
 check "setup with the link pointing at another checkout exits 0 (rc=$rc)" [ "$rc" -eq 0 ]
 check "  leaves the link alone" [ "$(readlink "$home3/.local/bin/pgf")" = "$home3/other/pgf" ]
 check "  still installs completion and prints the summary" \
-    bash -c '[ -f "$2/.local/share/bash-completion/completions/pgf" ] && grep -q "^pgf setup summary" "$1"' _ "$TEST_TMP/out5" "$home3"
+    bash -c '[ -f "$2/.local/share/bash-completion/completions/pgf" ] && grep -qx "pgf setup" "$1"' _ "$TEST_TMP/out5" "$home3"
 check "  without the pre-summary --force lines" bash -c '! grep -q "rerun with --force" "$1"' _ "$TEST_TMP/out5"
 check "  warns with a ~ path and the --link-only --force fix" \
     bash -c 'grep -q "WARN pgf on PATH is ~/other/pgf, not this checkout" "$1" && grep -q "./pgf setup --link-only --force" "$1"' _ "$TEST_TMP/out5"
@@ -195,17 +227,17 @@ assert r["started_utc"] and r["finished_utc"] and r["yade"] is None, r
 ' "$case" "$prefix" 2>"$TEST_TMP/rec.err"
 check "run writes <case>/.pgf-run.json (command, build, times, exit status)" [ $? -eq 0 ]
 check "run's banner: OpenFOAM on one line, the prefix and how it was chosen on the next" \
-    bash -c 'grep -qx "pgf: OpenFOAM fake.*" "$1" && grep -qx "pgf: prefix $2 (yade1, chosen by --prefix)" "$1"' \
+    bash -c 'grep -qx "  INFO OpenFOAM fake.*" "$1" && grep -qx "  INFO prefix $2 (yade1, chosen by --prefix)" "$1"' \
     _ "$TEST_TMP/err" "$prefix"
 check "run without time dirs prints OK and no pgfView hint" \
-    bash -c 'grep -q "^pgf: Allclean OK in [0-9]*s" "$1" && ! grep -q pgfView "$1"' _ "$TEST_TMP/err"
+    bash -c 'grep -q "^  OK   Allclean in [0-9]*s" "$1" && ! grep -q pgfView "$1"' _ "$TEST_TMP/err"
 printf '#!/bin/sh\nseq -f "header %%g" 30 >log.solver; printf "near\\nFOAM FATAL ERROR: bad\\n" >>log.solver\nseq -f "after %%g" 40 >>log.solver; exit 3\n' \
     >"$case/Allfail" && chmod +x "$case/Allfail"
 (cd / && penv run --prefix "$prefix" "$case" Allfail) >/dev/null 2>"$TEST_TMP/err"
 rc=$?
 check "run passes the script's exit status through (rc=$rc)" [ "$rc" -eq 3 ]
 check "and records it" grep -q '"exit_status": 3' "$case/.pgf-run.json"
-check "a failed run says FAILED with the exit status" grep -q "^pgf: Allfail FAILED (exit 3) after " "$TEST_TMP/err"
+check "a failed run says FAIL with the exit status" grep -q "^  FAIL Allfail (exit 3) after " "$TEST_TMP/err"
 check "  and shows the newest log from just before its FOAM FATAL message" \
     bash -c 'grep -q "log.solver from its FOAM FATAL message" "$1" && grep -qx "    header 30" "$1" &&
         grep -qx "    FOAM FATAL ERROR: bad" "$1" && ! grep -qx "    header 29" "$1"' _ "$TEST_TMP/err"
@@ -220,8 +252,8 @@ check "  or says no log was written" grep -q "no log.\* written by this run" "$T
 printf '#!/bin/sh\nmkdir -p 0 0.5 0.25; echo done >log.porousGasificationFoam\n' >"$case/Allok" && chmod +x "$case/Allok"
 (cd / && penv run --prefix "$prefix" "$case" Allok) >/dev/null 2>"$TEST_TMP/err"
 check "a run with results gives the latest time, last log and the pgfView next step" \
-    bash -c 'grep -q "^pgf: Allok OK in " "$1" && grep -q "latest time: 0.5$" "$1" &&
-        grep -q "last log: *log.porousGasificationFoam" "$1" && grep -qF "pgfView $2 (" "$1"' _ "$TEST_TMP/err" "$case"
+    bash -c 'grep -q "^  OK   Allok in " "$1" && grep -q "latest time: 0.5$" "$1" &&
+        grep -q "last log: *log.porousGasificationFoam" "$1" && grep -qF "pgfView $2 " "$1" && grep -qx "next:" "$1"' _ "$TEST_TMP/err" "$case"
 rm -rf "$case/Allok" "$case/0" "$case/0.5" "$case/0.25" "$case/log.porousGasificationFoam"
 # A copy with stale output: runApplication skips each step whose log.* exists.
 mkdir -p "$case/2" "$case/processor0" && echo old >"$case/log.blockMesh"
@@ -233,7 +265,7 @@ check "  warns up front that the case holds earlier output and how to clean it" 
     bash -c 'grep -q "already holds output from an earlier run: .*log.blockMesh" "$1" &&
         grep -q "processor0" "$1" && grep -qF "clean first: pgf run $2 Allclean" "$1"' _ "$TEST_TMP/err" "$case"
 check "  says it ran nothing instead of OK, and gives no pgfView hint" \
-    bash -c 'grep -q "^pgf: WARNING: Allskip ran nothing" "$1" && ! grep -q "Allskip OK" "$1" &&
+    bash -c 'grep -q "^  WARN Allskip ran nothing" "$1" && ! grep -q "OK   Allskip" "$1" &&
         ! grep -q "latest time" "$1" && ! grep -q pgfView "$1"' _ "$TEST_TMP/err"
 (cd / && penv run --prefix "$prefix" "$case" Allclean) >/dev/null 2>"$TEST_TMP/err"
 check "  while Allclean on it gets neither warning" \
@@ -241,7 +273,7 @@ check "  while Allclean on it gets neither warning" \
 printf '#!/bin/sh\necho new >log.blockMesh\n' >"$case/Allskip"
 (cd / && penv run --prefix "$prefix" "$case" Allskip) >/dev/null 2>"$TEST_TMP/err"
 check "  and a run that rewrites a stale log is OK" \
-    bash -c 'grep -q "^pgf: Allskip OK" "$1" && grep -q "last log: *log.blockMesh" "$1"' _ "$TEST_TMP/err"
+    bash -c 'grep -q "^  OK   Allskip in " "$1" && grep -q "last log: *log.blockMesh" "$1"' _ "$TEST_TMP/err"
 rm -rf "$case/Allskip" "$case/2" "$case/processor0" "$case/log.blockMesh"
 (cd / && penv run --prefix "$prefix" "$case") >/dev/null 2>"$TEST_TMP/err"
 check "  and a clean case gets no earlier-output warning" \
@@ -293,8 +325,9 @@ check "setup --link-only --force replaces it" \
 printf '#!/bin/sh\necho "build.sh $*"; echo "user=$WM_PROJECT_USER_DIR"\n' >"$tree/utilities/pgf/build.sh"
 chmod +x "$tree/utilities/pgf/build.sh"
 out="$(penv build --yade --libs-only 2>"$TEST_TMP/err")"
-check "pgf build's banner leaves the prefix line to build.sh" \
-    bash -c 'grep -q "^pgf: OpenFOAM" "$1" && ! grep -q "no prefix" "$1"' _ "$TEST_TMP/err"
+check "pgf build's banner leaves the prefix line to build.sh, and MPI out" \
+    bash -c 'grep -q "^  INFO OpenFOAM" "$1" && ! grep -q "no prefix" "$1" && ! grep -q MPI "$1"' _ "$TEST_TMP/err"
+check "  and ends with the next: block" bash -c 'grep -qx "next:" "$1" && grep -q "pgf test fast" "$1"' _ "$TEST_TMP/err"
 check "build runs build.sh --isolated --yade with the extra options" grep -qx "build.sh --isolated --yade --libs-only" <<<"$out"
 check "  in a bare env (user dir is the build root)" grep -qx "user=/keep" <<<"$out"
 out="$(root Allwmake --yade 2>/dev/null)"
