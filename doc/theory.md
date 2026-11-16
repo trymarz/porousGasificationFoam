@@ -51,16 +51,16 @@ The loop is `porousGasificationFoam/porousGasificationFoam.C`; each step is an `
 **Gas continuity** (`rhoEqn.H`; paper 2b)
 
 ```
-∂(ε ρ)/∂t + ∇·φ = (1 − ε) S_ρ
+∂(ε ρ)/∂t + ∇·φ = S_ρ
 ```
 
 **Gas species** (`YEqn.H`; paper 2a). Fractions are clipped at 0 and renormalised to sum to 1 after each solve.
 
 ```
-∂(ε ρ Yᵢ)/∂t + ∇·(φ Yᵢ) − ∇·(μ_eff ∇Yᵢ) = R_hom,ᵢ + S_ρ,ᵢ
+∂(ε ρ Yᵢ)/∂t + ∇·(φ Yᵢ) − ∇·(μ_eff ∇Yᵢ) = ε R_hom,ᵢ + S_ρ,ᵢ
 ```
 
-The continuity source carries `(1 − ε)`; the species source does not (known discrepancy, [#114](https://github.com/trymarz/porousGasificationFoam/issues/114)).
+`R_hom,ᵢ` is the gas-phase reaction rate per unit gas volume, hence the `ε` (#226). The interface sources `S_ρ` and `S_ρ,ᵢ` are per unit total volume and carry none (#125).
 
 **Gas momentum** (`UEqn.H` with `fieldPorosityModel`; paper 2d)
 

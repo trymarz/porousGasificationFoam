@@ -22,7 +22,19 @@
 
 ## Entry points
 
-`pgf` is the front door: `pgf help` lists its commands, `pgf help <command>` (or `pgf <command> --help`) explains one, and `pgf tools` explains every tool at the checkout root (what it does, why it exists, what to use instead). `./Allwmake` and `./Allwclean` keep the OpenFOAM convention and call `pgf build`. `wmake` runs in place in your checkout, which may live anywhere; every tool behaves the same from any working directory. Status lines read `OK`, `WARN`, `FAIL`, `SKIP`, `INFO` (`PASS`/`FAIL` for tests) and each command ends with a `next:` block. Colour is on when both stdout and stderr are a terminal: `--color=auto|always|never` (or `PGF_COLOR`) and `NO_COLOR` control it, and log files never get colour codes.
+`pgf` is the front door: `pgf help` lists its commands, `pgf help <command>` (or `pgf <command> --help`) explains one, and `pgf tools` prints the table below. `./Allwmake` and `./Allwclean` keep the OpenFOAM convention and call `pgf build`. `wmake` runs in place in your checkout, which may live anywhere; every tool behaves the same from any working directory. Status lines read `OK`, `WARN`, `FAIL`, `SKIP`, `INFO` (`PASS`/`FAIL` for tests) and each command ends with a `next:` block. Colour is on when both stdout and stderr are a terminal: `--color=auto|always|never` (or `PGF_COLOR`) and `NO_COLOR` control it, and log files never get colour codes.
+
+### Scripts at the top of the checkout
+
+What each script next to `README.md` does, why it exists, and what to use instead:
+
+| Tool | What | Why it exists | Use instead when… |
+|---|---|---|---|
+| `pgf` | settings, isolated builds, runs in a clean environment, test tiers | one front door instead of hand-sourcing OpenFOAM and sharing `$FOAM_USER_APPBIN` | you only want the OpenFOAM-style entry point: `./Allwmake` / `./Allwclean` |
+| `Allwmake` | `pgf build --all --no-DEM [args]` | `./Allwmake` is where OpenFOAM users look first | you need options: `pgf build [--yade]`; an in-place build: `utilities/pgf/build.sh` |
+| `Allwclean` | `pgf build clean --all [args]`, DEM included | the same convention; cleaning DEM too means no `--yade` state survives a switch back | one target: `pgf build clean [targets]`; add `--purge` to drop the installed build |
+| `build.sh` | shim: forwards to `utilities/pgf/build.sh` (deprecated, #274) | old scripts keep working | `pgf build`, or `utilities/pgf/build.sh` in place |
+| `pgf-test` | shim: forwards to `pgf test` (deprecated, #274) | old scripts keep working | `pgf test <tier\|all>`, `--status`, `--gc` |
 
 ## First-time setup
 
