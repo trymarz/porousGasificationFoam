@@ -714,6 +714,13 @@ pgf_branch_dir() {
   printf '%s' "${b//\//-}"
 }
 
+# pgf_copy_outside DIR — the first non-comment Allrun/Allclean line in DIR that
+#   reaches a bare ../ path (not through ${PGF_ROOT:-…}); a copy can't run it.
+pgf_copy_outside() {
+  grep -HnE '(^|[[:space:]"'\''(=])\.\./' "$1/Allrun" "$1/Allclean" 2>/dev/null |
+    grep -vE '^[^:]*:[0-9]+:[[:space:]]*#' | grep -v 'PGF_ROOT:-' | head -1
+}
+
 # pgf_copy_cmd [--list] [--force] TUTORIAL [NAME] — copy a tutorial case to
 #   $PGF_CASE_ROOT/<branch>/<TUTORIAL or NAME> and record where it came from.
 pgf_copy_cmd() {
@@ -747,6 +754,13 @@ pgf_copy_cmd() {
   fi
   [ -d "$src" ] || { echo "pgf copy: no tutorial '${pos[0]}'; see pgf copy --list" >&2; return 2; }
   [ -x "$src/Allrun" ] || { echo "pgf copy: $(pgf_tilde "$src") has no Allrun; see pgf copy --list" >&2; return 2; }
+  out="$(pgf_copy_outside "$src")"
+  if [ -n "$out" ]; then
+    st FAIL "$rel can't run from a copy: its scripts reach outside the case by a bare ../" >&2
+    st_more "${out#"$src"/}" >&2
+    st_more "call such helpers as \"\${PGF_ROOT:-../..}/tutorials/cases/…\" instead (#290)" >&2
+    return 2
+  fi
 
   root="${PGF_CASE_ROOT:-}"
   [ -n "$root" ] || root="$("$SELF" shell --bare --no-yade -- printenv PGF_CASE_ROOT 2>/dev/null)"

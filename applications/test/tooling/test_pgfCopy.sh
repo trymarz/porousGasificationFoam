@@ -125,5 +125,16 @@ check "status lists the copies per branch" \
 check "  and the detached copy under its commit" grep -qx "  $(g "$two" rev-parse --short HEAD)" "$TEST_TMP/status"
 check "  and where they go (cases, \$WM_PROJECT_USER_DIR/run by default)" grep -qE '^cases +~/u/run \[default: \$WM_PROJECT_USER_DIR/run\]' "$TEST_TMP/status"
 
+# A case whose Allrun calls a bare ../ script can't run from a copy (#290).
+odd="$TEST_TMP/outside/needsParent"
+mkdir -p "$odd/system" && printf '#!/bin/sh\ncd "${0%%/*}" || exit\n# ../comment is fine\n../helper 1\n' >"$odd/Allrun"
+chmod +x "$odd/Allrun"
+p "$one" copy "$odd" >"$TEST_TMP/out" 2>"$TEST_TMP/err"
+rc=$?
+check "copy refuses a case whose Allrun calls a bare ../ script (rc=$rc)" [ "$rc" -eq 2 ]
+check "  naming the line and the PGF_ROOT fix" \
+    bash -c 'grep -q "can.t run from a copy" "$1" && grep -q "Allrun:4:../helper 1" "$1" && grep -q PGF_ROOT "$1"' _ "$TEST_TMP/err"
+check "  and copies nothing" [ ! -e "$home/u/run/feature-x/needsParent" ]
+
 [ "$TEST_FAILURES" -eq 0 ] || { echo "--- last stderr"; cat "$TEST_TMP/err"; }
 finish

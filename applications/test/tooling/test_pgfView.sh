@@ -49,5 +49,71 @@ printf '#!/bin/sh\necho "palette=$PGFVIEW_PALETTE"\n' >"$bin/paraview"
 check "--palette NAME reaches the script" \
     bash -c '[ "$(PATH="$1:$PATH" "$2" view "$3" --palette BlackBackground)" = palette=BlackBackground ]' _ "$bin" "$PGF" "$TEST_TMP/case"
 
+# GUI tabs (#290): one per view, named after it, replacing the startup tab and
+# its empty RenderView1. A recording stub stands in for paraview.simple.
+cat >"$stub/paraview/simple.py" <<'EOF2'
+calls, layouts = [], {}
+class View:
+    def __init__(s, n): s.n = n
+    def __repr__(s): return s.n
+class Layout:
+    def __init__(s, n): s.n, s.cells = n, {}; layouts[n] = s
+    def SplitHorizontal(s, c, f): pass
+    def AssignView(s, c, v): s.cells[c] = v
+rv = View("RenderView1"); startup = Layout("Layout #1"); startup.AssignView(0, rv)
+active = [rv]
+def GetActiveView(): return active[0]
+def SetActiveView(v): active[0] = v
+def GetLayout(v=None): return next((l for l in layouts.values() if (v or active[0]) in l.cells.values()), None)
+def GetViewsInLayout(l): return list(l.cells.values())
+def CreateLayout(n): return Layout(n)
+def RemoveLayout(l): calls.append(("RemoveLayout", l.n)); del layouts[l.n]
+def Delete(p): calls.append(("Delete", p.n))
+def LoadPalette(n): pass
+EOF2
+check "showGui: a tab per view named after it, the startup tab and RenderView1 gone" \
+    env PYTHONPATH="$stub:$PGF_ROOT/applications/utilities/paraview" python3 -c '
+import pgfViews as P
+from paraview import simple as S
+P.build = lambda case, time, palette: ([("Ychar", S.View("Ychar")), ("T", S.View("T"))], 0.5)
+P.showGui(type("C", (), {"label": "demo"})())
+assert {n: [repr(v) for v in l.cells.values()] for n, l in S.layouts.items()} == \
+    {"Ychar": ["Ychar"], "T": ["T"]}, S.layouts
+assert ("RemoveLayout", "Layout #1") in S.calls and ("Delete", "RenderView1") in S.calls, S.calls
+assert repr(S.GetActiveView()) == "Ychar"
+'
+
+check "--time: a written time is kept, another one warns and names the time shown" \
+    env PYTHONPATH="$stub:$PGF_ROOT/applications/utilities/paraview" python3 -c '
+import pgfViews as P
+ts = [0.0, 0.01, 0.02]
+assert P.writtenTime(ts, None) == (0.02, None)
+assert P.writtenTime(ts, 0.01) == (0.01, None)
+t, w = P.writtenTime(ts, 0.001)
+assert t == 0.0 and "no results written at t = 0.001; rendering t = 0" in w and "0 and 0.01" in w, w
+t, w = P.writtenTime(ts, 5)
+assert t == 0.02 and w, w
+'
+
+# A - B without a Python-expression proxy (#290): its GUI editor segfaults
+# ParaView 5.13. Real ParaView, no view (no display here).
+if command -v pvpython >/dev/null; then
+    cat >"$TEST_TMP/diff.py" <<EOF2
+import sys
+sys.path.insert(0, "$PGF_ROOT/applications/utilities/paraview")
+import paraview.simple as pv, pgfViews
+srcs = [pv.PointDatatoCellData(Input=pv.Wavelet(Maximum=m)) for m in (300.0, 255.0)]
+d = pgfViews.diffSource(srcs[0], srcs[1], "RTData", "RTData A-B", 0.0)
+lo, hi = d.CellData["RTData A-B"].GetRange()
+assert d.GetXMLName() == "Calculator", d.GetXMLName()
+assert 0 < lo <= hi <= 45 + 1e-6, (lo, hi)
+print("diff ok")
+EOF2
+    check "A - B is a Calculator on AppendAttributes, with the right values" \
+        bash -c 'UCX_VFS_ENABLE=n timeout 120 pvpython "$1" 2>&1 | tail -3 | grep -qx "diff ok"' _ "$TEST_TMP/diff.py"
+else
+    echo "  SKIP pvpython not found: A - B proxy not checked"
+fi
+
 [ "$TEST_FAILURES" -eq 0 ] || echo "$out"
 finish

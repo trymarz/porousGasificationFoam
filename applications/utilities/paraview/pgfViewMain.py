@@ -2,8 +2,8 @@
 pgfViewMain -- the script pgfView hands to paraview / pvbatch.
 
 The GUI's --script takes no arguments, so pgfView passes them in the
-environment: PGFVIEW_CASE, PGFVIEW_COMPARE for --compare, and for --png
-also PGFVIEW_PNG, PGFVIEW_TIME, PGFVIEW_SIZE; PGFVIEW_PALETTE for --palette. PGFVIEW_DIR is this directory,
+environment: PGFVIEW_CASE, PGFVIEW_COMPARE for --compare, PGFVIEW_TIME for
+--time, PGFVIEW_PNG and PGFVIEW_SIZE for --png; PGFVIEW_PALETTE for --palette. PGFVIEW_DIR is this directory,
 for the GUI, which runs the script as <string> without __file__.
 """
 
@@ -35,6 +35,6 @@ if png:
     else:
         pgfViews.writePngs(case, png, t, (w, h), palette)
 elif other:
-    pgfViews.showCompareGui(case, other, palette)
+    pgfViews.showCompareGui(case, other, palette, t)
 else:
-    pgfViews.showGui(case, palette)
+    pgfViews.showGui(case, palette, t)

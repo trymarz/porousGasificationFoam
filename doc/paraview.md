@@ -6,21 +6,25 @@
 
 ```bash
 pgf copy solidAdvection && pgf run ~/OpenFOAM/$USER-v2406/run/main/solidAdvection   # a copy with results
-pgf view ~/OpenFOAM/$USER-v2406/run/main/solidAdvection   # GUI, one layout tab per view
-pgf view <case> --png out/                                # headless: out/<view>.png
-pgf view <case> --png out/ --time 0.001 --size 1600x1200
-pgf view <case> --palette BlackBackground                 # any ParaView palette
+case=~/OpenFOAM/$USER-v2406/run/main/solidAdvection
+pgf view $case                                      # GUI, one layout tab per view
+pgf view $case --png $case/png                      # headless: $case/png/<view>.png
+pgf view $case --png $case/png --time 0.5 --size 1600x1200
+pgf view $case --palette BlackBackground            # any ParaView palette
 ```
 
-`<case>` is a finished copy of a tutorial (`pgf copy`, then `pgf run`; the path above is for a checkout on `main`) or a `--keep-runs` copy from the regression runner. The GUI keeps your own ParaView palette (Edit → Settings → Color Palette); `--png` renders on `WhiteBackground` unless `--palette` names another. ParaView comes from your `PATH`, not from pgf's clean environment. Decomposed cases are read as decomposed when `processor0` has more time directories than the case root. A `<case>.foam` file is created on first use (`*.foam` is gitignored).
+`<case>` is a finished copy of a tutorial (`pgf copy`, then `pgf run`; the path above is for a checkout on `main`, `pgf copy` prints it for yours) or a `--keep-runs` copy from the regression runner. Give `--png` a path such as `$case/png`: a relative `out/` lands wherever you run the command, the checkout included. The GUI keeps your own ParaView palette (Edit → Settings → Color Palette); `--png` renders on `WhiteBackground` unless `--palette` names another. ParaView comes from your `PATH`, not from pgf's clean environment. Decomposed cases are read as decomposed when `processor0` has more time directories than the case root. A `<case>.foam` file is created in the case on first use.
 
-`--png` renders the last mesh time unless `--time` is given; each view becomes one PNG named after it. It also works inside `pgf shell`.
+Both the GUI and `--png` show the last written time unless `--time T` is given. When T is not a written time, the time at or before it is shown (the first one if T is earlier) with a `WARN` naming the nearest written times; the closing `OK` line names the time shown. Each view becomes one PNG named after it. It also works inside `pgf shell`.
 
 ## Compare two cases
 
 ```bash
-pgf view <runDir>/pyrolysis --compare tutorials/cases/canonical/pyrolysis/reference --png out/
-pgf view <runDir>/pyrolysis --compare <runDir>/pyrolysisE     # GUI, panes side by side
+pgf copy canonical/pyrolysis && pgf run ~/OpenFOAM/$USER-v2406/run/main/canonical/pyrolysis
+pgf copy canonical/pyrolysisE && pgf run ~/OpenFOAM/$USER-v2406/run/main/canonical/pyrolysisE
+a=~/OpenFOAM/$USER-v2406/run/main/canonical/pyrolysis
+pgf view $a --compare $a/reference --png $a/cmp             # run against its reference/
+pgf view $a --compare ~/OpenFOAM/$USER-v2406/run/main/canonical/pyrolysisE   # GUI, panes side by side
 ```
 
 `--compare <other>` shows the first case's views for both cases. `<other>` is a second case or run copy, or a `postProcessing`-only directory such as `<case>/reference`.
@@ -29,7 +33,7 @@ pgf view <runDir>/pyrolysis --compare <runDir>/pyrolysisE     # GUI, panes side 
 - Mesh and DEM views, when `<other>` has a mesh: panes `A | B` with linked cameras and one shared colour range. `meshFields` adds a third pane `A - B` when both meshes have the same number of cells: the cell-by-cell difference on a colour map symmetric about 0 (the magnitude of the difference for vectors).
 - Against a `reference/` there are no fields, so only the charts are shown.
 
-The time is the last one both cases have, unless `--time` is given. With `--png` each view is one PNG with its panes side by side, each `--size` large; the GUI opens one layout tab per view.
+The time is the last one both cases have, unless `--time` is given (as above, a T neither case wrote warns). With `--png` each view is one PNG with its panes side by side, each `--size` large; the GUI opens one layout tab per view.
 
 ## Requirements
 
@@ -70,7 +74,7 @@ views = [
 
 A case without the file gets `meshFields`, `solidRegime` and `overTime`. Do not list species or field names that come from the case: `meshFields` reads `solidComponents`, so renaming or removing a specie needs no edit to the view file.
 
-A family of cases shares one file the same way it shares its dicts: the MicroTGA-DEM lambdaDot fixtures symlink `system/paraviewViews.py` from `MicroTGA-DEM_lambdaDot_common`, and `charOnlyMoveCases`, `canonical`, `canonical/conservation` and `prescribedUsCases` keep one `paraviewViews.py` in the family directory that each case links as `system/paraviewViews.py` (the regression runner's run copy links the family directory's files too). Copy such a case with `cp -rL`, which copies the linked files instead of links that dangle outside the family.
+A family of cases shares one file the same way it shares its dicts: the MicroTGA-DEM lambdaDot fixtures symlink `system/paraviewViews.py` from `MicroTGA-DEM_lambdaDot_common`, and `charOnlyMoveCases`, `canonical`, `canonical/conservation` and `prescribedUsCases` keep one `paraviewViews.py` in the family directory that each case links as `system/paraviewViews.py` (the regression runner's run copy links the family directory's files too). Copy such a case with `pgf copy`, which copies the linked files instead of links that dangle outside the family. Helper scripts a family shares (`canonical/solveForE`, `canonical/solidRates/solidRates.py`, `solidBoundaryPolicy/copyBase`) are called through `${PGF_ROOT:-../..}`, so a copy finds them in the checkout; `pgf copy` refuses a case whose `Allrun` or `Allclean` still reaches a bare `../`.
 
 To add a new kind of view, write a function `(case, opts) -> [(title, view), ...]` in `pgfViews.py` and add it to `VIEWS`. `--compare` calls it once per case, so it works there too; pass `opts` on to `_color` so the second case grows the first one's colour range.
 

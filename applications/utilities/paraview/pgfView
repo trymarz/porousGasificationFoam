@@ -5,15 +5,16 @@
 # system/paraviewViews.py (see doc/paraview.md).
 #
 # Usage:
-#   pgfView <case>                       open the ParaView GUI
+#   pgfView <case> [--time T]            open the ParaView GUI
 #   pgfView <case> --png <dir>           write <dir>/<view>.png (pvbatch)
 #           [--time T] [--size WxH] [--xvfb]
 #   pgfView <case> --compare <other> ...  <case> | <other> | difference
 #   pgfView <case> --palette NAME ...     a ParaView palette, e.g. BlackBackground
 #
 # <case> is a tutorial case or a finished run copy of one; <other> is another
-# one, or a postProcessing-only <case>/reference (charts only). --png renders
-# the last (common) mesh time unless --time is given. --xvfb renders under
+# one, or a postProcessing-only <case>/reference (charts only). Both modes show
+# the last (common) written time, or the written time at or before --time T,
+# with a warning when T itself was not written. --xvfb renders under
 # xvfb-run; it is also used automatically when DISPLAY is unset. The GUI keeps
 # your ParaView palette and --png uses WhiteBackground, unless --palette is given.
 
