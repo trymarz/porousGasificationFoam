@@ -231,22 +231,20 @@ if [ "$STATE_ACTIVE" = true ]; then
         --bool "short=$SHORT_RUN"
 fi
 
-clog INFO "=================================================="
-clog INFO "  PGF Yade regression suite"
-[ -n "$ONLY_CASE" ]        && clog INFO "  filter: $ONLY_CASE"
-[ "$SHORT_RUN" -eq 1 ]     && clog INFO "  mode: --short ($SHORT_STEPS solver steps, no baseline comparison)"
+st_head "PGF Yade regression suite"
+[ -n "$ONLY_CASE" ]        && clog INFO "filter: $ONLY_CASE"
+[ "$SHORT_RUN" -eq 1 ]     && clog INFO "mode: --short ($SHORT_STEPS solver steps, no baseline comparison)"
 if [ "$IN_PLACE" = true ]; then
-    clog INFO "  runs:   in place, in the source tree"
+    clog INFO "runs:   in place, in the source tree"
 else
-    clog INFO "  runs:   $RUN_ROOT"
+    clog INFO "runs:   $RUN_ROOT"
 fi
-[ "$STATE_ACTIVE" = true ] && clog INFO "  state:   $SCHED_DIR"
+[ "$STATE_ACTIVE" = true ] && clog INFO "state:   $SCHED_DIR"
 if [ "$JOBS" -gt 1 ]; then
-    clog INFO "  jobs:   $JOBS cases at a time"
-    clog WARNING "  concurrent DEM execution is unverified — each case spawns its"
-    clog WARNING "  own mpirun/Yade tree, so oversubscription is on you"
+    clog INFO "jobs:   $JOBS cases at a time"
+    clog WARNING "concurrent DEM execution is unverified — each case spawns its"
+    clog WARNING "own mpirun/Yade tree, so oversubscription is on you"
 fi
-clog INFO "=================================================="
 
 for id in "${SEL_IDS[@]}"; do
     reg_event case_queued --field "case_id=$id"
@@ -260,7 +258,7 @@ done
 precheck() {
     local dir="$REPO_ROOT/$1"
     if [ ! -d "$dir" ]; then
-        clog ERROR "  directory missing: $dir"
+        clog ERROR "directory missing: $dir"
         echo " (missing dir)"
         return 2
     fi
@@ -313,17 +311,13 @@ RES_RCS=()
 
 record_case() {
     RES_RCS[$1]="$2"
-    reg_record "$(basename "${SEL_IDS[$1]}")${4:-}" "$2" "$3"
+    reg_record "${SEL_IDS[$1]}${4:-}" "$2" "$3"
 }
 
 record_outcome() {
     local idx="$1" rc="$2" secs="$3"
     record_case "$idx" "$rc" "${secs}s"
-    if [ "$rc" -eq 0 ]; then
-        clog SUCCESS "  $(reg_classify "$rc")  (${secs}s)"
-    else
-        clog ERROR "  $(reg_classify "$rc")  (${secs}s)"
-    fi
+    reg_row "$rc" "$((idx + 1))" "${#SEL_IDS[@]}" "${secs}s" "${SEL_IDS[$idx]}"
 }
 
 record_precheck_failure() {
@@ -339,8 +333,7 @@ run_sequential() {
     for idx in "${!SEL_IDS[@]}"; do
         id="${SEL_IDS[$idx]}"
 
-        clog INFO "--------------------------------------------------"
-        clog INFO "  case: $(basename "$id")"
+        clog INFO "[$((idx + 1))/${#SEL_IDS[@]}] case: $id"
 
         if ! suffix="$(precheck "$id")"; then
             record_precheck_failure "$idx" "$suffix"
@@ -370,8 +363,7 @@ run_concurrent() {
 
     [ "${#runnable[@]}" -eq 0 ] && return 0
 
-    clog INFO "  running ${#runnable[@]} case(s), $JOBS at a time"
-    clog INFO "--------------------------------------------------"
+    clog INFO "running ${#runnable[@]} case(s), $JOBS at a time"
 
     reg_run_pool "$JOBS" "$CASES_ROOT" SEL_IDS runnable run_one
 
@@ -386,8 +378,8 @@ run_concurrent() {
 
     for idx in "${runnable[@]}"; do
         [ "${RES_RCS[$idx]}" -eq 0 ] && continue
-        clog ERROR "--------------------------------------------------"
-        clog ERROR "  ${SEL_IDS[$idx]} — captured output"
+        echo
+        st_head "${SEL_IDS[$idx]}: captured output"
         replay_case_output "${SEL_IDS[$idx]}"
     done
 }

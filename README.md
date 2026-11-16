@@ -48,12 +48,15 @@ Target: **OpenFOAM-v2406** · License: **GPL v3** · Earlier versions for [OpenF
 You need OpenFOAM-v2406 (installed and sourceable), a C++ compiler and `wmake` (both come with OpenFOAM).
 
 ```bash
-./pgf setup --yes                           # 1. find OpenFOAM, remember it, put pgf on PATH (+ Tab completion)
+./pgf setup --yes                           # 1. find OpenFOAM (and yade), save where they are, put pgf on PATH
+                                            #    (+ Tab completion); --yes takes what it finds without asking
 ./Allwmake                                  # 2. build libraries, solver, utilities (pgf build)
 cp -rL tutorials/cases/charOnlyMoveCases/serial ~/pgf-serial   # 3. copy a small case out of the checkout
 pgf run ~/pgf-serial                        # 4. copies 0.orig to 0, runs blockMesh and setFields,
                                             #    then the solver (output stays in ~/pgf-serial)
 ```
+
+pgf runs every build and case in a clean environment, so step 1 saves where OpenFOAM lives in `~/.config/pgf/env.conf`; `pgf config` shows the saved values, `pgf setup --help` explains its options, and `pgf help` lists every command.
 
 Run cases from a copy, not inside `tutorials/`: results written there are left in the checkout and picked up by later copies. `-L` copies the files a case shares with its family (symlinks such as `system/paraviewViews.py`); shared material data is found through `$PGF_ROOT`, which pgf sets. If the copy brings output from an earlier run along (`log.*`, `processor*/`, time directories), clean it first with `pgf run ~/pgf-serial Allclean`: `runApplication` skips every step whose `log.*` exists. `pgf run` warns about both.
 
@@ -82,7 +85,7 @@ tutorials/cases/           tutorial cases
 utilities/                 auxiliary tools (setPorosity, totalMass, …)
 applications/test/         regression framework
 utilities/pgf/             pgf's parts: build driver, test tiers, settings, registry
-pgf                        the front door: settings, builds, runs, tests (pgf --help)
+pgf                        the front door: settings, builds, runs, tests (pgf help)
 Allwmake / Allwclean       build / clean everything (non-DEM by default), via pgf build
 doc/                       documentation and Doxygen source
 ```

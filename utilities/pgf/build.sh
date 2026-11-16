@@ -424,8 +424,29 @@ built = set(json.load(open(sys.argv[1])).get("targets", []))
 sys.exit(0 if set(sys.argv[2:]) <= built else 1)' "$PREFIX/.pgf-build.json" "${wanted[@]}" 2>/dev/null
 }
 
+# report_cache_hit — what is reused (key, variant, parts), when and where it was
+#   built, and why: the key hashes the sources, OpenFOAM version and compiler.
 report_cache_hit() {
-  clog SUCCESS "Cache hit: $PREFIX is complete for key $BUILD_KEY; nothing compiled."
+  local what built
+  { read -r what; read -r built; } < <(python3 - "$PREFIX/.pgf-build.json" "$HOME" 2>/dev/null <<'EOF'
+import json, sys
+m = json.load(open(sys.argv[1]))
+parts = {"porousGasificationFoam": "solver", "utilities": "utilities"}
+names = []
+for t in m.get("targets", []):
+    n = parts.get(t, "libraries")
+    if n not in names:
+        names.append(n)
+src = (m.get("checkout") or {}).get("path") or m.get("source_tree") or "?"
+if src.startswith(sys.argv[2] + "/"):
+    src = "~" + src[len(sys.argv[2]):]
+when = (m.get("built_utc") or "?").replace("T", " ").replace("Z", " UTC")
+print("%s: %s" % (m.get("variant", "?"), ", ".join(names) or "?"))
+print("built %s from %s" % (when, src))
+EOF
+  )
+  st OK "reused build ${BUILD_KEY%%-*} (${what:-?}): same sources, OpenFOAM and compiler, nothing to compile"
+  st_more "${built:-built ?}; prefix $PREFIX"
   register_workspace
 }
 

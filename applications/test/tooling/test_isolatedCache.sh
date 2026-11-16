@@ -12,7 +12,7 @@ tree_sums "$old" >"$TEST_TMP/old.before"
 isolated_build >"$TEST_TMP/second.log" 2>&1
 rc=$?
 check "second build exits 0 (rc=$rc)" [ "$rc" -eq 0 ]
-check "second build reports a cache hit" grep -q "Cache hit" "$TEST_TMP/second.log"
+check "second build reports a cache hit" grep -q "reused build" "$TEST_TMP/second.log"
 check "second build runs no wmake target" bash -c '! grep -q "Building " "$1"' _ "$TEST_TMP/second.log"
 
 probe="$PGF_ROOT/utilities/setPorosity/pgfToolingProbe.C"

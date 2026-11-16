@@ -21,7 +21,7 @@
 
 ## Entry points
 
-`pgf` is the front door: `pgf --help` lists its commands and `pgf tools` explains every tool at the checkout root (what it does, why it exists, what to use instead). `./Allwmake` and `./Allwclean` keep the OpenFOAM convention and call `pgf build`. `wmake` runs in place in your checkout, which may live anywhere; every tool behaves the same from any working directory.
+`pgf` is the front door: `pgf help` lists its commands, `pgf help <command>` (or `pgf <command> --help`) explains one, and `pgf tools` explains every tool at the checkout root (what it does, why it exists, what to use instead). `./Allwmake` and `./Allwclean` keep the OpenFOAM convention and call `pgf build`. `wmake` runs in place in your checkout, which may live anywhere; every tool behaves the same from any working directory. Status lines read `OK`, `WARN`, `FAIL`, `SKIP`, `INFO` (`PASS`/`FAIL` for tests) and each command ends with a `next:` block. Colour is on only for a terminal: `--color=auto|always|never` (or `PGF_COLOR`) and `NO_COLOR` control it, and log files never get colour codes.
 
 ## First-time setup
 
@@ -148,7 +148,7 @@ Tests for this tooling live in `applications/test/tooling/test_*.sh`; each runs 
 
 ### Bash completion
 
-`pgf completion bash` prints the script. It is generated from the command table in `utilities/pgf/cli.sh`, the same table `pgf --help` prints, so the two cannot drift. It completes every subcommand and its options. It also completes these values, asking `pgf __complete` at Tab time:
+`pgf completion bash` prints the script. It is generated from the command table in `utilities/pgf/cli.sh`, the same table `pgf help` prints, so the two cannot drift. It completes every subcommand and its options. It also completes these values, asking `pgf __complete` at Tab time:
 
 - build keys, `auto` and worktree names after `use`, `pack` and `--use`;
 - `get`/`set`/`unset`, then keys after `config` (and `KEY=` then values for `config set` and `--set`);

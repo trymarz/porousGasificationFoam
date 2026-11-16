@@ -285,20 +285,18 @@ if [ "$STATE_ACTIVE" = true ]; then
 fi
 
 # Print run header.
-clog INFO "=================================================="
-clog INFO "  PGF regression suite"
-clog INFO "  tag:     $TAG"
-clog INFO "  rtol:    $RTOL   atol: $ATOL"
-[ "$SKIP_RUN" = true ]  && clog INFO "  mode:    compare only (--no-run)"
-[ -n "$ONLY_CASE" ]     && clog INFO "  filter:  $ONLY_CASE"
-[ "$JOBS" -gt 1 ]       && clog INFO "  jobs:    $JOBS cases at a time"
-[ "$STATE_ACTIVE" = true ] && clog INFO "  state:   $SCHED_DIR"
+st_head "PGF regression suite"
+clog INFO "tag:     $TAG"
+clog INFO "rtol:    $RTOL   atol: $ATOL"
+[ "$SKIP_RUN" = true ]  && clog INFO "mode:    compare only (--no-run)"
+[ -n "$ONLY_CASE" ]     && clog INFO "filter:  $ONLY_CASE"
+[ "$JOBS" -gt 1 ]       && clog INFO "jobs:    $JOBS cases at a time"
+[ "$STATE_ACTIVE" = true ] && clog INFO "state:   $SCHED_DIR"
 if [ "$IN_PLACE" = true ]; then
-    clog INFO "  runs:    in place, in the source tree"
+    clog INFO "runs:    in place, in the source tree"
 else
-    clog INFO "  runs:    $RUN_ROOT"
+    clog INFO "runs:    $RUN_ROOT"
 fi
-clog INFO "=================================================="
 
 for i in "${!SEL_IDS[@]}"; do
     reg_event case_queued --field "case_id=${SEL_IDS[$i]}" --field "tag=${SEL_TAGS[$i]}"
@@ -315,7 +313,7 @@ done
 precheck() {
     local id="$1" dir="$REPO_ROOT/$1" expect="${2:-}"
     if [ ! -d "$dir" ]; then
-        clog ERROR "  directory missing: $dir"
+        clog ERROR "directory missing: $dir"
         echo " (missing dir)"
         return 2
     fi
@@ -324,7 +322,7 @@ precheck() {
     # baseline locally; see README § Regression Testing.) An expectation case
     # is judged on its log instead.
     if [ -z "$expect" ] && [ ! -d "$dir/reference/postProcessing" ]; then
-        clog ERROR "  no reference baseline: $dir/reference/postProcessing"
+        clog ERROR "no reference baseline: $dir/reference/postProcessing"
         echo " (no baseline)"
         return 2
     fi
@@ -392,18 +390,14 @@ RES_RCS=()
 # record_case <index> <rc> <time-string> [name-suffix] — accumulate one outcome.
 record_case() {
     RES_RCS[$1]="$2"
-    reg_record "$(basename "${SEL_IDS[$1]}")${4:-}" "$2" "$3"
+    reg_record "${SEL_IDS[$1]}${4:-}" "$2" "$3"
 }
 
-# record_outcome <index> <rc> <seconds> — accumulate and print the verdict line.
+# record_outcome <index> <rc> <seconds> — accumulate and print the [n/N] row.
 record_outcome() {
     local idx="$1" rc="$2" secs="$3"
     record_case "$idx" "$rc" "${secs}s"
-    if [ "$rc" -eq 0 ]; then
-        clog SUCCESS "  $(reg_classify "$rc")  (${secs}s)"
-    else
-        clog ERROR "  $(reg_classify "$rc")  (${secs}s)"
-    fi
+    reg_row "$rc" "$((idx + 1))" "${#SEL_IDS[@]}" "${secs}s" "${SEL_IDS[$idx]}"
 }
 
 # record_precheck_failure <index> <name-suffix> — a case the driver refused to
@@ -423,8 +417,7 @@ run_sequential() {
     for idx in "${!SEL_IDS[@]}"; do
         id="${SEL_IDS[$idx]}"
 
-        clog INFO "--------------------------------------------------"
-        clog INFO "  case: $(basename "$id")  [tag: ${SEL_TAGS[$idx]}]"
+        clog INFO "[$((idx + 1))/${#SEL_IDS[@]}] case: $id  [tag: ${SEL_TAGS[$idx]}]"
 
         if ! suffix="$(precheck "$id" "${SEL_EXPECT[$idx]}")"; then
             record_precheck_failure "$idx" "$suffix"
@@ -463,8 +456,7 @@ run_concurrent() {
 
     [ "${#runnable[@]}" -eq 0 ] && return 0
 
-    clog INFO "  running ${#runnable[@]} case(s), $JOBS at a time"
-    clog INFO "--------------------------------------------------"
+    clog INFO "running ${#runnable[@]} case(s), $JOBS at a time"
 
     reg_run_pool "$JOBS" "$CASES_ROOT" SEL_IDS runnable run_one
 
@@ -484,8 +476,8 @@ run_concurrent() {
     # unreadable and non-deterministic.
     for idx in "${runnable[@]}"; do
         [ "${RES_RCS[$idx]}" -eq 0 ] && continue
-        clog ERROR "--------------------------------------------------"
-        clog ERROR "  ${SEL_IDS[$idx]} — captured output"
+        echo
+        st_head "${SEL_IDS[$idx]}: captured output"
         replay_case_output "${SEL_IDS[$idx]}"
     done
 }
