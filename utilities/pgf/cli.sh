@@ -25,9 +25,10 @@ PGF_ENV_OPTS="--use --prefix --for-tree --bare --yade --no-yade --mpi --set --fo
 # Options that take a value, and what the value is.
 declare -gA PGF_OPT_VALUE=([--use]=build [--prefix]=dir [--mpi]=mpi [--set]=setting
   [--foam-bashrc]=file [--yade-bin]=file [--yade-trunk]=dir [--output]=file [--run-root]=dir
-  [--keep]=none [--keep-runs]=none [--keep-prefixes]=none [--if-stale]=none [-c]=none)
+  [--keep]=none [--keep-runs]=none [--keep-prefixes]=none [--if-stale]=none [-c]=none
+  [--png]=dir [--time]=none [--size]=none [--compare]=dir [--palette]=none)
 
-# The environment options of exec, shell, run, status and doctor.
+# The environment options of shell, run, status and doctor.
 PGF_ENV_ROWS="--use SEL	the build: key or key prefix, commit, worktree, prefix path or auto	auto
 --prefix DIR	use this complete prefix as it is; no staleness check
 --for-tree	same as --use auto
@@ -41,37 +42,26 @@ PGF_ENV_ROWS="--use SEL	the build: key or key prefix, commit, worktree, prefix p
 --yade-trunk DIR	same as --set YADE_TRUNK=DIR
 "
 
-pgf_cmd status "settings, where each came from, and this checkout's builds" "pgf status [PATH] [--json] [options]" "--json @env" dir
-pgf_cmd_desc status "Prints every setting with the layer it came from, then this checkout's two
-builds (yade0 plain, yade1 DEM) and whether each is built. With PATH, asks
-that checkout instead. pgf with no command runs status."
-pgf_cmd_opt status --json "settings, layers and builds as JSON"
-pgf_cmd_opt status @env
-pgf_cmd_ex status "pgf status"
-pgf_cmd_ex status "pgf status ~/Code/pgf-feature" "another checkout's settings and builds"
-
-pgf_cmd where "where pgf keeps settings, builds, records and runs" "pgf where" "" none
-pgf_cmd_desc where "One line each: the settings files, the build store, the run records, the run
-dir, and the build pgf would use now with the layer that chose it."
-pgf_cmd_ex where "pgf where"
-
-pgf_cmd doctor "status plus checks, each with a fix" "pgf doctor [options]" "@env" none
-pgf_cmd_desc doctor "Prints status, then read-only checks: the OpenFOAM version, a build for this
-checkout, yade and the Foam-Yade pin, MPI, and pgf on PATH. Each check is one
-OK, WARN or FAIL line with a fix. Exits 1 when a check fails."
-pgf_cmd_opt doctor @env
-pgf_cmd_ex doctor "pgf doctor"
-pgf_cmd_ex doctor "pgf doctor --yade" "also check yade and the coupling"
+# The pgf help groups: everyday commands, then "more"; the rest (tools,
+# completion) work but stay out of the list. Old names map to their command.
+PGF_HELP_MAIN=(setup build copy run view test status doctor)
+PGF_HELP_MORE=(config builds use gc shell pack help)
+declare -gA PGF_CMD_ALIAS=([where]=status [ls]=builds [exec]=shell)
 
 pgf_cmd setup "find OpenFOAM and yade, save them, put pgf on PATH" \
-  "pgf setup [--yes] [--user | --checkout] [--no-link | --link-only] [--force] [--no-completion]" \
+  "pgf setup [--yes] [--user | --checkout] [--no-link | --link-only] [--force] [--no-completion]
+            [--foam-bashrc FILE] [--yade-bin FILE] [--yade-trunk DIR] [--set KEY=VALUE]" \
   "--user --checkout --yes --no-link --link-only --force --no-completion --set --foam-bashrc --yade-bin --yade-trunk" none
 pgf_cmd_desc setup "pgf runs every build and case in a clean environment, so it has to know where
 OpenFOAM (and, for DEM cases, yade) lives. setup finds them, saves them in a
-settings file, links ~/.local/bin/pgf to this checkout and installs bash
-completion. On a terminal it asks when there is a choice; --yes takes the
-detected choices without asking. Rerun it any time: it keeps the values you set
-and says what changed. Change a value later with pgf config set KEY=VALUE."
+settings file that every pgf call reads, links ~/.local/bin/pgf to this
+checkout and installs bash completion. It prints one line per step as it goes,
+then what it saved where, then what to do next.
+
+On a terminal it asks when there is a choice; --yes takes the detected choices
+without asking. Rerun it any time: it keeps the values you set and says what
+changed. Change a value later with pgf config set KEY=VALUE; what each setting
+means and how the layers combine: pgf help config."
 pgf_cmd_opt setup "-y, --yes" "do not ask: take what was detected, install completion"
 pgf_cmd_opt setup --user "save to ~/.config/pgf/env.conf, for every checkout" "yes"
 pgf_cmd_opt setup --checkout "save to <checkout>/.pgf.conf, for this checkout only"
@@ -87,20 +77,6 @@ pgf_cmd_ex setup "./pgf setup" "ask, then save and link"
 pgf_cmd_ex setup "./pgf setup --yes" "take the detected choices"
 pgf_cmd_ex setup "./pgf setup --foam-bashrc ~/OpenFOAM/OpenFOAM-v2406/etc/bashrc"
 pgf_cmd_ex setup "./pgf setup --link-only --force" "make pgf on PATH this checkout's"
-
-pgf_cmd config "show every setting with its layer, or change one" \
-  "pgf config [get KEY | set KEY=VALUE | unset KEY] [--user | --checkout] [--json]" "--user --checkout --json" config
-pgf_cmd_desc config "Each setting comes from, later winning: the default, ~/.config/pgf/env.conf
-(user layer), <checkout>/.pgf.conf (checkout layer), the environment, the
-command line. Without a verb, config prints every setting and its layer; set
-and unset edit the user file, or the checkout file with --checkout."
-pgf_cmd_opt config --user "edit ~/.config/pgf/env.conf" "yes"
-pgf_cmd_opt config --checkout "edit <checkout>/.pgf.conf"
-pgf_cmd_opt config --json "print the settings and layers as JSON"
-pgf_cmd_ex config "pgf config"
-pgf_cmd_ex config "pgf config set PGF_FOAM_BASHRC=~/OpenFOAM/OpenFOAM-v2406/etc/bashrc"
-pgf_cmd_ex config "pgf config set PGF_MPI=loopback --checkout" "this checkout only"
-pgf_cmd_ex config "pgf config get YADE_BIN"
 
 pgf_cmd build "build this checkout (libraries, solver, utilities)" "pgf build [--yade] [-v] [build.sh options]" \
   "--yade --set --foam-bashrc" build-options
@@ -118,15 +94,114 @@ pgf_cmd_ex build "pgf build"
 pgf_cmd_ex build "pgf build --yade" "the DEM variant"
 pgf_cmd_ex build "utilities/pgf/build.sh --help" "every build.sh option"
 
-pgf_cmd builds "every build: key, variant, age, size, checkout, in use" "pgf builds [--json]" "--json" none
-pgf_cmd_desc builds "Lists every build in the build store; * marks this checkout's."
+pgf_cmd copy "copy a tutorial case out of the checkout, ready to run" "pgf copy <tutorial> [NAME] [--force] | pgf copy --list" \
+  "--list --force" tutorial
+pgf_cmd_desc copy "Copies tutorials/cases/<tutorial>, the whole case with linked files resolved
+(cp -rL), to \$PGF_CASE_ROOT/<branch>/<tutorial>, or <branch>/NAME. <branch> is
+this checkout's branch with / as -, or its short commit when detached.
+PGF_CASE_ROOT defaults to OpenFOAM's run dir, \$WM_PROJECT_USER_DIR/run
+(~/OpenFOAM/<user>-v2406/run), not pgf's scratch \$FOAM_RUN.
+
+The copy records the checkout and commit it came from: pgf run then uses that
+checkout's build, and warns when the branch has moved on since. An existing
+copy is kept unless --force. pgf status lists your copies per branch."
+pgf_cmd_opt copy --list "list the tutorials, one line each"
+pgf_cmd_opt copy --force "replace an existing copy"
+pgf_cmd_ex copy "pgf copy --list"
+pgf_cmd_ex copy "pgf copy charOnlyMoveCases/serial" "prints the copy's path and the pgf run line"
+pgf_cmd_ex copy "pgf copy canonical/pyrolysis pyrolysis-2" "a second copy under another name"
+
+pgf_cmd run "run a case script and record the run" \
+  "pgf run [options] [--build] [--allow-stale] <caseDir> [Allrun | Allclean | script] [args ...]" \
+  "@env --build --allow-stale" case
+pgf_cmd_desc run "Changes into caseDir and runs the script (default Allrun) in the clean
+environment, then writes <caseDir>/.pgf-run.json and says how it went. A case
+whose constant/yadeProperties is active gets --yade. Run a copy of a tutorial
+(pgf copy), not the tutorial in the checkout: a copy runs with the build of the
+checkout it came from. A stale build is refused."
+pgf_cmd_opt run --build "build this checkout first"
+pgf_cmd_opt run --allow-stale "run with a build of other sources"
+pgf_cmd_opt run @env
+pgf_cmd_ex run "pgf copy solidAdvection" "prints where the copy went"
+pgf_cmd_ex run "pgf run ~/OpenFOAM/\$USER-v2406/run/main/solidAdvection" "the copy of a checkout on main"
+pgf_cmd_ex run "pgf run ~/OpenFOAM/\$USER-v2406/run/main/solidAdvection Allclean"
+
+pgf_cmd view "look at a case's results in ParaView (pgfView)" \
+  "pgf view <caseDir> [--png DIR [--time T] [--size WxH] [--xvfb]] [--compare OTHER] [--palette NAME]" \
+  "--png --time --size --compare --palette --xvfb" dir
+pgf_cmd_desc view "Opens the case in ParaView with the views its system/paraviewViews.py asks for,
+one layout tab each, or with --png renders them to PNGs without a screen. The
+GUI keeps your ParaView palette; --png uses WhiteBackground. ParaView comes
+from your PATH, not pgf's clean environment. This is
+applications/utilities/paraview/pgfView; more in doc/paraview.md."
+pgf_cmd_opt view "--png DIR" "write DIR/<view>.png instead of opening the GUI"
+pgf_cmd_opt view "--time T" "with --png: this time" "the last mesh time"
+pgf_cmd_opt view "--size WxH" "with --png: the image size" 1000x750
+pgf_cmd_opt view --xvfb "with --png: render under xvfb-run (also when DISPLAY is unset)"
+pgf_cmd_opt view "--compare OTHER" "the case, OTHER and their difference, side by side"
+pgf_cmd_opt view "--palette NAME" "a ParaView palette, e.g. BlackBackground"
+pgf_cmd_ex view "pgf view ~/OpenFOAM/\$USER-v2406/run/main/solidAdvection"
+pgf_cmd_ex view "pgf view <caseDir> --png out/" "headless: out/<view>.png"
+
+pgf_cmd test "run a test tier against this checkout's build" \
+  "pgf test <tier|all> [--rebuild] [--if-stale AGE] [--run-root DIR] | --status | --gc" \
+  "--rebuild --if-stale --run-root --status --gc --keep-runs --keep-prefixes --dry-run" tier
+pgf_cmd_desc test "Builds (or reuses) the tier's build, runs its cases and records the outcome
+in ~/.local/state/pgf/runs/last/<tier>.json. Tiers are in
+applications/test/tiers.conf: fast, convergence, dem. Exit 0 PASS, 1 FAIL,
+2 ERROR, 124 TIMEOUT."
+pgf_cmd_opt test --rebuild "delete the tier's build first, then build it again"
+pgf_cmd_opt test "--if-stale AGE" "run only when the last PASS is older than AGE or of other sources"
+pgf_cmd_opt test "--run-root DIR" "the run dir" '$PGF_RUN_ROOT/pgf-test-<tier>-<time>'
+pgf_cmd_opt test --status "per tier: last outcome, when, and whether it is current"
+pgf_cmd_opt test --gc "prune old run dirs and builds"
+pgf_cmd_opt test "--keep-runs N" "with --gc: run dirs to keep" 10
+pgf_cmd_opt test "--keep-prefixes M" "with --gc: builds to keep" 5
+pgf_cmd_opt test --dry-run "with --gc: only list what would go"
+pgf_cmd_ex test "pgf test fast"
+pgf_cmd_ex test "pgf test fast --if-stale 7d"
+pgf_cmd_ex test "pgf test --status"
+
+pgf_cmd status "what pgf uses and where: files, the build, your case copies" "pgf status [PATH] [--json] [options]" "--json @env" dir
+pgf_cmd_desc status "One screen: this checkout and its branch, the settings files, the build store,
+the run records, scratch and the case root, the build pgf would use now and
+what chose it, this checkout's two builds (non-DEM, DEM), and your case copies
+(pgf copy) per branch. With PATH, asks that checkout instead. Every setting
+with its layer: pgf config. pgf with no command runs status. Old name: where."
+pgf_cmd_opt status --json "settings, layers and builds as JSON"
+pgf_cmd_opt status @env
+pgf_cmd_ex status "pgf status"
+pgf_cmd_ex status "pgf status ~/Code/pgf-feature" "another checkout"
+
+pgf_cmd doctor "check that pgf can build and run, with a fix for each problem" "pgf doctor [options]" "@env" none
+pgf_cmd_desc doctor "Read-only checks in groups: OpenFOAM, this checkout's build, yade and DEM,
+MPI, and pgf on PATH. Each check is one OK, WARN or FAIL line; under a WARN
+or FAIL, the detail and the command that fixes it. It ends with a one-line
+verdict and exits 1 when a check fails. The settings themselves: pgf config."
+pgf_cmd_opt doctor @env
+pgf_cmd_ex doctor "pgf doctor"
+pgf_cmd_ex doctor "pgf doctor --yade" "also check the DEM build"
+
+pgf_cmd config "show every setting with its layer, or change one" \
+  "pgf config [get KEY | set KEY=VALUE | unset KEY] [--user | --checkout] [--json]" "--user --checkout --json" config
+pgf_cmd_desc config "Each setting comes from, later winning: the default, ~/.config/pgf/env.conf
+(user layer), <checkout>/.pgf.conf (checkout layer), the environment, the
+command line. Without a verb, config prints every setting and its layer; set
+and unset edit the user file, or the checkout file with --checkout."
+pgf_cmd_opt config --user "edit ~/.config/pgf/env.conf" "yes"
+pgf_cmd_opt config --checkout "edit <checkout>/.pgf.conf"
+pgf_cmd_opt config --json "print the settings and layers as JSON"
+pgf_cmd_ex config "pgf config"
+pgf_cmd_ex config "pgf config set PGF_FOAM_BASHRC=~/OpenFOAM/OpenFOAM-v2406/etc/bashrc"
+pgf_cmd_ex config "pgf config set PGF_MPI=loopback --checkout" "this checkout only"
+pgf_cmd_ex config "pgf config get YADE_BIN"
+
+pgf_cmd builds "every build, and the checkouts that made them" "pgf builds [--json]" "--json" none
+pgf_cmd_desc builds "Lists the checkouts that built into the build store, then every build: key,
+variant, age, size, the checkout that built it, [in use]; * marks this
+checkout's. Old name: ls."
 pgf_cmd_opt builds --json "as JSON"
 pgf_cmd_ex builds "pgf builds"
-
-pgf_cmd ls "registered checkouts, and every build" "pgf ls [--json]" "--json" none
-pgf_cmd_desc ls "Lists the checkouts that built into the build store, then every build."
-pgf_cmd_opt ls --json "as JSON"
-pgf_cmd_ex ls "pgf ls"
 
 pgf_cmd use "choose this terminal's build" "eval \"\$(pgf use <key|commit|worktree|prefix|auto> [--yade])\"" \
   "--yade --no-yade" build
@@ -147,6 +222,19 @@ pgf_cmd_opt gc --dry-run "only list what would go"
 pgf_cmd_opt gc --json "as JSON"
 pgf_cmd_ex gc "pgf gc --dry-run"
 
+pgf_cmd shell "a shell, or one command, in pgf's clean environment" "pgf shell [options] [-c COMMAND | -- COMMAND ...]" "@env -c --" command
+pgf_cmd_desc shell "Starts bash with the caller's environment dropped (a small allowlist kept),
+OpenFOAM's bashrc sourced and the user dirs pointed at the build, with the
+prompt (pgf:<worktree>@<key>); pgf calls inside it keep that environment.
+With -- COMMAND it runs that command instead (old name: pgf exec). A build
+that is not this checkout's sources is stale: shell warns."
+pgf_cmd_opt shell "-c COMMAND" "run COMMAND with bash -c instead of an interactive shell"
+pgf_cmd_opt shell "-- COMMAND ..." "run COMMAND and its arguments as they are"
+pgf_cmd_opt shell @env
+pgf_cmd_ex shell "pgf shell"
+pgf_cmd_ex shell "pgf shell -- porousGasificationFoam -help"
+pgf_cmd_ex shell "pgf shell --yade -- yade -v"
+
 pgf_cmd pack "an Apptainer image of a commit" "pgf pack [BUILD] [--no-yade] [--output FILE] [--dry-run]" \
   "--yade --no-yade --output --dry-run" build
 pgf_cmd_desc pack "Builds a self-contained Apptainer image of one commit: the image compiles the
@@ -156,54 +244,6 @@ pgf_cmd_opt pack --no-yade "the plain variant (no yade in the image)"
 pgf_cmd_opt pack "--output FILE" "the .sif to write" "./pgf-<commit12>-yade<0|1>.sif"
 pgf_cmd_opt pack --dry-run "write the build context and print the definition"
 pgf_cmd_ex pack "pgf pack --dry-run"
-
-pgf_cmd exec "run a command in the clean environment with the build" "pgf exec [options] -- <command ...>" "@env --" command
-pgf_cmd_desc exec "Runs the command with the caller's environment dropped (a small allowlist
-kept), OpenFOAM's bashrc sourced and the user dirs pointed at the build.
-A build that is not this checkout's sources is stale: exec warns."
-pgf_cmd_opt exec @env
-pgf_cmd_ex exec "pgf exec -- porousGasificationFoam -help"
-pgf_cmd_ex exec "pgf exec --yade -- yade -v"
-
-pgf_cmd shell "an interactive shell in that environment" "pgf shell [options] [-c COMMAND]" "@env -c" none
-pgf_cmd_desc shell "Starts bash in the same environment as exec, with the prompt
-(pgf:<worktree>@<key>). pgf calls inside it keep that environment."
-pgf_cmd_opt shell "-c COMMAND" "run COMMAND instead of an interactive shell"
-pgf_cmd_opt shell @env
-pgf_cmd_ex shell "pgf shell"
-pgf_cmd_ex shell "pgf shell -c 'command -v porousGasificationFoam'"
-
-pgf_cmd run "run a case script and record the run" \
-  "pgf run [options] [--build] [--allow-stale] <caseDir> [Allrun | Allclean | script] [args ...]" \
-  "@env --build --allow-stale" case
-pgf_cmd_desc run "Changes into caseDir and runs the script (default Allrun) in the clean
-environment, then writes <caseDir>/.pgf-run.json and says how it went. A case
-whose constant/yadeProperties is active gets --yade. Run a copy of a tutorial,
-not the tutorial in the checkout. A stale build is refused."
-pgf_cmd_opt run --build "build this checkout first"
-pgf_cmd_opt run --allow-stale "run with a build of other sources"
-pgf_cmd_opt run @env
-pgf_cmd_ex run "cp -rL tutorials/cases/solidAdvection ~/run/ && pgf run ~/run/solidAdvection"
-pgf_cmd_ex run "pgf run ~/run/solidAdvection Allclean"
-
-pgf_cmd test "run a test tier against this checkout's build" \
-  "pgf test <tier|all> [--rebuild] [--if-stale AGE] [--run-root DIR] | --status | --gc" \
-  "--rebuild --if-stale --run-root --status --gc --keep-runs --keep-prefixes --dry-run" tier
-pgf_cmd_desc test "Builds (or reuses) the tier's build, runs its cases and records the outcome
-in ~/.local/state/pgf/runs/last/<tier>.json. Tiers are in
-applications/test/tiers.conf: fast, convergence, dem. Exit 0 PASS, 1 FAIL,
-2 ERROR, 124 TIMEOUT."
-pgf_cmd_opt test --rebuild "delete the tier's build first, then build it again"
-pgf_cmd_opt test "--if-stale AGE" "run only when the last PASS is older than AGE or of other sources"
-pgf_cmd_opt test "--run-root DIR" "the run dir" '$PGF_RUN_ROOT/pgf-test-<tier>-<time>'
-pgf_cmd_opt test --status "per tier: last outcome, when, and whether it is current"
-pgf_cmd_opt test --gc "prune old run dirs and builds"
-pgf_cmd_opt test "--keep-runs N" "with --gc: run dirs to keep" 10
-pgf_cmd_opt test "--keep-prefixes M" "with --gc: builds to keep" 5
-pgf_cmd_opt test --dry-run "with --gc: only list what would go"
-pgf_cmd_ex test "pgf test fast"
-pgf_cmd_ex test "pgf test fast --if-stale 7d"
-pgf_cmd_ex test "pgf test --status"
 
 pgf_cmd tools "every tool at the checkout root: what, why, use instead" "pgf tools" "" none
 pgf_cmd_desc tools "For each executable at the checkout root, what it does, why it exists and
@@ -264,16 +304,22 @@ pgf_cli_help() {
   build and clean through pgf.
 EOF
   _pgf_help_section "Available Commands"
-  for c in "${PGF_CMDS[@]}"; do rows+="$c"$'\t'"${PGF_CMD_SUM[$c]}"$'\n'; done
+  for c in "${PGF_HELP_MAIN[@]}"; do rows+="$c"$'\t'"${PGF_CMD_SUM[$c]}"$'\n'; done
   _pgf_help_rows "$rows"
+  _pgf_help_section "More Commands"
+  rows=""
+  for c in "${PGF_HELP_MORE[@]}"; do rows+="$c"$'\t'"${PGF_CMD_SUM[$c]}"$'\n'; done
+  _pgf_help_rows "$rows"
+  echo "  Old names still work: where (status), ls (builds), exec (shell --)."
   _pgf_help_section Options
-  _pgf_help_rows "--color WHEN	colour: auto (on a terminal, unless NO_COLOR is set), always, never	auto
+  _pgf_help_rows "--color WHEN	colour: auto (when output goes to a terminal and NO_COLOR is unset), always, never	auto
 -h, --help	this help, or a command's"
   _pgf_help_section Examples
   _pgf_help_examples "./pgf setup	find OpenFOAM, save it, put pgf on PATH
 ./Allwmake	build this checkout (pgf build)
-pgf test fast	the fast test tier
-pgf run ~/run/solidAdvection	run a copied tutorial case
+pgf copy solidAdvection	copy a tutorial out of the checkout; prints its path
+pgf run ~/OpenFOAM/\$USER-v2406/run/main/solidAdvection	run that copy
+pgf view ~/OpenFOAM/\$USER-v2406/run/main/solidAdvection	look at the results
 pgf doctor	check the setup, with fixes"
   echo
   echo "Use \"pgf help <command>\" or \"pgf <command> --help\" for more about a command."
@@ -282,12 +328,17 @@ pgf doctor	check the setup, with fixes"
 # pgf_cli_help_cmd CMD — one command's page: Usage, Description, Options, Examples.
 pgf_cli_help_cmd() {
   local c="$1" rows="" line
+  if [ -n "${PGF_CMD_ALIAS[$c]+x}" ]; then
+    echo "pgf $c is an old name for pgf ${PGF_CMD_ALIAS[$c]}; it still works."
+    echo
+    c="${PGF_CMD_ALIAS[$c]}"
+  fi
   [ -n "${PGF_CMD_SUM[$c]+x}" ] || return 2
   echo "pgf $c: ${PGF_CMD_SUM[$c]}"
   _pgf_help_section Usage
-  echo "  ${PGF_CMD_USE[$c]}"
+  sed 's/^/  /' <<<"${PGF_CMD_USE[$c]}"
   _pgf_help_section Description
-  sed 's/^/  /' <<<"${PGF_CMD_DESC[$c]}"
+  sed 's/^./  &/' <<<"${PGF_CMD_DESC[$c]}"
   while IFS= read -r line; do
     [ -n "$line" ] || continue
     if [ "${line%%$'\t'*}" = @env ]; then rows+="$PGF_ENV_ROWS"; else rows+="$line"$'\n'; fi
@@ -321,12 +372,14 @@ pgf_completion_cmd() {
   local c
   [ "${1:-}" = bash ] && [ $# -eq 1 ] || { echo "usage: pgf completion bash" >&2; return 2; }
   echo "# bash completion for pgf, generated by: pgf completion bash (#274)"
-  echo "# Dynamic values come from: pgf __complete builds|tiers|build-options"
-  printf '_pgf_cmds=%q\n' "${PGF_CMDS[*]}"
+  echo "# Dynamic values come from: pgf __complete builds|tiers|tutorials|build-options"
+  printf '_pgf_cmds=%q\n' "${PGF_HELP_MAIN[*]} ${PGF_HELP_MORE[*]}"
   printf 'declare -gA _pgf_opts=( '
   for c in "${PGF_CMDS[@]}"; do printf '[%s]=%q ' "$c" "$(pgf_cli_opts "$c")"; done
+  for c in "${!PGF_CMD_ALIAS[@]}"; do printf '[%s]=%q ' "$c" "$(pgf_cli_opts "${PGF_CMD_ALIAS[$c]}")"; done
   printf ')\ndeclare -gA _pgf_args=( '
   for c in "${PGF_CMDS[@]}"; do printf '[%s]=%q ' "$c" "${PGF_CMD_ARGS[$c]}"; done
+  for c in "${!PGF_CMD_ALIAS[@]}"; do printf '[%s]=%q ' "$c" "${PGF_CMD_ARGS[${PGF_CMD_ALIAS[$c]}]}"; done
   printf ')\ndeclare -gA _pgf_optval=( '
   for c in "${!PGF_OPT_VALUE[@]}"; do printf '[%q]=%q ' "$c" "${PGF_OPT_VALUE[$c]}"; done
   printf ')\n_pgf_keys=%q\n' "${PGF_CONF_KEYS[*]}"
@@ -337,6 +390,7 @@ _pgf_values() {
   case "$1" in
   build) "$2" __complete builds 2>/dev/null ;;
   tier) "$2" __complete tiers 2>/dev/null; echo all ;;
+  tutorial) "$2" __complete tutorials 2>/dev/null ;;
   build-options) "$2" __complete build-options 2>/dev/null ;;
   mpi) echo auto loopback default ;;
   yade) echo 0 1 ;;
@@ -422,7 +476,7 @@ _pgf() {
   dir) [ ${#pos[@]} -eq 0 ] && COMPREPLY=($(compgen -d -- "$cur")) ;;
   cmd) [ ${#pos[@]} -eq 0 ] && COMPREPLY=($(compgen -W "$_pgf_cmds" -- "$cur")) ;;
   build-options) COMPREPLY=($(compgen -W "$(_pgf_values build-options "$pgf")" -- "$cur")) ;;
-  build | tier | shell) [ ${#pos[@]} -eq 0 ] && COMPREPLY=($(compgen -W "$(_pgf_values "${_pgf_args[$sub]}" "$pgf")" -- "$cur")) ;;
+  build | tier | shell | tutorial) [ ${#pos[@]} -eq 0 ] && COMPREPLY=($(compgen -W "$(_pgf_values "${_pgf_args[$sub]}" "$pgf")" -- "$cur")) ;;
   esac
 }
 complete -F _pgf pgf ./pgf
@@ -441,6 +495,7 @@ pgf_complete_cmd() {
     for f in "$root"/*/.pgf-build.json; do [ -f "$f" ] && f="${f%/*}" && echo "${f##*/}"; done
     git -C "$PGF_ROOT" worktree list --porcelain 2>/dev/null | sed -n 's|^worktree .*/||p'
     ;;
+  tutorials) pgf_tutorials ;;
   tiers)
     sed -n 's/^pgf_tier[[:space:]]\{1,\}\([^[:space:]]*\).*/\1/p' \
       "${PGF_TIERS_CONF:-$PGF_ROOT/applications/test/tiers.conf}" 2>/dev/null

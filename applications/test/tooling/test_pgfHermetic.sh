@@ -24,7 +24,8 @@ bash -c '
 rc=$?
 
 check "pgf exec exits 0 from a polluted set -u caller (rc=$rc)" [ "$rc" -eq 0 ]
-check "banner names the prefix" grep -q "^pgf: prefix $prefix " "$TEST_TMP/err"
+key="${prefix##*/}"
+check "banner names the build" grep -q "^  INFO using build ${key%%-*} " "$TEST_TMP/err"
 check "solver resolves inside $prefix/bin" grep -qx "$prefix/bin/porousGasificationFoam" "$TEST_TMP/out"
 check "stale user dir dropped from PATH and LD_LIBRARY_PATH" bash -c '! grep -q "$1" "$2"' _ "$stale" "$TEST_TMP/out"
 check "WM_PROJECT_USER_DIR is the prefix" grep -qx "USERDIR=$prefix" "$TEST_TMP/out"

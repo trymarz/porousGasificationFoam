@@ -6,26 +6,27 @@ A PGF case is a normal OpenFOAM case plus extra files for the solid and its chem
 
 Start from `tutorials/cases/canonical/pyrolysis`: one solid (`wood`), one reaction (`wood = targas`), a 1-D mesh, about a second to run.
 
-1. **Copy it:** `cp -rL tutorials/cases/canonical/pyrolysis myCase` (`-L` copies files the case links from its family). `./Allrun` restores `0/` from `0.orig/`, runs `blockMesh`, then the solver. `reference/` and `system/regressionFunctions` are for the regression tests and can go. If the source was run in place, the copy carries its output along; `./Allclean` it first, since `runApplication` skips every step whose `log.*` exists.
+1. **Copy it:** `pgf copy canonical/pyrolysis myCase` puts it in `$PGF_CASE_ROOT/<branch>/myCase` (by default `~/OpenFOAM/<user>-v2406/run/<branch>/myCase`) and prints the path; it copies the files the case links from its family too. Its `Allrun` restores `0/` from `0.orig/`, runs `blockMesh`, then the solver. `reference/` and `system/regressionFunctions` are for the regression tests and can go. If the source was run in place, the copy carries its output along; `./Allclean` it first, since `runApplication` skips every step whose `log.*` exists.
 2. **Mesh and fields:** edit `system/blockMeshDict` and `0.orig/` ([required fields](#required-initial-fields)). Values here are uniform; for a partial bed use `setFields` ([how](#biomass-distribution-initial-porosityf)).
 3. **Solid:** list components in `constant/solidThermophysicalProperties`, with true (not bulk) density ([why](#solid-thermophysical-properties-true-density-not-bulk)). Each needs a `Y<name>` field.
 4. **Chemistry:** set gas `species` and `solidReactions` in `constant/chemistryProperties` ([reference](#constantchemistryproperties)). No reactions means both phases stay inert.
 5. **Gas species:** each needs a field in `0.orig/` and an entry in `constant/thermo.compressibleGas` ([no JANAF data?](#gas-species-without-janaf-data)).
-6. **Run:** `./Allrun`, then check `log.porousGasificationFoam`. If it is slow, see [time-step coupling](#time-step-coupling-between-gas-and-solid-chemistry).
+6. **Run:** `pgf run <the copy>`, then check `log.porousGasificationFoam`, or look at it with `pgf view <the copy>`. If it is slow, see [time-step coupling](#time-step-coupling-between-gas-and-solid-chemistry).
 
 Other tutorials: [Tutorial Cases](#tutorial-cases). File details: [Input File Reference](#input-file-reference).
 
 ### Running a case
 
-With `pgf` set up ([first-time setup](build.md#first-time-setup)), run any case from anywhere, without sourcing OpenFOAM or exporting anything:
+With `pgf` set up ([first-time setup](build.md#first-time-setup)), copy a tutorial out of the checkout and run the copy from anywhere, without sourcing OpenFOAM or exporting anything:
 
 ```bash
-pgf run tutorials/cases/canonical/pyrolysis            # Allrun
-pgf run tutorials/cases/canonical/pyrolysis Allclean
-pgf run tutorials/cases/MicroTGA-DEM_lambdaDotOff      # active yadeProperties: --yade picked for you
+pgf copy canonical/pyrolysis                                   # → ~/OpenFOAM/$USER-v2406/run/<branch>/canonical/pyrolysis
+pgf run ~/OpenFOAM/$USER-v2406/run/main/canonical/pyrolysis    # Allrun
+pgf run ~/OpenFOAM/$USER-v2406/run/main/canonical/pyrolysis Allclean
+pgf copy MicroTGA-DEM_lambdaDotOff                             # active yadeProperties: pgf run picks --yade for you
 ```
 
-The case path is resolved from your current directory. Every tutorial `Allrun` / `Allclean` also changes into its own directory first, so `/path/to/case/Allrun` works from any directory in a shell that already has the environment (`pgf shell`, or a manually sourced OpenFOAM). The DEM tutorials stop with exit 2 and `run this via: pgf run <case>` when the shell has no `--yade` solver or no `yade`.
+`pgf copy` prints the copy's path (here for a checkout on `main`) and records which checkout and commit it came from, so `pgf run` uses that checkout's build even when you call another checkout's `pgf`, and warns when the branch has moved on since. The case path is resolved from your current directory. Every tutorial `Allrun` / `Allclean` also changes into its own directory first, so `/path/to/case/Allrun` works from any directory in a shell that already has the environment (`pgf shell`, or a manually sourced OpenFOAM). The DEM tutorials stop with exit 2 and `run this via: pgf run <case>` when the shell has no `--yade` solver or no `yade`.
 
 ## Required Initial Fields
 
@@ -85,7 +86,7 @@ face cell:
 
 ## Tutorial Cases
 
-Cases under `tutorials/cases/`. Run all of them with `cd tutorials && ./TestAllCases.sh`.
+Cases under `tutorials/cases/`; `pgf copy --list` lists them, `pgf copy <case>` copies one out of the checkout and `pgf run` runs the copy ([Running a case](#running-a-case)). The test tiers run them as regression tests: `pgf test` ([regression testing](regression-testing.md)).
 
 | Case | What it is | Notes |
 |---|---|---|

@@ -48,17 +48,18 @@ Target: **OpenFOAM-v2406** · License: **GPL v3** · Earlier versions for [OpenF
 You need OpenFOAM-v2406 (installed and sourceable), a C++ compiler and `wmake` (both come with OpenFOAM).
 
 ```bash
-./pgf setup --yes                           # 1. find OpenFOAM (and yade), save where they are, put pgf on PATH
-                                            #    (+ Tab completion); --yes takes what it finds without asking
-./Allwmake                                  # 2. build libraries, solver, utilities (pgf build)
-cp -rL tutorials/cases/charOnlyMoveCases/serial ~/pgf-serial   # 3. copy a small case out of the checkout
-pgf run ~/pgf-serial                        # 4. copies 0.orig to 0, runs blockMesh and setFields,
-                                            #    then the solver (output stays in ~/pgf-serial)
+./pgf setup --yes                       # 1. find OpenFOAM (and yade), save where they are, put pgf on PATH
+                                        #    (+ Tab completion); --yes takes what it finds without asking
+./Allwmake                              # 2. build libraries, solver, utilities (pgf build)
+pgf copy charOnlyMoveCases/serial       # 3. copy a small case out of the checkout; prints where it went
+pgf run ~/OpenFOAM/$USER-v2406/run/main/charOnlyMoveCases/serial
+                                        # 4. copies 0.orig to 0, runs blockMesh, setFields, the solver
+pgf view ~/OpenFOAM/$USER-v2406/run/main/charOnlyMoveCases/serial   # 5. look at it in ParaView
 ```
 
-pgf runs every build and case in a clean environment, so step 1 saves where OpenFOAM lives in `~/.config/pgf/env.conf`; `pgf config` shows the saved values, `pgf setup --help` explains its options, and `pgf help` lists every command.
+pgf runs every build and case in a clean environment, so step 1 saves where OpenFOAM lives in `~/.config/pgf/env.conf`; `pgf config` shows the saved values, `pgf help setup` explains its options, and `pgf help` lists the commands.
 
-Run cases from a copy, not inside `tutorials/`: results written there are left in the checkout and picked up by later copies. `-L` copies the files a case shares with its family (symlinks such as `system/paraviewViews.py`); shared material data is found through `$PGF_ROOT`, which pgf sets. If the copy brings output from an earlier run along (`log.*`, `processor*/`, time directories), clean it first with `pgf run ~/pgf-serial Allclean`: `runApplication` skips every step whose `log.*` exists. `pgf run` warns about both.
+`pgf copy` puts a tutorial in `$PGF_CASE_ROOT/<branch>/<tutorial>`; `PGF_CASE_ROOT` defaults to OpenFOAM's run dir, `$WM_PROJECT_USER_DIR/run` (`~/OpenFOAM/<user>-v2406/run`), and `<branch>` is the checkout's branch (here `main`; `/` becomes `-`). It copies the whole case with `cp -rL`, so the files a case shares with its family come along, and records which checkout and commit it came from: `pgf run` then uses that checkout's build and warns when the branch has moved on. `pgf copy --list` lists the tutorials, `pgf status` your copies. Run cases from such a copy, never inside `tutorials/`: results written there stay in the checkout and are picked up by later copies. If a case holds output from an earlier run (`log.*`, `processor*/`, time directories), clean it first with `pgf run <case> Allclean`: `runApplication` skips every step whose `log.*` exists. `pgf run` warns about both.
 
 Next: `tutorials/cases/gasifier` is a full reactive-flow demo. `pgf shell` gives an interactive shell with the build on `PATH`; `./Allwclean` cleans the build. Build options, DEM (`--yade`) builds and clean/purge rules are in [doc/build.md](doc/build.md). To run your own case, start from [doc/case-setup.md](doc/case-setup.md).
 

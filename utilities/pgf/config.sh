@@ -4,7 +4,7 @@
 # Files are parsed, never sourced, and only PGF_CONF_KEYS are accepted.
 
 PGF_CONF_KEYS=(PGF_FOAM_BASHRC YADE_TRUNK YADE_BIN YADE_PYTHONPATH PGF_YADE_LIBDIR
-  PGF_BUILD_ROOT PGF_RUN_ROOT PGF_YADE PGF_MPI PGF_BUILD)
+  PGF_BUILD_ROOT PGF_RUN_ROOT PGF_CASE_ROOT PGF_YADE PGF_MPI PGF_BUILD)
 # What each key means, for pgf setup and pgf help config.
 declare -gA PGF_CONF_DESC=(
   [PGF_FOAM_BASHRC]="OpenFOAM etc/bashrc sourced before every build and run"
@@ -13,7 +13,8 @@ declare -gA PGF_CONF_DESC=(
   [YADE_PYTHONPATH]="yade's Python modules; default: found beside YADE_BIN"
   [PGF_YADE_LIBDIR]="directory of prebuilt Foam-Yade coupling libraries"
   [PGF_BUILD_ROOT]="the build store; default: \$WM_PROJECT_USER_DIR/pgf-builds"
-  [PGF_RUN_ROOT]="run dirs and scratch; default: \$TMPDIR/pgf-runs"
+  [PGF_RUN_ROOT]="scratch: test runs and temporary files; default: \$TMPDIR/pgf-runs"
+  [PGF_CASE_ROOT]="where pgf copy puts cases, as <branch>/<case>; default: \$WM_PROJECT_USER_DIR/run"
   [PGF_YADE]="1: use the DEM (--yade) variant by default"
   [PGF_MPI]="Open MPI networking: auto, loopback (lo only) or default"
   [PGF_BUILD]="the build to use (pgf use); default auto: this checkout's"
@@ -124,21 +125,25 @@ pgf_conf_set_cli() {
   PGF_CONF_CLI[$key]="$val"
 }
 
-# pgf_conf_print — the effective values and where each came from.
+# pgf_conf_print — the effective values and where each came from, the layer
+#   column aligned after the longest value.
 pgf_conf_print() {
-  local k
-  local cf
+  local k cf w=1 v src
+  local -A shown=()
   cf="$(pgf_conf_checkout_read_file)"
   printf 'config files:\n  user:     %s%s\n  checkout: %s%s\n' \
-    "$(pgf_conf_user_file)" "$([ -e "$(pgf_conf_user_file)" ] || echo ' (absent)')" \
-    "$cf" "$([ -e "$cf" ] || echo ' (absent)')"
+    "$(pgf_tilde "$(pgf_conf_user_file)")" "$([ -e "$(pgf_conf_user_file)" ] || echo ' (absent)')" \
+    "$(pgf_tilde "$cf")" "$([ -e "$cf" ] || echo ' (absent)')"
+  for k in "${PGF_CONF_KEYS[@]}"; do
+    shown[$k]="-"
+    [ -n "${PGF_CONF_VAL[$k]+x}" ] && shown[$k]="$(pgf_tilde "${PGF_CONF_VAL[$k]}")"
+    [ ${#shown[$k]} -gt "$w" ] && w=${#shown[$k]}
+  done
   echo "settings:"
   for k in "${PGF_CONF_KEYS[@]}"; do
-    if [ -n "${PGF_CONF_VAL[$k]+x}" ]; then
-      printf '  %-16s %-40s [%s]\n' "$k" "${PGF_CONF_VAL[$k]}" "${PGF_CONF_SRC[$k]}"
-    else
-      printf '  %-16s %-40s [%s]\n' "$k" "-" "unset"
-    fi
+    src="${PGF_CONF_SRC[$k]:-unset}"
+    [ "$src" = "${src#* }" ] || src="${src%% *} $(pgf_tilde "${src#* }")"
+    printf "  %-16s %-${w}s  [%s]\n" "$k" "${shown[$k]}" "$src"
   done
 }
 

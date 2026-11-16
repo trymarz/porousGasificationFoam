@@ -9,25 +9,28 @@
 #   pgfView <case> --png <dir>           write <dir>/<view>.png (pvbatch)
 #           [--time T] [--size WxH] [--xvfb]
 #   pgfView <case> --compare <other> ...  <case> | <other> | difference
+#   pgfView <case> --palette NAME ...     a ParaView palette, e.g. BlackBackground
 #
 # <case> is a tutorial case or a finished run copy of one; <other> is another
 # one, or a postProcessing-only <case>/reference (charts only). --png renders
 # the last (common) mesh time unless --time is given. --xvfb renders under
-# xvfb-run; it is also used automatically when DISPLAY is unset.
+# xvfb-run; it is also used automatically when DISPLAY is unset. The GUI keeps
+# your ParaView palette and --png uses WhiteBackground, unless --palette is given.
 
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-usage() { sed -n '7,18s/^# \{0,1\}//p' "${BASH_SOURCE[0]}"; exit "${1:-0}"; }
+usage() { sed -n '7,20s/^# \{0,1\}//p' "${BASH_SOURCE[0]}"; exit "${1:-0}"; }
 
-case_dir="" compare="" png="" time="" size="1000x750" xvfb=""
+case_dir="" compare="" png="" time="" size="1000x750" xvfb="" palette=""
 while [ $# -gt 0 ]; do
     case "$1" in
         --png)  png="${2:?--png needs a directory}"; shift 2 ;;
         --compare) compare="${2:?--compare needs a case}"; shift 2 ;;
         --time) time="${2:?--time needs a value}"; shift 2 ;;
         --size) size="${2:?--size needs WxH}"; shift 2 ;;
+        --palette) palette="${2:?--palette needs a name}"; shift 2 ;;
         --xvfb) xvfb=1; shift ;;
         -h|--help) usage 0 ;;
         -*) echo "pgfView: unknown option $1" >&2; usage 2 ;;
@@ -44,7 +47,7 @@ if [ -n "$compare" ]; then
 fi
 # paraview --script execs the main script without __file__; it finds pgfViews here.
 export PGFVIEW_DIR="$here"
-export PGFVIEW_TIME="$time" PGFVIEW_SIZE="$size"
+export PGFVIEW_TIME="$time" PGFVIEW_SIZE="$size" PGFVIEW_PALETTE="$palette"
 # Open MPI's UCX probe prints a harmless VFS error under ParaView.
 export UCX_VFS_ENABLE="${UCX_VFS_ENABLE:-n}"
 

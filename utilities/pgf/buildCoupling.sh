@@ -1,7 +1,7 @@
 #!/bin/bash
 # buildCoupling.sh [--libdir DIR] — build Foam-Yade's coupling libs from
 # $YADE_TRUNK into DIR (default $PGF_YADE_LIBDIR, else $FOAM_USER_LIBBIN) and
-# stamp them (#257). Run it as: pgf exec --bare --yade -- <this script>.
+# stamp them (#257). Run it as: pgf shell --bare --yade -- <this script>.
 
 PGF_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 . "$PGF_ROOT/utilities/pgf/coupling.sh"
@@ -15,7 +15,7 @@ case "${1:-}" in
 *) die "usage: buildCoupling.sh [--libdir DIR]" ;;
 esac
 [ -n "$libdir" ] || die "no lib dir: pass --libdir DIR or set PGF_YADE_LIBDIR"
-command -v wmake >/dev/null || die "wmake not on PATH; run under pgf exec"
+command -v wmake >/dev/null || die "wmake not on PATH; run under pgf shell"
 [ -n "${YADE_TRUNK:-}" ] || die "YADE_TRUNK is unset"
 src="$(pgf_coupling_dir "$YADE_TRUNK")"
 [ -f "$src/FoamYade.H" ] || die "no coupling sources under $src"

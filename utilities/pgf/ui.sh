@@ -1,18 +1,29 @@
 #!/bin/bash
 # ui.sh — pgf's one output style (#285), source-only: "  LABEL message" lines
-# (OK WARN FAIL SKIP INFO PASS), headings and the next: block. Colour only on a
-# terminal: PGF_COLOR=auto|always|never (pgf --color), NO_COLOR turns auto off.
+# (OK WARN FAIL SKIP INFO PASS), "→ step" lines, headings and the next: block.
+# Colour: PGF_COLOR=auto|always|never (pgf --color); auto means on when both
+# stdout and stderr are a terminal, TERM is not dumb and NO_COLOR is unset.
 
 [[ -n "${PGF_UI_SOURCED:-}" ]] && return 0
 PGF_UI_SOURCED=1
 
-# pgf_ui_color — 0 when stdout gets colour (a caller's >&2 makes stdout stderr).
+# Decided once, here: inside $(...) stdout is a pipe, so [ -t 1 ] there says no (#287).
+case "${PGF_COLOR:-auto}" in
+always) PGF_UI_COLOR=1 ;;
+never) PGF_UI_COLOR=0 ;;
+*) if [ -z "${NO_COLOR:-}" ] && [ -t 1 ] && [ -t 2 ] && [ "${TERM:-dumb}" != dumb ]; then
+    PGF_UI_COLOR=1
+  else PGF_UI_COLOR=0; fi ;;
+esac
+
+# pgf_ui_color — 0 when pgf's output gets colour.
 pgf_ui_color() {
-  case "${PGF_COLOR:-auto}" in
-  always) return 0 ;;
-  never) return 1 ;;
-  esac
-  [ -z "${NO_COLOR:-}" ] && [ -t 1 ] && [ "${TERM:-}" != dumb ]
+  [ "$PGF_UI_COLOR" = 1 ]
+}
+
+# pgf_tilde PATH — PATH with $HOME shown as ~.
+pgf_tilde() {
+  case "$1" in "${HOME:-/nonexistent}") printf '~' ;; "${HOME:-/nonexistent}"/*) printf '~/%s' "${1#"$HOME"/}" ;; *) printf '%s' "$1" ;; esac
 }
 
 # pgf_ui_paint SGR TEXT — TEXT in that SGR style (32 green, 1 bold, 2 dim ...).
@@ -33,6 +44,26 @@ st() {
   printf '  %s %s' "$(pgf_ui_paint "$sgr" "$(printf '%-4s' "$1")")" "$2"
   [ -z "${3:-}" ] || printf ' %s' "$(pgf_ui_paint 2 "$3")"
   printf '\n'
+}
+
+# st_check LEVEL "MESSAGE[; fix: COMMAND]" — st, with the fix on a dimmed line
+#   below; an OK line drops it.
+st_check() {
+  local msg="${2%%; fix: *}"
+  st "$1" "$msg"
+  [ "$msg" = "$2" ] || [ "$1" = OK ] || st_more "fix: ${2#*; fix: }"
+}
+
+# st_step TEXT LABEL [DETAIL] — one "→ TEXT … LABEL DETAIL" line of a command's progress.
+st_step() {
+  local sgr
+  case "$2" in
+  OK) sgr=32 ;;
+  WARN) sgr=33 ;;
+  FAIL) sgr='1;31' ;;
+  *) sgr=2 ;;
+  esac
+  printf '  %s %s … %s%s\n' "$(pgf_ui_paint 36 "→")" "$1" "$(pgf_ui_paint "$sgr" "$2")" "${3:+ $3}"
 }
 
 # st_more TEXT — a continuation line under the message column.

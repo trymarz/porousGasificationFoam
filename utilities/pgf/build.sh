@@ -399,7 +399,7 @@ resolve_prefix() {
     ;;
   isolated)
     [ -n "${WM_PROJECT_VERSION:-}" ] || {
-      clog ERROR "WM_PROJECT_VERSION is unset; source OpenFOAM's etc/bashrc (or use pgf exec --bare)."
+      clog ERROR "WM_PROJECT_VERSION is unset; source OpenFOAM's etc/bashrc (or use pgf shell --bare)."
       return 1
     }
     resolve_build_root || return 1
@@ -428,8 +428,8 @@ sys.exit(0 if set(sys.argv[2:]) <= built else 1)' "$PREFIX/.pgf-build.json" "${w
 #   built, and why: the key hashes the sources, OpenFOAM version and compiler.
 report_cache_hit() {
   local what built
-  { read -r what; read -r built; } < <(python3 - "$PREFIX/.pgf-build.json" "$HOME" 2>/dev/null <<'EOF'
-import json, sys
+  { read -r what; read -r built; } < <(python3 - "$PREFIX/.pgf-build.json" "$HOME" "$PGF_ROOT" 2>/dev/null <<'EOF'
+import json, os, sys
 m = json.load(open(sys.argv[1]))
 parts = {"porousGasificationFoam": "solver", "utilities": "utilities"}
 names = []
@@ -438,15 +438,16 @@ for t in m.get("targets", []):
     if n not in names:
         names.append(n)
 src = (m.get("checkout") or {}).get("path") or m.get("source_tree") or "?"
+other = os.path.realpath(src) != os.path.realpath(sys.argv[3])
 if src.startswith(sys.argv[2] + "/"):
     src = "~" + src[len(sys.argv[2]):]
 when = (m.get("built_utc") or "?").replace("T", " ").replace("Z", " UTC")
 print("%s: %s" % (m.get("variant", "?"), ", ".join(names) or "?"))
-print("built %s from %s" % (when, src))
+print("built %s from %s%s" % (when, src, " (same sources)" if other else ""))
 EOF
   )
   st OK "reused build ${BUILD_KEY%%-*} (${what:-?}): same sources, OpenFOAM and compiler, nothing to compile"
-  st_more "${built:-built ?}; prefix $PREFIX"
+  st_more "${built:-built ?}; prefix $(pgf_tilde "$PREFIX")"
   register_workspace
 }
 
@@ -555,8 +556,8 @@ print_destination() {
   local where="shared user dir"
   [ "$PREFIX_MODE" = "none" ] || where="prefix ${BUILD_KEY:-$PREFIX}"
   clog INFO "Destination ($where):"
-  clog INFO "  bin: $FOAM_USER_APPBIN"
-  clog INFO "  lib: $FOAM_USER_LIBBIN"
+  clog INFO "  bin: $(pgf_tilde "$FOAM_USER_APPBIN")"
+  clog INFO "  lib: $(pgf_tilde "$FOAM_USER_LIBBIN")"
 }
 
 # ============================================================
@@ -717,7 +718,7 @@ build_all_targets() {
 
   if [ ${#failed[@]} -eq 0 ]; then
     [ "$MODE" = "build" ] && stamp_source_revision
-    clog SUCCESS "$MODE complete in $(fmt_seconds $((SECONDS - start)))${BUILD_LOG:+; wmake log: $BUILD_LOG}"
+    clog SUCCESS "$MODE complete in $(fmt_seconds $((SECONDS - start)))${BUILD_LOG:+; wmake log: $(pgf_tilde "$BUILD_LOG")}"
     return 0
   else
     clog ERROR "Failed: ${failed[*]}"
@@ -889,7 +890,7 @@ main() {
   if [ "$PREFIX_MODE" != "none" ]; then
     if [ "$MODE" = "build" ]; then
       write_build_metadata || exit 1
-      printf 'prefix: %s\n' "$PREFIX"
+      printf 'prefix: %s\n' "$(pgf_tilde "$PREFIX")"
     elif [ "$PURGE" -eq 1 ]; then
       rm -f "$PREFIX/.pgf-build.json"
     fi

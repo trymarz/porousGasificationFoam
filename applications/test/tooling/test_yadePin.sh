@@ -60,7 +60,7 @@ check "pgf exec --yade exits 2 on another coupling API (rc=$rc)" [ "$rc" -eq 2 ]
 check "and says why" grep -q "coupling API differs" "$TEST_TMP/err"
 YADE_TRUNK="$TEST_TMP/fy" YADE_BIN="$(fake_yade "$same")" "$PGF" exec --prefix "$prefix" --yade -- true 2>"$TEST_TMP/err"
 check "pgf exec --yade runs with a warning on a commit-only difference" \
-    bash -c '[ "$1" -eq 0 ] && grep -q "warning: yade .* same coupling API" "$2"' _ $? "$TEST_TMP/err"
+    bash -c '[ "$1" -eq 0 ] && grep -q "WARN yade .* same coupling API" "$2"' _ $? "$TEST_TMP/err"
 
 # doctor --yade (#280): a trunk off the pin, from the environment, or the
 # checkout's own submodule off its pin each warn.

@@ -31,11 +31,11 @@ check "a prefix build exits 0 (rc=$rc)" [ "$rc" -eq 0 ]
 check "  shows one [n/N] line per target, no separate Building line off a terminal" \
     bash -c 'grep -q "\[1/3\] fieldPorosityModel done (" "$1" && grep -q "\[3/3\] pyrolysisModels done (" "$1" &&
         ! grep -q "Building" "$1"' _ "$TEST_TMP/out"
-check "  and labels the prefix it prints last" grep -qx "prefix: $TEST_TMP/pre" "$TEST_TMP/out"
+check "  and labels the prefix it prints last" grep -qx "prefix: ~/pre" "$TEST_TMP/out"
 check "  keeps wmake's output off the terminal" bash -c '! grep -q "a-very-long-compile-line" "$1"' _ "$TEST_TMP/out"
 check "  and logs it to <prefix>/build.log" grep -q "a-very-long-compile-line" "$TEST_TMP/pre/build.log"
 check "  and ends with the time and the log path" \
-    grep -q "build complete in [0-9]*s; wmake log: $TEST_TMP/pre/build.log" "$TEST_TMP/out"
+    grep -q "build complete in [0-9]*s; wmake log: ~/pre/build.log" "$TEST_TMP/out"
 
 FAIL_IN=pyrolysisModels fb "${targets[@]}" >"$TEST_TMP/out" 2>&1
 rc=$?
@@ -59,7 +59,7 @@ iso "${targets[@]}" >"$TEST_TMP/out" 2>&1
 check "a cache hit says what it reuses and why" \
     grep -qE "^  OK   reused build [0-9a-f]{12} \(yade0: libraries\): same sources, OpenFOAM and compiler, nothing to compile$" "$TEST_TMP/out"
 check "  and when and from where it was built, without the key twice" \
-    bash -c 'grep -qE "^       built [0-9-]+ [0-9:]+ UTC from .*; prefix $2/[0-9a-f]{12}-yade0-" "$1"' _ "$TEST_TMP/out" "$TEST_TMP/store"
+    bash -c 'grep -qE "^       built [0-9-]+ [0-9:]+ UTC from .*; prefix ~/store/[0-9a-f]{12}-yade0-" "$1"' _ "$TEST_TMP/out" "$TEST_TMP/store"
 
 fb "${targets[@]}" -v >"$TEST_TMP/out" 2>&1
 check "--verbose streams wmake's output" grep -q "a-very-long-compile-line" "$TEST_TMP/out"

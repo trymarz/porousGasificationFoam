@@ -1,25 +1,26 @@
 # Viewing a case in ParaView
 
-`applications/utilities/paraview/pgfView` opens a case in ParaView with its views already set up, or renders the same views to PNGs without a screen. The case says which views it wants in `system/paraviewViews.py`; the library `pgfViews.py` next to `pgfView` builds them.
+`pgf view` (`applications/utilities/paraview/pgfView`) opens a case in ParaView with its views already set up, or renders the same views to PNGs without a screen. The case says which views it wants in `system/paraviewViews.py`; the library `pgfViews.py` next to `pgfView` builds them.
 
 ## Use it
 
 ```bash
-P=applications/utilities/paraview/pgfView
-$P tutorials/cases/solidAdvection                 # GUI, one layout tab per view
-$P <runDir>/MicroTGA-DEM_lambdaDotOff --png out/  # headless: out/<view>.png
-$P <case> --png out/ --time 0.001 --size 1600x1200
+pgf copy solidAdvection && pgf run ~/OpenFOAM/$USER-v2406/run/main/solidAdvection   # a copy with results
+pgf view ~/OpenFOAM/$USER-v2406/run/main/solidAdvection   # GUI, one layout tab per view
+pgf view <case> --png out/                                # headless: out/<view>.png
+pgf view <case> --png out/ --time 0.001 --size 1600x1200
+pgf view <case> --palette BlackBackground                 # any ParaView palette
 ```
 
-`<case>` is a tutorial or a finished run copy of one (for example a `--keep-runs` copy from the regression runner). Decomposed cases are read as decomposed when `processor0` has more time directories than the case root. A `<case>.foam` file is created on first use (`*.foam` is gitignored).
+`<case>` is a finished copy of a tutorial (`pgf copy`, then `pgf run`; the path above is for a checkout on `main`) or a `--keep-runs` copy from the regression runner. The GUI keeps your own ParaView palette (Edit → Settings → Color Palette); `--png` renders on `WhiteBackground` unless `--palette` names another. ParaView comes from your `PATH`, not from pgf's clean environment. Decomposed cases are read as decomposed when `processor0` has more time directories than the case root. A `<case>.foam` file is created on first use (`*.foam` is gitignored).
 
-`--png` renders the last mesh time unless `--time` is given; each view becomes one PNG named after it. It also works inside `./pgf exec`.
+`--png` renders the last mesh time unless `--time` is given; each view becomes one PNG named after it. It also works inside `pgf shell`.
 
 ## Compare two cases
 
 ```bash
-$P <runDir>/pyrolysis --compare tutorials/cases/canonical/pyrolysis/reference --png out/
-$P <runDir>/pyrolysis --compare <runDir>/pyrolysisE           # GUI, panes side by side
+pgf view <runDir>/pyrolysis --compare tutorials/cases/canonical/pyrolysis/reference --png out/
+pgf view <runDir>/pyrolysis --compare <runDir>/pyrolysisE     # GUI, panes side by side
 ```
 
 `--compare <other>` shows the first case's views for both cases. `<other>` is a second case or run copy, or a `postProcessing`-only directory such as `<case>/reference`.
