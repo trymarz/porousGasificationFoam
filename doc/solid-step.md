@@ -115,3 +115,8 @@ These are recorded in [#249](https://github.com/trymarz/porousGasificationFoam/p
 - `BedCollapse` also writes `porosityF0`, `rho` and the `solidPresent` patches.
 - `PorosityRecovery` is both a state update (stages 9 and 12) and a constraint (stage 10).
 - `SolidEnergy` keeps a writable solid thermo for `correct()`.
+
+## Related pages
+
+- [Theory](theory.md): the model, its equations and where they live in the source.
+- [All documentation](README.md)

@@ -82,3 +82,9 @@ To add a new kind of view, write a function `(case, opts) -> [(title, view), ...
 
 foamcli's `render` and `gallery` make 2D matplotlib slices with no ParaView. `pgfView` is the ParaView side: 3D, DEM glyphs, and the views a person would open. A tool that wants ParaView images, foamcli included, calls `pgfView <case> --png <dir>`.
 
+## Related pages
+
+- [The pgf tool](pgf.md): settings, builds and runs.
+- [Setting up your own case](case-setup.md): required fields, input files, tutorial cases, tips.
+- [Troubleshooting](troubleshooting.md): symptoms, likely causes and fixes.
+- [All documentation](README.md)

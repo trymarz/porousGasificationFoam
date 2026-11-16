@@ -217,3 +217,9 @@ The springs are not part of YADE or Foam-Yade. They are Python in the DEM fixtur
 Reaction kinetics, diffusive resistance, reaction enthalpies, heat-transfer correlations and the radiation models are described in the paper (§2.2–2.4) and in the source under `thermophysicalModels/` and `radiationModels/`.
 
 If you find a discrepancy between this page and the code, the code wins — please open an issue or PR.
+
+## Related pages
+
+- [Solid step](solid-step.md): the solid step, stage by stage.
+- [Setting up your own case](case-setup.md): required fields, input files, tutorial cases, tips.
+- [All documentation](README.md)

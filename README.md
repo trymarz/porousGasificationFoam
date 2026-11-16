@@ -48,9 +48,9 @@ Target: **OpenFOAM-v2406** · License: **GPL v3** · Earlier versions for [OpenF
 
 You need OpenFOAM-v2406, installed and sourceable.
 
-PGF comes with `pgf`, a command-line tool that finds OpenFOAM, builds the solver, runs and views cases and runs the tests, each in a clean OpenFOAM environment. `pgf help` lists its commands; [doc/build.md](doc/build.md) covers it in full.
+PGF comes with `pgf`, a command-line tool that finds OpenFOAM, builds the solver, runs and views cases and runs the tests, each in a clean OpenFOAM environment. `pgf help` lists its commands; [doc/pgf.md](doc/pgf.md) covers it in full.
 
-**1. Set up pgf.** In the checkout, run:
+**1. Set up pgf.** In the directory where you cloned PGF, run:
 
 ```bash
 ./pgf setup --yes
@@ -66,7 +66,7 @@ pgf build
 
 It builds the libraries, the solver and the utilities into a build of their own: about 1.5 min the first time, and reused as long as the sources don't change. `./Allwmake` does the same.
 
-**3. Copy a tutorial** out of the checkout:
+**3. Copy a tutorial** out of the repository:
 
 ```bash
 pgf copy charOnlyMoveCases/serial
@@ -82,31 +82,23 @@ pgf view .
 
 `pgf run` copies `0.orig` to `0`, runs `blockMesh`, `setFields` and the solver, and records the run; `pgf view` opens the results in ParaView.
 
-`pgf copy` puts tutorials in OpenFOAM's run directory, under the checkout's branch (`main`), and records which checkout they came from, so `pgf run` uses its build. Run such copies, not the cases in `tutorials/`. To rerun a case, clean it first with `pgf run . Allclean`. `pgf status` lists your copies and settings; [doc/build.md](doc/build.md) has the details.
+`pgf copy` puts tutorials in OpenFOAM's run directory, under the checkout's branch (`main`), and records which checkout they came from, so `pgf run` uses its build. Run such copies, not the cases in `tutorials/`. To rerun a case, clean it first with `pgf run . Allclean`. `pgf status` lists your copies and settings.
 
 ### After the first case
 
 - **More tutorials:** [Tutorial cases](doc/case-setup.md#tutorial-cases) describes each one; `pgf copy --list` lists them.
 - **A full reactive-flow demo:** `pgf copy gasifier`, a fixed-bed gasifier. It runs for hours on 4 MPI ranks.
-- **Work interactively:** `pgf shell` opens a shell with the build on `PATH`.
-- **Build options, DEM (`pgf build --yade`), cleaning (`./Allwclean`):** [doc/build.md](doc/build.md).
 - **Your own case:** start from [doc/case-setup.md](doc/case-setup.md).
 
 ## Documentation
 
-Each topic has its own page; read them one at a time, as you need them.
+[doc/README.md](doc/README.md) lists every page. In short:
 
-| Topic | Read |
-|---|---|
-| Building, rebuilding, DEM coupling | [doc/build.md](doc/build.md) |
-| Setting up your own case (input files, initial fields, tips, utilities) | [doc/case-setup.md](doc/case-setup.md) |
-| Choosing a tutorial to start from | [Tutorial cases](doc/case-setup.md#tutorial-cases) |
-| Troubleshooting errors | [doc/troubleshooting.md](doc/troubleshooting.md) |
-| The model: equations, per-step flow, where the code is | [doc/theory.md](doc/theory.md) |
-| Regression tests: running and extending them | [doc/regression-testing.md](doc/regression-testing.md) |
-| ParaView: looking at a case, rendering views to PNG | [doc/paraview.md](doc/paraview.md) |
-| Contributing (branches, PRs, doc rules) | [CONTRIBUTING.md](CONTRIBUTING.md) |
-| API reference | Doxygen — see [doc/build.md](doc/build.md#doxygen-documentation) |
+- **Using PGF:** [the pgf tool](doc/pgf.md), [your own case](doc/case-setup.md), [ParaView](doc/paraview.md), [troubleshooting](doc/troubleshooting.md)
+- **Building and deploying:** [building](doc/build.md), [Apptainer images](doc/containers.md)
+- **Reference:** [pgf reference](doc/pgf-reference.md), [API reference (Doxygen)](doc/build.md#doxygen-documentation)
+- **The model:** [theory](doc/theory.md), [solid step](doc/solid-step.md)
+- **Developing PGF:** [contributing](CONTRIBUTING.md), [regression testing](doc/regression-testing.md), [regression metric ledger](doc/regression-ledger.md)
 
 ## Repository layout
 
@@ -115,9 +107,9 @@ porousGasificationFoam/    main solver source (time loop, equations)
 porousGasificationMedia/   libraries (pyrolysis, chemistry, radiation, DEM)
 tutorials/cases/           tutorial cases
 utilities/                 auxiliary tools (setPorosity, totalMass, …)
-applications/test/         regression framework
 utilities/pgf/             pgf's parts: build driver, test tiers, settings, registry
-pgf                        the front door: settings, builds, runs, tests (pgf help)
+applications/test/         regression framework
+pgf                        the pgf command: settings, builds, runs, tests (pgf help)
 Allwmake / Allwclean       build / clean everything (non-DEM by default), via pgf build
 doc/                       documentation and Doxygen source
 ```

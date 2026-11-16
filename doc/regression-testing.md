@@ -18,7 +18,7 @@ cd applications/test/regression
 ./Allrun --run-root /scratch/r --keep-runs  # where the case copies go; keep passed ones too
 ```
 
-Exit `0` = every case passed; non-zero = at least one did not. A single case without the suite: `tools/runCase.sh tutorials/cases/canonical/pyrolysis [--no-run] [--run-dir D] [--rtol R] [--atol A]`. To run against an isolated build instead of the solver on your `PATH`, prefix the command with `./pgf shell --` (see [Isolated builds](build.md#isolated-builds-and-pgf)).
+Exit `0` = every case passed; non-zero = at least one did not. A single case without the suite: `tools/runCase.sh tutorials/cases/canonical/pyrolysis [--no-run] [--run-dir D] [--rtol R] [--atol A]`. To run against an isolated build instead of the solver on your `PATH`, prefix the command with `./pgf shell --` (see [The build store](build.md#the-build-store)).
 
 `--case` accepts the `cases.list` path, a trailing part of it or the basename, and selects every tag unless `--tag` is also given.
 
@@ -42,7 +42,7 @@ The suite is green only if at least one case ran and every case passed. There is
 
 ### Tiers with `pgf test`
 
-`pgf test` runs a whole tier against this checkout's isolated build (see [Isolated builds](build.md#isolated-builds-and-pgf)) and remembers the result. The tiers are rows in `applications/test/tiers.conf`: driver, build variant, jobs, timeout, `pgf shell` flags, selection and cadence.
+`pgf test` runs a whole tier against the build of the checkout pgf runs from (see [The build store](build.md#the-build-store)) and remembers the result. The tiers are rows in `applications/test/tiers.conf`: driver, build variant, jobs, timeout, `pgf shell` flags, selection and cadence.
 
 | Tier | Driver and selection | Variant | Jobs | Cadence |
 |---|---|---|---|---|
@@ -58,7 +58,7 @@ The suite is green only if at least one case ran and every case passed. There is
 ./pgf test --gc --keep-runs 10 --keep-prefixes 5 [--dry-run]
 ```
 
-Each run goes to `$PGF_RUN_ROOT/pgf-test-<tier>-<time>-<pid>/` (`build.log`, `driver.log`, `state/` with `result.json`, and `cases/` with the kept case copies). `PGF_RUN_ROOT` defaults to `${TMPDIR:-/tmp}/pgf-runs`. The record `${XDG_STATE_HOME:-~/.local/state}/pgf/runs/last/<tier>.json` (outside the tmp run root, so it survives a reboot; before #274 it was `$PGF_RUN_ROOT/last/`) holds the build key, source fingerprint, git `HEAD`, start and end time, outcome counts, the exit code and the paths to the run's state. A tier is **stale** when the key it last tested is not this tree's current key, or with `--if-stale AGE` when that run is older than `AGE`. `--if-stale` reruns a tier whose last run failed, even for the same key. `--rebuild` deletes the tier's prefix and builds it again. `--gc` keeps the newest N run dirs plus every dir a record points at, and the newest M prefixes. It never removes this tree's prefixes (either variant) or a prefix whose build lock is held. `PGF_TIERS_CONF` points `pgf test` at another tiers file. Exit codes are the drivers' (see [Outcomes](#outcomes)). The old `./pgf-test` still forwards to `pgf test` for a deprecation period (#274).
+Each run goes to `$PGF_RUN_ROOT/pgf-test-<tier>-<time>-<pid>/` (`build.log`, `driver.log`, `state/` with `result.json`, and `cases/` with the kept case copies). `PGF_RUN_ROOT` defaults to `${TMPDIR:-/tmp}/pgf-runs`. The record `${XDG_STATE_HOME:-~/.local/state}/pgf/runs/last/<tier>.json` (outside the tmp run root, so it survives a reboot; before #274 it was `$PGF_RUN_ROOT/last/`) holds the build key, source fingerprint, git `HEAD`, start and end time, outcome counts, the exit code and the paths to the run's state. A tier is **stale** when the key it last tested is not that checkout's current key, or with `--if-stale AGE` when that run is older than `AGE`. `--if-stale` reruns a tier whose last run failed, even for the same key. `--rebuild` deletes the tier's prefix and builds it again. `--gc` keeps the newest N run dirs plus every dir a record points at, and the newest M prefixes. It never removes that checkout's builds (either variant) or a prefix whose build lock is held. `PGF_TIERS_CONF` points `pgf test` at another tiers file. Exit codes are the drivers' (see [Outcomes](#outcomes)). The old `./pgf-test` still forwards to `pgf test` for a deprecation period (#274).
 
 ### Baselines on another toolchain
 
@@ -245,3 +245,10 @@ Two invariants:
 - **No result is never a pass.** If a runner dies before writing one, the driver builds the outcome from the wait status it observed. If a case's `result.json` disagrees with that status, the observed status wins and the mismatch is recorded (`result_mismatch`), so a stale file cannot turn a crash green.
 
 `foamcli test` is one optional consumer: it runs `Allrun` and shows its state as a dashboard or JSON. PGF never calls it, and it never decides whether a case passed.
+
+## Related pages
+
+- [Regression metric ledger](regression-ledger.md): what each metric can and cannot detect.
+- [Contributing](../CONTRIBUTING.md): branches, issues, PRs, where documentation goes.
+- [The pgf tool](pgf.md): settings, builds and runs.
+- [All documentation](README.md)

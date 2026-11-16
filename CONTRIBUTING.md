@@ -71,3 +71,9 @@ When you submit a PR:
 - **New documentation insight** → if it's about *what the code does*, write it as a code comment. If it's about *how to use* the solver or *how to navigate* the codebase, it belongs in the README or `doc/`.
 
 If you catch a theory.md claim (beyond a short-form equation) that's already in the code as a comment, replace it with a pointer in the same PR. The migration is opportunistic — no need to wait for a dedicated cleanup branch.
+
+## Related pages
+
+- [Regression testing](doc/regression-testing.md): running the tests, adding a case.
+- [Theory](doc/theory.md): the model, its equations and where they live in the source.
+- [All documentation](doc/README.md)
