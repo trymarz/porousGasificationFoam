@@ -59,7 +59,8 @@ fi
 
 mkdir -p "$png"
 export PGFVIEW_PNG="$(cd "$png" && pwd)"
-cmd=(pvbatch "$here/pgfViewMain.py")
+# --dr: the user's ParaView settings are neither read nor saved (its palette, #290).
+cmd=(pvbatch --dr "$here/pgfViewMain.py")
 # Debian's ParaView renders through X only (no EGL/OSMesa), so headless
 # means a virtual X server.
 if [ -n "$xvfb" ] || [ -z "${DISPLAY:-}" ]; then

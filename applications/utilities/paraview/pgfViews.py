@@ -465,33 +465,35 @@ PNG_PALETTE = "WhiteBackground"
 
 
 def _palette(name):
-    """Load ParaView palette `name` (None: none); returns a function that puts the
-    user's palette back. ParaView saves the palette on exit, pvbatch too (#290)."""
-    if not name:
-        return lambda: None
-    live = pv.GetSettingsProxy("ColorPalette")
-    plain = lambda v: v if v is None or isinstance(v, (str, int, float)) else list(v)
-    saved = {p: plain(live.GetPropertyValue(p)) for p in live.ListProperties() if p != "LoadPalette"}
-    pv.LoadPalette(name)
+    """Load ParaView palette `name` (None: none), for pvbatch only: ParaView saves
+    the palette on exit, so pgfView runs pvbatch with --dr (#290)."""
+    if name:
+        pv.LoadPalette(name)
 
-    def restore():
-        for p, v in saved.items():
-            live.SetPropertyWithName(p, v)
-    return restore
+
+def paletteBackground(name):
+    """{view property: palette property} of palette `name`'s background, read
+    without loading the palette."""
+    p = pv.servermanager.ProxyManager().SMProxyManager.GetPrototypeProxy("palettes", name)
+    if p is None:
+        raise SystemExit("pgfView: no ParaView palette %r" % name)
+    pairs = {"Background": "BackgroundColor", "Background2": "BackgroundColor2",
+             "BackgroundColorMode": "BackgroundColorMode"}
+    return {v: p.GetProperty(k) for v, k in pairs.items() if p.GetProperty(k)}
 
 
 def _backgrounds(name, views):
-    """Palette `name`'s background on these views only, for the GUI (#290)."""
+    """Palette `name`'s background on these views only: the GUI keeps the user's
+    palette, which ParaView would save on exit (#290)."""
     if not name:
         return
-    restore = _palette(name)
-    live = pv.GetSettingsProxy("ColorPalette")
-    bg = list(live.Background), list(live.Background2), live.BackgroundColorMode
-    restore()
+    bg = paletteBackground(name)
     for v in views:
-        if hasattr(v, "UseColorPaletteForBackground"):
+        if v.SMProxy.GetProperty("UseColorPaletteForBackground"):
             v.UseColorPaletteForBackground = 0
-            v.Background, v.Background2, v.BackgroundColorMode = bg
+            for k, prop in bg.items():
+                v.SMProxy.GetProperty(k).Copy(prop)
+            v.SMProxy.UpdateVTKObjects()
 
 
 def note(level, text):
@@ -582,17 +584,14 @@ def _tilde(p):
 def writePngs(case, outDir, time=None, size=(1000, 750), palette=PNG_PALETTE):
     """Render every view at `time` (default: last mesh time) to outDir/*.png."""
     os.makedirs(outDir, exist_ok=True)
-    restore = _palette(palette)
-    try:
-        built, t = build(case, time)
-        written = []
-        for title, v in built:
-            v.ViewTime = t
-            path = os.path.join(outDir, re.sub(r"[^\w.-]+", "_", title) + ".png")
-            pv.SaveScreenshot(path, v, ImageResolution=list(size), FontScaling="Do not scale fonts")
-            written.append(path)
-    finally:
-        restore()
+    _palette(palette)
+    built, t = build(case, time)
+    written = []
+    for title, v in built:
+        v.ViewTime = t
+        path = os.path.join(outDir, re.sub(r"[^\w.-]+", "_", title) + ".png")
+        pv.SaveScreenshot(path, v, ImageResolution=list(size), FontScaling="Do not scale fonts")
+        written.append(path)
     note("OK", "wrote %d PNGs at t = %s to %s" % (len(written), _fmt(t), _tilde(outDir)))
     return written
 
@@ -721,19 +720,16 @@ def showCompareGui(a, b, palette=None, time=None):
 def writeComparePngs(a, b, outDir, time=None, size=(1000, 750), palette=PNG_PALETTE):
     """One PNG per view, its panes side by side, each `size` large."""
     os.makedirs(outDir, exist_ok=True)
-    restore = _palette(palette)
-    try:
-        built, t = buildCompare(a, b, time)
-        written = []
-        for title, views in built:
-            for v in views:
-                v.ViewTime = t
-            layout = _paneLayout(title, views)
-            path = os.path.join(outDir, re.sub(r"[^\w.-]+", "_", title) + ".png")
-            pv.SaveScreenshot(path, layout, ImageResolution=[size[0] * len(views), size[1]],
-                              FontScaling="Do not scale fonts")
-            written.append(path)
-    finally:
-        restore()
+    _palette(palette)
+    built, t = buildCompare(a, b, time)
+    written = []
+    for title, views in built:
+        for v in views:
+            v.ViewTime = t
+        layout = _paneLayout(title, views)
+        path = os.path.join(outDir, re.sub(r"[^\w.-]+", "_", title) + ".png")
+        pv.SaveScreenshot(path, layout, ImageResolution=[size[0] * len(views), size[1]],
+                          FontScaling="Do not scale fonts")
+        written.append(path)
     note("OK", "wrote %d PNGs at t = %s to %s" % (len(written), _fmt(t), _tilde(outDir)))
     return written

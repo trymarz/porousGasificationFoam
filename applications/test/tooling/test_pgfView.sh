@@ -42,11 +42,14 @@ from paraview import simple
 sig = lambda f: inspect.signature(f).parameters["palette"].default
 assert sig(pgfViews.showGui) is None and sig(pgfViews.showCompareGui) is None, "GUI"
 assert sig(pgfViews.writePngs) == sig(pgfViews.writeComparePngs) == "WhiteBackground", "png"
-pgfViews._palette(None)(); assert simple.loaded == [], simple.loaded
+pgfViews._palette(None); assert simple.loaded == [], simple.loaded
 '
 printf '#!/bin/sh\necho "palette=$PGFVIEW_PALETTE"\n' >"$bin/paraview"
 check "--palette NAME reaches the script" \
     bash -c '[ "$(PATH="$1:$PATH" "$2" view "$3" --palette BlackBackground)" = palette=BlackBackground ]' _ "$bin" "$PGF" "$TEST_TMP/case"
+printf '#!/bin/sh\necho "pvbatch $*"\n' >"$bin/pvbatch" && chmod +x "$bin/pvbatch"
+check "--png runs pvbatch --dr: the user's ParaView settings are not saved (#290)" \
+    bash -c 'DISPLAY=:9 PATH="$1:$PATH" "$2" view "$3" --png "$4" | grep -q "^pvbatch --dr "' _ "$bin" "$PGF" "$TEST_TMP/case" "$TEST_TMP/png"
 
 # GUI tabs (#290): one per view, named after it, replacing the startup tab and
 # its empty RenderView1. A recording stub stands in for paraview.simple.
@@ -117,25 +120,36 @@ else
 fi
 
 if command -v pvpython >/dev/null; then
+    # GUI: --palette reads the palette's background without loading it; --png
+    # loads it, under pvbatch --dr. Either way the settings file is left as it was.
     cat >"$TEST_TMP/palette.py" <<EOF2
 import sys
 sys.path.insert(0, "$PGF_ROOT/applications/utilities/paraview")
 import paraview.simple as pv, pgfViews
-restore = pgfViews._palette("BlackBackground")
-assert list(pv.GetSettingsProxy("ColorPalette").Background) == [0, 0, 0]
-restore()
+if sys.argv[1] == "gui":
+    bg = pgfViews.paletteBackground("BlackBackground")["Background"]
+    assert [bg.GetElement(i) for i in range(3)] == [0, 0, 0]
+else:
+    pgfViews._palette("WhiteBackground")
+    assert list(pv.GetSettingsProxy("ColorPalette").Foreground) == [0, 0, 0]
 print("palette ok")
 EOF2
-    for start in none grey; do
-        h="$TEST_TMP/home-$start" && mkdir -p "$h/.config/ParaView"
-        [ $start = grey ] && echo '{"settings":{"ColorPalette":{"BackgroundColor":[0.3,0.3,0.3]}}}' \
-            >"$h/.config/ParaView/ParaView-UserSettings.json"
-        check "--palette leaves ParaView's saved palette as it was ($start)" bash -c '
-            HOME="$1" XDG_CONFIG_HOME="$1/.config" UCX_VFS_ENABLE=n timeout 120 pvpython "$2" 2>&1 | grep -qx "palette ok" &&
-            python3 -c "import json, sys
-s = json.load(open(sys.argv[1])).get(\"settings\", {}).get(\"ColorPalette\", {})
-assert s.get(\"BackgroundColor\") == ([0.3] * 3 if sys.argv[2] == \"grey\" else None), s
-" "$1/.config/ParaView/ParaView-UserSettings.json" "$3"' _ "$h" "$TEST_TMP/palette.py" "$start"
+    for path in gui png; do
+        for start in none grey; do
+            h="$TEST_TMP/home-$path-$start" && mkdir -p "$h/.config/ParaView"
+            [ $start = grey ] && echo '{"settings":{"ColorPalette":{"BackgroundColor":[0.3,0.3,0.3]}}}' \
+                >"$h/.config/ParaView/ParaView-UserSettings.json"
+            dr=() && [ $path = png ] && dr=(--dr)
+            check "$path: ParaView's saved palette is left as it was ($start)" bash -c '
+                HOME="$1" XDG_CONFIG_HOME="$1/.config" UCX_VFS_ENABLE=n timeout 120 pvpython "${@:5}" "$2" "$3" 2>&1 |
+                    grep -qx "palette ok" &&
+                python3 -c "import json, os, sys
+f = sys.argv[1]
+s = json.load(open(f)).get(\"settings\", {}) if os.path.exists(f) else {}
+want = {\"BackgroundColor\": [0.3] * 3} if sys.argv[2] == \"grey\" else None
+assert s.get(\"ColorPalette\") == want, s
+" "$1/.config/ParaView/ParaView-UserSettings.json" "$4"' _ "$h" "$TEST_TMP/palette.py" "$path" "$start" "${dr[@]}"
+        done
     done
 fi
 
