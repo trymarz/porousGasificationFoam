@@ -371,7 +371,7 @@ for c in status where; do
     check "  the build store and its layer" grep -qE "^builds +/keep \[checkout $tree/.pgf.conf:[0-9]+\]" "$TEST_TMP/where"
     check "  the run records, with ~" grep -qxF "records   ~/.local/state/pgf/runs" "$TEST_TMP/where"
     check "  scratch, as doc/build.md calls it" grep -qE "^scratch +$TEST_TMP/runs \[checkout " "$TEST_TMP/where"
-    check "  the case root (\$FOAM_RUN by default)" grep -qE "^cases +~/fake-user/run \[default: \\\$FOAM_RUN\]" "$TEST_TMP/where"
+    check "  the case root (\$WM_PROJECT_USER_DIR/run by default)" grep -qE "^cases +~/fake-user/run \[default: \\\$WM_PROJECT_USER_DIR/run\]" "$TEST_TMP/where"
     check "  this checkout's builds, and the case copies" \
         bash -c 'grep -qx "this checkout.s builds:" "$1" && grep -qx "case copies (pgf copy), per branch:" "$1"' _ "$TEST_TMP/where"
     check "  and not the settings block (that is pgf config)" bash -c '! grep -q "^settings:" "$1"' _ "$TEST_TMP/where"

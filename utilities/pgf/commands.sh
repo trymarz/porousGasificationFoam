@@ -592,7 +592,7 @@ pgf_status() {
   printf 'records   %s\n' "$(pgf_tilde "$(pgf_records_dir)")"
   printf 'scratch   %s [%s]\n' "$(pgf_tilde "${PGF_RUN_ROOT:-${TMPDIR:-/tmp}/pgf-runs}")" "$(pgf_layer PGF_RUN_ROOT)"
   printf 'cases     %s [%s]\n' "$(pgf_tilde "${PGF_INFO_CASES:-unknown}")" \
-    "$([ -n "${PGF_CONF_SRC[PGF_CASE_ROOT]:-}" ] && pgf_layer PGF_CASE_ROOT || echo 'default: $FOAM_RUN')"
+    "$([ -n "${PGF_CONF_SRC[PGF_CASE_ROOT]:-}" ] && pgf_layer PGF_CASE_ROOT || echo 'default: $WM_PROJECT_USER_DIR/run')"
   printf 'build     %s [%s; %s] %s\n' "$key" "$variant" "$src" "$state"
   echo
   st_head "this checkout's builds:"
@@ -750,7 +750,7 @@ pgf_copy_cmd() {
 
   root="${PGF_CASE_ROOT:-}"
   [ -n "$root" ] || root="$("$SELF" shell --bare --no-yade -- printenv PGF_CASE_ROOT 2>/dev/null)"
-  [ -n "$root" ] || { echo "pgf copy: no case root: run ./pgf setup (OpenFOAM's \$FOAM_RUN is the default), or pgf config set PGF_CASE_ROOT=DIR" >&2; return 2; }
+  [ -n "$root" ] || { echo "pgf copy: no case root: run ./pgf setup (OpenFOAM's \$WM_PROJECT_USER_DIR/run is the default), or pgf config set PGF_CASE_ROOT=DIR" >&2; return 2; }
   dest="$root/$(pgf_branch_dir)/${pos[1]:-$rel}"
   if [ -e "$dest" ]; then
     if [ "$force" -eq 0 ]; then

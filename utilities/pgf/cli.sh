@@ -99,7 +99,8 @@ pgf_cmd copy "copy a tutorial case out of the checkout, ready to run" "pgf copy 
 pgf_cmd_desc copy "Copies tutorials/cases/<tutorial>, the whole case with linked files resolved
 (cp -rL), to \$PGF_CASE_ROOT/<branch>/<tutorial>, or <branch>/NAME. <branch> is
 this checkout's branch with / as -, or its short commit when detached.
-PGF_CASE_ROOT defaults to \$FOAM_RUN (~/OpenFOAM/<user>-v2406/run).
+PGF_CASE_ROOT defaults to OpenFOAM's run dir, \$WM_PROJECT_USER_DIR/run
+(~/OpenFOAM/<user>-v2406/run), not pgf's scratch \$FOAM_RUN.
 
 The copy records the checkout and commit it came from: pgf run then uses that
 checkout's build, and warns when the branch has moved on since. An existing

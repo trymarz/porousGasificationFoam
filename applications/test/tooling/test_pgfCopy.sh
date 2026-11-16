@@ -17,7 +17,7 @@ bashrc="$FAKE/foam/etc/bashrc"
 mkdir -p "${bashrc%/*}"
 cat >"$bashrc" <<'EOF'
 export WM_PROJECT_DIR=/fake WM_PROJECT_VERSION=v2406 WM_OPTIONS=linux64GccDPInt32Opt
-export WM_PROJECT_USER_DIR="$HOME/u" FOAM_RUN="$HOME/u/run"
+export WM_PROJECT_USER_DIR="$HOME/u" FOAM_RUN="$HOME/u/elsewhere"
 EOF
 
 g() { git -C "$1" -c user.name=t -c user.email=t@example.invalid "${@:2}"; }
@@ -68,7 +68,7 @@ p "$one" copy family/demo >"$TEST_TMP/out" 2>&1
 rc=$?
 dest="$home/u/run/feature-x/family/demo"
 check "copy exits 0 (rc=$rc)" [ "$rc" -eq 0 ]
-check "  into \$FOAM_RUN/<branch, / as ->/<tutorial>" [ -x "$dest/Allrun" ]
+check "  into \$WM_PROJECT_USER_DIR/run/<branch, not \$FOAM_RUN, / as ->/<tutorial>" [ -x "$dest/Allrun" ]
 check "  following links (cp -rL)" bash -c '[ -f "$1/data" ] && [ ! -L "$1/data" ] && grep -qx shared "$1/data"' _ "$dest"
 check "  and says where, with ~, and next: pgf run" \
     bash -c 'grep -q "^       to ~/u/run/feature-x/family/demo$" "$1" && grep -q "^  pgf run ~/u/run/feature-x/family/demo " "$1"' _ "$TEST_TMP/out"
@@ -123,7 +123,7 @@ check "status lists the copies per branch" \
     bash -c 'sed -n "/^case copies/,/^\$/p" "$1" | grep -qx "  feature-x" &&
         sed -n "/^case copies/,/^\$/p" "$1" | grep -qE "^    family/demo +feature/x @ [0-9a-f]{7}  stale: feature/x has moved on"' _ "$TEST_TMP/status"
 check "  and the detached copy under its commit" grep -qx "  $(g "$two" rev-parse --short HEAD)" "$TEST_TMP/status"
-check "  and where they go (cases, \$FOAM_RUN by default)" grep -qE '^cases +~/u/run \[default: \$FOAM_RUN\]' "$TEST_TMP/status"
+check "  and where they go (cases, \$WM_PROJECT_USER_DIR/run by default)" grep -qE '^cases +~/u/run \[default: \$WM_PROJECT_USER_DIR/run\]' "$TEST_TMP/status"
 
 [ "$TEST_FAILURES" -eq 0 ] || { echo "--- last stderr"; cat "$TEST_TMP/err"; }
 finish
