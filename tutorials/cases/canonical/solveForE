@@ -1,7 +1,8 @@
 #!/bin/sh
 # Solve canonical case $1 for e instead of h in the calling case, then fail if
 # its outputs differ from $1's committed reference by more than rtol $2 (#132).
-h="../$1"
+# $1 is found next to this script, so a copied case can call it through PGF_ROOT.
+h="${0%/*}/$1"
 cp -r "$h/0.orig" "$h/constant" "$h/system" . || exit
 foamDictionary constant/thermophysicalProperties \
     -entry thermoType/energy -set sensibleInternalEnergy > /dev/null || exit
@@ -16,7 +17,7 @@ restore0Dir
 runApplication blockMesh || exit
 runApplication $(getApplication) || exit
 
-python3 ../../../../applications/test/regression/tools/compareScalars.py \
+python3 "${0%/*}/../../../applications/test/regression/tools/compareScalars.py" \
     --reference "$h/reference/postProcessing" --candidate postProcessing \
     --rtol "$2" > log.compareH 2>&1 \
  || { echo "e and h forms of $1 differ beyond rtol $2, see log.compareH" >&2; exit 1; }

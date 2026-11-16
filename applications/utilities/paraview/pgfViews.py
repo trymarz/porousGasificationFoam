@@ -197,13 +197,13 @@ def _color(rep, view, assoc, field, opts):
     return lut
 
 
-def _sliced(case, opts, src=None):
-    """`src` (default: the mesh), or a slice of it when opts['slice'] is set."""
+def _sliced(case, opts, name, src=None):
+    """`src` (default: the mesh), or a slice of it named `name` when opts['slice'] is set."""
     src = src or case.mesh()
     sl = opts.get("slice")
     if not sl:
         return src
-    s = pv.Slice(Input=src)
+    s = pv.Slice(registrationName=name, Input=src)
     s.SliceType = "Plane"
     b = case.mesh().GetDataInformation().GetBounds()
     n = sl.get("normal", [0, 0, 1])
@@ -245,7 +245,7 @@ def meshFields(case, opts):
     fields = opts.get("fields") or (
         ["Y" + s for s in case.solidComponents()] + MESH_FIELDS
     )
-    src = _sliced(case, opts)
+    src = _sliced(case, opts, case.label + " slice")
     out = []
     for f in fields:
         if f not in have:
@@ -281,7 +281,7 @@ def solidRegime(case, opts):
     if "solidRegime" not in case.cellArrays():
         return []
     v = _renderView("solidRegime")
-    rep = pv.Show(_sliced(case, opts), v)
+    rep = pv.Show(_sliced(case, opts, case.label + " solidRegime slice"), v)
     _unlit(rep)
     lut = _color(rep, v, "CELLS", "solidRegime", {})
     lut.InterpretValuesAsCategories = 1
@@ -295,7 +295,7 @@ def solidRegime(case, opts):
 
 def porosityThreshold(case, opts):
     """Cells with porosityF below opts['below'] (default 0.999): the solid."""
-    t = pv.Threshold(Input=case.mesh())
+    t = pv.Threshold(registrationName=case.label + " porosityThreshold", Input=case.mesh())
     t.Scalars = ["CELLS", "porosityF"]
     t.LowerThreshold, t.UpperThreshold = 0.0, opts.get("below", 0.999)
     v = _renderView("porosityThreshold")
@@ -313,7 +313,7 @@ def _spheres(case):
         series = case.file("spheres", "spheres.pvd")
     if not series:
         return None
-    src = pv.OpenDataFile(series)
+    src = pv.OpenDataFile(series, registrationName=case.label + " spheres")
     src.UpdatePipeline()
     return src
 
@@ -323,8 +323,8 @@ def _radiusArray(src):
     return next((a for a in ("radii", "radius") if a in have), None)
 
 
-def _sphereGlyphs(src):
-    g = pv.Glyph(Input=src, GlyphType="Sphere")
+def _sphereGlyphs(src, name):
+    g = pv.Glyph(registrationName=name, Input=src, GlyphType="Sphere")
     g.ScaleArray = ["POINTS", _radiusArray(src)]
     g.ScaleFactor = 2.0  # unit glyph has radius 0.5
     g.GlyphMode = "All Points"
@@ -337,7 +337,7 @@ def demSpheres(case, opts):
     src = _spheres(case)
     if src is None:
         return []
-    g = _sphereGlyphs(src)
+    g = _sphereGlyphs(src, case.label + " sphere glyphs")
     have = src.PointData.keys()
     out = []
     for f in opts.get("colorBy", [_radiusArray(src), "lambda"]):
@@ -358,7 +358,7 @@ def demSprings(case, opts):
     if not os.path.exists(pvd):
         return []
     v = _renderView("springs")
-    springs = pv.PVDReader(FileName=pvd)
+    springs = pv.PVDReader(registrationName=case.label + " springs", FileName=pvd)
     rep = pv.Show(springs, v)
     rep.LineWidth = 2.0
     lo, hi = springs.CellData["springType"].GetRange() if "springType" in springs.CellData.keys() else (0, 0)
@@ -369,7 +369,7 @@ def demSprings(case, opts):
         rep.AmbientColor = rep.DiffuseColor = [0.0, 0.45, 0.7]
     src = _spheres(case)
     if src is not None:
-        s = pv.Show(_sphereGlyphs(src), v)
+        s = pv.Show(_sphereGlyphs(src, case.label + " springs spheres"), v)
         s.ColorArrayName = ["POINTS", ""]
         s.Opacity = 0.25
     _outline(case, v)
@@ -465,19 +465,79 @@ PNG_PALETTE = "WhiteBackground"
 
 
 def _palette(name):
-    """Load ParaView palette `name`; None leaves the current one alone."""
+    """Load ParaView palette `name` (None: none), for pvbatch only: ParaView saves
+    the palette on exit, so pgfView runs pvbatch with --dr (#290)."""
     if name:
         pv.LoadPalette(name)
 
 
-def build(case, time=None, palette=None):
-    """Build the case's views at `time` (default: last mesh time)."""
-    _palette(palette)
-    # Set the time first: colour ranges are fitted to the data shown at build.
-    t = case.times()[-1] if time is None else time
+def paletteBackground(name):
+    """{view property: palette property} of palette `name`'s background, read
+    without loading the palette."""
+    p = pv.servermanager.ProxyManager().SMProxyManager.GetPrototypeProxy("palettes", name)
+    if p is None:
+        raise SystemExit("pgfView: no ParaView palette %r" % name)
+    pairs = {"Background": "BackgroundColor", "Background2": "BackgroundColor2",
+             "BackgroundColorMode": "BackgroundColorMode"}
+    return {v: p.GetProperty(k) for v, k in pairs.items() if p.GetProperty(k)}
+
+
+def _backgrounds(name, views):
+    """Palette `name`'s background on these views only: the GUI keeps the user's
+    palette, which ParaView would save on exit (#290)."""
+    if not name:
+        return
+    bg = paletteBackground(name)
+    for v in views:
+        if v.SMProxy.GetProperty("UseColorPaletteForBackground"):
+            v.UseColorPaletteForBackground = 0
+            for k, prop in bg.items():
+                v.SMProxy.GetProperty(k).Copy(prop)
+            v.SMProxy.UpdateVTKObjects()
+
+
+def note(level, text):
+    """A status line in pgf's style (#286): `  WARN text`."""
+    print("  %-4s %s" % (level, text), flush=True)
+
+
+def _fmt(t):
+    return "%g" % t
+
+
+def writtenTime(times, t):
+    """(time to render, warning or None) for a requested time `t`.
+
+    ParaView shows the written time at or before `t` (the first if none is);
+    say so when `t` itself was not written."""
+    if t is None:
+        return times[-1], None
+    tol = 1e-9 * max(1.0, abs(t))
+    if any(abs(x - t) <= tol for x in times):
+        return t, None
+    before = [x for x in times if x < t]
+    shown = before[-1] if before else times[0]
+    after = [x for x in times if x > t]
+    near = " and ".join(_fmt(x) for x in (before[-1:] + after[:1]))
+    return shown, "no results written at t = %s; rendering t = %s (nearest written: %s)" % (
+        _fmt(t), _fmt(shown), near)
+
+
+def _setTime(times, time):
+    t, warn = writtenTime(times, time)
+    if warn:
+        note("WARN", warn)
     scene = pv.GetAnimationScene()
     scene.UpdateAnimationUsingDataTimeSteps()
     scene.AnimationTime = t
+    return t
+
+
+def build(case, time=None):
+    """Build the case's views at `time` (default: last mesh time); returns
+    them and the time shown."""
+    # Set the time first: colour ranges are fitted to the data shown at build.
+    t = _setTime(case.times(), time)
     out = []
     for name, opts in case.viewSpec():
         if name not in VIEWS:
@@ -485,32 +545,54 @@ def build(case, time=None, palette=None):
         out += VIEWS[name](case, opts)
     if not out:
         raise SystemExit("pgfView: no views apply to " + case.path)
-    return out
+    return out, t
 
 
-def showGui(case, palette=None):
-    """One layout tab per view, the time bar on the last mesh time."""
-    built = build(case, palette=palette)
-    first = pv.GetLayout()
-    for i, (title, v) in enumerate(built):
-        layout = first if i == 0 else pv.CreateLayout(title)
-        if i == 0:
-            pv.RenameLayout(title, first)
-        pv.AssignViewToLayout(view=v, layout=layout, hint=0)
-    pv.SetActiveView(built[0][1])
+def _startup():
+    """The GUI's startup layout and its views (the empty RenderView1)."""
+    v = pv.GetActiveView()
+    first = pv.GetLayout(v) if v else None
+    return first, (pv.GetViewsInLayout(first) if first else [])
+
+
+def _showTabs(startup, tabs):
+    """[(title, [view, ...])] as one layout tab each, replacing the startup tab."""
+    for title, views in tabs:
+        _paneLayout(title, views)
+    first, stale = startup
+    if first is not None:
+        pv.RemoveLayout(first)
+    for v in stale:
+        pv.Delete(v)
+    pv.SetActiveView(tabs[0][1][0])
+
+
+def showGui(case, palette=None, time=None):
+    """One layout tab per view, the time bar on `time` (default: last mesh time)."""
+    startup = _startup()
+    built, t = build(case, time)
+    _backgrounds(palette, [v for _, v in built])
+    _showTabs(startup, [(title, [v]) for title, v in built])
+    note("OK", "%d views of %s at t = %s" % (len(built), case.label, _fmt(t)))
+
+
+def _tilde(p):
+    home = os.path.expanduser("~")
+    return "~" + p[len(home):] if p == home or p.startswith(home + os.sep) else p
 
 
 def writePngs(case, outDir, time=None, size=(1000, 750), palette=PNG_PALETTE):
     """Render every view at `time` (default: last mesh time) to outDir/*.png."""
     os.makedirs(outDir, exist_ok=True)
-    t = case.times()[-1] if time is None else time
+    _palette(palette)
+    built, t = build(case, time)
     written = []
-    for title, v in build(case, t, palette):
+    for title, v in built:
         v.ViewTime = t
         path = os.path.join(outDir, re.sub(r"[^\w.-]+", "_", title) + ".png")
         pv.SaveScreenshot(path, v, ImageResolution=list(size), FontScaling="Do not scale fonts")
         written.append(path)
-        print("pgfView: wrote " + path)
+    note("OK", "wrote %d PNGs at t = %s to %s" % (len(written), _fmt(t), _tilde(outDir)))
     return written
 
 
@@ -527,8 +609,8 @@ def _sameMesh(a, b):
     return n[0] == n[1]
 
 
-def _caption(view, text):
-    rep = pv.Show(pv.Text(Text=text), view)
+def _caption(view, text, name):
+    rep = pv.Show(pv.Text(registrationName=name, Text=text), view)
     rep.WindowLocation = "Upper Left Corner"
     rep.FontSize = 14
     rep.Color = [0.1, 0.1, 0.1]
@@ -537,11 +619,7 @@ def _caption(view, text):
 def _diffView(a, b, field, opts, time):
     """A - B of a cell field on A's mesh, on a colour map symmetric about 0."""
     name = field + " A-B"
-    d = pv.PythonCalculator(registrationName=name, Input=[a.mesh(), b.mesh()])
-    d.ArrayAssociation = "Cell Data"
-    d.Expression = "inputs[0].CellData['%s'] - inputs[1].CellData['%s']" % (field, field)
-    d.ArrayName = name
-    d.UpdatePipeline(time)
+    d = diffSource(a.mesh(), b.mesh(), field, name, time)
     arr = d.CellData[name]
     if arr.GetNumberOfComponents() > 1:  # vectors: magnitude of the difference
         rng = [0.0, arr.GetRange(-1)[1] or 1.0]
@@ -549,7 +627,12 @@ def _diffView(a, b, field, opts, time):
         m = max(abs(x) for x in arr.GetRange()) or 1.0
         rng = [-m, m]
     v = _renderView(name)
-    rep = pv.Show(_sliced(a, opts, d), v)
+    shown = _sliced(a, opts, name + " slice", d)
+    rep = pv.Show(shown, v)
+    # Hidden representations, so the GUI's Apply doesn't show the helpers here (#290).
+    for p in (d.Input, d):
+        if p != shown:
+            pv.Hide(p, v)
     _color(rep, v, "CELLS", name, {"ranges": {name: rng}})
     _unlit(rep)
     if opts.get("slice"):
@@ -558,18 +641,32 @@ def _diffView(a, b, field, opts, time):
     return v
 
 
-def buildCompare(a, b, time=None, palette=None):
+def diffSource(srcA, srcB, field, name, time):
+    """Cell array `name` = A's `field` - B's, with no Python-expression proxy:
+    the GUI's editor for one segfaults ParaView 5.13 (#290)."""
+    both = pv.AppendAttributes(registrationName=name + " inputs", Input=[srcA, srcB])
+    both.UpdatePipeline(time)
+    other = field + "_input_1"  # AppendAttributes' name for B's copy
+    if other not in both.CellData.keys():
+        raise SystemExit("pgfView: no %r from case B for A - B" % other)
+    d = pv.Calculator(registrationName=name, Input=both)
+    d.AttributeType = "Cell Data"
+    d.ResultArrayName = name
+    d.Function = '"%s" - "%s"' % (field, other)
+    d.UpdatePipeline(time)
+    return d
+
+
+def buildCompare(a, b, time=None):
     """[(title, [view A, view B, (A - B)])] for caseA's views, and the time.
 
     B may hold postProcessing only (a reference/): then only overTime is shown.
     """
-    _palette(palette)
     meshes = b.hasMesh()
-    if time is None:
-        time = min(a.times()[-1], b.times()[-1]) if meshes else a.times()[-1]
-    scene = pv.GetAnimationScene()
-    scene.UpdateAnimationUsingDataTimeSteps()
-    scene.AnimationTime = time
+    times = a.times()
+    if meshes:  # the common times; the last of them by default
+        times = [t for t in times if any(abs(t - u) <= 1e-9 * max(1.0, abs(t)) for u in b.times())] or times
+    time = _setTime(times, time)
     diff = meshes and _sameMesh(a, b)
     out = []
     for name, opts in a.viewSpec():
@@ -588,7 +685,7 @@ def buildCompare(a, b, time=None, palette=None):
                 if diff and name in DIFF_VIEWS:
                     panes.append((_diffView(a, b, title, opts, time), "A - B"))
             for i, (v, text) in enumerate(panes):
-                _caption(v, text)
+                _caption(v, text, "%s label %s" % (title, ("A", "B", "A-B")[i]))
                 if i:
                     pv.AddCameraLink(panes[0][0], v, "%s %s" % (title, i))
             out.append((title, [v for v, _ in panes]))
@@ -612,20 +709,19 @@ def _paneLayout(title, views):
     return layout
 
 
-def showCompareGui(a, b, palette=None):
-    first = pv.GetLayout()
-    built, _ = buildCompare(a, b, palette=palette)
-    for title, views in built:
-        _paneLayout(title, views)
-    if first is not None:
-        pv.RemoveLayout(first)
-    pv.SetActiveView(built[0][1][0])
+def showCompareGui(a, b, palette=None, time=None):
+    startup = _startup()
+    built, t = buildCompare(a, b, time)
+    _backgrounds(palette, [v for _, views in built for v in views])
+    _showTabs(startup, built)
+    note("OK", "%d views of %s vs %s at t = %s" % (len(built), a.label, b.label, _fmt(t)))
 
 
 def writeComparePngs(a, b, outDir, time=None, size=(1000, 750), palette=PNG_PALETTE):
     """One PNG per view, its panes side by side, each `size` large."""
     os.makedirs(outDir, exist_ok=True)
-    built, t = buildCompare(a, b, time, palette)
+    _palette(palette)
+    built, t = buildCompare(a, b, time)
     written = []
     for title, views in built:
         for v in views:
@@ -635,5 +731,5 @@ def writeComparePngs(a, b, outDir, time=None, size=(1000, 750), palette=PNG_PALE
         pv.SaveScreenshot(path, layout, ImageResolution=[size[0] * len(views), size[1]],
                           FontScaling="Do not scale fonts")
         written.append(path)
-        print("pgfView: wrote " + path)
+    note("OK", "wrote %d PNGs at t = %s to %s" % (len(written), _fmt(t), _tilde(outDir)))
     return written

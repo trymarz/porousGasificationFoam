@@ -40,7 +40,7 @@ rc=$?
 check "a copied DEM Allrun finds demGuard.sh through PGF_ROOT (rc=$rc)" \
     bash -c '[ "$1" -eq 2 ] && grep -q "run this via: pgf run" "$2"' _ "$rc" "$TEST_TMP/alone.err"
 bad=""
-for f in $(grep -rl 'PGF_ROOT:-' "$PGF_ROOT/tutorials" --include=Allrun); do
+for f in $(grep -rl 'PGF_ROOT:-' "$PGF_ROOT/tutorials" --include=Allrun --include=Allclean); do
     for rel in $(grep -o '${PGF_ROOT:-[^}]*}/[^" ]*' "$f" | sed 's/^${PGF_ROOT:-[^}]*}\///'); do
         [ -e "$PGF_ROOT/$rel" ] || bad="$bad ${f#"$PGF_ROOT"/}:$rel"
     done
@@ -49,6 +49,19 @@ check "every \${PGF_ROOT:-...}/path in an Allrun exists${bad:+ (missing:$bad)}" 
 missing="$(grep -rlE '(\.\./)+(DEM_common/|applications/test/regression/tools/)' "$PGF_ROOT/tutorials" \
     --include=Allrun | xargs -r grep -LE 'PGF_ROOT')"
 check "no Allrun reaches DEM_common or regression tools by a bare relative path${missing:+ ($missing)}" [ -z "$missing" ]
+
+# The ${PGF_ROOT:-default} fallback is the checkout root seen from the script's own dir.
+bad=""
+for f in $(grep -rl 'PGF_ROOT:-\.\.' "$PGF_ROOT/tutorials" --include=Allrun --include=Allclean); do
+    for d in $(grep -o '${PGF_ROOT:-\.\.[./]*}' "$f" | sed 's/^${PGF_ROOT:-//; s/}$//' | sort -u); do
+        [ "$(cd "${f%/*}/$d" 2>/dev/null && pwd -P)" = "$(cd "$PGF_ROOT" && pwd -P)" ] || bad="$bad ${f#"$PGF_ROOT"/}:$d"
+    done
+done
+check "every \${PGF_ROOT:-../..} fallback is the checkout root${bad:+ (wrong:$bad)}" [ -z "$bad" ]
+# pgf copy refuses a case whose scripts reach a bare ../ (#290); no tutorial does.
+. "$PGF_ROOT/utilities/pgf/commands.sh"
+bad="$(find "$PGF_ROOT/tutorials" -name Allrun -printf '%h\n' | while read -r d; do pgf_copy_outside "$d"; done)"
+check "no Allrun/Allclean reaches a bare ../ path${bad:+ ($bad)}" [ -z "$bad" ]
 
 [ "$TEST_FAILURES" -eq 0 ] || { tail -20 "$TEST_TMP/slash.log"; cat "$TEST_TMP/guard.err"; }
 finish

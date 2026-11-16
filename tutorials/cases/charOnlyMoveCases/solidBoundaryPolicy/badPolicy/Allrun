@@ -3,7 +3,7 @@ cd "${0%/*}" || exit
 . ${WM_PROJECT_DIR:?}/bin/tools/RunFunctions
 # An unknown solidBoundaryPolicy: rejected at start-up.
 
-../copyBase 0.01 || exit
+"${PGF_ROOT:-../../../../..}/tutorials/cases/charOnlyMoveCases/solidBoundaryPolicy/copyBase" 0.01 || exit
 foamDictionary constant/pyrolysisProperties -entry pyrolysisCoeffs.solidBoundaryPolicy -add maybe > /dev/null
 restore0Dir
 runApplication blockMesh

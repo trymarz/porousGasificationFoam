@@ -5,17 +5,19 @@
 # system/paraviewViews.py (see doc/paraview.md).
 #
 # Usage:
-#   pgfView <case>                       open the ParaView GUI
+#   pgfView <case> [--time T]            open the ParaView GUI
 #   pgfView <case> --png <dir>           write <dir>/<view>.png (pvbatch)
 #           [--time T] [--size WxH] [--xvfb]
 #   pgfView <case> --compare <other> ...  <case> | <other> | difference
 #   pgfView <case> --palette NAME ...     a ParaView palette, e.g. BlackBackground
 #
 # <case> is a tutorial case or a finished run copy of one; <other> is another
-# one, or a postProcessing-only <case>/reference (charts only). --png renders
-# the last (common) mesh time unless --time is given. --xvfb renders under
+# one, or a postProcessing-only <case>/reference (charts only). Both modes show
+# the last (common) written time, or the written time at or before --time T,
+# with a warning when T itself was not written. --xvfb renders under
 # xvfb-run; it is also used automatically when DISPLAY is unset. The GUI keeps
-# your ParaView palette and --png uses WhiteBackground, unless --palette is given.
+# your ParaView palette and --png uses WhiteBackground, unless --palette is given
+# (for that run only: in the GUI it sets the views' backgrounds).
 
 set -euo pipefail
 
@@ -57,7 +59,8 @@ fi
 
 mkdir -p "$png"
 export PGFVIEW_PNG="$(cd "$png" && pwd)"
-cmd=(pvbatch "$here/pgfViewMain.py")
+# --dr: the user's ParaView settings are neither read nor saved (its palette, #290).
+cmd=(pvbatch --dr "$here/pgfViewMain.py")
 # Debian's ParaView renders through X only (no EGL/OSMesa), so headless
 # means a virtual X server.
 if [ -n "$xvfb" ] || [ -z "${DISPLAY:-}" ]; then

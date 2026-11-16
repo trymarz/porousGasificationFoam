@@ -1,3 +1,3 @@
 #!/bin/sh
 cd "${0%/*}" || exit
-../cleanBase
+"${PGF_ROOT:-../../../../..}/tutorials/cases/charOnlyMoveCases/solidBoundaryPolicy/cleanBase"
