@@ -143,6 +143,11 @@ def human(n):
         n /= 1024.0
 
 
+def tilde(p):
+    home = os.environ.get("HOME", "")
+    return "~" + p[len(home):] if home and (p or "").startswith(home + "/") else p
+
+
 def cmd_ls(argv):
     root, rest = argv[0], argv[1:]
     as_json = "--json" in rest
@@ -160,12 +165,12 @@ def cmd_ls(argv):
         print("workspaces:" if wss else "no workspaces registered")
         for w in wss:
             keys = ", ".join("%s %s" % (v, k) for v, k in sorted((w.get("builds") or {}).items()))
-            print("  %s%s%s  %s" % (w["path"], "@" + w["branch"] if w.get("branch") else "",
+            print("  %s%s%s  %s" % (tilde(w["path"]), "@" + w["branch"] if w.get("branch") else "",
                                     "" if w["exists"] else " (gone)", keys))
     if not bs:
-        print("no builds under %s" % root)
+        print("no builds under %s" % tilde(root))
         return 0
-    print("builds under %s:" % root)
+    print("builds under %s:" % tilde(root))
     for b in bs:
         mark = "*" if b["current"] else " "
         state = "" if b["complete"] else "  (incomplete)"
@@ -177,7 +182,7 @@ def cmd_ls(argv):
             mark, b["key"], b["variant"] or "?", b["built_utc"] or "-", human(b["size_bytes"]),
             where, "@" + branch if branch else "", state))
         for u in b["used_by"]:
-            print("      used by %s" % u)
+            print("      used by %s" % tilde(u))
     return 0
 
 

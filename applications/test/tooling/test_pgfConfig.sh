@@ -54,8 +54,8 @@ check "no config: the environment still works as before" [ "$(version PGF_FOAM_B
 
 echo "PGF_FOAM_BASHRC=$B" >"$user_conf"
 check "user file alone selects B" [ "$(version --)" = B ]
-penv -- status >"$TEST_TMP/status"
-check "status names the user layer and line" grep -qE "^  PGF_FOAM_BASHRC +$B +\[user $user_conf:1\]" "$TEST_TMP/status"
+penv -- config >"$TEST_TMP/status"
+check "config names the user layer and line, with ~" grep -qE "^  PGF_FOAM_BASHRC +$B +\[user ~/.config/pgf/env.conf:1\]" "$TEST_TMP/status"
 
 printf '# checkout\n\nPGF_FOAM_BASHRC="%s"\nPGF_MPI=loopback\n' "$C" >"$tree/.pgf.conf"
 check "checkout file overrides the user file" [ "$(version --)" = C ]
@@ -68,7 +68,10 @@ check "--set overrides the environment" \
     [ "$(version PGF_FOAM_BASHRC="$A" -- --set PGF_FOAM_BASHRC="$D")" = D ]
 penv PGF_FOAM_BASHRC="$A" -- status --set PGF_RUN_ROOT=/x >"$TEST_TMP/status"
 check "status reports env and cli layers" \
-    bash -c 'grep -qE "^  PGF_FOAM_BASHRC .*\[env\]" "$1" && grep -qE "^  PGF_RUN_ROOT +/x +\[cli\]" "$1"' _ "$TEST_TMP/status"
+    bash -c 'grep -qE "^scratch +/x +\[command line\]" "$1"' _ "$TEST_TMP/status"
+penv PGF_FOAM_BASHRC="$A" PGF_RUN_ROOT=/a/very/long/path/that/is/longer/than/forty/characters/for/sure -- config >"$TEST_TMP/status"
+check "config keeps the layer column aligned after a long value" \
+    [ "$(grep -E "^  (PGF_FOAM_BASHRC|PGF_RUN_ROOT) " "$TEST_TMP/status" | awk '{ print index($0, "[") }' | sort -u | wc -l)" -eq 1 ]
 
 printf 'PGF_FOAM_BASHRC=%s\n\nnot a setting\n' "$C" >"$tree/.pgf.conf"
 version -- >/dev/null

@@ -3,7 +3,7 @@ pgfViewMain -- the script pgfView hands to paraview / pvbatch.
 
 The GUI's --script takes no arguments, so pgfView passes them in the
 environment: PGFVIEW_CASE, PGFVIEW_COMPARE for --compare, and for --png
-also PGFVIEW_PNG, PGFVIEW_TIME, PGFVIEW_SIZE. PGFVIEW_DIR is this directory,
+also PGFVIEW_PNG, PGFVIEW_TIME, PGFVIEW_SIZE; PGFVIEW_PALETTE for --palette. PGFVIEW_DIR is this directory,
 for the GUI, which runs the script as <string> without __file__.
 """
 
@@ -26,13 +26,15 @@ if other:
 png = os.environ.get("PGFVIEW_PNG")
 t = os.environ.get("PGFVIEW_TIME")
 t = float(t) if t else None
+palette = os.environ.get("PGFVIEW_PALETTE") or None
 if png:
     w, h = (int(x) for x in os.environ.get("PGFVIEW_SIZE", "1000x750").split("x"))
+    palette = palette or pgfViews.PNG_PALETTE
     if other:
-        pgfViews.writeComparePngs(case, other, png, t, (w, h))
+        pgfViews.writeComparePngs(case, other, png, t, (w, h), palette)
     else:
-        pgfViews.writePngs(case, png, t, (w, h))
+        pgfViews.writePngs(case, png, t, (w, h), palette)
 elif other:
-    pgfViews.showCompareGui(case, other)
+    pgfViews.showCompareGui(case, other, palette)
 else:
-    pgfViews.showGui(case)
+    pgfViews.showGui(case, palette)

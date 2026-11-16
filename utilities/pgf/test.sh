@@ -7,7 +7,7 @@
 #   pgf test --gc [--keep-runs N] [--keep-prefixes M] [--dry-run]
 #
 # A run builds (or reuses) the tier's prefix with build.sh --isolated, runs the
-# tier's driver under pgf exec with --state-dir below the run dir, and writes
+# tier's driver under pgf shell with --state-dir below the run dir, and writes
 # <records>/last/<tier>.json: key, fingerprint, git HEAD, start/end, counts,
 # outcome and where the state is; <records> is ${XDG_STATE_HOME:-~/.local/state}/pgf/runs. Tiers come from applications/test/tiers.conf
 # (PGF_TIERS_CONF overrides it).
@@ -71,7 +71,7 @@ variant_flag() {
 # current_key <tier> — this tree's build key for the tier's variant.
 current_key() {
   # shellcheck disable=SC2046
-  "$PGF" exec --bare -- "$BUILD_SH" --print-key $(variant_flag "$1") 2>/dev/null
+  "$PGF" shell --bare -- "$BUILD_SH" --print-key $(variant_flag "$1") 2>/dev/null
 }
 
 # -- ages and records ------------------------------------------------------------
@@ -167,7 +167,7 @@ run_tier() {
 
   if [ "$REBUILD" = true ]; then
     # shellcheck disable=SC2046
-    prefix="$("$PGF" exec --bare -- "$BUILD_SH" --print-prefix $(variant_flag "$tier") 2>/dev/null)"
+    prefix="$("$PGF" shell --bare -- "$BUILD_SH" --print-prefix $(variant_flag "$tier") 2>/dev/null)"
     case "${prefix##*/}" in
     "$key") [ -d "$prefix" ] && rm -rf "$prefix" && st INFO "removed $prefix" ;;
     *) die "refusing to remove unexpected prefix '$prefix'" ;;
@@ -180,7 +180,7 @@ run_tier() {
   st INFO "run dir $run"
   start="$(date +%s)"
   # shellcheck disable=SC2046
-  if ! "$PGF" exec --bare -- "$BUILD_SH" --isolated $(variant_flag "$tier") >"$run/build.log" 2>&1; then
+  if ! "$PGF" shell --bare -- "$BUILD_SH" --isolated $(variant_flag "$tier") >"$run/build.log" 2>&1; then
     tail -20 "$run/build.log" >&2
     st FAIL "build failed; log $run/build.log" >&2
     write_record "$tier" "$key" 2 "$start" "$(date +%s)" "$run"
@@ -196,7 +196,7 @@ run_tier() {
   # The driver colours what this terminal shows; driver.log gets the plain text.
   local color=never
   pgf_ui_color && color=always
-  PGF_COLOR="$color" "$PGF" exec "${envflags[@]}" -- "$REG_DIR/${T_RUNNER[$tier]}" "${args[@]}" 2>&1 |
+  PGF_COLOR="$color" "$PGF" shell "${envflags[@]}" -- "$REG_DIR/${T_RUNNER[$tier]}" "${args[@]}" 2>&1 |
     tee "$run/driver.log"
   rc=${PIPESTATUS[0]}
   [ "$color" = never ] || sed -i 's/\x1b\[[0-9;]*m//g' "$run/driver.log"
@@ -271,13 +271,13 @@ gc() {
     [ "$n" -le "$keep_runs" ] || act "$d"
   done < <(newest_first "${runs[@]}")
 
-  build_root="$("$PGF" exec --bare -- printenv PGF_BUILD_ROOT 2>/dev/null)" ||
+  build_root="$("$PGF" shell --bare -- printenv PGF_BUILD_ROOT 2>/dev/null)" ||
     die "cannot resolve PGF_BUILD_ROOT"
   for tier in "${TIERS[@]}"; do
     protect_keys["$(current_key "$tier")"]=1
   done
-  protect_keys["$("$PGF" exec --bare -- "$BUILD_SH" --print-key 2>/dev/null)"]=1
-  protect_keys["$("$PGF" exec --bare -- "$BUILD_SH" --print-key --yade 2>/dev/null)"]=1
+  protect_keys["$("$PGF" shell --bare -- "$BUILD_SH" --print-key 2>/dev/null)"]=1
+  protect_keys["$("$PGF" shell --bare -- "$BUILD_SH" --print-key --yade 2>/dev/null)"]=1
   for d in "$build_root"/*-yade[01]-*; do
     [ -d "$d" ] && prefixes+=("$d")
   done

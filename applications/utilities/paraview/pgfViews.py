@@ -460,9 +460,19 @@ VIEWS = {f.__name__: f for f in
 # Entry points
 # --------------------------------------------------------------------------
 
-def build(case, time=None):
+#: PNGs default to a white background; the GUI keeps the user's palette (#287).
+PNG_PALETTE = "WhiteBackground"
+
+
+def _palette(name):
+    """Load ParaView palette `name`; None leaves the current one alone."""
+    if name:
+        pv.LoadPalette(name)
+
+
+def build(case, time=None, palette=None):
     """Build the case's views at `time` (default: last mesh time)."""
-    pv.LoadPalette("WhiteBackground")
+    _palette(palette)
     # Set the time first: colour ranges are fitted to the data shown at build.
     t = case.times()[-1] if time is None else time
     scene = pv.GetAnimationScene()
@@ -478,9 +488,9 @@ def build(case, time=None):
     return out
 
 
-def showGui(case):
+def showGui(case, palette=None):
     """One layout tab per view, the time bar on the last mesh time."""
-    built = build(case)
+    built = build(case, palette=palette)
     first = pv.GetLayout()
     for i, (title, v) in enumerate(built):
         layout = first if i == 0 else pv.CreateLayout(title)
@@ -490,12 +500,12 @@ def showGui(case):
     pv.SetActiveView(built[0][1])
 
 
-def writePngs(case, outDir, time=None, size=(1000, 750)):
+def writePngs(case, outDir, time=None, size=(1000, 750), palette=PNG_PALETTE):
     """Render every view at `time` (default: last mesh time) to outDir/*.png."""
     os.makedirs(outDir, exist_ok=True)
     t = case.times()[-1] if time is None else time
     written = []
-    for title, v in build(case, t):
+    for title, v in build(case, t, palette):
         v.ViewTime = t
         path = os.path.join(outDir, re.sub(r"[^\w.-]+", "_", title) + ".png")
         pv.SaveScreenshot(path, v, ImageResolution=list(size), FontScaling="Do not scale fonts")
@@ -548,12 +558,12 @@ def _diffView(a, b, field, opts, time):
     return v
 
 
-def buildCompare(a, b, time=None):
+def buildCompare(a, b, time=None, palette=None):
     """[(title, [view A, view B, (A - B)])] for caseA's views, and the time.
 
     B may hold postProcessing only (a reference/): then only overTime is shown.
     """
-    pv.LoadPalette("WhiteBackground")
+    _palette(palette)
     meshes = b.hasMesh()
     if time is None:
         time = min(a.times()[-1], b.times()[-1]) if meshes else a.times()[-1]
@@ -602,9 +612,9 @@ def _paneLayout(title, views):
     return layout
 
 
-def showCompareGui(a, b):
+def showCompareGui(a, b, palette=None):
     first = pv.GetLayout()
-    built, _ = buildCompare(a, b)
+    built, _ = buildCompare(a, b, palette=palette)
     for title, views in built:
         _paneLayout(title, views)
     if first is not None:
@@ -612,10 +622,10 @@ def showCompareGui(a, b):
     pv.SetActiveView(built[0][1][0])
 
 
-def writeComparePngs(a, b, outDir, time=None, size=(1000, 750)):
+def writeComparePngs(a, b, outDir, time=None, size=(1000, 750), palette=PNG_PALETTE):
     """One PNG per view, its panes side by side, each `size` large."""
     os.makedirs(outDir, exist_ok=True)
-    built, t = buildCompare(a, b, time)
+    built, t = buildCompare(a, b, time, palette)
     written = []
     for title, views in built:
         for v in views:

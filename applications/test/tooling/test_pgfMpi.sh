@@ -46,7 +46,7 @@ check "--mpi loopback still forces lo" [ "$(probe "$one" -- --mpi loopback)" = l
 
 bridge="$(net eth0:up docker0:up)"
 check "a docker bridge up selects loopback" [ "$(probe "$bridge")" = lo ]
-check "  and the banner says why" grep -q "MPI loopback (auto: bridge/virtual interfaces up: docker0)" "$TEST_TMP/err"
+check "  and the banner says why, in words" grep -qx "  INFO MPI: local only (lo), because bridge/virtual interfaces up: docker0" "$TEST_TMP/err"
 check "two physical interfaces up select loopback" [ "$(probe "$(net eth0:up wlan0:up)")" = lo ]
 check "only lo selects loopback" [ "$(probe "$(net)")" = lo ]
 for v in virbr0 br-1234 veth9; do
@@ -57,14 +57,21 @@ check "--mpi default does too" [ -z "$(probe "$bridge" -- --mpi default)" ]
 
 env -i PATH=/usr/bin:/bin HOME="$TEST_TMP" TMPDIR="$TEST_TMP" PGF_FOAM_BASHRC="$bashrc" \
     PGF_ENV_SYSFS_NET="$bridge" "$tree/pgf" doctor >"$TEST_TMP/doctor" 2>&1
-check "doctor reports the auto decision and interfaces" \
-    grep -q "MPI auto: loopback (bridge/virtual interfaces up: docker0)" "$TEST_TMP/doctor"
-check "doctor checks the bashrc" grep -q "OK   OpenFOAM v2406 from $bashrc" "$TEST_TMP/doctor"
+check "doctor reports the auto decision and interfaces under MPI" \
+    bash -c 'grep -A1 -x MPI "$1" | grep -qx "  OK   auto: local only (lo), because bridge/virtual interfaces up: docker0"' _ "$TEST_TMP/doctor"
+check "doctor checks the bashrc under OpenFOAM" bash -c 'grep -A1 -x OpenFOAM "$1" | grep -qx "  OK   v2406, $2"' _ "$TEST_TMP/doctor" "$bashrc"
+check "doctor opens with one line on what it checks, and no settings block" \
+    bash -c 'head -1 "$1" | grep -q "^pgf doctor: read-only checks" && ! grep -q "^settings:" "$1"' _ "$TEST_TMP/doctor"
+check "  groups the checks" \
+    [ "$(grep -xE "OpenFOAM|build|yade and DEM|MPI|PATH" "$TEST_TMP/doctor" | tr '\n' ' ')" = "OpenFOAM build yade and DEM MPI PATH " ]
+check "  and ends with a verdict that names what DEM needs" \
+    bash -c 'tail -1 "$1" | grep -q "^verdict: .*DEM needs: yade (pgf config set YADE_BIN=<yade>)"' _ "$TEST_TMP/doctor"
 env -i PATH=/usr/bin:/bin HOME="$TEST_TMP" TMPDIR="$TEST_TMP" PGF_FOAM_BASHRC=/nope \
     "$tree/pgf" doctor >"$TEST_TMP/doctor" 2>&1
 rc=$?
-check "doctor exits 1 and names the fix for a missing bashrc (rc=$rc)" \
-    bash -c '[ "$1" -eq 1 ] && grep -q "FAIL no readable OpenFOAM bashrc.*fix: pgf setup" "$2"' _ "$rc" "$TEST_TMP/doctor"
+check "doctor exits 1 and names the fix for a missing bashrc, under it (rc=$rc)" \
+    bash -c '[ "$1" -eq 1 ] && grep -A1 "FAIL no readable OpenFOAM bashrc" "$2" | grep -q "^       fix: ./pgf setup"' _ "$rc" "$TEST_TMP/doctor"
+check "  and the verdict says not ready" bash -c 'tail -1 "$1" | grep -q "^verdict: not ready"' _ "$TEST_TMP/doctor"
 
 [ "$TEST_FAILURES" -eq 0 ] || { echo "--- last stderr"; cat "$TEST_TMP/err"; }
 finish

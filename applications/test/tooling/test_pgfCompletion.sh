@@ -27,12 +27,13 @@ comp() {
 has() { grep -qx -- "$1" <<<"$2"; }
 
 out="$(comp "pgf ")"
-cmds="$("$PGF" --help | sed -n '/^Available Commands:/,/^$/s/^  \([a-z]*\) .*/\1/p')"
+cmds="$("$PGF" --help | sed -n '/Commands:/,/^$/s/^  \([a-z]*\) .*/\1/p')"
 for c in $cmds; do
     check "every command in --help completes: $c" has "$c" "$out"
 done
-check "the table drives --help: one row per command" \
-    [ "$(wc -w <<<"$cmds")" -eq "$(grep -c '^pgf_cmd ' "$PGF_ROOT/utilities/pgf/cli.sh")" ]
+check "the table drives --help: one row per command, but tools and completion" \
+    [ "$(wc -w <<<"$cmds")" -eq "$(($(grep -c '^pgf_cmd ' "$PGF_ROOT/utilities/pgf/cli.sh") - 2))" ]
+check "  and the menu is just those" [ "$(sort <<<"$out")" = "$(sort <<<"$cmds")" ]
 check "the command menu does not offer --help" bash -c '! grep -q -- "^-" <<<"$1"' _ "$out"
 check "help completes the commands" has setup "$(comp "pgf help se")"
 check "a prefix narrows the subcommands" [ "$(comp "pgf bu")" = "$(printf 'build\nbuilds')" ]
@@ -64,6 +65,9 @@ out="$(comp "pgf test ")"
 check "test completes the tiers from tiers.conf" bash -c 'grep -qx fast <<<"$1" && grep -qx all <<<"$1"' _ "$out"
 check "test options" has --if-stale "$(comp "pgf test --if")"
 check "after exec -- a command" has bash "$(comp "pgf exec --yade -- bas")"
+check "after shell -- a command" has bash "$(comp "pgf shell -- bas")"
+check "copy completes the tutorials" has charOnlyMoveCases/serial "$(comp "pgf copy charOnly")"
+check "view completes dirs and its options" bash -c 'grep -qx -- --palette <<<"$1"' _ "$(comp "pgf view --pal")"
 check "completion completes bash" [ "$(comp "pgf completion ")" = bash ]
 
 # pgf setup offers it; --yes installs it, --no-completion does not
@@ -77,7 +81,7 @@ env -i PATH=/usr/bin:/bin HOME="$home" TMPDIR="$TEST_TMP" "$tree/pgf" setup --ch
     --foam-bashrc "$PGF_FOAM_BASHRC" >"$TEST_TMP/err" 2>&1
 check "setup --yes installs the completion script" \
     grep -q '^complete -F _pgf pgf' "$home/.local/share/bash-completion/completions/pgf"
-check "  and says where once, in the summary" bash -c 'grep -q "bash completion: ~/.local/share/bash-completion/completions/pgf; takes effect in a new shell" "$1" &&
+check "  and says where once, in its step line" bash -c 'grep -q "→ installing bash completion … OK ~/.local/share/bash-completion/completions/pgf" "$1" &&
     ! grep -q "^pgf: bash completion in" "$1"' _ "$TEST_TMP/err"
 
 [ "$TEST_FAILURES" -eq 0 ] || { echo "--- last stderr"; cat "$TEST_TMP/err"; }

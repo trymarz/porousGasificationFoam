@@ -65,8 +65,10 @@ help) case "${2:-}" in -h | --help) pgf_help help ;; *) pgf_help "${2:-}" ;; esa
 esac
 [ -n "${1:-}" ] && wants_help "$@" && pgf_help "$1"
 
-# pgf test keeps the caller's environment; it calls pgf exec itself.
+# pgf test keeps the caller's environment; it calls pgf shell itself. pgf view
+# runs the caller's ParaView.
 [ "${1:-}" = test ] && { shift; exec "$PGF_LIB/test.sh" "$@"; }
+[ "${1:-}" = view ] && { shift; exec "$PGF_ROOT/applications/utilities/paraview/pgfView" "$@"; }
 
 # -- 1. drop the caller's environment ------------------------------------------
 
@@ -93,10 +95,17 @@ fi
 . "$PGF_LIB/pack.sh"
 . "$PGF_LIB/cli.sh"
 
+pgf_args=("$@") # pgf run hands them to the checkout a case copy came from
 sub="status"
+was_exec=0
 case "${1:-}" in
-status | doctor | setup | config | build | ls | builds | use | gc | pack | exec | shell | run | tools | where | completion | __complete) sub="$1"; shift ;;
--*) die "give a command first, e.g. pgf exec $* (see pgf help)" ;;
+status | doctor | setup | config | build | builds | copy | use | gc | pack | shell | run | tools | completion | __complete) sub="$1"; shift ;;
+where | ls | exec) # old names (#287)
+  [ "$1" = exec ] && was_exec=1
+  sub="${PGF_CMD_ALIAS[$1]}"
+  shift
+  ;;
+-*) die "give a command first, e.g. pgf shell $* (see pgf help)" ;;
 "") ;;
 *) die "unknown command '$1' (see pgf help)" ;;
 esac
@@ -104,12 +113,11 @@ esac
 case "$sub" in
 config) pgf_config_cmd "$@"; exit $? ;;
 tools) pgf_tools_cmd "$@"; exit $? ;;
-where) pgf_where_cmd "$@"; exit $? ;;
 completion) pgf_completion_cmd "$@"; exit $? ;;
 __complete) pgf_complete_cmd "$@"; exit $? ;;
 build) pgf_build_cmd "$@"; exit $? ;;
-ls) pgf_ls_cmd "$@"; exit $? ;;
-builds) pgf_ls_cmd --builds-only "$@"; exit $? ;;
+builds) pgf_ls_cmd "$@"; exit $? ;;
+copy) pgf_copy_cmd "$@"; exit $? ;;
 use) pgf_use_cmd "$@"; exit $? ;;
 gc) pgf_gc_cmd "$@"; exit $? ;;
 pack) pgf_pack_cmd "$@"; exit $? ;;
@@ -137,6 +145,7 @@ raw_prefix=0
 
 mode="tree"
 prefix=""
+cmd=()
 while [ $# -gt 0 ]; do
   case "$1" in
   --use | --prefix)
@@ -199,22 +208,40 @@ while [ $# -gt 0 ]; do
   esac
 done
 
+# A case made by pgf copy runs with the build of the checkout it came from,
+# unless a build was chosen; that checkout's pgf takes over.
+if [ "$sub" = run ] && [ -n "${1:-}" ] && [ -f "$1/.pgf-source.json" ] && [ -z "${PGF_RUN_FROM_COPY:-}" ] &&
+  [ -z "${PGF_CONF_CLI[PGF_BUILD]+x}" ] && [ -z "${PGF_BUILD+x}" ]; then
+  from="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("checkout") or "")' "$1/.pgf-source.json" 2>/dev/null)"
+  if [ -n "$from" ] && [ -x "$from/pgf" ] && [ "$(cd "$from" && pwd -P)" != "$(cd "$PGF_ROOT" && pwd -P)" ]; then
+    export PGF_RUN_FROM_COPY=1
+    exec "$from/pgf" "${pgf_args[@]}"
+  fi
+fi
+
 if [ "$sub" = "setup" ]; then
-  # The summary at the end repeats the link and completion lines; skip them.
-  [ "$setup_link" -eq 2 ] || PGF_SETUP_QUIET=1
-  if [ "$setup_link" -ne 2 ]; then
-    pgf_init "$setup_layer" "$setup_yes" || exit 2
+  # Full setup prints one step line each; --link-only keeps its own lines.
+  if [ "$setup_link" -eq 2 ]; then
+    pgf_install_link "$force"
+    exit $?
   fi
-  # A refused link fails --link-only; full setup goes on and its summary warns.
-  if [ "$setup_link" -ne 0 ]; then
-    pgf_install_link "$force" || { rc=$?; [ "$setup_link" -eq 2 ] && exit "$rc"; }
-  fi
-  if [ "$setup_link" -ne 2 ] && [ "$setup_completion" -eq 1 ]; then
+  PGF_SETUP_QUIET=1
+  st_head "pgf setup"
+  pgf_init "$setup_layer" "$setup_yes" || exit 2
+  # A refused link is reported by the step line, which gives the fix.
+  [ "$setup_link" -eq 0 ] || pgf_install_link "$force"
+  pgf_setup_step_link "$setup_link"
+  if [ "$setup_completion" -eq 1 ]; then
     ask=0
     [ "$setup_yes" -eq 0 ] && [ -t 0 ] && [ -r /dev/tty ] && ask=1
     pgf_install_completion "$ask" || exit $?
+    if [ "${PGF_COMPLETION_INSTALLED:-0}" -eq 1 ]; then
+      st_step "installing bash completion" OK "$(pgf_tilde "$(pgf_completion_file)"); new shells pick it up"
+    else
+      st_step "installing bash completion" skipped "(you said no)"
+    fi
   fi
-  [ "$setup_link" -eq 2 ] || pgf_setup_summary "$setup_link" "${PGF_COMPLETION_INSTALLED:-0}"
+  pgf_setup_outcome
   exit 0
 fi
 
@@ -228,25 +255,25 @@ sel_src="${PGF_CONF_SRC[PGF_BUILD]:-default}"
 
 if [ "$sub" = "status" ]; then
   [ "$json" -eq 1 ] && { pgf_status_json; exit $?; }
-  pgf_conf_print
-  pgf_status_builds
+  pgf_status
   exit 0
 fi
 if [ "$sub" = "doctor" ]; then
-  pgf_conf_print
-  pgf_doctor "$mode" "$prefix"
+  pgf_doctor
   exit $?
 fi
 
 case "$sub" in
-exec)
-  [ $# -gt 0 ] || die "no command given (usage: pgf exec [options] -- <command ...>)"
-  cmd=("$@")
+shell)
+  [ "$was_exec" -eq 0 ] || [ $# -gt 0 ] || die "no command given (usage: pgf shell [options] -- <command ...>)"
+  [ $# -eq 0 ] || [ -z "$shell_cmd" ] || die "give -c COMMAND or -- COMMAND, not both"
+  [ $# -eq 0 ] || cmd=("$@")
   ;;
 run)
   [ $# -gt 0 ] || die "usage: pgf run [options] <caseDir> [Allrun | Allclean | script] [args ...]"
   cd -- "$1" 2>/dev/null || die "case directory not found: $1"
   shift
+  pgf_copy_check >&2
   script="${1:-Allrun}"
   [ $# -gt 0 ] && shift
   [[ "$script" == */* ]] || [ ! -f "$script" ] || script="./$script"
@@ -281,6 +308,8 @@ set --
   die "$bashrc did not set WM_PROJECT_USER_DIR / WM_OPTIONS"
 export PGF_DEFAULT_USER_DIR="${PGF_DEFAULT_USER_DIR:-$WM_PROJECT_USER_DIR}"
 export PGF_BUILD_ROOT="${PGF_BUILD_ROOT:-$PGF_DEFAULT_USER_DIR/pgf-builds}"
+# pgf copy's home for cases: OpenFOAM's own run dir, before FOAM_RUN moves to scratch.
+export PGF_CASE_ROOT="${PGF_CASE_ROOT:-${FOAM_RUN:-$PGF_DEFAULT_USER_DIR/run}}"
 
 # -- 3. the prefix -------------------------------------------------------------
 
@@ -395,9 +424,9 @@ fi
 
 mpi_note=""
 if [ "$mpi" = "auto" ] && [ -z "${OMPI_MCA_btl_tcp_if_include:-}" ]; then
-  why="$(pgf_mpi_auto)" && { mpi="loopback"; mpi_note="; MPI loopback (auto: $why)"; }
+  why="$(pgf_mpi_auto)" && { mpi="loopback"; mpi_note="because $why"; }
 fi
-[ "$mpi" = "loopback" ] && [ -z "$mpi_note" ] && mpi_note="; MPI loopback"
+[ "$mpi" = "loopback" ] && [ -z "$mpi_note" ] && mpi_note="PGF_MPI=loopback ($(pgf_layer PGF_MPI))"
 if [ "$mpi" = "loopback" ]; then
   export OMPI_MCA_btl=self,vader,tcp OMPI_MCA_btl_tcp_if_include=lo OMPI_MCA_oob_tcp_if_include=lo
 fi
@@ -423,15 +452,28 @@ if [ "$mode" != "bare" ]; then
   variant="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("variant","?"))' "$prefix/.pgf-build.json" 2>/dev/null)"
   [ "$yade" -eq 1 ] && [ "$variant" != "yade1" ] && die "--yade given, but $prefix is variant $variant"
 fi
-# Two short lines: the environment, then the build (its key is the last path part).
+# What this call uses, in words: OpenFOAM, the build and what chose it, MPI.
 # A build needs no MPI, so pgf build leaves it out.
 [ -n "${PGF_BANNER_BUILD:-}" ] && mpi_note=""
-st INFO "OpenFOAM $WM_PROJECT_VERSION${mpi_note/#; /, }" >&2
+st INFO "using OpenFOAM $WM_PROJECT_VERSION ($(pgf_tilde "$bashrc"))" >&2
 if [ "$mode" != "bare" ]; then
-  st INFO "prefix $prefix (${variant:-?}, chosen by $sel_src${stale:+, stale})" >&2
+  case "$sel_src" in
+  default) why="from this checkout's sources"
+    [ -n "${PGF_RUN_FROM_COPY:-}" ] && why="from $(pgf_tilde "$PGF_ROOT"), where the case was copied from" ;;
+  --prefix) why="the prefix you gave" ;;
+  cli) why="chosen with --use" ;;
+  terminal) why="chosen in this terminal with pgf use" ;;
+  *) why="PGF_BUILD in $(pgf_tilde "${sel_src#* }")" ;;
+  esac
+  what="${prefix##*/}" && what="${what%%-*}"
+  [ "$sel_src" = --prefix ] && what="$(pgf_tilde "$prefix")"
+  case "${variant:-?}" in yade0) kind="non-DEM" ;; yade1) kind="DEM" ;; *) kind="${variant:-?}" ;; esac
+  [ "$sel_src" = default ] && why+="; pgf use to change"
+  st INFO "using build $what ($kind, $why${stale:+, stale})" >&2
 elif [ -z "${PGF_BANNER_BUILD:-}" ]; then # pgf build: build.sh names its destination
-  st INFO "no prefix (--bare: OpenFOAM only); builds go under $PGF_BUILD_ROOT" >&2
+  st INFO "using no build (--bare: OpenFOAM only); builds go under $(pgf_tilde "$PGF_BUILD_ROOT")" >&2
 fi
+[ -z "$mpi_note" ] || st INFO "MPI: local only (lo), $mpi_note" >&2
 unset PGF_BANNER_BUILD
 
 # Cases include shared data as "$PGF_ROOT/thermoData/...", so a copied case still finds it.
@@ -439,7 +481,7 @@ export PGF_ROOT
 export PGF_ENV_ACTIVE=1
 unset PGF_ENV_CALLER_PATH
 
-if [ "$sub" = "shell" ]; then
+if [ "$sub" = "shell" ] && [ ${#cmd[@]} -eq 0 ]; then
   key="bare"
   [ "$mode" = "bare" ] || key="${prefix##*/}"
   if [ -n "$shell_cmd" ]; then

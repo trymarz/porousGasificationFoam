@@ -23,12 +23,12 @@ wm_dir() { "$PGF" exec "$@" -- printenv WM_PROJECT_USER_DIR 2>"$TEST_TMP/err"; }
 
 check "auto selects this checkout's build" [ "$(wm_dir)" = "$auto" ]
 check "--use KEY-PREFIX selects the other build" [ "$(wm_dir --use 00000000)" = "$PGF_BUILD_ROOT/$other" ]
-check "a stale selection warns in exec" grep -q "warning: the selected build $other (cli) is not" "$TEST_TMP/err"
+check "a stale selection warns in exec" grep -q "WARN the selected build $other (cli) is not" "$TEST_TMP/err"
 check "--use COMMIT selects the build from that commit" [ "$(wm_dir --use 0123456789)" = "$PGF_BUILD_ROOT/$other" ]
 check "--use PATH selects that prefix" [ "$(wm_dir --use "$PGF_BUILD_ROOT/$other")" = "$PGF_BUILD_ROOT/$other" ]
 check "--use WORKTREE selects its last build" [ "$(wm_dir --use "${PGF_ROOT##*/}")" = "$auto" ]
 check "PGF_BUILD in the environment is the terminal layer" \
-    bash -c '[ "$(PGF_BUILD=$1 "$2" exec -- printenv WM_PROJECT_USER_DIR 2>"$3")" = "$4" ] && grep -q "(terminal)" "$3"' \
+    bash -c '[ "$(PGF_BUILD=$1 "$2" exec -- printenv WM_PROJECT_USER_DIR 2>"$3")" = "$4" ] && grep -q "chosen in this terminal with pgf use" "$3"' \
     _ "$other" "$PGF" "$TEST_TMP/err" "$PGF_BUILD_ROOT/$other"
 check "--use auto beats the terminal layer" \
     bash -c '[ "$(PGF_BUILD=$1 "$2" exec --use auto -- printenv WM_PROJECT_USER_DIR 2>/dev/null)" = "$3" ]' _ "$other" "$PGF" "$auto"
@@ -48,11 +48,11 @@ check "run --allow-stale runs it" bash -c '"$1" run --use 00000000 --allow-stale
 check "run --build runs on this checkout's build" bash -c '"$1" run --build "$2" 2>/dev/null | grep -qx ran' _ "$PGF" "$case_dir"
 check "run --build with a selected build exits 2" bash -c '"$1" run --build --use 00000000 "$2" >/dev/null 2>&1; [ $? -eq 2 ]' _ "$PGF" "$case_dir"
 
-check "builds --json lists both" python3 -c '
+check "builds --json lists both, and the workspaces (ls is its old name)" python3 -c '
 import json, subprocess, sys
 d = json.loads(subprocess.check_output([sys.argv[1], "builds", "--json"], stderr=subprocess.DEVNULL))
 keys = {b["key"] for b in d["builds"]}
-sys.exit(0 if {sys.argv[2], sys.argv[3]} <= keys and "workspaces" not in d else 1)' "$PGF" "$other" "${auto##*/}"
+sys.exit(0 if {sys.argv[2], sys.argv[3]} <= keys and "workspaces" in d else 1)' "$PGF" "$other" "${auto##*/}"
 
 # gc: while a run holds the other build it stays; afterwards --keep 0 --yes removes it.
 "$PGF" exec --use 00000000 -- sleep 30 2>/dev/null &

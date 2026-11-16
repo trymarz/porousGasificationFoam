@@ -1,5 +1,5 @@
 #!/bin/bash
-# pgfView GUI mode (#280): paraview --script runs pgfViewMain.py as <string>,
+# pgfView GUI mode (#280, #287): paraview --script runs pgfViewMain.py as <string>,
 # without __file__, so it must find pgfViews through PGFVIEW_DIR. A fake
 # paraview does the same; a stub paraview.simple stops once pgfViews loads.
 
@@ -25,5 +25,29 @@ rc=$?
 check "GUI mode runs pgfViewMain.py as <string> and loads pgfViews (rc=$rc)" \
     bash -c '[ "$1" -eq 0 ] && grep -qx "pgfViews imported" <<<"$2"' _ "$rc" "$out"
 check "  without a NameError on __file__" bash -c '! grep -q NameError <<<"$1"' _ "$out"
+out2="$(cd / && PATH="$bin:$PATH" PYTHONPATH="$stub" env -u DISPLAY "$PGF" view "$TEST_TMP/case" 2>&1)"
+check "pgf view runs pgfView with the caller's ParaView" grep -qx "pgfViews imported" <<<"$out2"
+
+# The palette (#287): the GUI keeps the user's, --png defaults to white, --palette picks one.
+cat >"$stub/paraview/simple.py" <<'EOF2'
+loaded = []
+def LoadPalette(name):
+    loaded.append(name)
+EOF2
+check "the GUI builders leave the palette alone; PNGs default to WhiteBackground" \
+    env PYTHONPATH="$stub:$PGF_ROOT/applications/utilities/paraview" python3 -c '
+import inspect, pgfViews
+from paraview import simple
+sig = lambda f: inspect.signature(f).parameters["palette"].default
+assert sig(pgfViews.build) is None and sig(pgfViews.showGui) is None, "GUI"
+assert sig(pgfViews.buildCompare) is None and sig(pgfViews.showCompareGui) is None, "compare GUI"
+assert sig(pgfViews.writePngs) == sig(pgfViews.writeComparePngs) == "WhiteBackground", "png"
+pgfViews._palette(None); assert simple.loaded == [], simple.loaded
+pgfViews._palette("BlackBackground"); assert simple.loaded == ["BlackBackground"], simple.loaded
+'
+printf '#!/bin/sh\necho "palette=$PGFVIEW_PALETTE"\n' >"$bin/paraview"
+check "--palette NAME reaches the script" \
+    bash -c '[ "$(PATH="$1:$PATH" "$2" view "$3" --palette BlackBackground)" = palette=BlackBackground ]' _ "$bin" "$PGF" "$TEST_TMP/case"
+
 [ "$TEST_FAILURES" -eq 0 ] || echo "$out"
 finish

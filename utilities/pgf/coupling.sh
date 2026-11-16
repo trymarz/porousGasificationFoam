@@ -54,7 +54,7 @@ PY
 }
 
 pgf_coupling_rebuild_cmd() {
-  printf '%s/pgf exec --bare --yade -- %s/utilities/pgf/buildCoupling.sh --libdir %s' \
+  printf '%s/pgf shell --bare --yade -- %s/utilities/pgf/buildCoupling.sh --libdir %s' \
     "$PGF_ROOT" "$PGF_ROOT" "$1"
 }
 
@@ -123,15 +123,17 @@ pgf_yade_commit() {
 # pgf_yade_check BIN TRUNK — "LEVEL message" lines comparing the yade binary
 #   with the pin and with TRUNK's coupling API: other API FAIL, other commit WARN.
 pgf_yade_check() {
-  local bin="$1" trunk="$2" commit pin repo want have
+  local bin="$1" trunk="$2" commit pin repo want have b t fix
   commit="$(pgf_yade_commit "$bin")"
   pin="$(pgf_coupling_pin)"
+  b="${bin/#"$HOME"/\~}" t="${trunk/#"$HOME"/\~}"
+  fix="rebuild yade from Foam-Yade ${pin:0:10} (doc/build.md, YADE DEM coupling), then pgf config set YADE_BIN=<that yade>"
   if [ -z "$commit" ]; then
-    echo "WARN yade $bin reports no git commit; cannot check it against the Foam-Yade pin"
+    echo "WARN yade $b does not say which Foam-Yade commit built it (yade -v), so pgf cannot check it against the pin"
     return 0
   fi
   if [ -n "$pin" ] && [[ "$pin" == "$commit"* ]]; then
-    echo "OK   yade $bin was built from the pinned Foam-Yade ${pin:0:10}"
+    echo "OK   yade $b was built from the pinned Foam-Yade ${pin:0:10}"
     return 0
   fi
   want="$(pgf_coupling_api_hash "$trunk")"
@@ -139,12 +141,12 @@ pgf_yade_check() {
     have="$(pgf_coupling_api_hash_at "$repo" "$commit")" && break
   done
   if [ -z "$have" ]; then
-    echo "WARN yade $bin was built from Foam-Yade $commit, not found in $trunk; cannot compare its coupling API (pin ${pin:0:10})"
+    echo "WARN yade $b was built from Foam-Yade $commit, which $t does not have, so pgf cannot compare it with the pin ${pin:0:10}"
   elif [ -n "$want" ] && [ "$have" != "$want" ]; then
-    echo "FAIL yade $bin was built from Foam-Yade $commit, whose coupling API differs from $trunk (pin ${pin:0:10}); rebuild yade at the pin or set YADE_BIN"
+    echo "FAIL yade $b was built from Foam-Yade $commit, whose coupling API differs from the pinned ${pin:0:10}: DEM runs would exchange wrong data; fix: $fix"
     return 1
   else
-    echo "WARN yade $bin was built from Foam-Yade $commit, not the pin ${pin:0:10}; same coupling API"
+    echo "WARN yade $b was built from Foam-Yade $commit, not the pin ${pin:0:10}; same coupling API, so DEM runs work"
   fi
   return 0
 }
