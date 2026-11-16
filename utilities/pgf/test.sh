@@ -204,10 +204,10 @@ run_tier() {
   write_record "$tier" "$key" "$rc" "$start" "$end" "$run" || st WARN "could not write $LAST_DIR/$tier.json" >&2
   echo
   if [ "$rc" -eq 0 ]; then
-    st PASS "pgf test $tier in $(fmt_time $((end - start)))" "record $LAST_DIR/$tier.json"
+    st PASS "pgf test $tier in $(fmt_time $((end - start)));" "record $LAST_DIR/$tier.json"
     st_next "pgf test --status" "every tier: last outcome and whether it is current"
   else
-    st FAIL "pgf test $tier: $(classify "$rc") (exit $rc) after $(fmt_time $((end - start)))" "record $LAST_DIR/$tier.json"
+    st FAIL "pgf test $tier: $(classify "$rc") (exit $rc) after $(fmt_time $((end - start)));" "record $LAST_DIR/$tier.json"
     st_next "less $run/driver.log" "the whole run" \
       "pgf test $tier --run-root DIR" "run it again into a dir you choose"
   fi
