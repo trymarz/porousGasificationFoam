@@ -197,13 +197,13 @@ def _color(rep, view, assoc, field, opts):
     return lut
 
 
-def _sliced(case, opts, src=None):
-    """`src` (default: the mesh), or a slice of it when opts['slice'] is set."""
+def _sliced(case, opts, name, src=None):
+    """`src` (default: the mesh), or a slice of it named `name` when opts['slice'] is set."""
     src = src or case.mesh()
     sl = opts.get("slice")
     if not sl:
         return src
-    s = pv.Slice(Input=src)
+    s = pv.Slice(registrationName=name, Input=src)
     s.SliceType = "Plane"
     b = case.mesh().GetDataInformation().GetBounds()
     n = sl.get("normal", [0, 0, 1])
@@ -245,7 +245,7 @@ def meshFields(case, opts):
     fields = opts.get("fields") or (
         ["Y" + s for s in case.solidComponents()] + MESH_FIELDS
     )
-    src = _sliced(case, opts)
+    src = _sliced(case, opts, case.label + " slice")
     out = []
     for f in fields:
         if f not in have:
@@ -281,7 +281,7 @@ def solidRegime(case, opts):
     if "solidRegime" not in case.cellArrays():
         return []
     v = _renderView("solidRegime")
-    rep = pv.Show(_sliced(case, opts), v)
+    rep = pv.Show(_sliced(case, opts, case.label + " solidRegime slice"), v)
     _unlit(rep)
     lut = _color(rep, v, "CELLS", "solidRegime", {})
     lut.InterpretValuesAsCategories = 1
@@ -295,7 +295,7 @@ def solidRegime(case, opts):
 
 def porosityThreshold(case, opts):
     """Cells with porosityF below opts['below'] (default 0.999): the solid."""
-    t = pv.Threshold(Input=case.mesh())
+    t = pv.Threshold(registrationName=case.label + " porosityThreshold", Input=case.mesh())
     t.Scalars = ["CELLS", "porosityF"]
     t.LowerThreshold, t.UpperThreshold = 0.0, opts.get("below", 0.999)
     v = _renderView("porosityThreshold")
@@ -313,7 +313,7 @@ def _spheres(case):
         series = case.file("spheres", "spheres.pvd")
     if not series:
         return None
-    src = pv.OpenDataFile(series)
+    src = pv.OpenDataFile(series, registrationName=case.label + " spheres")
     src.UpdatePipeline()
     return src
 
@@ -323,8 +323,8 @@ def _radiusArray(src):
     return next((a for a in ("radii", "radius") if a in have), None)
 
 
-def _sphereGlyphs(src):
-    g = pv.Glyph(Input=src, GlyphType="Sphere")
+def _sphereGlyphs(src, name):
+    g = pv.Glyph(registrationName=name, Input=src, GlyphType="Sphere")
     g.ScaleArray = ["POINTS", _radiusArray(src)]
     g.ScaleFactor = 2.0  # unit glyph has radius 0.5
     g.GlyphMode = "All Points"
@@ -337,7 +337,7 @@ def demSpheres(case, opts):
     src = _spheres(case)
     if src is None:
         return []
-    g = _sphereGlyphs(src)
+    g = _sphereGlyphs(src, case.label + " sphere glyphs")
     have = src.PointData.keys()
     out = []
     for f in opts.get("colorBy", [_radiusArray(src), "lambda"]):
@@ -358,7 +358,7 @@ def demSprings(case, opts):
     if not os.path.exists(pvd):
         return []
     v = _renderView("springs")
-    springs = pv.PVDReader(FileName=pvd)
+    springs = pv.PVDReader(registrationName=case.label + " springs", FileName=pvd)
     rep = pv.Show(springs, v)
     rep.LineWidth = 2.0
     lo, hi = springs.CellData["springType"].GetRange() if "springType" in springs.CellData.keys() else (0, 0)
@@ -369,7 +369,7 @@ def demSprings(case, opts):
         rep.AmbientColor = rep.DiffuseColor = [0.0, 0.45, 0.7]
     src = _spheres(case)
     if src is not None:
-        s = pv.Show(_sphereGlyphs(src), v)
+        s = pv.Show(_sphereGlyphs(src, case.label + " springs spheres"), v)
         s.ColorArrayName = ["POINTS", ""]
         s.Opacity = 0.25
     _outline(case, v)
@@ -582,8 +582,8 @@ def _sameMesh(a, b):
     return n[0] == n[1]
 
 
-def _caption(view, text):
-    rep = pv.Show(pv.Text(Text=text), view)
+def _caption(view, text, name):
+    rep = pv.Show(pv.Text(registrationName=name, Text=text), view)
     rep.WindowLocation = "Upper Left Corner"
     rep.FontSize = 14
     rep.Color = [0.1, 0.1, 0.1]
@@ -600,7 +600,7 @@ def _diffView(a, b, field, opts, time):
         m = max(abs(x) for x in arr.GetRange()) or 1.0
         rng = [-m, m]
     v = _renderView(name)
-    rep = pv.Show(_sliced(a, opts, d), v)
+    rep = pv.Show(_sliced(a, opts, name + " slice", d), v)
     _color(rep, v, "CELLS", name, {"ranges": {name: rng}})
     _unlit(rep)
     if opts.get("slice"):
@@ -611,8 +611,9 @@ def _diffView(a, b, field, opts, time):
 
 def diffSource(srcA, srcB, field, name, time):
     """Cell array `name` = A's `field` - B's, with no Python-expression proxy:
-    the GUI's editor for one segfaults ParaView 5.13 (#290)."""
-    both = pv.AppendAttributes(registrationName=name + " inputs", Input=[srcA, srcB])
+    the GUI's editor for one segfaults ParaView 5.13 (#290). The helper is left
+    unregistered, so it is not in the Pipeline Browser and can't be shown."""
+    both = pv.servermanager.filters.AppendAttributes(Input=[srcA, srcB])
     both.UpdatePipeline(time)
     other = field + "_input_1"  # AppendAttributes' name for B's copy
     if other not in both.CellData.keys():
@@ -654,7 +655,7 @@ def buildCompare(a, b, time=None, palette=None):
                 if diff and name in DIFF_VIEWS:
                     panes.append((_diffView(a, b, title, opts, time), "A - B"))
             for i, (v, text) in enumerate(panes):
-                _caption(v, text)
+                _caption(v, text, "%s label %s" % (title, ("A", "B", "A-B")[i]))
                 if i:
                     pv.AddCameraLink(panes[0][0], v, "%s %s" % (title, i))
             out.append((title, [v for v, _ in panes]))
