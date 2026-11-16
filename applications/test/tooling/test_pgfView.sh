@@ -108,11 +108,10 @@ lo, hi = d.CellData["RTData A-B"].GetRange()
 assert d.GetXMLName() == "Calculator", d.GetXMLName()
 assert 0 < lo <= hi <= 45 + 1e-6, (lo, hi)
 names = [k[0] for k in pv.GetSources()]
-assert not [n for n in names if n.startswith("AppendAttributes")], names
-assert "RTData A-B" in names, names
+assert "RTData A-B" in names and "RTData A-B inputs" in names, names
 print("diff ok")
 EOF2
-    check "A - B is a Calculator on an unlisted AppendAttributes, with the right values" \
+    check "A - B is a Calculator on a named AppendAttributes, with the right values" \
         bash -c 'UCX_VFS_ENABLE=n timeout 120 pvpython "$1" 2>&1 | tail -3 | grep -qx "diff ok"' _ "$TEST_TMP/diff.py"
 else
     echo "  SKIP pvpython not found: A - B proxy not checked"

@@ -600,7 +600,12 @@ def _diffView(a, b, field, opts, time):
         m = max(abs(x) for x in arr.GetRange()) or 1.0
         rng = [-m, m]
     v = _renderView(name)
-    rep = pv.Show(_sliced(a, opts, name + " slice", d), v)
+    shown = _sliced(a, opts, name + " slice", d)
+    rep = pv.Show(shown, v)
+    # Hidden representations, so the GUI's Apply doesn't show the helpers here (#290).
+    for p in (d.Input, d):
+        if p != shown:
+            pv.Hide(p, v)
     _color(rep, v, "CELLS", name, {"ranges": {name: rng}})
     _unlit(rep)
     if opts.get("slice"):
@@ -611,9 +616,8 @@ def _diffView(a, b, field, opts, time):
 
 def diffSource(srcA, srcB, field, name, time):
     """Cell array `name` = A's `field` - B's, with no Python-expression proxy:
-    the GUI's editor for one segfaults ParaView 5.13 (#290). The helper is left
-    unregistered, so it is not in the Pipeline Browser and can't be shown."""
-    both = pv.servermanager.filters.AppendAttributes(Input=[srcA, srcB])
+    the GUI's editor for one segfaults ParaView 5.13 (#290)."""
+    both = pv.AppendAttributes(registrationName=name + " inputs", Input=[srcA, srcB])
     both.UpdatePipeline(time)
     other = field + "_input_1"  # AppendAttributes' name for B's copy
     if other not in both.CellData.keys():
