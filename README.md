@@ -50,23 +50,39 @@ You need OpenFOAM-v2406, installed and sourceable.
 
 PGF comes with `pgf`, a command-line tool that finds OpenFOAM, builds the solver, runs and views cases and runs the tests, each in a clean OpenFOAM environment. `pgf help` lists its commands; [doc/build.md](doc/build.md) covers it in full.
 
+**1. Set up pgf.** In the checkout, run:
+
 ```bash
-./pgf setup --yes                       # 1. find OpenFOAM (and yade), save where they are, put pgf on PATH
-                                        #    (+ Tab completion); --yes takes what it finds without asking
-pgf build                               # 2. build libraries, solver, utilities (./Allwmake does the same)
-pgf copy charOnlyMoveCases/serial       # 3. copy a small case out of the checkout; prints where it went
-pgf run ~/OpenFOAM/$USER-v2406/run/main/charOnlyMoveCases/serial
-                                        # 4. copies 0.orig to 0, runs blockMesh, setFields, the solver
-pgf view ~/OpenFOAM/$USER-v2406/run/main/charOnlyMoveCases/serial   # 5. look at it in ParaView
+./pgf setup --yes
 ```
 
-- **Settings.** Step 1 saves where OpenFOAM lives in `~/.config/pgf/env.conf`. `pgf config` shows the saved values; `pgf help setup` explains the options.
-- **Where copies go.** `pgf copy` puts a tutorial in `$PGF_CASE_ROOT/<branch>/<tutorial>`. `PGF_CASE_ROOT` defaults to OpenFOAM's run dir, `$WM_PROJECT_USER_DIR/run` (`~/OpenFOAM/<user>-v2406/run`); `<branch>` is the checkout's branch (here `main`; `/` becomes `-`). `pgf copy --list` lists the tutorials, `pgf status` your copies.
-- **What a copy holds.** The whole case, copied with `cp -rL` so the files it shares with its family come along, and a record of the checkout and commit it came from. `pgf run` uses that checkout's build and warns when the branch has moved on.
-- **Run copies, not `tutorials/`.** Results written inside the checkout stay there and are picked up by later copies.
-- **Rerunning a case.** Clean earlier output (`log.*`, `processor*/`, time directories) first with `pgf run <case> Allclean`: `runApplication` skips every step whose `log.*` exists.
+It looks for your OpenFOAM installation (and yade, needed only for the optional DEM coupling), saves where they are in `~/.config/pgf/env.conf`, and puts `pgf` on your `PATH` with Tab completion. `--yes` takes what it finds without asking. From now on `pgf` works in any directory.
 
-`pgf run` warns about the last two.
+**2. Build the solver.**
+
+```bash
+pgf build
+```
+
+It builds the libraries, the solver and the utilities into a build of their own: about 1.5 min the first time, and reused as long as the sources don't change. `./Allwmake` does the same.
+
+**3. Copy a tutorial** out of the checkout:
+
+```bash
+pgf copy charOnlyMoveCases/serial
+```
+
+**4. Run it and look at the results** in ParaView:
+
+```bash
+cd ~/OpenFOAM/$USER-v2406/run/main/charOnlyMoveCases/serial
+pgf run .
+pgf view .
+```
+
+`pgf run` copies `0.orig` to `0`, runs `blockMesh`, `setFields` and the solver, and records the run; `pgf view` opens the results in ParaView.
+
+`pgf copy` puts tutorials in OpenFOAM's run directory, under the checkout's branch (`main`), and records which checkout they came from, so `pgf run` uses its build. Run such copies, not the cases in `tutorials/`. To rerun a case, clean it first with `pgf run . Allclean`. `pgf status` lists your copies and settings; [doc/build.md](doc/build.md) has the details.
 
 ### After the first case
 
