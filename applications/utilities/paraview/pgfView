@@ -16,7 +16,8 @@
 # the last (common) written time, or the written time at or before --time T,
 # with a warning when T itself was not written. --xvfb renders under
 # xvfb-run; it is also used automatically when DISPLAY is unset. The GUI keeps
-# your ParaView palette and --png uses WhiteBackground, unless --palette is given.
+# your ParaView palette and --png uses WhiteBackground, unless --palette is given
+# (for that run only: in the GUI it sets the views' backgrounds).
 
 set -euo pipefail
 

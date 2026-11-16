@@ -465,9 +465,33 @@ PNG_PALETTE = "WhiteBackground"
 
 
 def _palette(name):
-    """Load ParaView palette `name`; None leaves the current one alone."""
-    if name:
-        pv.LoadPalette(name)
+    """Load ParaView palette `name` (None: none); returns a function that puts the
+    user's palette back. ParaView saves the palette on exit, pvbatch too (#290)."""
+    if not name:
+        return lambda: None
+    live = pv.GetSettingsProxy("ColorPalette")
+    plain = lambda v: v if v is None or isinstance(v, (str, int, float)) else list(v)
+    saved = {p: plain(live.GetPropertyValue(p)) for p in live.ListProperties() if p != "LoadPalette"}
+    pv.LoadPalette(name)
+
+    def restore():
+        for p, v in saved.items():
+            live.SetPropertyWithName(p, v)
+    return restore
+
+
+def _backgrounds(name, views):
+    """Palette `name`'s background on these views only, for the GUI (#290)."""
+    if not name:
+        return
+    restore = _palette(name)
+    live = pv.GetSettingsProxy("ColorPalette")
+    bg = list(live.Background), list(live.Background2), live.BackgroundColorMode
+    restore()
+    for v in views:
+        if hasattr(v, "UseColorPaletteForBackground"):
+            v.UseColorPaletteForBackground = 0
+            v.Background, v.Background2, v.BackgroundColorMode = bg
 
 
 def note(level, text):
@@ -507,10 +531,9 @@ def _setTime(times, time):
     return t
 
 
-def build(case, time=None, palette=None):
+def build(case, time=None):
     """Build the case's views at `time` (default: last mesh time); returns
     them and the time shown."""
-    _palette(palette)
     # Set the time first: colour ranges are fitted to the data shown at build.
     t = _setTime(case.times(), time)
     out = []
@@ -545,7 +568,8 @@ def _showTabs(startup, tabs):
 def showGui(case, palette=None, time=None):
     """One layout tab per view, the time bar on `time` (default: last mesh time)."""
     startup = _startup()
-    built, t = build(case, time, palette)
+    built, t = build(case, time)
+    _backgrounds(palette, [v for _, v in built])
     _showTabs(startup, [(title, [v]) for title, v in built])
     note("OK", "%d views of %s at t = %s" % (len(built), case.label, _fmt(t)))
 
@@ -558,13 +582,17 @@ def _tilde(p):
 def writePngs(case, outDir, time=None, size=(1000, 750), palette=PNG_PALETTE):
     """Render every view at `time` (default: last mesh time) to outDir/*.png."""
     os.makedirs(outDir, exist_ok=True)
-    built, t = build(case, time, palette)
-    written = []
-    for title, v in built:
-        v.ViewTime = t
-        path = os.path.join(outDir, re.sub(r"[^\w.-]+", "_", title) + ".png")
-        pv.SaveScreenshot(path, v, ImageResolution=list(size), FontScaling="Do not scale fonts")
-        written.append(path)
+    restore = _palette(palette)
+    try:
+        built, t = build(case, time)
+        written = []
+        for title, v in built:
+            v.ViewTime = t
+            path = os.path.join(outDir, re.sub(r"[^\w.-]+", "_", title) + ".png")
+            pv.SaveScreenshot(path, v, ImageResolution=list(size), FontScaling="Do not scale fonts")
+            written.append(path)
+    finally:
+        restore()
     note("OK", "wrote %d PNGs at t = %s to %s" % (len(written), _fmt(t), _tilde(outDir)))
     return written
 
@@ -630,12 +658,11 @@ def diffSource(srcA, srcB, field, name, time):
     return d
 
 
-def buildCompare(a, b, time=None, palette=None):
+def buildCompare(a, b, time=None):
     """[(title, [view A, view B, (A - B)])] for caseA's views, and the time.
 
     B may hold postProcessing only (a reference/): then only overTime is shown.
     """
-    _palette(palette)
     meshes = b.hasMesh()
     times = a.times()
     if meshes:  # the common times; the last of them by default
@@ -685,7 +712,8 @@ def _paneLayout(title, views):
 
 def showCompareGui(a, b, palette=None, time=None):
     startup = _startup()
-    built, t = buildCompare(a, b, time, palette)
+    built, t = buildCompare(a, b, time)
+    _backgrounds(palette, [v for _, views in built for v in views])
     _showTabs(startup, built)
     note("OK", "%d views of %s vs %s at t = %s" % (len(built), a.label, b.label, _fmt(t)))
 
@@ -693,15 +721,19 @@ def showCompareGui(a, b, palette=None, time=None):
 def writeComparePngs(a, b, outDir, time=None, size=(1000, 750), palette=PNG_PALETTE):
     """One PNG per view, its panes side by side, each `size` large."""
     os.makedirs(outDir, exist_ok=True)
-    built, t = buildCompare(a, b, time, palette)
-    written = []
-    for title, views in built:
-        for v in views:
-            v.ViewTime = t
-        layout = _paneLayout(title, views)
-        path = os.path.join(outDir, re.sub(r"[^\w.-]+", "_", title) + ".png")
-        pv.SaveScreenshot(path, layout, ImageResolution=[size[0] * len(views), size[1]],
-                          FontScaling="Do not scale fonts")
-        written.append(path)
+    restore = _palette(palette)
+    try:
+        built, t = buildCompare(a, b, time)
+        written = []
+        for title, views in built:
+            for v in views:
+                v.ViewTime = t
+            layout = _paneLayout(title, views)
+            path = os.path.join(outDir, re.sub(r"[^\w.-]+", "_", title) + ".png")
+            pv.SaveScreenshot(path, layout, ImageResolution=[size[0] * len(views), size[1]],
+                              FontScaling="Do not scale fonts")
+            written.append(path)
+    finally:
+        restore()
     note("OK", "wrote %d PNGs at t = %s to %s" % (len(written), _fmt(t), _tilde(outDir)))
     return written

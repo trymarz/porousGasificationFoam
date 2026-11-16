@@ -28,7 +28,8 @@ check "  without a NameError on __file__" bash -c '! grep -q NameError <<<"$1"' 
 out2="$(cd / && PATH="$bin:$PATH" PYTHONPATH="$stub" env -u DISPLAY "$PGF" view "$TEST_TMP/case" 2>&1)"
 check "pgf view runs pgfView with the caller's ParaView" grep -qx "pgfViews imported" <<<"$out2"
 
-# The palette (#287): the GUI keeps the user's, --png defaults to white, --palette picks one.
+# The palette (#287): the GUI keeps the user's, --png defaults to white, --palette picks one;
+# ParaView's saved palette is never changed (#290).
 cat >"$stub/paraview/simple.py" <<'EOF2'
 loaded = []
 def LoadPalette(name):
@@ -39,11 +40,9 @@ check "the GUI builders leave the palette alone; PNGs default to WhiteBackground
 import inspect, pgfViews
 from paraview import simple
 sig = lambda f: inspect.signature(f).parameters["palette"].default
-assert sig(pgfViews.build) is None and sig(pgfViews.showGui) is None, "GUI"
-assert sig(pgfViews.buildCompare) is None and sig(pgfViews.showCompareGui) is None, "compare GUI"
+assert sig(pgfViews.showGui) is None and sig(pgfViews.showCompareGui) is None, "GUI"
 assert sig(pgfViews.writePngs) == sig(pgfViews.writeComparePngs) == "WhiteBackground", "png"
-pgfViews._palette(None); assert simple.loaded == [], simple.loaded
-pgfViews._palette("BlackBackground"); assert simple.loaded == ["BlackBackground"], simple.loaded
+pgfViews._palette(None)(); assert simple.loaded == [], simple.loaded
 '
 printf '#!/bin/sh\necho "palette=$PGFVIEW_PALETTE"\n' >"$bin/paraview"
 check "--palette NAME reaches the script" \
@@ -75,7 +74,7 @@ check "showGui: a tab per view named after it, the startup tab and RenderView1 g
     env PYTHONPATH="$stub:$PGF_ROOT/applications/utilities/paraview" python3 -c '
 import pgfViews as P
 from paraview import simple as S
-P.build = lambda case, time, palette: ([("Ychar", S.View("Ychar")), ("T", S.View("T"))], 0.5)
+P.build = lambda case, time: ([("Ychar", S.View("Ychar")), ("T", S.View("T"))], 0.5)
 P.showGui(type("C", (), {"label": "demo"})())
 assert {n: [repr(v) for v in l.cells.values()] for n, l in S.layouts.items()} == \
     {"Ychar": ["Ychar"], "T": ["T"]}, S.layouts
@@ -115,6 +114,29 @@ EOF2
         bash -c 'UCX_VFS_ENABLE=n timeout 120 pvpython "$1" 2>&1 | tail -3 | grep -qx "diff ok"' _ "$TEST_TMP/diff.py"
 else
     echo "  SKIP pvpython not found: A - B proxy not checked"
+fi
+
+if command -v pvpython >/dev/null; then
+    cat >"$TEST_TMP/palette.py" <<EOF2
+import sys
+sys.path.insert(0, "$PGF_ROOT/applications/utilities/paraview")
+import paraview.simple as pv, pgfViews
+restore = pgfViews._palette("BlackBackground")
+assert list(pv.GetSettingsProxy("ColorPalette").Background) == [0, 0, 0]
+restore()
+print("palette ok")
+EOF2
+    for start in none grey; do
+        h="$TEST_TMP/home-$start" && mkdir -p "$h/.config/ParaView"
+        [ $start = grey ] && echo '{"settings":{"ColorPalette":{"BackgroundColor":[0.3,0.3,0.3]}}}' \
+            >"$h/.config/ParaView/ParaView-UserSettings.json"
+        check "--palette leaves ParaView's saved palette as it was ($start)" bash -c '
+            HOME="$1" XDG_CONFIG_HOME="$1/.config" UCX_VFS_ENABLE=n timeout 120 pvpython "$2" 2>&1 | grep -qx "palette ok" &&
+            python3 -c "import json, sys
+s = json.load(open(sys.argv[1])).get(\"settings\", {}).get(\"ColorPalette\", {})
+assert s.get(\"BackgroundColor\") == ([0.3] * 3 if sys.argv[2] == \"grey\" else None), s
+" "$1/.config/ParaView/ParaView-UserSettings.json" "$3"' _ "$h" "$TEST_TMP/palette.py" "$start"
+    done
 fi
 
 [ "$TEST_FAILURES" -eq 0 ] || echo "$out"
