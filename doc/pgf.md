@@ -81,7 +81,7 @@ A build is a compiled solver with its libraries and utilities, in a directory of
 ```bash
 pgf build                  # build the checkout pgf runs from; reused if unchanged
 pgf build --yade           # the DEM variant, for cases with constant/yadeProperties
-pgf builds                 # every build, the checkout that made it, the checkouts using it
+pgf builds                 # every build, the checkout that made it, the existing checkouts whose last build it is
 pgf gc                     # remove old builds no checkout uses
 ```
 
