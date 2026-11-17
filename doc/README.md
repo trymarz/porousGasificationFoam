@@ -1,18 +1,33 @@
 # Documentation
 
-| I want to… | Read |
-|---|---|
-| Build, rebuild, or enable DEM coupling | [build.md](build.md) |
-| Set up my own case (first case, required fields, input files, tips) | [case-setup.md](case-setup.md) |
-| Pick a tutorial to start from | [Tutorial cases](case-setup.md#tutorial-cases) |
-| Fix an error | [troubleshooting.md](troubleshooting.md) |
-| Understand the model: equations, per-step flow, where the code is | [theory.md](theory.md) |
-| Follow the solid step stage by stage: what each stage reads, writes and checks | [solid-step.md](solid-step.md) |
-| Run or extend the regression tests | [regression-testing.md](regression-testing.md) |
-| Look at a case in ParaView, or render its views to PNG | [paraview.md](paraview.md) |
-| Contribute (branches, PRs, doc rules) | [../CONTRIBUTING.md](../CONTRIBUTING.md) |
-| Browse the API | Doxygen — [build.md](build.md#doxygen-documentation) |
+New to PGF? Start with the [README](../README.md) quick start, then [build your own case](case-setup.md#your-first-case).
 
-New to PGF? Read the [README](../README.md) quick start, then [Your first case](case-setup.md#your-first-case).
+## Using PGF
 
-Each page opens with what to do and puts reference material below it. Where a page and the source disagree, the source wins.
+- [The pgf tool](pgf.md): settings, builds and runs.
+- [Setting up your own case](case-setup.md): required fields, input files, tutorial cases, tips, utilities.
+- [Viewing a case in ParaView](paraview.md): the case's views, comparing two cases, rendering to PNG.
+- [Troubleshooting](troubleshooting.md): symptoms, likely causes and fixes.
+
+## Building and deploying
+
+- [Building](build.md): the build store, the DEM coupling, cleaning, `build.sh`.
+- [Apptainer images](containers.md): `pgf pack`, an image of one PGF commit to run on a server.
+
+## Reference
+
+- [pgf reference](pgf-reference.md): every setting, how a build is chosen, the run record, the clean environment, Tab completion, the scripts at the top of the checkout.
+- [API reference (Doxygen)](build.md#doxygen-documentation): generated from the source comments.
+
+## The model
+
+- [Theory](theory.md): what the solver models, the equations, the per-time-step flow, where each piece lives in the source.
+- [Solid step](solid-step.md): step 4 of that flow, stage by stage.
+
+## Developing PGF
+
+- [Contributing](../CONTRIBUTING.md): branches, issues, PRs, where documentation goes.
+- [Regression testing](regression-testing.md): running the tests, adding a case, how the comparison works.
+- [Regression metric ledger](regression-ledger.md): what each regression metric can and cannot detect.
+
+Where a page and the source disagree, the source wins.

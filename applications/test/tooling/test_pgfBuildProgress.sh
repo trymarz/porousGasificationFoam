@@ -57,9 +57,15 @@ iso() {
 iso "${targets[@]}" >/dev/null 2>&1
 iso "${targets[@]}" >"$TEST_TMP/out" 2>&1
 check "a cache hit says what it reuses and why" \
-    grep -qE "^  OK   reused build [0-9a-f]{12} \(yade0: libraries\): same sources, OpenFOAM and compiler, nothing to compile$" "$TEST_TMP/out"
-check "  and when and from where it was built, without the key twice" \
-    bash -c 'grep -qE "^       built [0-9-]+ [0-9:]+ UTC from .*; prefix ~/store/[0-9a-f]{12}-yade0-" "$1"' _ "$TEST_TMP/out" "$TEST_TMP/store"
+    grep -qE "^  OK   reused build [0-9a-f]{12} \(non-DEM: libraries\): same sources, OpenFOAM and compiler, nothing to compile$" "$TEST_TMP/out"
+check "  and when and where it was built, without the key twice" \
+    bash -c 'grep -qE "^       built [0-9-]+ [0-9:]+ UTC in [^,]*; prefix ~/store/[0-9a-f]{12}-yade0-" "$1"' _ "$TEST_TMP/out" "$TEST_TMP/store"
+m="$(ls "$TEST_TMP"/store/*-yade0-*/.pgf-build.json | head -1)"
+python3 -c 'import json,sys; f=sys.argv[1]; m=json.load(open(f)); m["checkout"]["path"]=sys.argv[2]; json.dump(m,open(f,"w"))' \
+    "$m" "$TEST_TMP/removed-worktree"
+iso "${targets[@]}" >"$TEST_TMP/out" 2>&1
+check "  and says when the checkout that built it no longer exists (S4-15)" \
+    grep -qE "^       built .* in ~/removed-worktree, a checkout since removed, from the same sources; prefix " "$TEST_TMP/out"
 
 fb "${targets[@]}" -v >"$TEST_TMP/out" 2>&1
 check "--verbose streams wmake's output" grep -q "a-very-long-compile-line" "$TEST_TMP/out"

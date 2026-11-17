@@ -17,16 +17,9 @@ Other tutorials: [Tutorial Cases](#tutorial-cases). File details: [Input File Re
 
 ### Running a case
 
-With `pgf` set up ([first-time setup](build.md#first-time-setup)), copy a tutorial out of the checkout and run the copy from anywhere, without sourcing OpenFOAM or exporting anything:
+Copy and run cases with `pgf`, as in the [quick start](../README.md#quick-start); [the pgf tool → Runs](pgf.md#runs) covers `copy`, `run` and `shell`. A copy of a DEM tutorial (an active `constant/yadeProperties`) gets `--yade` from `pgf run` without asking.
 
-```bash
-pgf copy canonical/pyrolysis                                   # → ~/OpenFOAM/$USER-v2406/run/<branch>/canonical/pyrolysis
-pgf run ~/OpenFOAM/$USER-v2406/run/main/canonical/pyrolysis    # Allrun
-pgf run ~/OpenFOAM/$USER-v2406/run/main/canonical/pyrolysis Allclean
-pgf copy MicroTGA-DEM_lambdaDotOff                             # active yadeProperties: pgf run picks --yade for you
-```
-
-`pgf copy` prints the copy's path (here for a checkout on `main`) and records which checkout and commit it came from, so `pgf run` uses that checkout's build even when you call another checkout's `pgf`, and warns when the branch has moved on since. The case path is resolved from your current directory. Every tutorial `Allrun` / `Allclean` also changes into its own directory first, so `/path/to/case/Allrun` works from any directory in a shell that already has the environment (`pgf shell`, or a manually sourced OpenFOAM). The DEM tutorials stop with exit 2 and `run this via: pgf run <case>` when the shell has no `--yade` solver or no `yade`.
+Every tutorial `Allrun` / `Allclean` changes into its own directory first, so `/path/to/case/Allrun` works from any directory in a shell that already has the environment (`pgf shell`, or a manually sourced OpenFOAM). The DEM tutorials stop with exit 2 and `run this via: pgf run <case>` when the shell has no `--yade` solver or no `yade`.
 
 ## Required Initial Fields
 
@@ -460,3 +453,10 @@ Gas-phase reactions are typically orders of magnitude faster than heterogeneous 
 - **`setPorosity`** *(possibly outdated)* — generates `porosityF` and `Df` fields from medium parameters (particle diameter, tortuosity, permeability). Editable medium description in `utilities/setPorosity/medium.H`. Kept for backward compatibility — for new cases prefer the `setFields` + STL workflow (see [Tips](#biomass-distribution-initial-porosityf)).
 - **`totalMassPorousGasificationFoam`** — post-processing diagnostic that writes `totalMass.txt` (time, integrated solid mass `∫ρ_s · (1−porosityF) dV`) for the run. Operates on a reconstructed case — run `reconstructPar` first if the case was decomposed.
 
+## Related pages
+
+- [The pgf tool](pgf.md): settings, builds and runs.
+- [Viewing a case in ParaView](paraview.md): the case's views, comparing cases, PNGs.
+- [Troubleshooting](troubleshooting.md): symptoms, likely causes and fixes.
+- [Theory](theory.md): the model, its equations and where they live in the source.
+- [All documentation](README.md)

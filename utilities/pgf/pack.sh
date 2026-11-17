@@ -15,7 +15,7 @@ pgf_pack_usage() {
   cat <<'EOF'
 usage: pgf pack [BUILD] [--no-yade] [--output FILE] [--dry-run]
   BUILD      a build (key, key prefix, commit or worktree; see pgf builds) whose
-             commit to pack; default: this checkout's HEAD, which must be clean
+             commit to pack; default: HEAD of the checkout pgf runs from, which must be clean
   --no-yade  pack the yade0 variant (no yade in the image)
   --output   the .sif to write (default ./pgf-<commit12>-yade<0|1>.sif)
   --dry-run  write the build context and print the definition; build nothing
@@ -125,7 +125,7 @@ print(m.get("git_head") or "-", m.get("variant") or "-", int(bool((m.get("checko
   else
     commit="$(git -C "$PGF_ROOT" rev-parse HEAD)"
     [ -z "$(git -C "$PGF_ROOT" status --porcelain --untracked-files=no --ignore-submodules=all)" ] ||
-      { echo "pgf pack: this checkout has uncommitted changes; commit them or name a BUILD" >&2; return 2; }
+      { echo "pgf pack: $PGF_ROOT has uncommitted changes; commit them or name a BUILD" >&2; return 2; }
   fi
   git -C "$PGF_ROOT" cat-file -e "$commit^{commit}" 2>/dev/null || { echo "pgf pack: commit $commit is not in this repository" >&2; return 2; }
   pin="$(git -C "$PGF_ROOT" ls-tree "$commit" submodules/Foam-Yade | awk '$2 == "commit" {print $3}')"

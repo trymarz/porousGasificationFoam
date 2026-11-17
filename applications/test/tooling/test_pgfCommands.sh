@@ -85,8 +85,8 @@ check "  that --no-link left pgf unlinked" grep -q "^  → linking pgf … skipp
 check "  then what was saved where, one key a line" \
     bash -c 'grep -q "^saved in .*\.pgf\.conf (checkout layer):$" "$1" && grep -qE "^  PGF_FOAM_BASHRC +$2 +\(new\)$" "$1"' \
     _ "$TEST_TMP/out" "$bashrc"
-check "  and next: ./Allwmake, doctor and help config" \
-    bash -c 'grep -qx "next:" "$1" && grep -q "^  ./Allwmake .*1.5 min" "$1" && grep -q "pgf doctor " "$1" && grep -q "pgf help config " "$1"' \
+check "  and next: build, doctor and help config" \
+    bash -c 'grep -qx "next:" "$1" && grep -qE "^  [^ ]*pgf build .*1.5 min" "$1" && grep -q "pgf doctor " "$1" && grep -q "pgf help config " "$1"' \
     _ "$TEST_TMP/out"
 check "  without the explanations, which are in pgf help setup / config" \
     bash -c '! grep -q "clean environment" "$1" && ! grep -q "sourced before every build" "$1" && ! grep -q "later winning" "$1"' \
@@ -101,16 +101,16 @@ check "  and a bad --color value is refused" grep -q "color takes auto, always o
 
 # help: one page per command, the same as <cmd> --help (#285)
 penv help >"$TEST_TMP/help" 2>&1
-check "pgf help has Usage, Description, Available Commands, More Commands, Options, Examples, in order" \
-    bash -c '[ "$(grep -E "^(Usage|Description|Available Commands|More Commands|Options|Examples):$" "$1" | tr "\n" " ")" = \
-        "Usage: Description: Available Commands: More Commands: Options: Examples: " ] && grep -q "^Use \"pgf help <command>\"" "$1"' _ "$TEST_TMP/help"
+check "pgf help has Usage, Description, the Settings/Build/Run/Other groups, Options, Examples, in order" \
+    bash -c '[ "$(grep -E "^(Usage|Description|[A-Za-z]+ Commands|Options|Examples):$" "$1" | tr "\n" " ")" = \
+        "Usage: Description: Settings Commands: Build Commands: Run Commands: Other Commands: Options: Examples: " ] && grep -q "^Use \"pgf help <command>\"" "$1"' _ "$TEST_TMP/help"
 check "  and pgf --help is the same page" cmp -s "$TEST_TMP/help" <(penv --help 2>&1)
-check "  the everyday commands first, in order" \
-    [ "$(sed -n '/^Available Commands:/,/^$/s/^  \([a-z]*\) .*/\1/p' "$TEST_TMP/help" | tr '\n' ' ')" = \
-        "setup build copy run view test status doctor " ]
-check "  then the more group, with the old names and without tools and completion" \
-    bash -c 'sed -n "/^More Commands:/,/^\$/p" "$1" | grep -q "^  shell " && grep -q "Old names still work: where (status), ls (builds), exec (shell --)" "$1" &&
-        ! grep -qE "^  (tools|completion|where|ls|exec) " "$1"' _ "$TEST_TMP/help"
+check "  the commands grouped as doc/pgf.md groups them" \
+    [ "$(sed -n '/Commands:$/,/^$/s/^  \([a-z]*\) .*/\1/p' "$TEST_TMP/help" | tr '\n' ' ')" = \
+        "setup config doctor build builds use gc copy run view shell test status pack tools help " ]
+check "  then the old names, without completion and the old names as rows" \
+    bash -c 'grep -q "Old names still work: where (status), ls (builds), exec (shell --)" "$1" &&
+        ! grep -qE "^  (completion|where|ls|exec) " "$1"' _ "$TEST_TMP/help"
 for c in $(sed -n '/Commands:/,/^$/s/^  \([a-z]*\) .*/\1/p' "$TEST_TMP/help"); do
     check "pgf help $c = pgf $c --help, with Usage and Description" \
         bash -c 'cmp -s <("$1" help "$2" 2>&1) <("$1" "$2" --help 2>&1) && "$1" help "$2" | grep -q "^Description:$"' \
@@ -155,7 +155,7 @@ check "  gives the PATH fix when ~/.local/bin is not on PATH" \
 env -i PATH="$home2/.local/bin:/usr/bin:/bin" HOME="$home2" TMPDIR="$TEST_TMP" "$tree/pgf" setup --user --yes \
     >"$TEST_TMP/out4" 2>&1
 mv "$tree/.pgf.conf.keep" "$tree/.pgf.conf"
-check "  and OK when it is" bash -c 'grep -q "→ linking pgf … OK ~/.local/bin/pgf → this checkout, on PATH" "$1" && ! grep -q "export PATH" "$1"' _ "$TEST_TMP/out4"
+check "  and OK when it is" bash -c 'grep -q "→ linking pgf … OK ~/.local/bin/pgf → $2/pgf, on PATH" "$1" && ! grep -q "export PATH" "$1"' _ "$TEST_TMP/out4" "$tree"
 check "  and says where completion went and that new shells pick it up" \
     grep -q "→ installing bash completion … OK ~/.local/share/bash-completion/completions/pgf; new shells pick it up" "$TEST_TMP/out4"
 check "  without the step lines the summary repeats" \
@@ -176,7 +176,7 @@ check "  still installs completion and prints the outcome" \
     bash -c '[ -f "$2/.local/share/bash-completion/completions/pgf" ] && grep -qx "pgf setup" "$1" && grep -q "^saved in " "$1"' _ "$TEST_TMP/out5" "$home3"
 check "  without the pre-summary --force lines" bash -c '! grep -q "rerun with --force" "$1"' _ "$TEST_TMP/out5"
 check "  warns with a ~ path and the --link-only --force fix" \
-    bash -c 'grep -q "→ linking pgf … WARN pgf on PATH is ~/other/pgf, not this checkout" "$1" && grep -q "fix: ./pgf setup --link-only --force" "$1"' _ "$TEST_TMP/out5"
+    bash -c 'grep -q "→ linking pgf … WARN pgf on PATH is ~/other/pgf, not $2/pgf" "$1" && grep -q "fix: ./pgf setup --link-only --force" "$1"' _ "$TEST_TMP/out5" "$tree"
 check "  and its next steps call ./pgf" \
     bash -c 'grep -q "^  ./pgf doctor " "$1" && grep -q "^  ./pgf help config " "$1"' _ "$TEST_TMP/out5"
 env -i PATH=/usr/bin:/bin HOME="$home3" TMPDIR="$TEST_TMP" "$tree/pgf" setup --user --yes --no-completion \
@@ -296,7 +296,7 @@ intree="$tree/tutorials/cases/plain"
 mkdir -p "$intree" && cp "$case/Allrun" "$intree/"
 (cd / && penv run --prefix "$prefix" "$intree") >/dev/null 2>"$TEST_TMP/err"
 check "a case inside the checkout gets a warning to run on a copy made by pgf copy" \
-    bash -c 'grep -q "is inside this checkout; .*git-ignored" "$1" && grep -q "Run on a copy: pgf copy plain$" "$1"' _ "$TEST_TMP/err"
+    bash -c 'grep -q "is inside the checkout $2; .*git-ignored" "$1" && grep -q "Run on a copy: pgf copy plain$" "$1"' _ "$TEST_TMP/err" "$tree"
 rm -rf "$tree/tutorials"
 check "runs.jsonl in the XDG state dir gets the run" \
     grep -q "\"case\": \"$(realpath "$case")\"" "$home/.local/state/pgf/runs/runs.jsonl"
@@ -370,10 +370,10 @@ for c in status where; do
         _ "$TEST_TMP/where" "$home" "$tree"
     check "  the build store and its layer" grep -qE "^builds +/keep \[checkout $tree/.pgf.conf:[0-9]+\]" "$TEST_TMP/where"
     check "  the run records, with ~" grep -qxF "records   ~/.local/state/pgf/runs" "$TEST_TMP/where"
-    check "  scratch, as doc/build.md calls it" grep -qE "^scratch +$TEST_TMP/runs \[checkout " "$TEST_TMP/where"
+    check "  scratch, as doc/pgf.md calls it" grep -qE "^scratch +$TEST_TMP/runs \[checkout " "$TEST_TMP/where"
     check "  the case root (\$WM_PROJECT_USER_DIR/run by default)" grep -qE "^cases +~/fake-user/run \[default: \\\$WM_PROJECT_USER_DIR/run\]" "$TEST_TMP/where"
-    check "  this checkout's builds, and the case copies" \
-        bash -c 'grep -qx "this checkout.s builds:" "$1" && grep -qx "case copies (pgf copy), per branch:" "$1"' _ "$TEST_TMP/where"
+    check "  the builds of the checkout, by name, and the case copies" \
+        bash -c 'grep -qx "builds of tree:" "$1" && grep -qx "case copies (pgf copy), per branch:" "$1"' _ "$TEST_TMP/where"
     check "  and not the settings block (that is pgf config)" bash -c '! grep -q "^settings:" "$1"' _ "$TEST_TMP/where"
 done
 env -i PATH=/usr/bin:/bin HOME="$home" TMPDIR="$TEST_TMP" YADE_TRUNK="$trunk" PGF_BUILD=nosuchbuild \

@@ -234,3 +234,8 @@ The fixtures were captured with `--all-files`, so `H3`, `H4`, `H5`, `H9s`, `H10s
 - Replace the dead rows: `Ywoodm` for the wood integral; drop the absent species; weight `Ts` by solid in the char-only cases.
 - Settle the questions: radiation reaching the solid (finding 2), the gas energy drift (6), pyrolysis pressure (7), gasification after #174 (8).
 - Make the comparator report unreferenced output (finding 10).
+
+## Related pages
+
+- [Regression testing](regression-testing.md): running the tests, adding a case.
+- [All documentation](README.md)

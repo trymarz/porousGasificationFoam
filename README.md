@@ -14,20 +14,21 @@ Local thermal non-equilibrium · Compressible species transport · Generalized s
 [Quick start](#quick-start) · [Documentation](doc/README.md) · [Tutorials](doc/case-setup.md#tutorial-cases) · [Citation](#citation)
 
 ```text
-Gas phase
-  ∂(ε ρ_f)/∂t     + ∇·(ρ_f U)     = S_m,f
-  ∂(ε ρ_f U)/∂t   + ∇·(ρ_f U U)   = −∇p + S
-  ∂(ε ρ_f Y_i)/∂t + ∇·(ρ_f U Y_i) = S_Y,i
-  ∂(ε ρ_f h)/∂t   + ∇·(ρ_f U h)   = S_h,f
+Gas phase  (ε porosity, U superficial velocity)
+  ∂(ε ρ)/∂t    + ∇·(ρ U)                      = S_ρ
+  ∂(ρ U)/∂t    + ∇·(ρ U U)  − ∇·τ_eff         = −∇p + ρ g − C·U
+  ∂(ε ρ Yᵢ)/∂t + ∇·(ρ U Yᵢ) − ∇·(μ_eff ∇Yᵢ)  = ε Rᵢ + S_ρ,ᵢ
+  ∂(ε ρ h)/∂t  + ∇·(ρ U h)  − ∇·(α_eff ∇h)   = ε ∂p/∂t + S_h
 
-Solid phase
-  ∂((1−ε) ρ_s)/∂t     = S_m,s
-  ∂((1−ε) ρ_s h_s)/∂t = S_h,s
+Solid phase  (Ymₖ mass of solid component k per volume, Uₛ solid velocity)
+  ∂Ymₖ/∂t      + ∇·(Uₛ Ymₖ)                   = Rₖ
+  ∂Hₛ/∂t       + ∇·(Uₛ Hₛ)  − ∇·(kₛ ∇Tₛ)      = S_h,s
+  1 − ε = Σₖ Ymₖ/ρₖ
 ```
 
 </div>
 
-*porousGasificationFoam* (PGF) is an OpenFOAM solver for **thermochemical conversion in porous media**. A solid phase, represented as a porosity field, is coupled to a gas flowing through the void space. Mass, momentum, and energy are exchanged through the porosity. All chemistry — gas-phase, heterogeneous (gas–solid), and solid decomposition — is defined per case. With no reactions defined, both phases stay inert. The solid can be stationary or move under gravity and other external forces, shrink, or disappear entirely as conversion proceeds.
+*porousGasificationFoam* (PGF) is an OpenFOAM solver for **thermochemical conversion in porous media**. A solid phase, represented as a porosity field, is coupled to a gas flowing through the void space. The phases exchange mass through reactions, momentum through drag, and energy through interphase heat transfer; the porosity sets each phase's share of a cell. All chemistry — gas-phase, heterogeneous (gas–solid), and solid decomposition — is defined per case. With no reactions defined, both phases stay inert. The solid can be stationary or move under gravity and other external forces, shrink, or disappear entirely as conversion proceeds.
 
 The continuum transport equations are solved with the Finite Volume Method (OpenFOAM). An optional coupling to a Discrete Element Method solver YADE provides PGF with a velocity field for the solid momentum equation. Solid material properties, initial distribution of porosity throughout a domain, reaction kinetics, and many other parameters — all these are user inputs — the solver is geometry- and chemistry-agnostic.
 
@@ -41,41 +42,63 @@ Example application areas:
 
 …and other processes that share a reactive or transforming porous solid exchanging mass and heat with a gas. The name *porousGasificationFoam* reflects the solver's origins in biomass-to-syngas gasification (feedstock + air/O₂/steam/CO₂ → H₂/CO), not a limit on what it can model.
 
-Target: **OpenFOAM-v2406** · License: **GPL v3** · Earlier versions for [OpenFOAM 8](https://github.com/btuznik/porousGasificationFoam) and foam-extend 4.1 are no longer maintained.
+Target: **OpenFOAM-v2406** · License: **GPL v3** · Earlier versions for [OpenFOAM 8](https://github.com/btuznik/porousGasificationFoam) and [foam-extend 4.1](https://github.com/pjzuk/porousGasificationFoam) are no longer maintained.
 
 ## Quick start
 
-You need OpenFOAM-v2406 (installed and sourceable), a C++ compiler and `wmake` (both come with OpenFOAM).
+You need OpenFOAM-v2406, installed and sourceable.
+
+PGF comes with `pgf`, a command-line tool that finds OpenFOAM, builds the solver, runs and views cases and runs the tests, each in a clean OpenFOAM environment. `pgf help` lists its commands; [doc/pgf.md](doc/pgf.md) covers it in full.
+
+**1. Set up pgf.** In the directory where you cloned PGF, run:
 
 ```bash
-./pgf setup --yes                       # 1. find OpenFOAM (and yade), save where they are, put pgf on PATH
-                                        #    (+ Tab completion); --yes takes what it finds without asking
-./Allwmake                              # 2. build libraries, solver, utilities (pgf build)
-pgf copy charOnlyMoveCases/serial       # 3. copy a small case out of the checkout; prints where it went
-pgf run ~/OpenFOAM/$USER-v2406/run/main/charOnlyMoveCases/serial
-                                        # 4. copies 0.orig to 0, runs blockMesh, setFields, the solver
-pgf view ~/OpenFOAM/$USER-v2406/run/main/charOnlyMoveCases/serial   # 5. look at it in ParaView
+./pgf setup --yes
 ```
 
-pgf runs every build and case in a clean environment, so step 1 saves where OpenFOAM lives in `~/.config/pgf/env.conf`; `pgf config` shows the saved values, `pgf help setup` explains its options, and `pgf help` lists the commands.
+It looks for your OpenFOAM installation (and yade, needed only for the optional DEM coupling), saves where they are in `~/.config/pgf/env.conf`, and puts `pgf` on your `PATH` with Tab completion. `--yes` takes what it finds without asking. From now on `pgf` works in any directory.
 
-`pgf copy` puts a tutorial in `$PGF_CASE_ROOT/<branch>/<tutorial>`; `PGF_CASE_ROOT` defaults to OpenFOAM's run dir, `$WM_PROJECT_USER_DIR/run` (`~/OpenFOAM/<user>-v2406/run`), and `<branch>` is the checkout's branch (here `main`; `/` becomes `-`). It copies the whole case with `cp -rL`, so the files a case shares with its family come along, and records which checkout and commit it came from: `pgf run` then uses that checkout's build and warns when the branch has moved on. `pgf copy --list` lists the tutorials, `pgf status` your copies. Run cases from such a copy, never inside `tutorials/`: results written there stay in the checkout and are picked up by later copies. If a case holds output from an earlier run (`log.*`, `processor*/`, time directories), clean it first with `pgf run <case> Allclean`: `runApplication` skips every step whose `log.*` exists. `pgf run` warns about both.
+**2. Build the solver.**
 
-Next: `tutorials/cases/gasifier` is a full reactive-flow demo. `pgf shell` gives an interactive shell with the build on `PATH`; `./Allwclean` cleans the build. Build options, DEM (`--yade`) builds and clean/purge rules are in [doc/build.md](doc/build.md). To run your own case, start from [doc/case-setup.md](doc/case-setup.md).
+```bash
+pgf build
+```
+
+It builds the libraries, the solver and the utilities into a build of their own: about 1.5 min the first time, and reused as long as the sources don't change. `./Allwmake` does the same.
+
+**3. Copy a tutorial** out of the repository:
+
+```bash
+pgf copy charOnlyMoveCases/serial
+```
+
+**4. Run it and look at the results** in ParaView:
+
+```bash
+cd ~/OpenFOAM/$USER-v2406/run/main/charOnlyMoveCases/serial
+pgf run .
+pgf view .
+```
+
+`pgf run` copies `0.orig` to `0`, runs `blockMesh`, `setFields` and the solver, and records the run; `pgf view` opens the results in ParaView.
+
+`pgf copy` puts tutorials in OpenFOAM's run directory, under the checkout's branch (`main`), and records which checkout they came from, so `pgf run` uses its build. Run such copies, not the cases in `tutorials/`. To rerun a case, clean it first with `pgf run . Allclean`. `pgf status` lists your copies and settings.
+
+### After the first case
+
+- **More tutorials:** [Tutorial cases](doc/case-setup.md#tutorial-cases) describes each one; `pgf copy --list` lists them.
+- **A full reactive-flow demo:** `pgf copy gasifier`, a fixed-bed gasifier. It runs for hours on 4 MPI ranks.
+- **Your own case:** start from [doc/case-setup.md](doc/case-setup.md).
 
 ## Documentation
 
-| I want to… | Read |
-|---|---|
-| Build, rebuild, or enable DEM coupling | [doc/build.md](doc/build.md) |
-| Set up my own case (input files, initial fields, tips, utilities) | [doc/case-setup.md](doc/case-setup.md) |
-| Pick a tutorial to start from | [Tutorial cases](doc/case-setup.md#tutorial-cases) |
-| Fix an error | [doc/troubleshooting.md](doc/troubleshooting.md) |
-| Understand the model: equations, per-step flow, where the code is | [doc/theory.md](doc/theory.md) |
-| Run or extend the regression tests | [doc/regression-testing.md](doc/regression-testing.md) |
-| Look at a case in ParaView, or render its views to PNG | [doc/paraview.md](doc/paraview.md) |
-| Contribute (branches, PRs, doc rules) | [CONTRIBUTING.md](CONTRIBUTING.md) |
-| Browse the API | Doxygen — see [doc/build.md](doc/build.md#doxygen-documentation) |
+[doc/README.md](doc/README.md) lists every page. In short:
+
+- **Using PGF:** [the pgf tool](doc/pgf.md), [your own case](doc/case-setup.md), [ParaView](doc/paraview.md), [troubleshooting](doc/troubleshooting.md)
+- **Building and deploying:** [building](doc/build.md), [Apptainer images](doc/containers.md)
+- **Reference:** [pgf reference](doc/pgf-reference.md), [API reference (Doxygen)](doc/build.md#doxygen-documentation)
+- **The model:** [theory](doc/theory.md), [solid step](doc/solid-step.md)
+- **Developing PGF:** [contributing](CONTRIBUTING.md), [regression testing](doc/regression-testing.md), [regression metric ledger](doc/regression-ledger.md)
 
 ## Repository layout
 
@@ -84,22 +107,12 @@ porousGasificationFoam/    main solver source (time loop, equations)
 porousGasificationMedia/   libraries (pyrolysis, chemistry, radiation, DEM)
 tutorials/cases/           tutorial cases
 utilities/                 auxiliary tools (setPorosity, totalMass, …)
-applications/test/         regression framework
 utilities/pgf/             pgf's parts: build driver, test tiers, settings, registry
-pgf                        the front door: settings, builds, runs, tests (pgf help)
+applications/test/         regression framework
+pgf                        the pgf command: settings, builds, runs, tests (pgf help)
 Allwmake / Allwclean       build / clean everything (non-DEM by default), via pgf build
 doc/                       documentation and Doxygen source
 ```
-
-`pgf tools` explains every tool at the root:
-
-| Tool | What | Why it exists | Use instead when… |
-|---|---|---|---|
-| `pgf` | settings, isolated builds, runs in a clean environment, test tiers | one front door instead of hand-sourcing OpenFOAM and sharing `$FOAM_USER_APPBIN` | you only want the OpenFOAM-style entry point: `./Allwmake` / `./Allwclean` |
-| `Allwmake` | `pgf build --all --no-DEM [args]` | `./Allwmake` is where OpenFOAM users look first | you need options: `pgf build [--yade]`; an in-place build: `utilities/pgf/build.sh` |
-| `Allwclean` | `pgf build clean --all [args]`, DEM included | the same convention; cleaning DEM too means no `--yade` state survives a switch back | one target: `pgf build clean [targets]`; add `--purge` to drop the installed build |
-| `build.sh` | shim: forwards to `utilities/pgf/build.sh` (deprecated, #274) | old scripts keep working | `pgf build`, or `utilities/pgf/build.sh` in place |
-| `pgf-test` | shim: forwards to `pgf test` (deprecated, #274) | old scripts keep working | `pgf test <tier\|all>`, `--status`, `--gc` |
 
 ## Citation
 

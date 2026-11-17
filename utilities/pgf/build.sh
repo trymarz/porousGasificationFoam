@@ -194,9 +194,9 @@ parse_arguments() {
       echo "  --verbose, -v  Stream wmake's output. Without it, a prefix build"
       echo "           shows one line per target and logs wmake to DIR/build.log."
       echo "  --print-key, --print-prefix  Print the build key or the --isolated"
-      echo "           prefix for this tree and variant (honours --yade), and exit."
+      echo "           prefix for the checkout and variant (honours --yade), and exit."
       echo ""
-      echo "Builds happen in this checkout ($PGF_ROOT); output goes to"
+      echo "Builds happen in the checkout $PGF_ROOT; output goes to"
       echo "\$FOAM_USER_LIBBIN and \$FOAM_USER_APPBIN unless a prefix is given."
       echo "PGF_ISOLATED_ONLY=1 (set by pgf) refuses a build without one."
       exit 0
@@ -439,11 +439,16 @@ for t in m.get("targets", []):
         names.append(n)
 src = (m.get("checkout") or {}).get("path") or m.get("source_tree") or "?"
 other = os.path.realpath(src) != os.path.realpath(sys.argv[3])
+gone = other and not os.path.isdir(src)
 if src.startswith(sys.argv[2] + "/"):
     src = "~" + src[len(sys.argv[2]):]
 when = (m.get("built_utc") or "?").replace("T", " ").replace("Z", " UTC")
-print("%s: %s" % (m.get("variant", "?"), ", ".join(names) or "?"))
-print("built %s from %s%s" % (when, src, " (same sources)" if other else ""))
+kind = {"yade0": "non-DEM", "yade1": "DEM"}.get(m.get("variant"), m.get("variant", "?"))
+print("%s: %s" % (kind, ", ".join(names) or "?"))
+if gone:
+    print("built %s in %s, a checkout since removed, from the same sources" % (when, src))
+else:
+    print("built %s in %s%s" % (when, src, ", from the same sources" if other else ""))
 EOF
   )
   st OK "reused build ${BUILD_KEY%%-*} (${what:-?}): same sources, OpenFOAM and compiler, nothing to compile"

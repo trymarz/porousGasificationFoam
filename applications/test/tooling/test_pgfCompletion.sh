@@ -31,8 +31,8 @@ cmds="$("$PGF" --help | sed -n '/Commands:/,/^$/s/^  \([a-z]*\) .*/\1/p')"
 for c in $cmds; do
     check "every command in --help completes: $c" has "$c" "$out"
 done
-check "the table drives --help: one row per command, but tools and completion" \
-    [ "$(wc -w <<<"$cmds")" -eq "$(($(grep -c '^pgf_cmd ' "$PGF_ROOT/utilities/pgf/cli.sh") - 2))" ]
+check "the table drives --help: one row per command, but completion" \
+    [ "$(wc -w <<<"$cmds")" -eq "$(($(grep -c '^pgf_cmd ' "$PGF_ROOT/utilities/pgf/cli.sh") - 1))" ]
 check "  and the menu is just those" [ "$(sort <<<"$out")" = "$(sort <<<"$cmds")" ]
 check "the command menu does not offer --help" bash -c '! grep -q -- "^-" <<<"$1"' _ "$out"
 check "help completes the commands" has setup "$(comp "pgf help se")"
