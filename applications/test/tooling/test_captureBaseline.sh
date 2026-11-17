@@ -1,5 +1,5 @@
 #!/bin/bash
-# captureBaseline.sh on a run where only TsAverage and TsMax fail copies only
+# captureBaseline.sh on a run where only TsCharWeighted and TsMax fail copies only
 # those two files. The run is real (charOnlyMoveCases/serial in copy mode); the
 # two files are then perturbed in the run copy, and the baseline written is a
 # scratch copy of the case, so the committed reference/ is never touched.
@@ -15,7 +15,7 @@ check "the run passes before perturbing (rc=$rc)" [ "$rc" -eq 0 ]
 run="$TEST_TMP/runs/${case_rel//\//__}/$case_rel"
 [ -d "$run/postProcessing" ] || { tail -30 "$TEST_TMP/run.log"; die "no run output at $run"; }
 
-for f in regressionTsAverage regressionTsMax; do
+for f in regressionTsCharWeighted regressionTsMax; do
     awk '/^#/ || NF == 0 {print; next} {printf "%s", $1; for (i = 2; i <= NF; i++) printf "\t%.10e", $i * 1.01; print ""}' \
         "$run/postProcessing/$f/0/volFieldValue.dat" >"$TEST_TMP/p" && mv "$TEST_TMP/p" "$run/postProcessing/$f/0/volFieldValue.dat"
 done
@@ -31,8 +31,8 @@ check "it prints a before/after table" grep -qE "^ +first +1 " "$TEST_TMP/captur
 tree_sums "$scratch/reference" >"$TEST_TMP/ref.after"
 
 changed="$(diff "$TEST_TMP/ref.before" "$TEST_TMP/ref.after" | grep '^>' | sed -E 's#.*/reference/postProcessing/##' | sort | tr '\n' ' ')"
-check "exactly TsAverage and TsMax changed (got: ${changed:-none})" \
-    [ "$changed" = "regressionTsAverage/0/volFieldValue.dat regressionTsMax/0/volFieldValue.dat " ]
+check "exactly TsCharWeighted and TsMax changed (got: ${changed:-none})" \
+    [ "$changed" = "regressionTsCharWeighted/0/volFieldValue.dat regressionTsMax/0/volFieldValue.dat " ]
 check "the copied files equal the run's" \
     cmp -s "$scratch/reference/postProcessing/regressionTsMax/0/volFieldValue.dat" "$run/postProcessing/regressionTsMax/0/volFieldValue.dat"
 check "the committed baseline is untouched" \

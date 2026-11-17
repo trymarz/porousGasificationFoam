@@ -26,7 +26,7 @@ if [ "${PGF_TOOLING_RUN_CASES:-0}" = "1" ]; then
     [ "$rc" -eq 0 ] || tail -40 "$TEST_TMP/run"
 else
     "$REGRESSION_DIR/Allrun" --case "$case_rel" --no-run --run-root "$TEST_TMP/runs" >"$TEST_TMP/run" 2>&1
-    check "running without --tag gets past selection" grep -q "case: serial_m2" "$TEST_TMP/run"
+    check "running without --tag gets past selection" grep -qF "case: $case_rel  [tag: convergence]" "$TEST_TMP/run"
 fi
 check "no 'matches tag' selection error" bash -c '! grep -q "matches tag" "$1"' _ "$TEST_TMP/run"
 finish
