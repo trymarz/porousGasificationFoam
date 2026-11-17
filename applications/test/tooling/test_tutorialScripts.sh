@@ -12,7 +12,8 @@ check "every Allrun/Allclean cds into its own directory${missing:+ (missing: $mi
 
 copy="$TEST_TMP/copy"
 mkdir -p "$copy/utilities"
-cp -r "$PGF_ROOT/tutorials" "$copy/" && cp -r "$PGF_ROOT/utilities/bash_utils" "$copy/utilities/" ||
+# helpers.sh prints through ../pgf/ui.sh, so the copy needs utilities/pgf too.
+cp -r "$PGF_ROOT/tutorials" "$copy/" && cp -r "$PGF_ROOT/utilities/bash_utils" "$PGF_ROOT/utilities/pgf" "$copy/utilities/" ||
     die "cannot copy tutorials"
 snapshot() { (cd "$copy/tutorials" && find . -print | LC_ALL=C sort | sha1sum); }
 before="$(snapshot)"
