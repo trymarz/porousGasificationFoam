@@ -455,8 +455,10 @@ if [ "$mode" != "bare" ]; then
   [ "$yade" -eq 1 ] && [ "$variant" != "yade1" ] && die "--yade given, but $prefix is variant $variant"
 fi
 # What this call uses, in words: OpenFOAM, the build and what chose it, MPI.
-# A build needs no MPI, so pgf build leaves it out.
+# A build needs no MPI, so pgf build leaves it out; so does a serial run
+# (no system/decomposeParDict and not DEM), though the setting still applies.
 [ -n "${PGF_BANNER_BUILD:-}" ] && mpi_note=""
+[ "$sub" = run ] && [ "$yade" -eq 0 ] && [ ! -f system/decomposeParDict ] && mpi_note=""
 st INFO "using OpenFOAM $WM_PROJECT_VERSION ($(pgf_tilde "$bashrc"))" >&2
 if [ "$mode" != "bare" ]; then
   case "$sel_src" in

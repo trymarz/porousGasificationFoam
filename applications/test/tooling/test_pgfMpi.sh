@@ -47,6 +47,20 @@ check "--mpi loopback still forces lo" [ "$(probe "$one" -- --mpi loopback)" = l
 bridge="$(net eth0:up docker0:up)"
 check "a docker bridge up selects loopback" [ "$(probe "$bridge")" = lo ]
 check "  and the banner says why, in words" grep -qx "  INFO MPI: local only (lo), because bridge/virtual interfaces up: docker0" "$TEST_TMP/err"
+# A serial run (no system/decomposeParDict) keeps the setting but not the line (S4-16).
+for c in serial parallel; do
+    mkdir -p "$TEST_TMP/$c/system" && printf '#!/bin/sh\nprintenv OMPI_MCA_btl_tcp_if_include\n' >"$TEST_TMP/$c/Allrun" &&
+        chmod +x "$TEST_TMP/$c/Allrun"
+done
+: >"$TEST_TMP/parallel/system/decomposeParDict"
+rcase() {
+    env -i PATH=/usr/bin:/bin HOME="$TEST_TMP" TMPDIR="$TEST_TMP" PGF_FOAM_BASHRC="$bashrc" \
+        PGF_ENV_SYSFS_NET="$bridge" "$tree/pgf" run --bare "$TEST_TMP/$1" 2>"$TEST_TMP/err"
+}
+check "a serial run still gets loopback" [ "$(rcase serial)" = lo ]
+check "  but no MPI line" bash -c '! grep -q "MPI:" "$1"' _ "$TEST_TMP/err"
+check "a parallel run (decomposeParDict) gets loopback" [ "$(rcase parallel)" = lo ]
+check "  and the MPI line" grep -q "INFO MPI: local only (lo)" "$TEST_TMP/err"
 check "two physical interfaces up select loopback" [ "$(probe "$(net eth0:up wlan0:up)")" = lo ]
 check "only lo selects loopback" [ "$(probe "$(net)")" = lo ]
 for v in virbr0 br-1234 veth9; do

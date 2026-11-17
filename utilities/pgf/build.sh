@@ -439,11 +439,16 @@ for t in m.get("targets", []):
         names.append(n)
 src = (m.get("checkout") or {}).get("path") or m.get("source_tree") or "?"
 other = os.path.realpath(src) != os.path.realpath(sys.argv[3])
+gone = other and not os.path.isdir(src)
 if src.startswith(sys.argv[2] + "/"):
     src = "~" + src[len(sys.argv[2]):]
 when = (m.get("built_utc") or "?").replace("T", " ").replace("Z", " UTC")
-print("%s: %s" % (m.get("variant", "?"), ", ".join(names) or "?"))
-print("built %s from %s%s" % (when, src, " (same sources)" if other else ""))
+kind = {"yade0": "non-DEM", "yade1": "DEM"}.get(m.get("variant"), m.get("variant", "?"))
+print("%s: %s" % (kind, ", ".join(names) or "?"))
+if gone:
+    print("built %s in %s, a checkout since removed, from the same sources" % (when, src))
+else:
+    print("built %s in %s%s" % (when, src, ", from the same sources" if other else ""))
 EOF
   )
   st OK "reused build ${BUILD_KEY%%-*} (${what:-?}): same sources, OpenFOAM and compiler, nothing to compile"
