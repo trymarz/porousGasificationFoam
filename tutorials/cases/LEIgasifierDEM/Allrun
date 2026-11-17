@@ -6,7 +6,8 @@
 # under gravity produces a DEM-derived Us field. Issue #104.
 #
 # PREREQUISITES
-#   - porousGasificationFoam compiled and on PATH (OpenFOAM 8 environment sourced)
+#   - a DEM build of porousGasificationFoam (pgf build --yade, OpenFOAM v2406);
+#     run the case with pgf run, which sources OpenFOAM and puts the build on PATH
 #   - Yade built with FoamCoupling support, `yade` on PATH
 #   - uv + classy-blocks available via utilities/py_utils (for mesh generation)
 #
