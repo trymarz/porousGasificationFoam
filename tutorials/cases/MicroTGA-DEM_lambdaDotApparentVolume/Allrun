@@ -1,6 +1,7 @@
 #!/bin/sh
 cd "${0%/*}" || exit
 . "${PGF_ROOT:-../../..}/tutorials/cases/DEM_common/demGuard.sh"   # stop early outside a --yade env (#257)
+. "${PGF_ROOT:-../../..}/tutorials/cases/DEM_common/runYade.sh"    # exit with the run's status, not tee's
 . ${WM_PROJECT_DIR:?}/bin/tools/RunFunctions
 # Requires a Yade-enabled solver build: pgf build --yade
 
@@ -11,8 +12,8 @@ runApplication setFields
 runApplication decomposePar
 mkdir -p spheres springs
 # Solver runs inside Yade via the MPI coupling script — not a standard runParallel,
-# so it is launched directly here (output captured to log.yade).
-mpirun --allow-run-as-root -n 2 yade MPI_lambda.py 2>&1 | tee log.yade
+# so it is launched directly here (runYade captures output to log.yade).
+runYade mpirun --allow-run-as-root -n 2 yade MPI_lambda.py || exit
 
 # Case-specific assertion: lambdaDot is the dimensionless factor r > 0. Per step
 # r is ~1-4e-9, below writePrecision, so shrinkage is checked on lambda instead
