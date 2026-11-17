@@ -35,6 +35,9 @@ check "--use auto beats the terminal layer" \
 check "an unknown selector exits 2" bash -c '"$1" exec --use nosuchbuild -- true 2>/dev/null; [ $? -eq 2 ]' _ "$PGF"
 
 check "pgf use prints an export line" [ "$("$PGF" use 00000000 2>/dev/null)" = "export PGF_BUILD=$other" ]
+"$PGF" use 00000000 >/dev/null 2>"$TEST_TMP/err"
+check "  under eval it says the terminal uses it, and that run will refuse it" \
+    bash -c 'grep -q "this terminal now uses $2" "$1" && grep -q "pgf run refuses it unless --allow-stale" "$1"' _ "$TEST_TMP/err" "$other"
 check "pgf use auto unsets it" [ "$("$PGF" use auto 2>/dev/null)" = "unset PGF_BUILD" ]
 out="$(printf 'pgf use 00000000 2>/dev/null\nprintenv PGF_BUILD\nexit\n' | "$PGF" shell 2>/dev/null)"
 check "pgf shell's pgf function applies pgf use" grep -qx "$other" <<<"$out"
@@ -44,6 +47,9 @@ mkdir -p "$case_dir" && printf '#!/bin/sh\necho ran\n' >"$case_dir/Allrun" && ch
 "$PGF" run --use 00000000 "$case_dir" >"$TEST_TMP/out" 2>"$TEST_TMP/err"
 check "run refuses a stale build (exit 2, script not run)" \
     bash -c '[ "$1" -eq 2 ] && ! grep -q ran "$2"' _ $? "$TEST_TMP/out"
+check "  and for --use the fix is to leave it out" grep -q "fix: leave out --use" "$TEST_TMP/err"
+PGF_BUILD="$other" "$PGF" run "$case_dir" >/dev/null 2>"$TEST_TMP/err"
+check "  and for pgf use it is eval pgf use auto" grep -qF 'fix: eval "$(' "$TEST_TMP/err"
 check "run --allow-stale runs it" bash -c '"$1" run --use 00000000 --allow-stale "$2" 2>/dev/null | grep -qx ran' _ "$PGF" "$case_dir"
 check "run --build runs on this checkout's build" bash -c '"$1" run --build "$2" 2>/dev/null | grep -qx ran' _ "$PGF" "$case_dir"
 check "run --build with a selected build exits 2" bash -c '"$1" run --build --use 00000000 "$2" >/dev/null 2>&1; [ $? -eq 2 ]' _ "$PGF" "$case_dir"
@@ -68,6 +74,11 @@ for _ in $(seq 50); do "$PGF" builds 2>/dev/null | grep -q "$other.*\[in use\]" 
 check "gc without --yes and without a terminal exits 2 and keeps it" \
     bash -c '[ "$1" -eq 2 ] && [ -d "$2" ]' _ $? "$PGF_BUILD_ROOT/$other"
 check "gc --dry-run lists it for removal" bash -c '"$1" gc --keep 0 --dry-run 2>/dev/null | grep -q "^remove $2"' _ "$PGF" "$other"
+check "  and ends with the count, the total size and that nothing was removed" \
+    bash -c '"$1" gc --keep 0 --dry-run 2>/dev/null | grep -qE "^[0-9]+ build\(s\) to remove, [0-9.]+[BKMG]; [0-9]+ kept" &&
+        "$1" gc --keep 0 --dry-run 2>/dev/null | grep -q "^nothing removed (--dry-run)"' _ "$PGF"
+check "builds ends with a legend and a total" \
+    bash -c '"$1" builds 2>/dev/null | grep -q "^\* a build of .*current sources$" && "$1" builds 2>/dev/null | grep -qE "^[0-9]+ builds, "' _ "$PGF"
 "$PGF" gc --keep 0 --yes >"$TEST_TMP/gc" 2>&1
 check "gc --keep 0 --yes removes the unused build" [ ! -e "$PGF_BUILD_ROOT/$other" ]
 check "gc keeps this checkout's build" [ -f "$auto/.pgf-build.json" ]

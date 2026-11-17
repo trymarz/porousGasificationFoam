@@ -285,7 +285,7 @@ gc() {
   while IFS= read -r d; do
     [ -n "$d" ] || continue
     if [ -n "${protect_keys[${d##*/}]:-}" ]; then
-      echo "keep $d (this tree)"
+      echo "keep $d (a build of ${PGF_ROOT##*/}'s current sources)"
       continue
     fi
     if [ -e "$d.lock" ]; then

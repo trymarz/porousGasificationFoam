@@ -1,5 +1,5 @@
 #!/bin/bash
-# config.sh — pgf's layered settings (#257; doc/build.md). Source-only.
+# config.sh — pgf's layered settings (#257; doc/pgf.md). Source-only.
 # Later wins: default, user env.conf, checkout .pgf.conf, environment, CLI.
 # Files are parsed, never sourced, and only PGF_CONF_KEYS are accepted.
 
@@ -17,7 +17,7 @@ declare -gA PGF_CONF_DESC=(
   [PGF_CASE_ROOT]="where pgf copy puts cases, as <branch>/<case>; default: \$WM_PROJECT_USER_DIR/run"
   [PGF_YADE]="1: use the DEM (--yade) variant by default"
   [PGF_MPI]="Open MPI networking: auto, loopback (lo only) or default"
-  [PGF_BUILD]="the build to use (pgf use); default auto: this checkout's"
+  [PGF_BUILD]="the build to use (pgf use); default auto: the build of the checkout pgf runs from"
 )
 
 # Resolved value and its layer per key: PGF_CONF_VAL[k], PGF_CONF_SRC[k].
@@ -25,6 +25,11 @@ declare -gA PGF_CONF_VAL=() PGF_CONF_SRC=() PGF_CONF_CLI=()
 
 pgf_conf_user_file() {
   printf '%s/pgf/env.conf' "${XDG_CONFIG_HOME:-${HOME:-}/.config}"
+}
+
+# pgf_checkout_name — the checkout pgf runs from, by its directory name.
+pgf_checkout_name() {
+  printf '%s' "${PGF_ROOT##*/}"
 }
 
 pgf_conf_checkout_file() {
@@ -125,11 +130,23 @@ pgf_conf_set_cli() {
   PGF_CONF_CLI[$key]="$val"
 }
 
+# pgf_conf_defaults ASSOC — the default directories into the named array; the
+#   build store and case root need OpenFOAM's user dir (pgf_build_info).
+pgf_conf_defaults() {
+  local -n _d="$1"
+  _d[PGF_RUN_ROOT]="${TMPDIR:-/tmp}/pgf-runs"
+  [ -n "${PGF_CONF_VAL[PGF_BUILD_ROOT]+x}" ] && [ -n "${PGF_CONF_VAL[PGF_CASE_ROOT]+x}" ] && return 0
+  declare -F pgf_build_info >/dev/null || return 0
+  pgf_build_info
+  _d[PGF_BUILD_ROOT]="${PGF_INFO_ROOT:-}" _d[PGF_CASE_ROOT]="${PGF_INFO_CASES:-}"
+}
+
 # pgf_conf_print — the effective values and where each came from, the layer
-#   column aligned after the longest value.
+#   column aligned after the longest value; unset directories show their default.
 pgf_conf_print() {
   local k cf w=1 v src
-  local -A shown=()
+  local -A shown=() def=()
+  pgf_conf_defaults def
   cf="$(pgf_conf_checkout_read_file)"
   printf 'config files:\n  user:     %s%s\n  checkout: %s%s\n' \
     "$(pgf_tilde "$(pgf_conf_user_file)")" "$([ -e "$(pgf_conf_user_file)" ] || echo ' (absent)')" \
@@ -137,11 +154,13 @@ pgf_conf_print() {
   for k in "${PGF_CONF_KEYS[@]}"; do
     shown[$k]="-"
     [ -n "${PGF_CONF_VAL[$k]+x}" ] && shown[$k]="$(pgf_tilde "${PGF_CONF_VAL[$k]}")"
+    [ -z "${PGF_CONF_VAL[$k]+x}" ] && [ -n "${def[$k]:-}" ] && shown[$k]="$(pgf_tilde "${def[$k]}")"
     [ ${#shown[$k]} -gt "$w" ] && w=${#shown[$k]}
   done
   echo "settings:"
   for k in "${PGF_CONF_KEYS[@]}"; do
     src="${PGF_CONF_SRC[$k]:-unset}"
+    [ "$src" = unset ] && [ -n "${def[$k]:-}" ] && src=default
     [ "$src" = "${src#* }" ] || src="${src%% *} $(pgf_tilde "${src#* }")"
     printf "  %-16s %-${w}s  [%s]\n" "$k" "${shown[$k]}" "$src"
   done
@@ -155,7 +174,7 @@ pgf_conf_write() {
   mkdir -p "${file%/*}" || return 1
   tmp="$file.tmp.$$"
   {
-    echo "# pgf settings ($layer layer); see doc/build.md. KEY=value, parsed not sourced."
+    echo "# pgf settings ($layer layer); see doc/pgf.md or pgf help config. KEY=value, parsed not sourced."
     for k in "${PGF_CONF_KEYS[@]}"; do
       if [ -n "${_vals[$k]+x}" ]; then printf '%s=%s\n' "$k" "${_vals[$k]}"; fi
     done

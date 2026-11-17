@@ -7,11 +7,14 @@ $PGF_BUILD_ROOT/.pgf/workspaces/<hash>.json, naming its path and the key it
 last built per variant, so `pgf ls` can say which checkouts use which build.
 
   registry.py register ROOT CHECKOUT VARIANT KEY BRANCH
-  registry.py ls ROOT [--json] [--builds-only] [--current KEY ...]
+  registry.py ls ROOT [--json] [--builds-only] [--name NAME] [--current KEY ...]
   registry.py status CONF_JSON ROOT CHECKOUT [VARIANT=KEY ...]
   registry.py resolve ROOT VARIANT SEL       print the prefix SEL names
   registry.py record CASE ROOT PREFIX SOURCE YADE_BIN YADE_COMMIT STARTED RC CMD ...
-  registry.py gc ROOT [--keep N] [--yes] [--dry-run] [--json] [--protect KEY ...]
+  registry.py gc ROOT [--keep N] [--yes] [--dry-run] [--json] [--selected KEY] [--name NAME] [--protect KEY ...]
+
+NAME names the checkout pgf runs from, whose builds are --current / --protect.
+A workspace whose checkout no longer exists counts for nothing; gc forgets it.
 
 A run holds a shared flock on ROOT/<key>.use.lock and a build an exclusive one
 on ROOT/<key>.lock; gc skips a build while either is held.
@@ -116,7 +119,7 @@ def builds(root, current=()):
         meta = load(os.path.join(prefix, ".pgf-build.json"))
         if not os.path.isdir(prefix) or name.startswith("."):
             continue
-        used_by = [w["path"] for w in wss if name in (w.get("builds") or {}).values()]
+        used_by = [w["path"] for w in wss if w["exists"] and name in (w.get("builds") or {}).values()]
         out.append({
             "key": name,
             "prefix": prefix,
@@ -148,10 +151,15 @@ def tilde(p):
     return "~" + p[len(home):] if home and (p or "").startswith(home + "/") else p
 
 
+def opt_value(rest, flag, default=None):
+    return rest[rest.index(flag) + 1] if flag in rest and rest.index(flag) + 1 < len(rest) else default
+
+
 def cmd_ls(argv):
     root, rest = argv[0], argv[1:]
     as_json = "--json" in rest
     only = "--builds-only" in rest
+    name = opt_value(rest, "--name", "the checkout pgf runs from")
     current = rest[rest.index("--current") + 1:] if "--current" in rest else []
     bs = builds(root, current)
     if as_json:
@@ -162,11 +170,13 @@ def cmd_ls(argv):
         return 0
     if not only:
         wss = workspaces(root)
-        print("workspaces:" if wss else "no workspaces registered")
-        for w in wss:
+        live = [w for w in wss if w["exists"]]
+        print("checkouts that built here:" if live else "no existing checkout built here")
+        for w in live:
             keys = ", ".join("%s %s" % (v, k) for v, k in sorted((w.get("builds") or {}).items()))
-            print("  %s%s%s  %s" % (tilde(w["path"]), "@" + w["branch"] if w.get("branch") else "",
-                                    "" if w["exists"] else " (gone)", keys))
+            print("  %s%s  %s" % (tilde(w["path"]), "@" + w["branch"] if w.get("branch") else "", keys))
+        if len(wss) > len(live):
+            print("  (+%d that no longer exist; pgf gc forgets them)" % (len(wss) - len(live)))
     if not bs:
         print("no builds under %s" % tilde(root))
         return 0
@@ -182,7 +192,14 @@ def cmd_ls(argv):
             mark, b["key"], b["variant"] or "?", b["built_utc"] or "-", human(b["size_bytes"]),
             where, "@" + branch if branch else "", state))
         for u in b["used_by"]:
-            print("      used by %s" % tilde(u))
+            print("      last build of %s" % tilde(u))
+    legend = ["* a build of %s's current sources" % name]
+    if any(not b["complete"] for b in bs):
+        legend.append("(incomplete) a build that stopped before it finished; pgf gc removes it")
+    if any(b["in_use"] for b in bs):
+        legend.append("[in use] a pgf run or shell is using it now")
+    print("\n" + "\n".join(legend))
+    print("%d builds, %s; remove old ones: pgf gc --dry-run, then pgf gc" % (len(bs), human(sum(b["size_bytes"] for b in bs))))
     return 0
 
 
@@ -241,24 +258,39 @@ def cmd_gc(argv):
     root, rest = argv[0], argv[1:]
     keep = int(rest[rest.index("--keep") + 1]) if "--keep" in rest else 2
     yes, dry, as_json = "--yes" in rest, "--dry-run" in rest, "--json" in rest
+    name = opt_value(rest, "--name", "the checkout pgf runs from")
     protect = set(rest[rest.index("--protect") + 1:]) if "--protect" in rest else set()
-    referenced = {k for w in workspaces(root) if w["exists"] for k in (w.get("builds") or {}).values()}
+    selected = opt_value(rest, "--selected")
+    wss = workspaces(root)
+    last = {k: os.path.basename(w["path"]) for w in wss if w["exists"] for k in (w.get("builds") or {}).values()}
+    gone = [w for w in wss if not w["exists"]]
+    newest = keep
     plan, kept = [], []
     for b in sorted(builds(root), key=lambda b: b["mtime"], reverse=True):
-        why = ("this checkout" if b["key"] in protect else "in use" if b["in_use"] else
-               "building" if b["building"] else "a workspace's last build" if b["key"] in referenced else None)
+        why = ("a build of %s's current sources" % name if b["key"] in protect else
+               "chosen with pgf use or PGF_BUILD" if b["key"] == selected else "in use" if b["in_use"] else
+               "building" if b["building"] else "last build of %s" % last[b["key"]] if b["key"] in last else None)
         if why is None and keep > 0 and b["complete"]:
             keep -= 1
-            why = "--keep"
+            why = "one of the %d newest others, --keep" % newest
         (kept if why else plan).append(dict(b, why=why))
+    total = human(sum(b["size_bytes"] for b in plan))
     if as_json:
-        print(json.dumps({"build_root": root, "remove": plan, "keep": kept, "dry_run": dry or not yes}, indent=2))
+        print(json.dumps({"build_root": root, "remove": plan, "keep": kept, "dry_run": dry or not yes,
+                          "forget": [w["path"] for w in gone]}, indent=2))
     else:
         for b in kept:
             print("keep   %s (%s)" % (b["key"], b["why"]))
         for b in plan:
-            print("remove %s (%s)" % (b["key"], human(b["size_bytes"])))
-    if not plan or dry:
+            print("remove %s (%s%s)" % (b["key"], human(b["size_bytes"]), "" if b["complete"] else ", incomplete"))
+        print("\n%d build(s) to remove, %s; %d kept%s" % (len(plan), total, len(kept),
+              "; %d checkout(s) that no longer exist to forget" % len(gone) if gone else ""))
+        if dry:
+            print("nothing removed (--dry-run); to remove them: pgf gc")
+    if dry:
+        return 0
+    if not plan:
+        forget(root, gone)
         return 0
     if not yes:
         if not sys.stdin.isatty():
@@ -267,10 +299,20 @@ def cmd_gc(argv):
         sys.stderr.write("remove %d build(s), %s? [y/N] " % (len(plan), human(sum(b["size_bytes"] for b in plan))))
         if sys.stdin.readline().strip().lower() not in ("y", "yes"):
             return 1
+    forget(root, gone)
     rc = 0
     for b in plan:
         rc |= remove(root, b["key"])
     return rc
+
+
+def forget(root, gone):
+    """Drop the workspace files of checkouts that no longer exist."""
+    for w in gone:
+        try:
+            os.unlink(ws_file(root, w["path"]))
+        except OSError:
+            pass
 
 
 def remove(root, key):

@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# pgf: the one entry point for porousGasificationFoam (#264, #274). See doc/build.md.
+# pgf: the one entry point for porousGasificationFoam (#264, #274). See doc/pgf.md.
 # what:    settings, isolated builds, runs in a clean environment, test tiers
 # why:     one front door instead of hand-sourcing OpenFOAM and sharing $FOAM_USER_APPBIN
 # instead: ./Allwmake / ./Allwclean when the OpenFOAM-style entry point is all you need
@@ -286,7 +286,7 @@ run)
 esac
 
 if [ "$run_build" -eq 1 ]; then
-  [ "$sel" = auto ] || die "--build builds this checkout's sources; it cannot be combined with PGF_BUILD=$sel ($sel_src)"
+  [ "$sel" = auto ] || die "--build builds the sources of $(pgf_checkout_name); it cannot be combined with PGF_BUILD=$sel ($sel_src)"
   build_flag=()
   [ "$yade" -eq 1 ] && build_flag=(--yade)
   "$SELF" build "${build_flag[@]}" >&2 || die "pgf build failed"
@@ -332,11 +332,12 @@ if [ "$mode" = tree ] && [ "$sel_src" != --prefix ]; then
   if [ "$sel" = auto ]; then
     prefix="$auto"
     [ -f "$prefix/.pgf-build.json" ] ||
-      die "no complete build for this tree at $prefix; run: $SELF build ${variant_flag[*]}"
+      die "no complete build of $(pgf_checkout_name) at $prefix; run: $(pgf_self_cmd) build ${variant_flag[*]}"
   elif [ "$prefix" != "$auto" ] && [ "$sel_src" != --prefix ]; then
-    stale="the selected build ${prefix##*/} ($sel_src) is not this checkout's sources (${auto##*/})"
+    stale="the selected build ${prefix##*/} ($sel_src) is not built from the sources of $(pgf_checkout_name) (${auto##*/})"
     if [ "$sub" = run ] && [ "$allow_stale" -eq 0 ]; then
-      die "$stale; run: $SELF use auto, then $SELF run --build; or pass --allow-stale"
+      pgf_stale_refusal "$sel_src" "$prefix" "$auto" "${variant_flag[*]}"
+      exit 2
     fi
     st WARN "$stale" >&2
   fi
@@ -459,7 +460,7 @@ fi
 st INFO "using OpenFOAM $WM_PROJECT_VERSION ($(pgf_tilde "$bashrc"))" >&2
 if [ "$mode" != "bare" ]; then
   case "$sel_src" in
-  default) why="from this checkout's sources"
+  default) why="from the sources of $(pgf_checkout_name)"
     [ -n "${PGF_RUN_FROM_COPY:-}" ] && why="from $(pgf_tilde "$PGF_ROOT"), where the case was copied from" ;;
   --prefix) why="the prefix you gave" ;;
   cli) why="chosen with --use" ;;

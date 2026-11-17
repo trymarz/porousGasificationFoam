@@ -167,10 +167,10 @@ pgf_setup_step_link() {
   PGF_SETUP_PGF=pgf
   p="$(PATH="$PGF_ENV_CALLER_PATH" command -v pgf)"
   if [ -n "$p" ] && [ "$(readlink -f "$p")" = "$SELF" ]; then
-    st_step "linking pgf" OK "$(pgf_tilde "$link") → this checkout, on PATH"
+    st_step "linking pgf" OK "$(pgf_tilde "$link") → $(pgf_tilde "$SELF"), on PATH"
   elif [ -n "$p" ]; then
     PGF_SETUP_PGF=./pgf
-    st_step "linking pgf" WARN "pgf on PATH is $(pgf_tilde "$(readlink -f "$p")"), not this checkout; here call ./pgf"
+    st_step "linking pgf" WARN "pgf on PATH is $(pgf_tilde "$(readlink -f "$p")"), not $(pgf_tilde "$SELF"); here call ./pgf"
     st_more "fix: ./pgf setup --link-only --force"
   elif [ "$(readlink -f "$link")" = "$SELF" ]; then
     st_step "linking pgf" WARN "$(pgf_tilde "$link") is set, but ~/.local/bin is not on your PATH"
@@ -207,9 +207,35 @@ pgf_setup_outcome() {
     printf "  %-16s %-${w}s  %s\n" "$k" "$(pgf_tilde "$new")" "$(pgf_ui_paint 2 "($note)")"
   done
   echo
-  st_next "./Allwmake" "build the solver here (≈1.5 min first build)" \
+  st_next "$pgf build" "build the solver of $(pgf_checkout_name) (≈1.5 min first build)" \
     "$pgf doctor" "check everything, with a fix for each problem" \
     "$pgf help config" "what each setting means; change one: pgf config set KEY=VALUE"
+}
+
+# pgf_self_cmd — how to call this pgf from here: pgf when it is the one on PATH,
+#   else its path.
+pgf_self_cmd() {
+  local p
+  p="$(PATH="${PGF_ENV_CALLER_PATH:-$PATH}" command -v pgf)"
+  if [ -n "$p" ] && [ "$(readlink -f "$p")" = "$SELF" ]; then echo pgf; else pgf_tilde "$SELF"; fi
+}
+
+# pgf_stale_refusal SRC PREFIX AUTO FLAGS — why pgf run refuses PREFIX, and the
+#   fix that fits what chose it (SRC: cli, terminal or a checkout file).
+pgf_stale_refusal() {
+  local src="$1" key="${2##*/}" auto="${3##*/}" flag="${4:+ $4}" p fix build="" name
+  p="$(pgf_self_cmd)" name="$(pgf_checkout_name)"
+  [ -f "$3/.pgf-build.json" ] || build=", then $p build$flag"
+  case "$src" in
+  cli) fix="leave out --use to run with the build of $name$build" ;;
+  terminal) fix="eval \"\$($p use auto)\" to go back to the build of $name$build" ;;
+  checkout*) fix="$p config unset PGF_BUILD --checkout$build" ;;
+  *) fix="unset PGF_BUILD$build" ;;
+  esac
+  case "$src" in cli) src="chosen with --use" ;; terminal) src="chosen with pgf use" ;; checkout*) src="PGF_BUILD in $(pgf_tilde "${src#* }")" ;; esac
+  { st FAIL "build ${key%%-*} ($src) is not built from the current sources of $name (${auto%%-*})"
+    st_more "pgf run refuses a build of other sources; --allow-stale runs it anyway"
+    st_more "fix: $fix"; } >&2
 }
 
 # pgf_case_logs — "name mtime" per log.* in the case dir; a run that changes
@@ -225,7 +251,7 @@ pgf_run_precheck() {
   [ "$script" = Allclean ] && return 0
   here="$(pwd -P)" root="$(cd "$PGF_ROOT" && pwd -P)"
   case "$here/" in "$root"/*)
-    { st WARN "$(pgf_tilde "$here") is inside this checkout; results go into git-ignored files there,"
+    { st WARN "$(pgf_tilde "$here") is inside the checkout $(pgf_tilde "$root"); results go into git-ignored files there,"
       st_more "and a later copy of the case takes them along. Run on a copy: pgf copy ${here#"$root"/tutorials/cases/}"; } >&2
     ;;
   esac
@@ -365,9 +391,9 @@ pgf_doctor() {
       local what="non-DEM" flag=""
       [ "$v" = yade1 ] && what="DEM" flag=" --yade"
       if [ -n "$key" ] && [ -f "$PGF_INFO_ROOT/$key/.pgf-build.json" ]; then
-        _r OK "$what build ${key%%-*} of this checkout's sources"
+        _r OK "$what build ${key%%-*} of the sources of $(pgf_checkout_name)"
       else
-        _r WARN "no $what build of this checkout's sources yet; fix: pgf build$flag"
+        _r WARN "no $what build of the sources of $(pgf_checkout_name) yet; fix: pgf build$flag"
         if [ "$grp" = dem ]; then _dem "a DEM build (pgf build --yade)"; else need_build=1; fi
       fi
       grp=""
@@ -430,9 +456,9 @@ pgf_doctor() {
   if [ -z "$p" ]; then
     _r WARN "pgf is not on PATH; fix: $(pgf_tilde "$SELF") setup --link-only"
   elif [ "$(readlink -f "$p")" != "$SELF" ]; then
-    _r WARN "pgf on PATH is $(pgf_tilde "$(readlink -f "$p")"), not this checkout; call this one by path, or: ./pgf setup --link-only --force"
+    _r WARN "pgf on PATH is $(pgf_tilde "$(readlink -f "$p")"), not $(pgf_tilde "$SELF"); call the latter by path, or: $(pgf_tilde "$SELF") setup --link-only --force"
   else
-    _r OK "pgf on PATH is this checkout's"
+    _r OK "pgf on PATH is $(pgf_tilde "$SELF")"
   fi
   f="$(pgf_completion_file)"
   if [ -f "$f" ] && ! cmp -s "$f" <(pgf_completion_cmd bash); then
@@ -575,7 +601,7 @@ pgf_status() {
   variant="yade${PGF_YADE:-0}" sel="${PGF_BUILD:-auto}" src="$(pgf_layer PGF_BUILD "terminal: pgf use")"
   if [ "$sel" = auto ]; then
     key="${PGF_INFO_KEY[$variant]}"
-    src="auto: this checkout's sources"
+    src="auto: the sources of $(pgf_checkout_name)"
   elif prefix="$(python3 "$PGF_LIB/registry.py" resolve "$PGF_INFO_ROOT" "$variant" "$sel" 2>&1)"; then
     key="${prefix##*/}"
   else
@@ -595,7 +621,7 @@ pgf_status() {
     "$([ -n "${PGF_CONF_SRC[PGF_CASE_ROOT]:-}" ] && pgf_layer PGF_CASE_ROOT || echo 'default: $WM_PROJECT_USER_DIR/run')"
   printf 'build     %s [%s; %s] %s\n' "$key" "$variant" "$src" "$state"
   echo
-  st_head "this checkout's builds:"
+  st_head "builds of $(pgf_checkout_name):"
   for v in yade0 yade1; do
     key="${PGF_INFO_KEY[$v]}" w="non-DEM"
     [ "$v" = yade1 ] && w="DEM"
@@ -625,7 +651,7 @@ pgf_build_info() {
 }
 
 # pgf_ls_cmd [--json] — registered workspaces and every build under the build
-#   root (pgf builds; old name pgf ls); * marks this checkout's.
+#   root (pgf builds; old name pgf ls); * marks the builds of the checkout pgf runs from.
 pgf_ls_cmd() {
   local json=() k cur=()
   while [ $# -gt 0 ]; do
@@ -638,7 +664,7 @@ pgf_ls_cmd() {
   pgf_build_info
   [ -n "$PGF_INFO_ROOT" ] || { echo "pgf: no build root: set PGF_BUILD_ROOT or PGF_FOAM_BASHRC" >&2; return 2; }
   for k in "${PGF_INFO_KEY[@]}"; do [ -n "$k" ] && cur+=("$k"); done
-  python3 "$PGF_LIB/registry.py" ls "$PGF_INFO_ROOT" "${json[@]}" --current "${cur[@]}"
+  python3 "$PGF_LIB/registry.py" ls "$PGF_INFO_ROOT" "${json[@]}" --name "$(pgf_checkout_name)" --current "${cur[@]}"
 }
 
 # pgf_use_cmd SEL [--yade | --no-yade] — print the shell line that makes SEL
@@ -658,16 +684,20 @@ pgf_use_cmd() {
     shift
   done
   [ -n "$sel" ] || { echo "usage: eval \"\$(pgf use <key|commit|worktree|prefix|auto> [--yade])\"" >&2; return 2; }
+  # On a terminal nobody evals the line, so nothing changes.
   if [ "$sel" = auto ]; then
     echo "unset PGF_BUILD"
-    echo "pgf: this terminal's build is auto again (the build matching the checkout's sources)" >&2
+    if [ -t 1 ]; then echo "pgf: printing only; to go back to the build of $(pgf_checkout_name)'s sources: eval \"\$($(pgf_self_cmd) use auto)\"" >&2
+    else echo "pgf: this terminal's build is auto again (the build of $(pgf_checkout_name)'s sources)" >&2; fi
     return 0
   fi
   pgf_build_info
   prefix="$(python3 "$PGF_LIB/registry.py" resolve "$PGF_INFO_ROOT" "$variant" "$sel")" || return 2
   printf 'export PGF_BUILD=%q\n' "${prefix##*/}"
-  echo "pgf: this terminal now uses ${prefix##*/}" >&2
-  [ -t 1 ] && echo "pgf: printing only; apply it with: eval \"\$(pgf use $sel)\"" >&2
+  if [ -t 1 ]; then echo "pgf: printing only; to use ${prefix##*/} in this terminal: eval \"\$($(pgf_self_cmd) use $sel)\"" >&2
+  else echo "pgf: this terminal now uses ${prefix##*/}" >&2; fi
+  [ "${prefix##*/}" = "${PGF_INFO_KEY[$variant]:-}" ] ||
+    echo "pgf: note: ${prefix##*/} is not built from the current sources of $(pgf_checkout_name); pgf run refuses it unless --allow-stale" >&2
   return 0
 }
 
@@ -689,8 +719,9 @@ pgf_gc_cmd() {
   pgf_conf_resolve || { echo "pgf: $PGF_CONF_ERR" >&2; return 2; }
   pgf_build_info
   [ -n "$PGF_INFO_ROOT" ] || { echo "pgf: no build root: set PGF_BUILD_ROOT or PGF_FOAM_BASHRC" >&2; return 2; }
-  for k in "${PGF_INFO_KEY[@]}" "${PGF_BUILD:-}"; do [ -n "$k" ] && cur+=("$k"); done
-  python3 "$PGF_LIB/registry.py" gc "$PGF_INFO_ROOT" "${args[@]}" --protect "${cur[@]}"
+  for k in "${PGF_INFO_KEY[@]}"; do [ -n "$k" ] && cur+=("$k"); done
+  [ -z "${PGF_BUILD:-}" ] || args+=(--selected "$PGF_BUILD")
+  python3 "$PGF_LIB/registry.py" gc "$PGF_INFO_ROOT" "${args[@]}" --name "$(pgf_checkout_name)" --protect "${cur[@]}"
 }
 
 # pgf_status_json — settings, layers and this checkout's builds as JSON.
@@ -781,7 +812,7 @@ pgf_copy_cmd() {
   st_more "to $(pgf_tilde "$dest")"
   out="$( { ls -d "$dest"/log.* "$dest"/processor[0-9]* 2>/dev/null; } | head -3)"
   [ -z "$out" ] || st WARN "the tutorial held output from a run in the checkout; clean it first: pgf run $(pgf_tilde "$dest") Allclean"
-  st_next "pgf run $(pgf_tilde "$dest")" "run it with this checkout's build"
+  st_next "pgf run $(pgf_tilde "$dest")" "run it with the build of $(pgf_checkout_name)"
 }
 
 # pgf_copy_check — in a case dir copied by pgf copy: INFO where it came from,

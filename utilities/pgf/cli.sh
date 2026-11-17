@@ -42,10 +42,11 @@ PGF_ENV_ROWS="--use SEL	the build: key or key prefix, commit, worktree, prefix p
 --yade-trunk DIR	same as --set YADE_TRUNK=DIR
 "
 
-# The pgf help groups: everyday commands, then "more"; the rest (tools,
-# completion) work but stay out of the list. Old names map to their command.
-PGF_HELP_MAIN=(setup build copy run view test status doctor)
-PGF_HELP_MORE=(config builds use gc shell pack help)
+# The pgf help groups, as doc/pgf.md has them; completion works but stays out
+# of the list. Old names map to their command.
+PGF_HELP_GROUPS=("Settings Commands" "Build Commands" "Run Commands" "Other Commands")
+declare -gA PGF_HELP_GROUP=(["Settings Commands"]="setup config doctor" ["Build Commands"]="build builds use gc"
+  ["Run Commands"]="copy run view shell test" ["Other Commands"]="status pack tools help")
 declare -gA PGF_CMD_ALIAS=([where]=status [ls]=builds [exec]=shell)
 
 pgf_cmd setup "find OpenFOAM and yade, save them, put pgf on PATH" \
@@ -54,8 +55,8 @@ pgf_cmd setup "find OpenFOAM and yade, save them, put pgf on PATH" \
   "--user --checkout --yes --no-link --link-only --force --no-completion --set --foam-bashrc --yade-bin --yade-trunk" none
 pgf_cmd_desc setup "pgf runs every build and case in a clean environment, so it has to know where
 OpenFOAM (and, for DEM cases, yade) lives. setup finds them, saves them in a
-settings file that every pgf call reads, links ~/.local/bin/pgf to this
-checkout and installs bash completion. It prints one line per step as it goes,
+settings file that every pgf call reads, links ~/.local/bin/pgf to the
+checkout pgf runs from and installs bash completion. It prints one line per step as it goes,
 then what it saved where, then what to do next.
 
 On a terminal it asks when there is a choice; --yes takes the detected choices
@@ -64,9 +65,9 @@ changed. Change a value later with pgf config set KEY=VALUE; what each setting
 means and how the layers combine: pgf help config."
 pgf_cmd_opt setup "-y, --yes" "do not ask: take what was detected, install completion"
 pgf_cmd_opt setup --user "save to ~/.config/pgf/env.conf, for every checkout" "yes"
-pgf_cmd_opt setup --checkout "save to <checkout>/.pgf.conf, for this checkout only"
+pgf_cmd_opt setup --checkout "save to <checkout>/.pgf.conf, for that checkout only"
 pgf_cmd_opt setup --no-link "do not link ~/.local/bin/pgf"
-pgf_cmd_opt setup --link-only "only link ~/.local/bin/pgf to this checkout"
+pgf_cmd_opt setup --link-only "only link ~/.local/bin/pgf to the checkout pgf runs from"
 pgf_cmd_opt setup --force "replace a link that points at another checkout"
 pgf_cmd_opt setup --no-completion "do not install bash completion"
 pgf_cmd_opt setup "--foam-bashrc FILE" "this OpenFOAM etc/bashrc instead of a detected one"
@@ -76,19 +77,19 @@ pgf_cmd_opt setup "--set KEY=VALUE" "save any setting (keys: pgf help config)"
 pgf_cmd_ex setup "./pgf setup" "ask, then save and link"
 pgf_cmd_ex setup "./pgf setup --yes" "take the detected choices"
 pgf_cmd_ex setup "./pgf setup --foam-bashrc ~/OpenFOAM/OpenFOAM-v2406/etc/bashrc"
-pgf_cmd_ex setup "./pgf setup --link-only --force" "make pgf on PATH this checkout's"
+pgf_cmd_ex setup "./pgf setup --link-only --force" "make pgf on PATH the ./pgf you call"
 
-pgf_cmd build "build this checkout (libraries, solver, utilities)" "pgf build [--yade] [-v] [build.sh options]" \
+pgf_cmd build "build the checkout (libraries, solver, utilities)" "pgf build [--yade] [-v] [build.sh options]" \
   "--yade --set --foam-bashrc" build-options
-pgf_cmd_desc build "Builds this checkout into the build store, in a prefix named by a key made of
-the sources, the variant, the OpenFOAM version and the compiler. A prefix with
+pgf_cmd_desc build "Builds the checkout pgf runs from into the build store, in a prefix named by
+a key made of the sources, the variant, the OpenFOAM version and the compiler. A prefix with
 the same key is reused without compiling. wmake's output goes to
 <prefix>/build.log; the screen shows one line per target. ./Allwmake runs this."
 pgf_cmd_opt build --yade "the DEM variant (WITH_YADE=1)"
 pgf_cmd_opt build "-v, --verbose" "stream wmake's output instead of logging it"
 pgf_cmd_opt build --libs-only "only the libraries"
 pgf_cmd_opt build --dry-run "show what would be built; build nothing"
-pgf_cmd_opt build --print-prefix "print the prefix this checkout builds into"
+pgf_cmd_opt build --print-prefix "print the prefix the checkout builds into"
 pgf_cmd_opt build "clean [--purge]" "clean the build state (and the binaries)"
 pgf_cmd_ex build "pgf build"
 pgf_cmd_ex build "pgf build --yade" "the DEM variant"
@@ -98,7 +99,7 @@ pgf_cmd copy "copy a tutorial case out of the checkout, ready to run" "pgf copy 
   "--list --force" tutorial
 pgf_cmd_desc copy "Copies tutorials/cases/<tutorial>, the whole case with linked files resolved
 (cp -rL), to \$PGF_CASE_ROOT/<branch>/<tutorial>, or <branch>/NAME. <branch> is
-this checkout's branch with / as -, or its short commit when detached.
+the branch of the checkout pgf runs from, with / as -, or its short commit.
 PGF_CASE_ROOT defaults to OpenFOAM's run dir, \$WM_PROJECT_USER_DIR/run
 (~/OpenFOAM/<user>-v2406/run), not pgf's scratch \$FOAM_RUN.
 
@@ -119,7 +120,7 @@ environment, then writes <caseDir>/.pgf-run.json and says how it went. A case
 whose constant/yadeProperties is active gets --yade. Run a copy of a tutorial
 (pgf copy), not the tutorial in the checkout: a copy runs with the build of the
 checkout it came from. A stale build is refused."
-pgf_cmd_opt run --build "build this checkout first"
+pgf_cmd_opt run --build "build the checkout pgf runs from first"
 pgf_cmd_opt run --allow-stale "run with a build of other sources"
 pgf_cmd_opt run @env
 pgf_cmd_ex run "pgf copy solidAdvection" "prints where the copy went"
@@ -143,7 +144,7 @@ pgf_cmd_opt view "--palette NAME" "a ParaView palette, e.g. BlackBackground"
 pgf_cmd_ex view "pgf view ~/OpenFOAM/\$USER-v2406/run/main/solidAdvection"
 pgf_cmd_ex view "pgf view <caseDir> --png out/" "headless: out/<view>.png"
 
-pgf_cmd test "run a test tier against this checkout's build" \
+pgf_cmd test "run a test tier against the checkout's build" \
   "pgf test <tier|all> [--rebuild] [--if-stale AGE] [--run-root DIR] | --status | --gc" \
   "--rebuild --if-stale --run-root --status --gc --keep-runs --keep-prefixes --dry-run" tier
 pgf_cmd_desc test "Builds (or reuses) the tier's build, runs its cases and records the outcome
@@ -163,10 +164,10 @@ pgf_cmd_ex test "pgf test fast --if-stale 7d"
 pgf_cmd_ex test "pgf test --status"
 
 pgf_cmd status "what pgf uses and where: files, the build, your case copies" "pgf status [PATH] [--json] [options]" "--json @env" dir
-pgf_cmd_desc status "One screen: this checkout and its branch, the settings files, the build store,
-the run records, scratch and the case root, the build pgf would use now and
-what chose it, this checkout's two builds (non-DEM, DEM), and your case copies
-(pgf copy) per branch. With PATH, asks that checkout instead. Every setting
+pgf_cmd_desc status "One screen: the checkout pgf runs from and its branch, the settings files, the
+build store, the run records, scratch and the case root, the build pgf would
+use now and what chose it, that checkout's two builds (non-DEM, DEM), and your
+case copies (pgf copy) per branch. With PATH, asks that checkout instead. Every setting
 with its layer: pgf config. pgf with no command runs status. Old name: where."
 pgf_cmd_opt status --json "settings, layers and builds as JSON"
 pgf_cmd_opt status @env
@@ -174,8 +175,8 @@ pgf_cmd_ex status "pgf status"
 pgf_cmd_ex status "pgf status ~/Code/pgf-feature" "another checkout"
 
 pgf_cmd doctor "check that pgf can build and run, with a fix for each problem" "pgf doctor [options]" "@env" none
-pgf_cmd_desc doctor "Read-only checks in groups: OpenFOAM, this checkout's build, yade and DEM,
-MPI, and pgf on PATH. Each check is one OK, WARN or FAIL line; under a WARN
+pgf_cmd_desc doctor "Read-only checks in groups: OpenFOAM, the builds of the checkout pgf runs
+from, yade and DEM, MPI, and pgf on PATH. Each check is one OK, WARN or FAIL line; under a WARN
 or FAIL, the detail and the command that fixes it. It ends with a one-line
 verdict and exits 1 when a check fails. The settings themselves: pgf config."
 pgf_cmd_opt doctor @env
@@ -193,29 +194,32 @@ pgf_cmd_opt config --checkout "edit <checkout>/.pgf.conf"
 pgf_cmd_opt config --json "print the settings and layers as JSON"
 pgf_cmd_ex config "pgf config"
 pgf_cmd_ex config "pgf config set PGF_FOAM_BASHRC=~/OpenFOAM/OpenFOAM-v2406/etc/bashrc"
-pgf_cmd_ex config "pgf config set PGF_MPI=loopback --checkout" "this checkout only"
+pgf_cmd_ex config "pgf config set PGF_MPI=loopback --checkout" "only the checkout pgf runs from"
 pgf_cmd_ex config "pgf config get YADE_BIN"
 
 pgf_cmd builds "every build, and the checkouts that made them" "pgf builds [--json]" "--json" none
 pgf_cmd_desc builds "Lists the checkouts that built into the build store, then every build: key,
-variant, age, size, the checkout that built it, [in use]; * marks this
-checkout's. Old name: ls."
+variant, time, size, the checkout that built it, and the existing checkouts
+whose last build it is. A legend at the end explains *, (incomplete) and
+[in use]. Old name: ls."
 pgf_cmd_opt builds --json "as JSON"
 pgf_cmd_ex builds "pgf builds"
 
-pgf_cmd use "choose this terminal's build" "eval \"\$(pgf use <key|commit|worktree|prefix|auto> [--yade])\"" \
+pgf_cmd use "choose a build for this terminal (with eval)" "eval \"\$(pgf use <key|commit|worktree|prefix|auto> [--yade])\"" \
   "--yade --no-yade" build
 pgf_cmd_desc use "Prints the shell line that makes a build this terminal's: wrap it in eval.
-Inside pgf shell, plain pgf use does the eval. auto goes back to the build
-of this checkout's sources."
+Without eval it only prints that line and changes nothing. Inside pgf shell,
+plain pgf use does the eval. auto goes back to the build of the sources of the
+checkout pgf runs from."
 pgf_cmd_opt use --yade "pick from the DEM builds"
 pgf_cmd_opt use --no-yade "pick from the plain builds"
 pgf_cmd_ex use 'eval "$(pgf use a2055)"' "a key prefix"
 pgf_cmd_ex use 'eval "$(pgf use auto)"'
 
 pgf_cmd gc "remove old unused builds" "pgf gc [--keep N] [--yes] [--dry-run] [--json]" "--keep --yes --dry-run --json" none
-pgf_cmd_desc gc "Removes builds that no checkout last built, that are not in use or being
-built, beyond the newest N."
+pgf_cmd_desc gc "Removes builds that no existing checkout last built, that are not in use or
+being built, beyond the newest N, and forgets checkouts that no longer exist.
+It ends with a summary: how many builds go, their total size, how many stay."
 pgf_cmd_opt gc "--keep N" "keep the N newest" 2
 pgf_cmd_opt gc --yes "remove without asking"
 pgf_cmd_opt gc --dry-run "only list what would go"
@@ -227,7 +231,7 @@ pgf_cmd_desc shell "Starts bash with the caller's environment dropped (a small a
 OpenFOAM's bashrc sourced and the user dirs pointed at the build, with the
 prompt (pgf:<worktree>@<key>); pgf calls inside it keep that environment.
 With -- COMMAND it runs that command instead (old name: pgf exec). A build
-that is not this checkout's sources is stale: shell warns."
+not made from the sources of the checkout pgf runs from is stale: shell warns."
 pgf_cmd_opt shell "-c COMMAND" "run COMMAND with bash -c instead of an interactive shell"
 pgf_cmd_opt shell "-- COMMAND ..." "run COMMAND and its arguments as they are"
 pgf_cmd_opt shell @env
@@ -239,7 +243,7 @@ pgf_cmd pack "an Apptainer image of a commit" "pgf pack [BUILD] [--no-yade] [--o
   "--yade --no-yade --output --dry-run" build
 pgf_cmd_desc pack "Builds a self-contained Apptainer image of one commit: the image compiles the
 pinned Foam-Yade and PGF itself. BUILD (a key, commit or worktree) names the
-commit; the default is this checkout's HEAD, which must be clean."
+commit; the default is HEAD of the checkout pgf runs from, which must be clean."
 pgf_cmd_opt pack --no-yade "the plain variant (no yade in the image)"
 pgf_cmd_opt pack "--output FILE" "the .sif to write" "./pgf-<commit12>-yade<0|1>.sif"
 pgf_cmd_opt pack --dry-run "write the build context and print the definition"
@@ -303,20 +307,20 @@ pgf_cli_help() {
   If you only need the OpenFOAM-style entry point, ./Allwmake and ./Allwclean
   build and clean through pgf.
 EOF
-  _pgf_help_section "Available Commands"
-  for c in "${PGF_HELP_MAIN[@]}"; do rows+="$c"$'\t'"${PGF_CMD_SUM[$c]}"$'\n'; done
-  _pgf_help_rows "$rows"
-  _pgf_help_section "More Commands"
-  rows=""
-  for c in "${PGF_HELP_MORE[@]}"; do rows+="$c"$'\t'"${PGF_CMD_SUM[$c]}"$'\n'; done
-  _pgf_help_rows "$rows"
+  local g w=0
+  for c in "${PGF_CMDS[@]}"; do [ ${#c} -gt "$w" ] && w=${#c}; done
+  for g in "${PGF_HELP_GROUPS[@]}"; do
+    _pgf_help_section "$g"
+    for c in ${PGF_HELP_GROUP[$g]}; do printf "  %-${w}s  %s\n" "$c" "${PGF_CMD_SUM[$c]}"; done
+  done
+  echo
   echo "  Old names still work: where (status), ls (builds), exec (shell --)."
   _pgf_help_section Options
   _pgf_help_rows "--color WHEN	colour: auto (when output goes to a terminal and NO_COLOR is unset), always, never	auto
 -h, --help	this help, or a command's"
   _pgf_help_section Examples
   _pgf_help_examples "./pgf setup	find OpenFOAM, save it, put pgf on PATH
-./Allwmake	build this checkout (pgf build)
+pgf build	build the checkout pgf runs from
 pgf copy solidAdvection	copy a tutorial out of the checkout; prints its path
 pgf run ~/OpenFOAM/\$USER-v2406/run/main/solidAdvection	run that copy
 pgf view ~/OpenFOAM/\$USER-v2406/run/main/solidAdvection	look at the results
@@ -373,7 +377,7 @@ pgf_completion_cmd() {
   [ "${1:-}" = bash ] && [ $# -eq 1 ] || { echo "usage: pgf completion bash" >&2; return 2; }
   echo "# bash completion for pgf, generated by: pgf completion bash (#274)"
   echo "# Dynamic values come from: pgf __complete builds|tiers|tutorials|build-options"
-  printf '_pgf_cmds=%q\n' "${PGF_HELP_MAIN[*]} ${PGF_HELP_MORE[*]}"
+  printf '_pgf_cmds=%q\n' "$(for c in "${PGF_HELP_GROUPS[@]}"; do printf '%s ' ${PGF_HELP_GROUP[$c]}; done)"
   printf 'declare -gA _pgf_opts=( '
   for c in "${PGF_CMDS[@]}"; do printf '[%s]=%q ' "$c" "$(pgf_cli_opts "$c")"; done
   for c in "${!PGF_CMD_ALIAS[@]}"; do printf '[%s]=%q ' "$c" "$(pgf_cli_opts "${PGF_CMD_ALIAS[$c]}")"; done

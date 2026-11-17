@@ -194,9 +194,9 @@ parse_arguments() {
       echo "  --verbose, -v  Stream wmake's output. Without it, a prefix build"
       echo "           shows one line per target and logs wmake to DIR/build.log."
       echo "  --print-key, --print-prefix  Print the build key or the --isolated"
-      echo "           prefix for this tree and variant (honours --yade), and exit."
+      echo "           prefix for the checkout and variant (honours --yade), and exit."
       echo ""
-      echo "Builds happen in this checkout ($PGF_ROOT); output goes to"
+      echo "Builds happen in the checkout $PGF_ROOT; output goes to"
       echo "\$FOAM_USER_LIBBIN and \$FOAM_USER_APPBIN unless a prefix is given."
       echo "PGF_ISOLATED_ONLY=1 (set by pgf) refuses a build without one."
       exit 0
