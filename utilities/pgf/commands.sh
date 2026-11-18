@@ -593,7 +593,7 @@ pgf_checkout_desc() {
 # pgf_status — what pgf uses and where, on one screen: checkout, files, the
 #   active build and what chose it, this checkout's builds, case copies.
 pgf_status() {
-  local f files=() variant sel src key prefix state v w
+  local f files=() variant sel src key prefix state v w yb line
   pgf_build_info
   for f in "$(pgf_conf_user_file)" "$(pgf_conf_checkout_read_file)"; do
     if [ -e "$f" ]; then files+=("$(pgf_tilde "$f")"); else files+=("$(pgf_tilde "$f") (absent)"); fi
@@ -630,6 +630,14 @@ pgf_status() {
     else state="not built: pgf build$([ "$v" = yade1 ] && echo ' --yade')"; fi
     printf '  %-7s %-6s %-44s %s\n' "$w" "$v" "${key:--}" "$state"
   done
+  yb="${YADE_BIN:-$(PATH="$PGF_ENV_CALLER_PATH" command -v yade)}"
+  if [ -x "$yb" ]; then
+    echo
+    st_head "yade for DEM runs:"
+    while IFS= read -r line; do
+      st_check "$(sed 's/^FAIL/WARN/; s/ .*//' <<<"$line")" "$(sed -E 's/^[A-Z]+ +//' <<<"$line")"
+    done < <(pgf_yade_check "$yb" "${YADE_TRUNK:-$PGF_ROOT/submodules/Foam-Yade}")
+  fi
   echo
   st_head "case copies (pgf copy), per branch:"
   out="$(python3 "$PGF_LIB/copies.py" list "${PGF_INFO_CASES:-/nonexistent}")"

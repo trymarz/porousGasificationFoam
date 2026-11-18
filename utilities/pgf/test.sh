@@ -156,6 +156,29 @@ PY
 
 # -- run -------------------------------------------------------------------------
 
+# yade_pin_gate <tier> — a DEM tier checks yade, resolved as pgf shell does, and
+#   refuses one off the Foam-Yade pin: its baselines were made with the pin.
+yade_pin_gate() {
+  local out line rc
+  [ "${T_VARIANT[$1]}" = yade1 ] || return 0
+  out="$(PGF_YADE_PIN_REQUIRED=1 "$PGF" shell --bare --yade -- /bin/bash -c '
+    . "$1/utilities/pgf/coupling.sh"
+    y="${YADE_BIN:-$(PATH="$PGF_ENV_CALLER_PATH" command -v yade)}"
+    [ -x "$y" ] || { echo "FAIL no yade binary at ${y:-none}; fix: pgf config set YADE_BIN=<yade>"; exit 1; }
+    PGF_ROOT="$1" pgf_yade_check "$y" "$YADE_TRUNK"' _ "$PGF_ROOT" 2>&1)"
+  rc=$?
+  # pgf shell's own INFO lines only matter when no check line came back.
+  grep -qE '^(OK|WARN|FAIL) ' <<<"$out" || { printf '%s\n' "$out"; return 2; }
+  while IFS= read -r line; do
+    st_check "${line%% *}" "$(sed -E 's/^[A-Z]+ +//' <<<"$line")"
+  done < <(grep -E '^(OK|WARN|FAIL) ' <<<"$out")
+  [ "$rc" -eq 0 ] && return 0
+  grep -q 'dem baselines need yade at the pin' <<<"$out" || return 2
+  echo
+  st_next "PGF_YADE_OFF_PIN=1 pgf test $1" "run it anyway with this yade"
+  return 2
+}
+
 run_tier() {
   local tier="$1" max_age="$2" run="$3" key prefix rc start end args=() envflags=()
   key="$(current_key "$tier")" || die "cannot compute the build key (is PGF_FOAM_BASHRC set?)"
@@ -165,6 +188,8 @@ run_tier() {
     return 0
   fi
 
+  st_head "pgf test $tier"
+  yade_pin_gate "$tier" || return 2
   if [ "$REBUILD" = true ]; then
     # shellcheck disable=SC2046
     prefix="$("$PGF" shell --bare -- "$BUILD_SH" --print-prefix $(variant_flag "$tier") 2>/dev/null)"
@@ -175,7 +200,6 @@ run_tier() {
   fi
 
   mkdir -p "$run" || die "cannot create $run"
-  st_head "pgf test $tier"
   st INFO "build $key" "(building or reusing it; log: $run/build.log)"
   st INFO "run dir $run"
   start="$(date +%s)"
