@@ -17,21 +17,49 @@ pgf run <case>                    # run a case with the checkout's build (or wor
 
 ## How a build works
 
+pgf decides *what* to build and *where* it goes; OpenFOAM's own `wmake` does the compiling.
+
 ```mermaid
-flowchart LR
-    A["pgf build"] --> B{"Built these<br/>sources before?"}
-    B -->|yes| D["Reuse that build"]
-    B -->|no| C["OpenFOAM's wmake<br/>compiles"]
-    C --> D
-    D --> E["pgf run"]
+flowchart TD
+    A["<b>pgf build [--yade]</b><br/>or ./Allwmake"] --> B["<b>Clean shell</b><br/>loads OpenFOAM, nothing from your terminal"]
+    B --> C["<b>Name the build</b><br/>key = sources + variant + OpenFOAM + compiler"]
+    C --> Q1{"Built these sources<br/>in this variant before?"}
+    Q1 -->|yes| R["<b>Reuse it</b><br/>nothing is compiled"]
+    Q1 -->|no| Q2{"Switched normal ↔ DEM<br/>since the last build?"}
+    Q2 -->|yes| S["<b>Clean the 2 parts that differ</b><br/>pyrolysis library, solver"]
+    Q2 -->|no| Q3{"DEM build<br/>(--yade)?"}
+    S --> Q3
+    Q3 -->|yes| Y["<b>Build the Foam-Yade coupling</b><br/>into the new build folder"]
+    Q3 -->|no| W["<b>wmake</b>, once per part<br/>(OpenFOAM's own tool)"]
+    Y --> W
+    W --> F["<b>Worktree cache</b><br/>compiled pieces, beside the source"]
+    W --> G["<b>Build folder</b> pgf-builds/&lt;key&gt;/<br/>solver and libraries"]
+    R --> G
+    G --> H["<b>pgf run / pgf shell</b><br/>run cases with this build"]
+    I["<b>./Allwclean</b>"] -.->|"empties"| F
+    J["<b>pgf gc</b>"] -.->|"removes old"| G
+
+    classDef pgf fill:#EEEDFE,stroke:#534AB7,color:#3C3489
+    classDef ask fill:#FAEEDA,stroke:#854F0B,color:#633806
+    classDef foam fill:#E1F5EE,stroke:#0F6E56,color:#085041
+    classDef disk fill:#F1EFE8,stroke:#5F5E5A,color:#444441
+    class A,B,C,R,S,Y,H,J pgf
+    class Q1,Q2,Q3 ask
+    class W,I foam
+    class F,G disk
 ```
 
-1. **`pgf build`** (or `./Allwmake`) names the build after your sources, the variant (normal or DEM), the OpenFOAM version and the compiler.
-2. **Built before?** Then it is reused at once, nothing compiles.
-3. **If not**, OpenFOAM's own `wmake` compiles it into a new folder, `pgf-builds/<key>/`.
-4. **`pgf run`** runs your case with that build.
+Purple is pgf, amber is a question pgf answers for you, green is OpenFOAM's own tooling, grey is files on disk. In words:
 
-`wmake` also keeps its compiled pieces next to the source, so the next build only recompiles what changed. `./Allwclean` empties that cache; `pgf gc` removes old builds.
+1. **You ask for a build.** `pgf build` (or `./Allwmake`) starts a clean shell that loads OpenFOAM.
+2. **pgf names the build** from your sources, the variant (normal or DEM), the OpenFOAM version and the compiler. Same inputs, same name.
+3. **Built before?** Then it is reused at once: nothing compiles, the checkout is not touched.
+4. **Switched variant?** pgf cleans the two parts that differ between normal and DEM, so they recompile; you never clean by hand.
+5. **DEM?** pgf first builds the Foam-Yade coupling into the new build folder.
+6. **wmake compiles** each part. It keeps compiled pieces next to the source (the cache that makes the next build quick) and puts the solver and libraries in `pgf-builds/<key>/`.
+7. **You run with it**: `pgf run` and `pgf shell` use that build folder.
+
+`./Allwclean` empties the worktree cache; `pgf gc` removes old builds.
 
 ## Where things land
 
