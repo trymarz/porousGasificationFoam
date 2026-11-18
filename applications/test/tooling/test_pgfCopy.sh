@@ -118,6 +118,18 @@ echo change >"$one/README" && g "$one" add README && g "$one" commit -qm change
 check "after a new commit on the branch, run warns the copy is behind, with the fix" \
     grep -q "WARN feature/x has moved on since the copy (.*); .*pgf copy family/demo --force" "$TEST_TMP/err"
 
+# Inside a pgf image (#297): no git, so no false "detached HEAD"; no hand-over.
+nogit="$TEST_TMP/nogit" && mkdir -p "$nogit" && ln -s "$(command -v python3)" "$nogit/python3"
+PATH="$nogit" python3 "$one/utilities/pgf/copies.py" check "$dest" >"$TEST_TMP/nogit.out"
+check "without git, a copy is not reported stale" bash -c '[ -z "$(cut -f3 "$1")" ]' _ "$TEST_TMP/nogit.out"
+check "  and says it was not checked" grep -q "not checked against its checkout (no git here)" "$TEST_TMP/nogit.out"
+printf '{"pgf_commit": "%s", "variant": "yade0"}\n' "$(printf 'c%.0s' {1..40})" >"$TEST_TMP/manifest.json"
+extra=(PGF_IMAGE_MANIFEST="$TEST_TMP/manifest.json")
+(cd / && p "$two" run "$dest") >/dev/null 2>"$TEST_TMP/err"
+extra=()
+check "in an image (PGF_IMAGE_MANIFEST), run keeps the copy in the calling pgf" grep -qx "$(cd "$two" && pwd -P)" "$dest/ran.txt"
+check "  and says it runs in the image" grep -q "INFO inside the pgf image cccccccccccc (yade0)" "$TEST_TMP/err"
+
 p "$one" status >"$TEST_TMP/status" 2>&1
 check "status lists the copies per branch" \
     bash -c 'sed -n "/^case copies/,/^\$/p" "$1" | grep -qx "  feature-x" &&

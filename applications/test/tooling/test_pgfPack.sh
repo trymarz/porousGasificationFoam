@@ -23,8 +23,9 @@ head="$(g "$tree" rev-parse HEAD)"
 
 pack() { PGF_PACK_DIR="$TEST_TMP/ctx" YADE_TRUNK="$fy" "$tree/pgf" pack "$@"; }
 
-pack --dry-run >"$TEST_TMP/def" 2>"$TEST_TMP/err"
+pack --dry-run >"$TEST_TMP/out" 2>"$TEST_TMP/err"
 rc=$?
+cp "$TEST_TMP/ctx/pgf-pack.def" "$TEST_TMP/def" 2>/dev/null
 check "pack --dry-run exits 0 (rc=$rc)" [ "$rc" -eq 0 ]
 check "the context holds the PGF commit" bash -c 'tar -tf "$1/pgf-src.tar" | grep -qx pgf' _ "$TEST_TMP/ctx"
 check "and the pinned Foam-Yade" bash -c 'tar -tf "$1/foam-yade.tar" | grep -q FoamYade.H' _ "$TEST_TMP/ctx"
@@ -38,9 +39,27 @@ check "the pin manifest exists before pgf build" \
     bash -c 'awk "/manifest.json\", \"w\"/{m=NR} /pgf build --yade/{b=NR} END{exit !(m && b && m<b)}" "$1"' _ "$TEST_TMP/def"
 check "the image defaults to the yade1 variant" grep -q "PGF_YADE=1" "$TEST_TMP/def"
 check "the default output names the commit" grep -q "pgf-${head:0:12}-yade1.sif" "$TEST_TMP/err"
+check "the dry run prints no definition, only where it is" \
+    bash -c '[ ! -s "$1" ] && grep -q "OK   wrote the image definition" "$2"' _ "$TEST_TMP/out" "$TEST_TMP/err"
+check "  says the context stays, and next: the real build with its time" \
+    bash -c 'grep -q "stays until you remove it" "$1" && grep -q "^next:" "$1" && grep -q "30-60 min" "$1"' _ "$TEST_TMP/err"
+check "yade1 names the Foam-Yade pin" grep -q "compiles Foam-Yade ${pin:0:10}" "$TEST_TMP/err"
+# The runscript passes the current pgf commands through, not the pre-#287 names.
+rs="$(sed -n '/^%runscript/,/^%/p' "$TEST_TMP/def" | grep -m1 'status |')"
+for c in status doctor config builds copy shell run view test tools help; do
+    grep -qE "(^|[ |])$c( |\)|$)" <<<"$rs" || fail "the runscript passes $c through"
+done
+check "the runscript has no old names (exec, ls)" bash -c '! grep -qE "(^|[ |])(exec|ls)( |\)|$)" <<<"$1"' _ "$rs"
+check "an image run doesn't warn about missing OpenFOAM tutorials" grep -q 'mkdir -p .*/tutorials' "$TEST_TMP/def"
+
+mkdir -p "$TEST_TMP/here"
+(cd "$TEST_TMP/here" && pack --dry-run --output rel.sif >/dev/null 2>"$TEST_TMP/err")
+check "a relative --output is resolved against the caller's directory" grep -qF "$TEST_TMP/here/rel.sif" "$TEST_TMP/err"
 
 rm -rf "$TEST_TMP/ctx"
-pack --no-yade --dry-run >"$TEST_TMP/def0" 2>/dev/null
+pack --no-yade --dry-run >/dev/null 2>"$TEST_TMP/err0"
+cp "$TEST_TMP/ctx/pgf-pack.def" "$TEST_TMP/def0"
+check "--no-yade names no Foam-Yade pin" bash -c '! grep -q Foam-Yade "$1"' _ "$TEST_TMP/err0"
 check "--no-yade: no yade in the image" bash -c '! grep -q "foam-yade.tar\|cmake\|YADE_BIN" "$1"' _ "$TEST_TMP/def0"
 
 echo "// edit" >>"$tree/pgf"

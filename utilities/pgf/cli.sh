@@ -302,10 +302,14 @@ pgf_cmd pack "an Apptainer image of a commit" "pgf pack [BUILD] [--no-yade] [--o
   "--yade --no-yade --output --dry-run" build
 pgf_cmd_desc pack "Builds a self-contained Apptainer image of one commit: the image compiles the
 pinned Foam-Yade and PGF itself. BUILD (a key, commit or worktree) names the
-commit; the default is HEAD of the checkout pgf runs from, which must be clean."
+commit; the default is HEAD of the checkout pgf runs from, which must be clean.
+A yade1 image takes about 30-60 min (Foam-Yade is compiled), yade0 a few
+minutes. In the image, apptainer run IMAGE COMMAND runs a pgf command
+(status, run, copy ...); anything else is a script of the case in the current
+directory: apptainer run IMAGE ./Allrun."
 pgf_cmd_opt pack --no-yade "the plain variant (no yade in the image)"
 pgf_cmd_opt pack "--output FILE" "the .sif to write" "./pgf-<commit12>-yade<0|1>.sif"
-pgf_cmd_opt pack --dry-run "write the build context and print the definition"
+pgf_cmd_opt pack --dry-run "write the build context and the image definition; build nothing"
 pgf_cmd_ex pack "pgf pack --dry-run"
 
 pgf_cmd tools "every tool at the checkout root: what, why, use instead" "pgf tools" "" none

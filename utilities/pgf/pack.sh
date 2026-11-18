@@ -18,7 +18,7 @@ usage: pgf pack [BUILD] [--no-yade] [--output FILE] [--dry-run]
              commit to pack; default: HEAD of the checkout pgf runs from, which must be clean
   --no-yade  pack the yade0 variant (no yade in the image)
   --output   the .sif to write (default ./pgf-<commit12>-yade<0|1>.sif)
-  --dry-run  write the build context and print the definition; build nothing
+  --dry-run  write the build context and the image definition; build nothing
 EOF
 }
 
@@ -63,6 +63,8 @@ EOF
   cat <<EOF
     export PGF_FOAM_BASHRC="\$(ls -d /usr/lib/openfoam/openfoam*/etc/bashrc | head -1)"
     export PGF_BUILD_ROOT=/opt/pgf/builds HOME=/root PGF_IMAGE_MANIFEST=/opt/pgf/manifest.json
+    # The package has no tutorials; RunFunctions warns on every case without the dir.
+    mkdir -p "\$(dirname "\$(dirname "\$PGF_FOAM_BASHRC")")/tutorials"
     # The manifest comes first: without git, the build key reads the pin from it.
     python3 - <<'PY'
 import json, subprocess
@@ -91,9 +93,11 @@ EOF
   cat <<'EOF'
 
 %runscript
-    # apptainer run IMAGE ./Allrun runs the case in the current directory.
+    # pgf commands pass through; anything else is a script of the case in the
+    # current directory: apptainer run IMAGE ./Allrun.
     case "${1:-status}" in
-    status | doctor | exec | shell | run | builds | ls) exec /opt/pgf/src/pgf "${@:-status}" ;;
+    status | doctor | config | builds | copy | shell | run | view | test | tools | help | -h | --help)
+        exec /opt/pgf/src/pgf "${@:-status}" ;;
     esac
     exec /opt/pgf/src/pgf run "$PWD" "$@"
 
@@ -102,58 +106,97 @@ EOF
 EOF
 }
 
+# pgf_pack_fail MESSAGE — a FAIL line; returns 2.
+pgf_pack_fail() {
+  st FAIL "$1" >&2
+  return 2
+}
+
 pgf_pack_cmd() {
-  local sel="" variant=yade1 out="" dry=0 commit meta trunk pin api ctx yver dirty
+  local sel="" variant=yade1 out="" dry=0 commit meta trunk pin="" api="" ctx yver="" dirty again="" t0 dt
   while [ $# -gt 0 ]; do
     case "$1" in
     --no-yade) variant=yade0 ;;
     --yade) variant=yade1 ;;
     --dry-run) dry=1 ;;
-    --output) out="${2:?--output needs a file}"; shift ;;
+    --output) out="${2:?--output needs a file}"; again+=" --output $2"; shift ;;
     -h | --help) pgf_pack_usage; return 0 ;;
-    -*) echo "pgf pack: unknown option $1" >&2; pgf_pack_usage >&2; return 2 ;;
+    -*) st FAIL "unknown option $1" >&2; pgf_pack_usage >&2; return 2 ;;
     *) sel="$1" ;;
     esac
     shift
   done
-  git -C "$PGF_ROOT" rev-parse --git-dir >/dev/null 2>&1 || { echo "pgf pack: $PGF_ROOT is not a git checkout" >&2; return 2; }
+  st_head "pgf pack" >&2
+  git -C "$PGF_ROOT" rev-parse --git-dir >/dev/null 2>&1 || { pgf_pack_fail "$PGF_ROOT is not a git checkout"; return; }
   if [ -n "$sel" ]; then
     meta="$(python3 "$PGF_LIB/registry.py" resolve "${PGF_BUILD_ROOT:?}" "$variant" "$sel")" || return 2
     read -r commit variant dirty < <(python3 -c 'import json,sys; m=json.load(open(sys.argv[1]))
 print(m.get("git_head") or "-", m.get("variant") or "-", int(bool((m.get("checkout") or {}).get("dirty"))))' "$meta/.pgf-build.json")
-    [ "$dirty" = 0 ] || { echo "pgf pack: $meta was built from a dirty tree; its sources have no commit to pack" >&2; return 2; }
+    [ "$dirty" = 0 ] || { pgf_pack_fail "$meta was built from a dirty tree; its sources have no commit to pack"; return; }
   else
     commit="$(git -C "$PGF_ROOT" rev-parse HEAD)"
     [ -z "$(git -C "$PGF_ROOT" status --porcelain --untracked-files=no --ignore-submodules=all)" ] ||
-      { echo "pgf pack: $PGF_ROOT has uncommitted changes; commit them or name a BUILD" >&2; return 2; }
+      { pgf_pack_fail "$(pgf_tilde "$PGF_ROOT") has uncommitted changes; commit them or name a BUILD"; return; }
   fi
-  git -C "$PGF_ROOT" cat-file -e "$commit^{commit}" 2>/dev/null || { echo "pgf pack: commit $commit is not in this repository" >&2; return 2; }
-  pin="$(git -C "$PGF_ROOT" ls-tree "$commit" submodules/Foam-Yade | awk '$2 == "commit" {print $3}')"
+  git -C "$PGF_ROOT" cat-file -e "$commit^{commit}" 2>/dev/null || { pgf_pack_fail "commit $commit is not in this repository"; return; }
   ctx="${PGF_PACK_DIR:-${TMPDIR:-/tmp}/pgf-pack-${commit:0:12}-$variant}"
-  out="${out:-$PWD/pgf-${commit:0:12}-$variant.sif}"
+  out="${out:-pgf-${commit:0:12}-$variant.sif}"
+  [[ "$out" == /* ]] || out="$PWD/$out" # apptainer build runs in $ctx
   mkdir -p "$ctx" || return 2
   git -C "$PGF_ROOT" archive --format=tar -o "$ctx/pgf-src.tar" "$commit" || return 2
+  pin="$(git -C "$PGF_ROOT" ls-tree "$commit" submodules/Foam-Yade | awk '$2 == "commit" {print $3}')"
   if [ "$variant" = yade1 ]; then
-    [ -n "$pin" ] || { echo "pgf pack: $commit pins no Foam-Yade submodule" >&2; return 2; }
+    [ -n "$pin" ] || { pgf_pack_fail "$commit pins no Foam-Yade submodule"; return; }
     for trunk in "${YADE_TRUNK:-}" "$PGF_ROOT/submodules/Foam-Yade"; do
       [ -n "$trunk" ] && git -C "$trunk" cat-file -e "$pin^{commit}" 2>/dev/null && break
       trunk=""
     done
-    [ -n "$trunk" ] || { echo "pgf pack: the Foam-Yade pin $pin is in neither YADE_TRUNK nor the submodule" >&2; return 2; }
+    [ -n "$trunk" ] || { pgf_pack_fail "the Foam-Yade pin $pin is in neither YADE_TRUNK nor the submodule"; return; }
     git -C "$trunk" archive --format=tar -o "$ctx/foam-yade.tar" "$pin" || return 2
     api="$(pgf_coupling_api_hash_at "$trunk" "$pin")"
     yver="$(git -C "$trunk" show -s --format=%cd --date=format:%Y.%m.%d "$pin")-git-${pin:0:7}"
   fi
   pgf_pack_def "$commit" "$variant" "$pin" "$api" "$yver" >"$ctx/pgf-pack.def" || return 2
-  echo "pgf pack: ${commit:0:12} $variant${pin:+, Foam-Yade ${pin:0:10}}; context $ctx" >&2
+  {
+    st INFO "commit ${commit:0:12}, $variant$([ "$variant" = yade1 ] && echo " (compiles Foam-Yade ${pin:0:10} in the image)")"
+    st INFO "image $(pgf_tilde "$out")"
+    st INFO "build context $(pgf_tilde "$ctx")"
+  } >&2
   if [ "$dry" -eq 1 ]; then
-    cat "$ctx/pgf-pack.def"
-    echo "pgf pack: dry run; would build $out with: (cd $ctx && apptainer build --fakeroot --ignore-subuid $out pgf-pack.def)" >&2
+    again="pgf pack${sel:+ $sel}$([ "$variant" = yade0 ] && echo " --no-yade")$again"
+    {
+      st OK "wrote the image definition" "$(pgf_tilde "$ctx/pgf-pack.def")"
+      st INFO "dry run: built nothing; the context ($(du -sh "$ctx" | cut -f1)) stays until you remove it" "(rm -r $(pgf_tilde "$ctx"))"
+      st_next "$again" "build the image ($(pgf_pack_eta "$variant"))"
+    } >&2
     return 0
   fi
   # pgf's env -i drops PATH; apptainer needs the caller's to start its namespace.
   export PATH="${PGF_ENV_CALLER_PATH:-$PATH}"
-  command -v apptainer >/dev/null || { echo "pgf pack: apptainer not found" >&2; return 2; }
-  (cd "$ctx" && apptainer build --fakeroot --ignore-subuid "$out" pgf-pack.def) || return 1
-  echo "pgf pack: wrote $out" >&2
+  command -v apptainer >/dev/null || { pgf_pack_fail "apptainer not found on PATH"; return; }
+  {
+    st INFO "building the image: $(pgf_pack_eta "$variant")"
+    st INFO "apptainer's output goes to $(pgf_tilde "$ctx/build.log"); its subuid and 'nodev' on /tmp warnings are expected"
+  } >&2
+  t0=$(date +%s)
+  (cd "$ctx" && apptainer build --fakeroot --ignore-subuid "$out" pgf-pack.def) >"$ctx/build.log" 2>&1
+  local rc=$?
+  dt=$(($(date +%s) - t0))
+  dt="$([ "$dt" -ge 60 ] && printf '%dm%02ds' $((dt / 60)) $((dt % 60)) || printf '%ds' "$dt")"
+  if [ "$rc" -ne 0 ]; then
+    { tail -n 25 "$ctx/build.log"; st FAIL "apptainer build (exit $rc) after $dt; the log and context stay" "$(pgf_tilde "$ctx/build.log")"; } >&2
+    return 1
+  fi
+  # Our own temp context goes; one named with PGF_PACK_DIR stays.
+  [ -n "${PGF_PACK_DIR:-}" ] || case "$out" in "$ctx"/*) ;; *) rm -rf "$ctx" ;; esac
+  {
+    st OK "wrote $(pgf_tilde "$out") ($(du -h "$out" | cut -f1), $dt)"
+    st_next "apptainer run $(pgf_tilde "$out") status" "what the image holds" \
+      "apptainer run $(pgf_tilde "$out") ./Allrun" "run the case in the current directory (a pgf copy)"
+  } >&2
+}
+
+# pgf_pack_eta VARIANT — how long a build takes, roughly.
+pgf_pack_eta() {
+  if [ "$1" = yade1 ]; then echo "about 30-60 min, Foam-Yade is compiled"; else echo "a few minutes"; fi
 }
