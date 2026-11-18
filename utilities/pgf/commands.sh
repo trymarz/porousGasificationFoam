@@ -550,7 +550,7 @@ pgf_build_cmd() {
     shift
   done
   PGF_BANNER_BUILD=1 "$SELF" shell --bare "${envopts[@]}" -- "$PGF_LIB/build.sh" --isolated "${bopts[@]}" || return $?
-  [ "$build" -eq 0 ] ||
+  [ "$build" -eq 0 ] || [ -n "${PGF_IMAGE_MANIFEST:-}" ] || # pgf pack's image build
     st_next "pgf copy --list" "the tutorials; pgf copy <tutorial> makes a copy to run" \
       "pgf test fast" "the fast test tier" >&2
 }
