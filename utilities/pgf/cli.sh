@@ -94,13 +94,16 @@ pgf_cmd build "build the checkout (libraries, solver, utilities)" "pgf build [--
 pgf_cmd_desc build "Builds the checkout pgf runs from into the build store, in a prefix named by
 a key made of the sources, the variant, the OpenFOAM version and the compiler. A prefix with
 the same key is reused without compiling. wmake's output goes to
-<prefix>/build.log; the screen shows one line per target. ./Allwmake runs this."
+<prefix>/build.log; the screen shows one line per target. ./Allwmake runs this.
+Switching between the normal and DEM variants needs no clean: pgf build drops the
+other variant's objects of the targets that differ and says so. After editing the
+sources, run pgf build again; wmake inside pgf shell is refused."
 pgf_cmd_opt build --yade "the DEM variant (WITH_YADE=1)"
 pgf_cmd_opt build "-v, --verbose" "stream wmake's output instead of logging it"
 pgf_cmd_opt build --libs-only "only the libraries"
 pgf_cmd_opt build --dry-run "show what would be built; build nothing"
 pgf_cmd_opt build --print-prefix "print the prefix the checkout builds into"
-pgf_cmd_opt build "clean [--purge]" "clean the build state (and the binaries)"
+pgf_cmd_opt build clean "clean the in-tree cache (lnInclude/, Make/<WM_OPTIONS>/); prefixes stay"
 pgf_cmd_ex build "pgf build"
 pgf_cmd_ex build "pgf build --yade" "the DEM variant"
 pgf_cmd_ex build "utilities/pgf/build.sh --help" "every build.sh option"
@@ -363,7 +366,7 @@ pgf build compiles a checkout into the build store (PGF_BUILD_ROOT, default
 sources, the variant (yade0 non-DEM, yade1 DEM), the OpenFOAM version and the
 compiler, so a prefix with the same key is reused without compiling. Each
 checkout has two keys, non-DEM and DEM; pgf status shows them, pgf builds lists
-every build. More on the build store: doc/build.md.
+every build. More: doc/build.md, "Where things land".
 
 ## Choosing a build
 Each command uses one build. It comes from, later winning:
@@ -423,13 +426,14 @@ ParaView.
 pgf sources \$PGF_FOAM_BASHRC (default \$WM_PROJECT_DIR/etc/bashrc) with set +eu.
 Then it points WM_PROJECT_USER_DIR, FOAM_USER_APPBIN and FOAM_USER_LIBBIN at
 the build and removes every PATH and LD_LIBRARY_PATH entry under the user dir
-the bashrc chose. It puts utilities/pgf/shims/ first on PATH, whose wmake
-refuses to install into that build (edit, then pgf build; a case's
-dynamicCode/ passes). It also sets UCX_VFS_ENABLE=n UCX_LOG_LEVEL=fatal,
-FOAM_RUN=\$PGF_RUN_ROOT and TMPDIR=\$PGF_RUN_ROOT/tmp (PGF_RUN_ROOT default:
-\$TMPDIR/pgf-runs), and exports PGF_ROOT, so a copied case finds the
-checkout's shared data. It checks that porousGasificationFoam resolves into
-the build.
+the bashrc chose. It puts utilities/pgf/shims/ first on PATH. Its wmake
+refuses to install into the build while WM_PROJECT_USER_DIR, FOAM_USER_APPBIN
+and FOAM_USER_LIBBIN point at it (edit, then pgf build); a case's dynamicCode/
+passes. With --bare, wmake is OpenFOAM's own. It also sets UCX_VFS_ENABLE=n
+UCX_LOG_LEVEL=fatal, FOAM_RUN=\$PGF_RUN_ROOT and TMPDIR=\$PGF_RUN_ROOT/tmp
+(PGF_RUN_ROOT default: \$TMPDIR/pgf-runs), and exports PGF_ROOT, so a copied
+case finds the checkout's shared data. It checks that porousGasificationFoam
+resolves into the build.
 
 On stderr it prints what it uses: OpenFOAM, the build and what chose it, and
 MPI when it restricts it, except on a serial pgf run (a non-DEM case without
@@ -496,7 +500,7 @@ pgf_cli_help() {
   pgf is the one entry point to porousGasificationFoam. It remembers where
   OpenFOAM and yade live, builds each checkout into its own prefix, and runs
   cases and test tiers in a clean environment with that build, so nothing
-  depends on what your shell has sourced or on a shared $FOAM_USER_APPBIN.
+  depends on what your shell has sourced.
   Settings come from, later winning: the default, ~/.config/pgf/env.conf,
   <checkout>/.pgf.conf, the environment, the command line (pgf help config).
   If you only need the OpenFOAM-style entry point, ./Allwmake and ./Allwclean

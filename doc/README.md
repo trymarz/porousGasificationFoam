@@ -7,11 +7,10 @@ New to PGF? Start with the [README](../README.md) quick start, then [build your 
 - [The pgf tool](pgf.md): settings, builds and runs.
 - [Setting up your own case](case-setup.md): required fields, input files, tutorial cases, tips, utilities.
 - [Viewing a case in ParaView](paraview.md): the case's views, comparing two cases, rendering to PNG.
-- [Troubleshooting](troubleshooting.md): symptoms, likely causes and fixes.
 
 ## Building and deploying
 
-- [Building](build.md): the build store, the DEM coupling, cleaning, `build.sh`.
+- [Building](build.md): `pgf build`, where builds land, the DEM coupling, switching variants, cleaning.
 - [Apptainer images](containers.md): `pgf pack`, an image of one PGF commit to run on a server.
 
 ## Reference

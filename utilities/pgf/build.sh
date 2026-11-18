@@ -1,13 +1,12 @@
 #!/bin/bash
 #
-# porousGasificationFoam build driver.
+# porousGasificationFoam build engine, run by `pgf build` (and CI) under
+# `pgf shell --bare`. Users call pgf build, not this script.
 #
-# wmake runs in place, per component: lnInclude/ and Make/$WM_OPTIONS/ land
-# beside their sources, binaries in $FOAM_USER_LIBBIN / $FOAM_USER_APPBIN as
-# each Make/files declares. Callable by absolute path from anywhere.
-#
-# --prefix DIR / --isolated redirect those two variables to DIR/{bin,lib}
-# before wmake runs. --isolated derives DIR from the build key
+# wmake runs per component: lnInclude/ and Make/$WM_OPTIONS/ land beside their
+# sources (an in-tree cache), binaries in a prefix. --prefix DIR / --isolated
+# point $FOAM_USER_LIBBIN / $FOAM_USER_APPBIN at DIR/{bin,lib} before wmake
+# runs; one of them is required. --isolated derives DIR from the build key
 # <fingerprint12>-<yade0|yade1>-<OpenFOAM version>-gcc<version> under
 # $PGF_BUILD_ROOT; a prefix holding .pgf-build.json is complete and is reused
 # without compiling. Make/options link with -L$(FOAM_USER_LIBBIN), so nothing
@@ -53,9 +52,6 @@ yade_sensitive_target() {
   done
   return 1
 }
-
-# --purge: on clean, also delete installed binaries. Off by default.
-PURGE=0
 
 # Built in order: LIBRARY_TARGETS then APP_TARGETS. DEM first, so a --yade
 # build has liblambdaDotModel before the solver links.
@@ -145,9 +141,6 @@ parse_arguments() {
       WITH_YADE=1
       BUILD_TARGETS[DEM]=1
       ;;
-    --purge)
-      PURGE=1
-      ;;
     --dry-run)
       DRY_RUN=1
       ;;
@@ -175,19 +168,15 @@ parse_arguments() {
       ;;
     --help)
       echo "Usage: $0 [build|clean] [OPTIONS]"
-      echo "Options: --reset-all, --all, --libs-only, --apps-only, --yade, --purge"
+      echo "Options: --reset-all, --all, --libs-only, --apps-only, --yade"
       echo "Targets: ${ALL_TARGETS_FLAGS[*]} ${ALL_TARGETS_NO_FLAGS[*]}"
       echo ""
       echo "  --yade   Build the DEM library and solver with WITH_YADE=1"
       echo "           (required for Yade-coupled DEM simulations)"
-      echo "  --purge  On clean, also delete the libraries and executables the"
-      echo "           cleaned targets declare in their own Make/files. Without"
-      echo "           it, clean matches wclean and removes build state only."
       echo "  --fingerprint  Print the source content hash a build stamps into"
-      echo "           \$FOAM_USER_APPBIN, and exit. The regression runner"
+      echo "           <prefix>/bin, and exit. The regression runner"
       echo "           compares it to refuse a solver built from other sources."
-      echo "  --prefix DIR   Install into DIR/bin and DIR/lib instead of"
-      echo "           \$FOAM_USER_APPBIN / \$FOAM_USER_LIBBIN."
+      echo "  --prefix DIR   Install into DIR/bin and DIR/lib."
       echo "  --isolated     Install into \$PGF_BUILD_ROOT/<build key>; reuse it"
       echo "           without compiling when it is already complete."
       echo "           PGF_BUILD_ROOT defaults to \$WM_PROJECT_USER_DIR/pgf-builds."
@@ -196,9 +185,9 @@ parse_arguments() {
       echo "  --print-key, --print-prefix  Print the build key or the --isolated"
       echo "           prefix for the checkout and variant (honours --yade), and exit."
       echo ""
-      echo "Builds happen in the checkout $PGF_ROOT; output goes to"
-      echo "\$FOAM_USER_LIBBIN and \$FOAM_USER_APPBIN unless a prefix is given."
-      echo "PGF_ISOLATED_ONLY=1 (set by pgf) refuses a build without one."
+      echo "pgf build runs this with --isolated. Objects are cached in the checkout"
+      echo "$PGF_ROOT; switching --yade on or off cleans the affected targets' objects."
+      echo "clean removes that in-tree cache (wclean) and nothing installed."
       exit 0
       ;;
     *)
@@ -219,7 +208,7 @@ parse_arguments() {
 check_foam_environment() {
   local missing=()
   local var
-  for var in WM_PROJECT_DIR WM_OPTIONS WM_PROJECT_VERSION FOAM_USER_LIBBIN FOAM_USER_APPBIN; do
+  for var in WM_PROJECT_DIR WM_OPTIONS WM_PROJECT_VERSION; do
     [ -n "${!var}" ] || missing+=("$var")
   done
 
@@ -274,9 +263,8 @@ check_yade_environment() {
 # The coupling libs must come from the headers wmake is about to compile
 # against (#257); a mismatch is refused before anything is built.
 check_coupling_stamp() {
-  local libdir="${FOAM_USER_LIBBIN:-}" line rc=0
+  local libdir="$PGF_YADE_LIBDIR" line rc=0
   coupling_in_prefix && return 0
-  [ "$PREFIX_MODE" = "none" ] || libdir="${PGF_YADE_LIBDIR:-$DEFAULT_USER_LIBBIN}"
   while IFS= read -r line; do
     case "$line" in
     OK*) clog INFO "${line#OK   }" ;;
@@ -290,7 +278,7 @@ check_coupling_stamp() {
 # A prefix compiles its own coupling libs into <prefix>/lib (#264), unless
 # PGF_YADE_LIBDIR names prebuilt ones to copy instead.
 coupling_in_prefix() {
-  [ "$PREFIX_MODE" != "none" ] && [ -z "${PGF_YADE_LIBDIR:-}" ]
+  [ -z "${PGF_YADE_LIBDIR:-}" ]
 }
 
 # Compile the coupling from a copy of the trunk's sources in the prefix, so
@@ -321,7 +309,7 @@ build_coupling_in_prefix() {
 check_yade_libs() {
   if coupling_in_prefix; then
     build_coupling_in_prefix || return 1
-  elif [ "$PREFIX_MODE" != "none" ]; then
+  else
     seed_yade_libs || return 1
   fi
   local lib missing=()
@@ -346,7 +334,7 @@ seed_yade_libs() {
   local src="$PGF_YADE_LIBDIR" lib
   for lib in "${YADE_LIBS[@]}"; do
     if [ ! -e "$src/$lib.so" ]; then
-      clog ERROR "$lib.so not found in ${src:-<no default user lib dir>}."
+      clog ERROR "$lib.so not found in $src."
       clog ERROR "Set PGF_YADE_LIBDIR to the directory holding the Foam-Yade coupling libs."
       return 1
     fi
@@ -459,9 +447,6 @@ EOF
 # Point wmake's output at the prefix, under a lock so two builds of the same
 # key cannot interleave.
 activate_prefix() {
-  DEFAULT_USER_LIBBIN="${PGF_DEFAULT_USER_DIR:+$PGF_DEFAULT_USER_DIR/platforms/$WM_OPTIONS/lib}"
-  DEFAULT_USER_LIBBIN="${DEFAULT_USER_LIBBIN:-${FOAM_USER_LIBBIN:-}}"
-
   if [ "$MODE" = "build" ] && [ "$PREFIX_MODE" = "isolated" ] &&
     prefix_complete && prefix_has_targets; then
     report_cache_hit
@@ -547,20 +532,15 @@ register_workspace() {
     clog WARN "Could not register $PGF_ROOT in $PGF_BUILD_ROOT/.pgf/workspaces"
 }
 
-# The shared user dir is what automation must not overwrite by accident.
-check_isolated_only() {
-  [ "${PGF_ISOLATED_ONLY:-0}" = "1" ] || return 0
+# Builds go into a prefix only (#288); the shared user dir is never written.
+require_prefix() {
   [ "$PREFIX_MODE" = "none" ] || return 0
-  [ "$MODE" = "build" ] || [ "$PURGE" -eq 1 ] || return 0
-  clog ERROR "PGF_ISOLATED_ONLY=1: refusing to $MODE in the shared \$FOAM_USER_APPBIN / \$FOAM_USER_LIBBIN."
-  clog ERROR "Use --isolated or --prefix DIR."
+  clog ERROR "build.sh is pgf's build engine and needs --isolated or --prefix DIR; run: pgf build${1:+ $1}"
   return 1
 }
 
 print_destination() {
-  local where="shared user dir"
-  [ "$PREFIX_MODE" = "none" ] || where="prefix ${BUILD_KEY:-$PREFIX}"
-  clog INFO "Destination ($where):"
+  clog INFO "Destination (prefix ${BUILD_KEY:-$PREFIX}):"
   clog INFO "  bin: $(pgf_tilde "$FOAM_USER_APPBIN")"
   clog INFO "  lib: $(pgf_tilde "$FOAM_USER_LIBBIN")"
 }
@@ -571,8 +551,7 @@ print_destination() {
 
 # wmake recompiles on timestamps and cannot see WITH_YADE change, so building
 # the other mode over existing objects would mix both ABIs. The mode is stamped
-# in each YADE-sensitive target's Make/$WM_OPTIONS/ (removed by `wclean`); a
-# mismatch is refused.
+# in each YADE-sensitive target's Make/$WM_OPTIONS/; a mismatch drops that dir.
 variant_stamp_path() {
   printf '%s/Make/%s/.pgf-build-mode' "${TARGET_DIRS[$1]}" "$WM_OPTIONS"
 }
@@ -580,7 +559,7 @@ variant_stamp_path() {
 check_build_variant() {
   [ "$MODE" = "build" ] || return 0
 
-  local target stamp requested recorded
+  local target stamp requested recorded cleaned=()
   requested="WITH_YADE=$WITH_YADE"
 
   for target in "${YADE_SENSITIVE_TARGETS[@]}"; do
@@ -591,68 +570,19 @@ check_build_variant() {
     if [ -f "$stamp" ]; then
       recorded="$(cat "$stamp")"
       if [ "$recorded" != "$requested" ]; then
-        clog ERROR "Build variant mismatch for $target."
-        clog ERROR "  already built: $recorded"
-        clog ERROR "  requested:     $requested"
-        clog ERROR "wmake keys recompilation on source timestamps, not on WITH_YADE,"
-        clog ERROR "so an in-place rebuild would link objects from both variants."
-        clog ERROR "Clean first:  $PGF_ROOT/utilities/pgf/build.sh clean --all --purge"
-        clog ERROR "(--purge also drops the installed binary, so a failed rebuild"
-        clog ERROR " cannot leave the other variant's solver on your PATH.)"
-        return 1
+        rm -rf "${stamp%/*}" || return 1
+        cleaned+=("$target")
       fi
     fi
 
     mkdir -p "${stamp%/*}" && printf '%s\n' "$requested" >"$stamp"
   done
+  [ ${#cleaned[@]} -eq 0 ] || clog INFO "switching to the $(variant_name "$WITH_YADE") variant:" \
+    "cleaned the $(variant_name $((1 - WITH_YADE))) objects of ${cleaned[*]}; they recompile now"
 }
 
-# ============================================================
-# ARTIFACT REMOVAL
-# ============================================================
-
-# Resolve a Make/files EXE/LIB declaration, e.g.
-#   $(FOAM_USER_LIBBIN)/libHGSsolid  ->  /…/platforms/…/lib/libHGSsolid
-# Only those two variables are substituted; anything else is refused, so no
-# path outside the user output directories can be produced.
-expand_make_path() {
-  local raw="$1"
-  raw="${raw//[[:space:]]/}"
-  raw="${raw//\$(FOAM_USER_LIBBIN)/$FOAM_USER_LIBBIN}"
-  raw="${raw//\$(FOAM_USER_APPBIN)/$FOAM_USER_APPBIN}"
-  case "$raw" in
-  '' | *'$('*) return 1 ;;
-  esac
-  printf '%s' "$raw"
-}
-
-# --purge only: $FOAM_USER_LIBBIN and $FOAM_USER_APPBIN are shared by every
-# project in this $WM_PROJECT_USER_DIR, so only what the target's own
-# Make/files declares is removed — never a neighbour's library.
-remove_target_artifacts() {
-  local dir=$1
-  local makefiles decl path
-
-  while IFS= read -r makefiles; do
-    while IFS= read -r decl; do
-      path="$(expand_make_path "${decl#*=}")" || {
-        clog WARNING "  unresolved target path in ${makefiles}: ${decl}"
-        continue
-      }
-      case "$decl" in
-      *LIB*) path="$path.so" ;;
-      esac
-      case "$path" in
-      "$FOAM_USER_LIBBIN"/* | "$FOAM_USER_APPBIN"/*) ;;
-      *)
-        clog WARNING "  refusing to remove $path (outside the user output directories)"
-        continue
-        ;;
-      esac
-      [ -e "$path" ] || continue
-      rm -f "$path" && clog INFO "  removed $path"
-    done < <(grep -E '^[[:space:]]*(EXE|LIB)[[:space:]]*=' "$makefiles")
-  done < <(find "$dir" -type f -path '*/Make/files')
+variant_name() {
+  [ "$1" -eq 1 ] && echo DEM || echo normal
 }
 
 # ============================================================
@@ -696,8 +626,6 @@ execute_target() {
   else
     (cd "$dir" && eval "$cmd") || return 1
   fi
-
-  [ "$MODE" = "clean" ] && [ "$PURGE" -eq 1 ] && remove_target_artifacts "$dir"
 
   return 0
 }
@@ -763,10 +691,8 @@ source_fingerprint() {
   done | LC_ALL=C sort -z | (cd "$PGF_ROOT" && xargs -0 sha1sum 2>/dev/null) | sha1sum | cut -d' ' -f1
 }
 
-# Record which sources produced the installed binaries. $FOAM_USER_APPBIN is
-# shared by every worktree of every project, so the solver on $PATH need not be
-# the one built from the sources beside it; runCase.sh refuses to run when this
-# stamp does not match the suite's own tree.
+# Record which sources produced the prefix's binaries; runCase.sh refuses to
+# run when this stamp does not match the suite's own tree.
 stamp_source_revision() {
   local fp
   [ -n "${FOAM_USER_APPBIN:-}" ] || return 0
@@ -793,7 +719,6 @@ dry_run() {
   echo "OPTIONS:"
   echo "────────────────────────────────────────────────────────────"
   printf "  WITH_YADE=%s\n" "$WITH_YADE"
-  [ "$MODE" = "clean" ] && printf "  PURGE=%s\n" "$PURGE"
   echo ""
 
   echo "BUILD TARGETS STATUS:"
@@ -863,15 +788,16 @@ main() {
     exit 0
   }
 
-  check_isolated_only || exit 1
-
-  if [ "$PREFIX_MODE" != "none" ]; then
+  if [ "$MODE" = "build" ]; then
+    require_prefix || exit 1
     resolve_prefix || exit 1
     activate_prefix || exit 1
+  else
+    require_prefix "clean" || exit 1
   fi
 
   check_foam_environment || exit 1
-  print_destination
+  [ "$MODE" = "clean" ] || print_destination
 
   local yade=0
   if [ "$MODE" = "build" ] &&
@@ -882,9 +808,9 @@ main() {
 
   check_build_variant || exit 1
 
-  [ "$PREFIX_MODE" = "none" ] || invalidate_prefix
+  [ "$MODE" = "clean" ] || invalidate_prefix
   # A prefix build logs wmake to the prefix and shows one line per target.
-  if [ "$MODE" = build ] && [ "$PREFIX_MODE" != none ] && [ "$VERBOSE" -eq 0 ]; then
+  if [ "$MODE" = build ] && [ "$VERBOSE" -eq 0 ]; then
     BUILD_LOG="$PREFIX/build.log"
     : >"$BUILD_LOG" || exit 1
   fi
@@ -892,13 +818,9 @@ main() {
 
   build_all_targets || exit 1
 
-  if [ "$PREFIX_MODE" != "none" ]; then
-    if [ "$MODE" = "build" ]; then
-      write_build_metadata || exit 1
-      printf 'prefix: %s\n' "$(pgf_tilde "$PREFIX")"
-    elif [ "$PURGE" -eq 1 ]; then
-      rm -f "$PREFIX/.pgf-build.json"
-    fi
+  if [ "$MODE" = "build" ]; then
+    write_build_metadata || exit 1
+    printf 'prefix: %s\n' "$(pgf_tilde "$PREFIX")"
   fi
 }
 

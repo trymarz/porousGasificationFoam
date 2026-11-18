@@ -26,7 +26,7 @@ A="$(fake_bashrc A)" B="$(fake_bashrc B)" C="$(fake_bashrc C)" D="$(fake_bashrc 
 
 tree="$TEST_TMP/tree"
 mkdir -p "$tree/utilities/pgf"
-cp "$PGF" "$tree/" && cp "$PGF_ROOT"/utilities/pgf/* "$tree/utilities/pgf/" || die "cannot copy pgf"
+cp "$PGF" "$tree/" && cp -r "$PGF_ROOT"/utilities/pgf/* "$tree/utilities/pgf/" || die "cannot copy pgf"
 home="$TEST_TMP/home"
 user_conf="$home/.config/pgf/env.conf"
 mkdir -p "${user_conf%/*}"
