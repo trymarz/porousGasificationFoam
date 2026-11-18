@@ -39,6 +39,10 @@ check "the pin manifest exists before pgf build" \
 check "the image defaults to the yade1 variant" grep -q "PGF_YADE=1" "$TEST_TMP/def"
 check "the default output names the commit" grep -q "pgf-${head:0:12}-yade1.sif" "$TEST_TMP/err"
 
+mkdir -p "$TEST_TMP/here"
+(cd "$TEST_TMP/here" && pack --dry-run --output rel.sif >/dev/null 2>"$TEST_TMP/err")
+check "a relative --output is resolved against the caller's directory" grep -qF "$TEST_TMP/here/rel.sif" "$TEST_TMP/err"
+
 rm -rf "$TEST_TMP/ctx"
 pack --no-yade --dry-run >"$TEST_TMP/def0" 2>/dev/null
 check "--no-yade: no yade in the image" bash -c '! grep -q "foam-yade.tar\|cmake\|YADE_BIN" "$1"' _ "$TEST_TMP/def0"

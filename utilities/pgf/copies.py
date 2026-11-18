@@ -18,6 +18,7 @@ import fnmatch
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 
@@ -99,11 +100,18 @@ def where(rec):
     return "%s @ %s" % (rec["branch"], c) if rec.get("branch") else "commit " + c
 
 
+def have_git():
+    """False inside a pgf image, which has no git: a copy's state can't be checked."""
+    return shutil.which("git") is not None
+
+
 def stale(rec):
     """Why the recorded checkout no longer matches the copy, or ''."""
     co = rec.get("checkout") or ""
     if not os.path.isfile(os.path.join(co, "pgf")):
         return "its checkout %s is gone" % tilde(co)
+    if not have_git():
+        return ""
     branch = git(co, "symbolic-ref", "--short", "-q", "HEAD")
     head = git(co, "rev-parse", "HEAD")
     if rec.get("branch") and branch != rec["branch"]:
@@ -120,6 +128,8 @@ def check(case):
         return
     info = "copy of %s from %s (%s)" % (rec.get("tutorial") or "?", where(rec), tilde(rec.get("checkout") or "?"))
     why = stale(rec)
+    if not have_git():
+        info += "; not checked against its checkout (no git here)"
     warn = ""
     if why:
         warn = "%s; the case files may differ from the checkout's now; fresh copy: pgf copy %s --force" % (
@@ -144,6 +154,8 @@ def list_copies(root):
     if not byBranch:
         return
     w = max(len(n) for v in byBranch.values() for n, _ in v)
+    if not have_git():
+        print("  (not checked against their checkouts: no git here)")
     for branch in sorted(byBranch):
         print("  %s" % branch)
         for name, rec in byBranch[branch]:

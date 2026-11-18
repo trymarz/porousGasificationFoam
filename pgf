@@ -209,8 +209,10 @@ while [ $# -gt 0 ]; do
 done
 
 # A case made by pgf copy runs with the build of the checkout it came from,
-# unless a build was chosen; that checkout's pgf takes over.
+# unless a build was chosen; that checkout's pgf takes over. Not inside a pgf
+# image: a host checkout seen through the $HOME bind would run host code (#297).
 if [ "$sub" = run ] && [ -n "${1:-}" ] && [ -f "$1/.pgf-source.json" ] && [ -z "${PGF_RUN_FROM_COPY:-}" ] &&
+  [ -z "${PGF_IMAGE_MANIFEST:-}" ] &&
   [ -z "${PGF_CONF_CLI[PGF_BUILD]+x}" ] && [ -z "${PGF_BUILD+x}" ]; then
   from="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("checkout") or "")' "$1/.pgf-source.json" 2>/dev/null)"
   if [ -n "$from" ] && [ -x "$from/pgf" ] && [ "$(cd "$from" && pwd -P)" != "$(cd "$PGF_ROOT" && pwd -P)" ]; then
@@ -460,6 +462,8 @@ fi
 [ -n "${PGF_BANNER_BUILD:-}" ] && mpi_note=""
 [ "$sub" = run ] && [ "$yade" -eq 0 ] && [ ! -f system/decomposeParDict ] && mpi_note=""
 st INFO "using OpenFOAM $WM_PROJECT_VERSION ($(pgf_tilde "$bashrc"))" >&2
+[ -z "${PGF_IMAGE_MANIFEST:-}" ] || st INFO "inside the pgf image $(python3 -c 'import json,sys; m=json.load(open(sys.argv[1]))
+print("%s (%s)" % ((m.get("pgf_commit") or "?")[:12], m.get("variant") or "?"))' "$PGF_IMAGE_MANIFEST" 2>/dev/null || echo "($PGF_IMAGE_MANIFEST unreadable)")" >&2
 if [ "$mode" != "bare" ]; then
   case "$sel_src" in
   default) why="from the sources of $(pgf_checkout_name)"

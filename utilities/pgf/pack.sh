@@ -130,7 +130,8 @@ print(m.get("git_head") or "-", m.get("variant") or "-", int(bool((m.get("checko
   git -C "$PGF_ROOT" cat-file -e "$commit^{commit}" 2>/dev/null || { echo "pgf pack: commit $commit is not in this repository" >&2; return 2; }
   pin="$(git -C "$PGF_ROOT" ls-tree "$commit" submodules/Foam-Yade | awk '$2 == "commit" {print $3}')"
   ctx="${PGF_PACK_DIR:-${TMPDIR:-/tmp}/pgf-pack-${commit:0:12}-$variant}"
-  out="${out:-$PWD/pgf-${commit:0:12}-$variant.sif}"
+  out="${out:-pgf-${commit:0:12}-$variant.sif}"
+  [[ "$out" == /* ]] || out="$PWD/$out" # apptainer build runs in $ctx
   mkdir -p "$ctx" || return 2
   git -C "$PGF_ROOT" archive --format=tar -o "$ctx/pgf-src.tar" "$commit" || return 2
   if [ "$variant" = yade1 ]; then
