@@ -126,6 +126,7 @@ pgf_pack_cmd() {
     esac
     shift
   done
+  st_head "pgf pack" >&2
   git -C "$PGF_ROOT" rev-parse --git-dir >/dev/null 2>&1 || { pgf_pack_fail "$PGF_ROOT is not a git checkout"; return; }
   if [ -n "$sel" ]; then
     meta="$(python3 "$PGF_LIB/registry.py" resolve "${PGF_BUILD_ROOT:?}" "$variant" "$sel")" || return 2
@@ -157,7 +158,6 @@ print(m.get("git_head") or "-", m.get("variant") or "-", int(bool((m.get("checko
   fi
   pgf_pack_def "$commit" "$variant" "$pin" "$api" "$yver" >"$ctx/pgf-pack.def" || return 2
   {
-    st_head "pgf pack"
     st INFO "commit ${commit:0:12}, $variant$([ "$variant" = yade1 ] && echo " (compiles Foam-Yade ${pin:0:10} in the image)")"
     st INFO "build context $(pgf_tilde "$ctx")"
   } >&2
