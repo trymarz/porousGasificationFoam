@@ -33,7 +33,7 @@ Every tutorial `Allrun` / `Allclean` changes into its own directory first, so `/
 | `porosityF` | volScalarField | Porosity (0 = solid, 1 = gas) |
 | `porosityF0` | volScalarField | Initial porosity (archival copy) |
 | `Df` | volTensorField | Darcy resistance tensor |
-| `anisotropyK` | volTensorField | Optional, READ_IF_PRESENT. Anisotropic multiplier for the solid thermal conductivity used in the solid energy equation (`K_eff = K · (1−φ) · anisotropyK`). Defaults to the unit tensor if the file is absent. |
+| `anisotropyK` | volTensorField | Optional. Anisotropic multiplier on the solid conductivity: `K_eff = K · (1−φ) · anisotropyK`. Unit tensor when the file is absent. |
 | `<gasName>` (e.g. `O2`, `N2`, `CO`) | volScalarField | Gas species mass fractions |
 | `Y<solidName>` (e.g. `Ywood`, `Yash`) | volScalarField | Solid species mass fractions |
 | `Ydefault` | volScalarField | Default field for unmatched gas species (set to 0) |
@@ -95,13 +95,13 @@ Cases under `tutorials/cases/`; `pgf copy --list` lists them, `pgf copy <case>` 
 | `solidAdvection/` | Solid advection | |
 | `MicroTGA-DEM_*` | DEM-coupled micro TGA, one per `lambdaDot` model | Require a `--yade` build |
 
-`MicroTGA-DEM_lambdaDot_common/` is shared input for the DEM fixtures, not a runnable case.
+`MicroTGA-DEM_lambdaDot_common/` and `DEM_common/` are shared input for the DEM cases, not runnable cases.
 
 `tutorials/experimental/` holds DEM cases that are kept but not tested or supported: `simple_line_case/`
 (a DEM-coupled 1-D packed line, pyrolysing) and `MicroTGA-DEM_Us_UsInterp/` (a long `UsInterp` demonstration run).
-Both need a `--yade` build; `TestAllCases.sh` does not run them.
+Both need a `--yade` build; `tutorials/TestAllCases.sh` does not run them.
 
-`./CleanAllCases.sh` runs every case's `Allclean` (nested cases included) and exits non-zero if any fails.
+`tutorials/CleanAllCases.sh` runs every case's `Allclean` (nested cases included) and exits non-zero if any fails.
 Cases with a `.foamcli-monitor.toml` save PNG snapshots under `<case>/render/` when run under `foamcli`;
 `foamcli gallery cases` writes `cases/foamcli-gallery.html`, one searchable page over all of them.
 
@@ -441,6 +441,15 @@ Gas-phase reactions are typically orders of magnitude faster than heterogeneous 
 - For slow heterogeneous processes, prefer chemistry mechanisms with the minimum gas-phase detail needed for the result you care about.
 - `maxCo`, `maxDi`, and `initialChemicalTimeStep` in `controlDict` / `chemistryProperties` interact — tightening any one of them can mask the actual bottleneck. Check the solver log for which limit is binding before tuning.
 
+### When the numbers go wrong
+
+| Symptom | Likely cause | What to try |
+|---|---|---|
+| Negative temperatures | Time step too large, or aggressive reaction parameters | Reduce `deltaT`, `maxCo`, `maxDi` or `initialChemicalTimeStep` |
+| Porosity above 1 or below 0 | Bed collapse too aggressive | Reduce `deltaT`, or adjust `solidRegimes/connectedAboveSolidFraction` in `pyrolysisProperties` |
+| Gas mass fractions do not sum to 1 | Missing `Ydefault` field, or a gas species without its `0/` file | Check that every gas species has a `0/` file, and that `0/Ydefault` exists |
+| Slow pressure convergence | Tight PIMPLE settings | Increase `nCorrectors`, or relax the `p` tolerance |
+
 ### Mesh and parallel execution
 
 - Run `setPorosity` (if used) **before** `decomposePar` — it operates on the reconstructed mesh.
@@ -457,6 +466,5 @@ Gas-phase reactions are typically orders of magnitude faster than heterogeneous 
 
 - [The pgf tool](pgf.md): settings, builds and runs.
 - [Viewing a case in ParaView](paraview.md): the case's views, comparing cases, PNGs.
-- [Troubleshooting](troubleshooting.md): symptoms, likely causes and fixes.
 - [Theory](theory.md): the model, its equations and where they live in the source.
 - [All documentation](README.md)
