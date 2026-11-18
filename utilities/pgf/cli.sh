@@ -89,7 +89,7 @@ pgf_cmd_ex setup "./pgf setup --yes" "take the detected choices"
 pgf_cmd_ex setup "./pgf setup --foam-bashrc ~/OpenFOAM/OpenFOAM-v2406/etc/bashrc"
 pgf_cmd_ex setup "./pgf setup --link-only --force" "make pgf on PATH the ./pgf you call"
 
-pgf_cmd build "build the checkout (libraries, solver, utilities)" "pgf build [--yade] [-v] [build.sh options]" \
+pgf_cmd build "build the checkout (libraries and solver)" "pgf build [--yade] [-v] [build.sh options]" \
   "--yade --set --foam-bashrc" build-options
 pgf_cmd_desc build "Builds the checkout pgf runs from into the build store, in a prefix named by
 a key made of the sources, the variant, the OpenFOAM version and the compiler. A prefix with

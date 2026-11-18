@@ -64,7 +64,7 @@ It looks for your OpenFOAM installation (and yade, needed only for the optional 
 pgf build
 ```
 
-It builds the libraries, the solver and the utilities into a build of their own: about 1.5 min the first time, and reused as long as the sources don't change. `./Allwmake` does the same.
+It builds the libraries and the solver into a build of their own: about 1.5 min the first time, and reused as long as the sources don't change. `./Allwmake` does the same.
 
 **3. Copy a tutorial** out of the repository:
 
@@ -106,7 +106,7 @@ pgf view .
 porousGasificationFoam/    main solver source (time loop, equations)
 porousGasificationMedia/   libraries (pyrolysis, chemistry, radiation, DEM)
 tutorials/cases/           tutorial cases
-utilities/                 auxiliary tools (setPorosity, totalMass, …)
+utilities/                 helper scripts (pgf internals, Python tools, compile_commands)
 utilities/pgf/             pgf's parts: build driver, test tiers, settings, registry
 applications/test/         regression framework
 pgf                        the pgf command: settings, builds, runs, tests (pgf help)

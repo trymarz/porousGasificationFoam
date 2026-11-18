@@ -21,7 +21,7 @@ PGF_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 # ============================================================
 
 declare -a LIBRARY_TARGETS=(DEM fieldPorosityModel radiationModels thermophysicalModels pyrolysisModels)
-declare -a APP_TARGETS=(porousGasificationFoam utilities)
+declare -a APP_TARGETS=(porousGasificationFoam)
 declare -a ALL_TARGETS=("${LIBRARY_TARGETS[@]}" "${APP_TARGETS[@]}")
 declare -a ALL_TARGETS_FLAGS=("${ALL_TARGETS[@]/#/--}")
 declare -a ALL_TARGETS_NO_FLAGS=("${ALL_TARGETS[@]/#/--no-}")
@@ -33,7 +33,6 @@ declare -A BUILD_TARGETS=( # default values
   [thermophysicalModels]=1
   [pyrolysisModels]=1
   [porousGasificationFoam]=1
-  [utilities]=1
 )
 
 # Set to 1 via --yade to compile the solver with Yade/DEM coupling support
@@ -62,7 +61,6 @@ declare -A TARGET_DIRS=(
   [thermophysicalModels]="$PGF_ROOT/porousGasificationMedia/thermophysicalModels"
   [pyrolysisModels]="$PGF_ROOT/porousGasificationMedia/pyrolysisModels"
   [porousGasificationFoam]="$PGF_ROOT/porousGasificationFoam"
-  [utilities]="$PGF_ROOT/utilities"
 )
 
 declare -A BUILD_COMMANDS=(
@@ -72,7 +70,6 @@ declare -A BUILD_COMMANDS=(
   [thermophysicalModels]="./Allwmake"
   [pyrolysisModels]="wmake -j libso"
   [porousGasificationFoam]="wmake -j"
-  [utilities]="./Allwmake"
 )
 
 declare -A CLEAN_COMMANDS=(
@@ -82,7 +79,6 @@ declare -A CLEAN_COMMANDS=(
   [thermophysicalModels]="./Allwclean"
   [pyrolysisModels]="wclean libso"
   [porousGasificationFoam]="wclean"
-  [utilities]="./Allwclean"
 )
 
 MODE="build"
@@ -129,11 +125,11 @@ parse_arguments() {
       set_targets APP_TARGETS 1
       ;;
     # Selective flags
-    --DEM | --fieldPorosityModel | --radiationModels | --thermophysicalModels | --pyrolysisModels | --porousGasificationFoam | --utilities)
+    --DEM | --fieldPorosityModel | --radiationModels | --thermophysicalModels | --pyrolysisModels | --porousGasificationFoam)
       local t="${1#--}"
       BUILD_TARGETS[$t]=1
       ;;
-    --no-DEM | --no-fieldPorosityModel | --no-radiationModels | --no-thermophysicalModels | --no-pyrolysisModels | --no-porousGasificationFoam | --no-utilities)
+    --no-DEM | --no-fieldPorosityModel | --no-radiationModels | --no-thermophysicalModels | --no-pyrolysisModels | --no-porousGasificationFoam)
       local t="${1#--no-}"
       BUILD_TARGETS[$t]=0
       ;;
@@ -419,7 +415,7 @@ report_cache_hit() {
   { read -r what; read -r built; } < <(python3 - "$PREFIX/.pgf-build.json" "$HOME" "$PGF_ROOT" 2>/dev/null <<'EOF'
 import json, os, sys
 m = json.load(open(sys.argv[1]))
-parts = {"porousGasificationFoam": "solver", "utilities": "utilities"}
+parts = {"porousGasificationFoam": "solver"}
 names = []
 for t in m.get("targets", []):
     n = parts.get(t, "libraries")

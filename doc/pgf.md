@@ -76,7 +76,7 @@ It exits 1 if any check fails, so scripts can use it too. Every check: `pgf help
 
 ## Builds
 
-A build is a compiled solver with its libraries and utilities, in a directory of its own under `$PGF_BUILD_ROOT` (by default `~/OpenFOAM/<user>-v2406/pgf-builds`). Its key comes from the sources, the variant (with or without DEM), OpenFOAM and the compiler, so each checkout state gets its own build, reused while the key matches and never overwritten. [build.md](build.md) covers building.
+A build is a compiled solver with its libraries, in a directory of its own under `$PGF_BUILD_ROOT` (by default `~/OpenFOAM/<user>-v2406/pgf-builds`). Its key comes from the sources, the variant (with or without DEM), OpenFOAM and the compiler, so each checkout state gets its own build, reused while the key matches and never overwritten. [build.md](build.md) covers building.
 
 ```bash
 pgf build                  # build the checkout pgf runs from; reused if unchanged

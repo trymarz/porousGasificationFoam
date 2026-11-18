@@ -15,7 +15,7 @@ check "second build exits 0 (rc=$rc)" [ "$rc" -eq 0 ]
 check "second build reports a cache hit" grep -q "reused build" "$TEST_TMP/second.log"
 check "second build runs no wmake target" bash -c '! grep -q "Building " "$1"' _ "$TEST_TMP/second.log"
 
-probe="$PGF_ROOT/utilities/setPorosity/pgfToolingProbe.C"
+probe="$PGF_ROOT/porousGasificationFoam/pgfToolingProbe.C"
 [ -e "$probe" ] && die "$probe already exists"
 trap 'rm -f "$probe"; rm -rf "$TEST_TMP"' EXIT
 echo "// tooling test probe: changes the source fingerprint only" >"$probe"
