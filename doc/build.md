@@ -15,6 +15,41 @@ pgf run <case>                    # run a case with the checkout's build (or wor
 - **DEM build**: see [YADE DEM coupling](#yade-dem-coupling). Both variants live side by side, each in its own prefix; switch with `pgf build` / `pgf build --yade`, no clean needed ([Switching variants](#switching-variants)).
 - **Run**: the build is a prefix, so run cases with `pgf run <case>` or work in `pgf shell` ([Runs](pgf.md#runs)).
 
+## How a build works
+
+pgf decides *what* to build and *where* it goes; OpenFOAM's own `wmake` does the compiling.
+
+```mermaid
+flowchart TD
+    A["<b>pgf build [--yade]</b><br/>or ./Allwmake"] --> B["<b>pgf shell --bare</b><br/>clean environment, loads OpenFOAM"]
+    B --> C["<b>build.sh --isolated</b><br/>works out the build key"]
+    C -->|"a build with this key exists"| D["<b>Reuse it</b><br/>nothing is compiled"]
+    C -->|"new key"| E["<b>wmake</b>, once per part<br/>(OpenFOAM's own tool)"]
+    E --> F["<b>Worktree cache</b><br/>Make/&lt;WM_OPTIONS&gt;/, lnInclude/<br/>beside the source"]
+    E --> G["<b>Prefix</b> pgf-builds/&lt;key&gt;/<br/>bin/ and lib/"]
+    D --> G
+    G --> H["<b>pgf run / pgf shell</b><br/>use the prefix's solver"]
+    I["<b>./Allwclean</b><br/>runs wclean"] -.->|"empties"| F
+    J["<b>pgf gc</b>"] -.->|"removes old"| G
+
+    classDef pgf fill:#EEEDFE,stroke:#534AB7,color:#3C3489
+    classDef foam fill:#E1F5EE,stroke:#0F6E56,color:#085041
+    classDef disk fill:#F1EFE8,stroke:#5F5E5A,color:#444441
+    class A,B,C,D,H,J pgf
+    class E,I foam
+    class F,G disk
+```
+
+Purple is pgf, green is OpenFOAM's own tooling, grey is files on disk. In words:
+
+1. **You ask for a build.** `pgf build` (or `./Allwmake`) starts a clean shell that loads OpenFOAM, so nothing from your terminal leaks in.
+2. **pgf names the build.** The key is a hash of the source code plus the variant (normal or DEM), the OpenFOAM version and the compiler. Same sources, same key.
+3. **Already built? Reuse it.** If `pgf-builds/<key>/` is complete, pgf says so and stops: no compiling, the checkout is not touched.
+4. **Otherwise wmake compiles.** pgf points OpenFOAM's install folders (`FOAM_USER_APPBIN` / `FOAM_USER_LIBBIN`) at `pgf-builds/<key>/` and runs `wmake` in each part. wmake keeps its compiled pieces next to the source (the worktree cache) and puts the finished solver and libraries in the prefix.
+5. **You run with it.** `pgf run` and `pgf shell` put that prefix first on `PATH`, so the solver you run is the one built from your sources.
+
+The worktree cache only speeds up the next build; `./Allwclean` empties it. Finished builds stay until `pgf gc` removes them.
+
 ## Where things land
 
 | What | Where |
