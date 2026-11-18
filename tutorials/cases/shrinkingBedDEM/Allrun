@@ -10,7 +10,7 @@
 #
 # PREREQUISITES
 #   - porousGasificationFoam built with pgf build --yade
-#   - Yade with FoamCoupling on PATH (source Foam-Yade-builds/bin/yade-env)
+#   - Yade built with FoamCoupling support, `yade` on PATH (or YADE_BIN set)
 #
 # STEPS (what this script runs)
 #       cp -r 0.orig 0 && blockMesh && setFields && decomposePar
