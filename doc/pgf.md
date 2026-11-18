@@ -38,7 +38,7 @@ Settings say which OpenFOAM and yade to use, where builds, scratch and case copi
 
 To make the `pgf` command run another worktree's pgf, run `./pgf setup --link-only --force` in that worktree. It only repoints the `~/.local/bin/pgf` link, and `--force` replaces a link to another checkout.
 
-All options: `pgf help setup`, or [setup in the reference](pgf-reference.md#setup-and-config).
+All options, and where setup looks: `pgf help setup`.
 
 ### Viewing and changing settings
 
@@ -48,7 +48,7 @@ pgf config set PGF_MPI=loopback --checkout   # only for the checkout pgf runs fr
 pgf config                                   # every value and where it came from
 ```
 
-The checkout file wins over the user file, and the environment or a `--set KEY=VALUE` option wins over both. Details: [keys and layers](pgf-reference.md#keys-and-layers).
+The checkout file wins over the user file, and the environment or a `--set KEY=VALUE` option wins over both. Every key, the files and how the layers combine: `pgf help config`.
 
 ### Checking the setup
 
@@ -72,7 +72,7 @@ yade and DEM
 verdict: ready for non-DEM runs; DEM needs: a yade built from the Foam-Yade pin
 ```
 
-It exits 1 if any check fails, so scripts can use it too. Every check: [doctor in the reference](pgf-reference.md#checks-doctor).
+It exits 1 if any check fails, so scripts can use it too. Every check: `pgf help doctor`.
 
 ## Builds
 
@@ -85,7 +85,7 @@ pgf builds                 # every build, the checkout that made it, the existin
 pgf gc                     # remove old builds no checkout uses
 ```
 
-By default every command uses the build of the checkout pgf runs from. To use another, say an older commit's or another worktree's, select it: `--use SEL` for one command, or `eval "$(pgf use SEL)"` for the terminal. `pgf run` refuses a build of other sources than that checkout's unless you add `--allow-stale`. Details: [choosing a build](pgf-reference.md#choosing-a-build).
+By default every command uses the build of the checkout pgf runs from. To use another, say an older commit's or another worktree's, select it: `--use SEL` for one command, or `eval "$(pgf use SEL)"` for the terminal. `pgf run` refuses a build of other sources than that checkout's unless you add `--allow-stale`. Details: `pgf help build-selection`.
 
 ## Runs
 
@@ -105,19 +105,18 @@ pgf test <tier>                       # run a regression tier
 ```
 
 - **`copy`** copies the whole tutorial and records the checkout and commit it came from, so `pgf run` uses that checkout's build. An existing copy is kept unless `--force`. Run copies, not the tutorials in the checkout.
-- **`run`** works from any directory. It runs the script in the case directory and writes `<case>/.pgf-run.json`: the command, its exit status and the build it used. Details: [the run record](pgf-reference.md#the-run-record).
-- **`shell`** gives you OpenFOAM and the build on `PATH`, and little else from your own environment. `pgf shell -- <command>` runs one command there. Details: [the clean environment](pgf-reference.md#the-clean-environment-shell).
+- **`run`** works from any directory. It runs the script in the case directory and writes `<case>/.pgf-run.json`: the command, its exit status and the build it used. Details: `pgf help run-record`.
+- **`shell`** gives you OpenFOAM and the build on `PATH`, and little else from your own environment. `pgf shell -- <command>` runs one command there. Details: `pgf help environment`.
 - **`view`** opens the case in ParaView ([viewing a case](paraview.md)). **`test`** runs a regression tier ([regression testing](regression-testing.md)).
 
 ## Help and output
 
-`pgf help` lists the commands, `pgf help <command>` (or `pgf <command> --help`) explains one, and `pgf tools` describes the [scripts at the top of the checkout](pgf-reference.md#scripts-at-the-top-of-the-checkout). Every command behaves the same from any working directory.
+`pgf help` is the reference: it lists the commands and the help topics, `pgf help <command>` (or `pgf <command> --help`) explains one command, and `pgf help <topic>` one topic (`build-selection`, `run-record`, `environment`). `pgf help --all` shows every page in one go, through `less` on a terminal, so you can search it; piped, it prints plain text. `pgf tools` describes the scripts at the top of the checkout. Every command behaves the same from any working directory.
 
 Status lines read `OK`, `WARN`, `FAIL`, `SKIP`, `INFO` (`PASS`/`FAIL` for tests). `setup`, `build`, `copy`, `run` and `test` end with a `next:` block that suggests the command to run next. Colour is on when both stdout and stderr are a terminal: `--color=auto|always|never` (or `PGF_COLOR`) and `NO_COLOR` control it, and log files never get colour codes.
 
 ## Related pages
 
-- [pgf reference](pgf-reference.md): every setting, choosing a build, the run record, the clean environment.
 - [Building](build.md): the build store, the DEM coupling, cleaning.
 - [Apptainer images](containers.md): `pgf pack`, an image of one commit for a server.
 - [Setting up your own case](case-setup.md): required fields, input files, tutorial cases, tips.

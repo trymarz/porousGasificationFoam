@@ -36,6 +36,8 @@ check "the table drives --help: one row per command, but completion" \
 check "  and the menu is just those" [ "$(sort <<<"$out")" = "$(sort <<<"$cmds")" ]
 check "the command menu does not offer --help" bash -c '! grep -q -- "^-" <<<"$1"' _ "$out"
 check "help completes the commands" has setup "$(comp "pgf help se")"
+check "  and the help topics" has environment "$(comp "pgf help env")"
+check "  and --all" has --all "$(comp "pgf help --")"
 check "a prefix narrows the subcommands" [ "$(comp "pgf bu")" = "$(printf 'build\nbuilds')" ]
 check "exec options include the environment options" has --use "$(comp "pgf exec --")"
 check "build options come from build.sh" has --libs-only "$(comp "pgf build --")"

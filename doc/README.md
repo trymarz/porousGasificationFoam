@@ -15,7 +15,7 @@ New to PGF? Start with the [README](../README.md) quick start, then [build your 
 
 ## Reference
 
-- [pgf reference](pgf-reference.md): every setting, how a build is chosen, the run record, the clean environment, Tab completion, the scripts at the top of the checkout.
+- `pgf help`: every command, every setting, and topics on how a build is chosen, the run record and the clean environment; `pgf help --all` shows it all.
 - [API reference (Doxygen)](build.md#doxygen-documentation): generated from the source comments.
 
 ## The model

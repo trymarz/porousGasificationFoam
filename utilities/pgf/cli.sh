@@ -62,7 +62,17 @@ then what it saved where, then what to do next.
 On a terminal it asks when there is a choice; --yes takes the detected choices
 without asking. Rerun it any time: it keeps the values you set and says what
 changed. Change a value later with pgf config set KEY=VALUE; what each setting
-means and how the layers combine: pgf help config."
+means and how the layers combine: pgf help config.
+
+It looks for OpenFOAM at \$WM_PROJECT_DIR/etc/bashrc, ~/OpenFOAM/*/etc/bashrc,
+/opt/openfoam* and /usr/lib/openfoam/* (v2406 first), and for yade or a
+suffixed yade-* on your PATH. Values given with --foam-bashrc, --yade-bin,
+--yade-trunk or --set win, and keys already in the file are kept. --checkout
+also records submodules/Foam-Yade as YADE_TRUNK when it is checked out.
+
+The link step refuses to replace a link to another checkout without --force.
+With several worktrees the link picks one; call the others by path.
+--link-only does only the link: no settings, no completion."
 pgf_cmd_opt setup "-y, --yes" "do not ask: take what was detected, install completion"
 pgf_cmd_opt setup --user "save to ~/.config/pgf/env.conf, for every checkout" "yes"
 pgf_cmd_opt setup --checkout "save to <checkout>/.pgf.conf, for that checkout only"
@@ -107,8 +117,9 @@ PGF_CASE_ROOT defaults to OpenFOAM's run dir, \$WM_PROJECT_USER_DIR/run
 (~/OpenFOAM/<user>-v2406/run), not pgf's scratch \$FOAM_RUN.
 
 The copy records the checkout and commit it came from: pgf run then uses that
-checkout's build, and warns when the branch has moved on since. An existing
-copy is kept unless --force. pgf status lists your copies per branch."
+checkout's build, and warns when the branch has moved on since. The record is
+<copy>/.pgf-source.json. An existing copy is kept unless --force. pgf status
+lists your copies per branch."
 pgf_cmd_opt copy --list "list the tutorials, one line each"
 pgf_cmd_opt copy --force "replace an existing copy"
 pgf_cmd_ex copy "pgf copy --list"
@@ -119,10 +130,16 @@ pgf_cmd run "run a case script and record the run" \
   "pgf run [options] [--build] [--allow-stale] <caseDir> [Allrun | Allclean | script] [args ...]" \
   "@env --build --allow-stale" case
 pgf_cmd_desc run "Changes into caseDir and runs the script (default Allrun) in the clean
-environment, then writes <caseDir>/.pgf-run.json and says how it went. A case
-whose constant/yadeProperties is active gets --yade. Run a copy of a tutorial
+environment, then writes <caseDir>/.pgf-run.json and says how it went. It works
+from any directory; caseDir is resolved from the current one. A case whose
+constant/yadeProperties says active true gets --yade, unless --no-yade is given
+or PGF_YADE is set in a file or the environment. Run a copy of a tutorial
 (pgf copy), not the tutorial in the checkout: a copy runs with the build of the
-checkout it came from. A stale build is refused."
+checkout it came from. A stale build is refused; the refusal names the layer
+that chose it and the fix. run exits with the script's status.
+
+The run record: pgf help run-record. The environment: pgf help environment.
+Choosing a build and staleness: pgf help build-selection."
 pgf_cmd_opt run --build "build the checkout pgf runs from first"
 pgf_cmd_opt run --allow-stale "run with a build of other sources"
 pgf_cmd_opt run @env
@@ -172,7 +189,7 @@ build store, the run records, scratch and the case root, the build pgf would
 use now and what chose it, that checkout's two builds (non-DEM, DEM), and your
 case copies (pgf copy) per branch. With PATH, asks that checkout instead. Every setting
 with its layer: pgf config. pgf with no command runs status. Old name: where."
-pgf_cmd_opt status --json "settings, layers and builds as JSON"
+pgf_cmd_opt status --json "every setting with its layer, and the builds, as JSON"
 pgf_cmd_opt status @env
 pgf_cmd_ex status "pgf status"
 pgf_cmd_ex status "pgf status ~/Code/pgf-feature" "another checkout"
@@ -181,7 +198,12 @@ pgf_cmd doctor "check that pgf can build and run, with a fix for each problem" "
 pgf_cmd_desc doctor "Read-only checks in groups: OpenFOAM, the builds of the checkout pgf runs
 from, yade and DEM, MPI, and pgf on PATH. Each check is one OK, WARN or FAIL line; under a WARN
 or FAIL, the detail and the command that fixes it. It ends with a one-line
-verdict and exits 1 when a check fails. The settings themselves: pgf config."
+verdict and exits 1 when a check fails. The settings themselves: pgf config.
+
+It checks the OpenFOAM bashrc and version, the build of the checkout pgf runs
+from, yade (the binary, its version against the Foam-Yade pin, MPI among its
+features), the coupling stamp, the MPI decision and the interfaces it saw, and
+whether pgf is on PATH."
 pgf_cmd_opt doctor @env
 pgf_cmd_ex doctor "pgf doctor"
 pgf_cmd_ex doctor "pgf doctor --yade" "also check the DEM build"
@@ -190,8 +212,22 @@ pgf_cmd config "show every setting with its layer, or change one" \
   "pgf config [get KEY | set KEY=VALUE | unset KEY] [--user | --checkout] [--json]" "--user --checkout --json" config
 pgf_cmd_desc config "Each setting comes from, later winning: the default, ~/.config/pgf/env.conf
 (user layer), <checkout>/.pgf.conf (checkout layer), the environment, the
-command line. Without a verb, config prints every setting and its layer; set
-and unset edit the user file, or the checkout file with --checkout."
+command line. Without a verb, config prints every setting and its layer
+(file:line for a file, [default] for a built-in default); set and unset edit
+the user file, or the checkout file with --checkout. get prints one resolved
+value and exits 1 when the key is unset.
+
+The user file is \${XDG_CONFIG_HOME:-~/.config}/pgf/env.conf. The checkout file
+is .pgf.conf at the checkout root; the old name .pgf-env.conf is still read,
+with a note, while no .pgf.conf exists, and the next set --checkout or
+pgf setup --checkout writes .pgf.conf. The files hold KEY=value lines and #
+comments. They are parsed, not sourced: an unknown key or a malformed line
+exits 2 naming file:line, so a file cannot set PATH or run code. PGF_BUILD is
+refused in the user file (pgf help build-selection).
+
+On the command line, --set KEY=VALUE overrides one key, and --foam-bashrc,
+--yade / --no-yade and --mpi set theirs. PGF_YADE=1 makes --yade the default;
+PGF_MPI=loopback does what --mpi loopback does (pgf help environment)."
 pgf_cmd_opt config --user "edit ~/.config/pgf/env.conf" "yes"
 pgf_cmd_opt config --checkout "edit <checkout>/.pgf.conf"
 pgf_cmd_opt config --json "print the settings and layers as JSON"
@@ -201,10 +237,13 @@ pgf_cmd_ex config "pgf config set PGF_MPI=loopback --checkout" "only the checkou
 pgf_cmd_ex config "pgf config get YADE_BIN"
 
 pgf_cmd builds "every build, and the checkouts that made them" "pgf builds [--json]" "--json" none
-pgf_cmd_desc builds "Lists the checkouts that built into the build store, then every build: key,
-variant, time, size, the checkout that built it, and the existing checkouts
-whose last build it is. A legend at the end explains *, (incomplete) and
-[in use]. Old name: ls."
+pgf_cmd_desc builds "Lists the checkouts that built into the build store and still exist (and how
+many no longer do; pgf gc forgets them), then every build: key, variant, age,
+size, the checkout that built it, the existing checkouts whose last build it is
+(last build of ...), [in use] and [building]. A legend and the total count and
+size close the list: * marks the builds of the current sources of the checkout
+pgf runs from, and (incomplete) a build that stopped before it finished, which
+gc removes. Old name: ls. What a build and its key are: pgf help build-selection."
 pgf_cmd_opt builds --json "as JSON"
 pgf_cmd_ex builds "pgf builds"
 
@@ -213,7 +252,13 @@ pgf_cmd use "choose a build for this terminal (with eval)" "eval \"\$(pgf use <k
 pgf_cmd_desc use "Prints the shell line that makes a build this terminal's: wrap it in eval.
 Without eval it only prints that line and changes nothing. Inside pgf shell,
 plain pgf use does the eval. auto goes back to the build of the sources of the
-checkout pgf runs from."
+checkout pgf runs from.
+
+Run without eval on a terminal, it says it only printed the line; under eval
+it says the terminal now uses the build. Either way it notes when the build is
+not of the checkout's current sources. Inside pgf shell, the shell itself keeps
+the build it started with; later pgf shell and pgf run calls follow the new
+choice. What SEL can be: pgf help build-selection."
 pgf_cmd_opt use --yade "pick from the DEM builds"
 pgf_cmd_opt use --no-yade "pick from the plain builds"
 pgf_cmd_ex use 'eval "$(pgf use a2055)"' "a key prefix"
@@ -222,7 +267,16 @@ pgf_cmd_ex use 'eval "$(pgf use auto)"'
 pgf_cmd gc "remove old unused builds" "pgf gc [--keep N] [--yes] [--dry-run] [--json]" "--keep --yes --dry-run --json" none
 pgf_cmd_desc gc "Removes builds that no existing checkout last built, that are not in use or
 being built, beyond the newest N, and forgets checkouts that no longer exist.
-It ends with a summary: how many builds go, their total size, how many stay."
+The current builds of the checkout pgf runs from always stay. Each kept build
+gives its reason (a build of <name>'s current sources, chosen with pgf use or
+PGF_BUILD, in use, building, last build of <checkout>, one of the N newest
+others, --keep), and each removed one says if it is incomplete.
+
+It ends with a summary: N build(s) to remove, SIZE; M kept, plus the checkouts
+that no longer exist, whose records a real gc forgets. --dry-run ends with
+nothing removed (--dry-run). Without --yes it asks on a terminal, and refuses
+(exit 2) without one. In use means a pgf shell or pgf run holds the build's
+lock (pgf help environment); pgf test --gc skips those builds too."
 pgf_cmd_opt gc "--keep N" "keep the N newest" 2
 pgf_cmd_opt gc --yes "remove without asking"
 pgf_cmd_opt gc --dry-run "only list what would go"
@@ -234,7 +288,9 @@ pgf_cmd_desc shell "Starts bash with the caller's environment dropped (a small a
 OpenFOAM's bashrc sourced and the user dirs pointed at the build, with the
 prompt (pgf:<worktree>@<key>); pgf calls inside it keep that environment.
 With -- COMMAND it runs that command instead (old name: pgf exec). A build
-not made from the sources of the checkout pgf runs from is stale: shell warns."
+not made from the sources of the checkout pgf runs from is stale: shell warns.
+--for-tree exits 2 when that checkout is not built. What the environment holds
+and the MPI modes: pgf help environment."
 pgf_cmd_opt shell "-c COMMAND" "run COMMAND with bash -c instead of an interactive shell"
 pgf_cmd_opt shell "-- COMMAND ..." "run COMMAND and its arguments as they are"
 pgf_cmd_opt shell @env
@@ -254,16 +310,156 @@ pgf_cmd_ex pack "pgf pack --dry-run"
 
 pgf_cmd tools "every tool at the checkout root: what, why, use instead" "pgf tools" "" none
 pgf_cmd_desc tools "For each executable at the checkout root, what it does, why it exists and
-what to use instead."
+what to use instead. The text is the what/why/instead header of each script.
+
+Old names (#274, #287): pgf-env is gone (pgf shell, pgf setup, ...); pgf where,
+pgf ls and pgf exec still work as pgf status, pgf builds and pgf shell --. The
+root pgf-test forwards to pgf test, with a note on stderr, for a deprecation
+period. Tests for pgf itself are applications/test/tooling/test_*.sh; each runs
+alone with PGF_FOAM_BASHRC set and builds under PGF_BUILD_ROOT (default
+\$TMPDIR/pgf-tooling-builds)."
 pgf_cmd_ex tools "pgf tools"
 
 pgf_cmd completion "print the bash completion script" "pgf completion bash" "" shell
-pgf_cmd_desc completion "Prints the bash completion script; pgf setup installs it."
+pgf_cmd_desc completion "Prints the bash completion script. pgf setup installs it to
+\${BASH_COMPLETION_USER_DIR:-\${XDG_DATA_HOME:-~/.local/share}/bash-completion}/completions/pgf,
+where the bash-completion package loads it on the first Tab; it asks on a
+terminal, installs with --yes and skips with --no-completion. Without that
+package, source the file from ~/.bashrc. Rerun pgf setup (or this command)
+after updating pgf.
+
+The script is made from the same command table as pgf help, so the two cannot
+drift. It completes every command, its options, help topics, and these values,
+asking pgf __complete at Tab time: build keys, auto and worktree names after
+use, pack and --use; get/set/unset, then keys after config (and KEY= then
+values for config set and --set); auto/loopback/default for --mpi and PGF_MPI=,
+0/1 for PGF_YADE=; directories after run, then that case's scripts; tiers from
+applications/test/tiers.conf (and all) after test; build.sh options after build.
+
+Build keys need the build root. When PGF_BUILD_ROOT is not set, finding it
+sources OpenFOAM, which takes about a second; set PGF_BUILD_ROOT to make that
+Tab instant."
 pgf_cmd_ex completion "pgf completion bash > ~/.local/share/bash-completion/completions/pgf"
 
-pgf_cmd help "help about a command" "pgf help [command]" "" cmd
-pgf_cmd_desc help "Prints the help of pgf, or of one command; pgf <command> --help is the same."
+pgf_cmd help "help about a command or a topic" "pgf help [command | topic | --all]" "--all" cmd
+pgf_cmd_desc help "Prints the help of pgf, of one command or of one topic; pgf <command> --help
+is the same as pgf help <command>. Topics explain what several commands share;
+pgf help lists them. --all prints every page in one go, through less on a
+terminal (\$PAGER if set), plain when piped: pgf help --all | grep ..."
+pgf_cmd_opt help --all "every page: pgf, each command, each topic"
 pgf_cmd_ex help "pgf help setup"
+pgf_cmd_ex help "pgf help environment" "a topic"
+pgf_cmd_ex help "pgf help --all" "everything, paged"
+
+# Help topics (pgf help <topic>), like git help <topic>: what several commands
+# share. "## Title" lines are headings; the rest is indented as it is.
+PGF_TOPICS=()
+declare -gA PGF_TOPIC_SUM=() PGF_TOPIC_TEXT=()
+pgf_topic() {
+  PGF_TOPICS+=("$1")
+  PGF_TOPIC_SUM[$1]="$2" PGF_TOPIC_TEXT[$1]="$3"
+}
+
+pgf_topic build-selection "which build a command uses, build keys, stale builds" "## Builds and keys
+pgf build compiles a checkout into the build store (PGF_BUILD_ROOT, default
+\$WM_PROJECT_USER_DIR/pgf-builds), one prefix per key. The key is made of the
+sources, the variant (yade0 non-DEM, yade1 DEM), the OpenFOAM version and the
+compiler, so a prefix with the same key is reused without compiling. Each
+checkout has two keys, non-DEM and DEM; pgf status shows them, pgf builds lists
+every build. More: doc/build.md, "Where things land".
+
+## Choosing a build
+Each command uses one build. It comes from, later winning:
+  auto              the build of the sources as they are now in the checkout
+                    pgf runs from (the default)
+  .pgf.conf         PGF_BUILD in the checkout file
+  the terminal      PGF_BUILD in the environment, which pgf use sets
+  --use SEL         on the command line
+PGF_BUILD is refused in the user file: it is per worktree or terminal.
+
+SEL is a key or unique key prefix, a commit (the newest build made from it), a
+worktree name or path (its last build), a prefix path, or auto. --prefix DIR
+uses that complete prefix as it is (also one built outside the store) and
+skips the staleness check. eval \"\$(pgf use SEL)\" sets the terminal layer.
+The banner of pgf shell and pgf run names the layer the build came from.
+
+## Stale builds
+A selected build that is not of that checkout's current sources is stale:
+pgf shell warns, pgf run refuses. pgf run --build builds that checkout first
+(it cannot be combined with a selected build); pgf run --allow-stale runs a
+stale build anyway. The refusal names the layer that chose the build and its
+fix: leave out --use; eval \"\$(pgf use auto)\" for the terminal layer;
+pgf config unset PGF_BUILD --checkout for the checkout file.
+
+A case made by pgf copy runs with the build of the checkout it came from, unless
+a build was chosen."
+
+pgf_topic run-record "what pgf run writes about each run, and where" "## The record
+After the script ends, pgf run writes <case>/.pgf-run.json, also after Ctrl-C:
+  case, command            the case directory and the script with its arguments
+  started_utc, finished_utc
+  exit_status              the script's status, which pgf run also exits with
+  build                    key, prefix, variant, git_head (the commit) and
+                           source: the layer that selected it
+  yade                     DEM runs only: the yade binary, its commit and the
+                           Foam-Yade pin; null otherwise
+
+## The log
+The same record is appended as one line to
+\${XDG_STATE_HOME:-~/.local/state}/pgf/runs/runs.jsonl when that is writable
+(a read-only home, as in an Apptainer image, keeps only the case's record).
+Before #274 this log lived under the build root. pgf test keeps its tier
+results beside it, in last/<tier>.json.
+
+## Other files in a case
+<case>/.pgf-source.json, written by pgf copy: the checkout and commit the copy
+came from."
+
+pgf_topic environment "the clean environment of pgf shell, run and build" "## What is kept
+pgf drops the caller's environment except HOME USER LANG TERM TMPDIR NO_COLOR
+WM_PROJECT_DIR XDG_CONFIG_HOME XDG_STATE_HOME and every PGF_* and YADE_*
+variable. Nested pgf calls inside it skip that step. pgf test keeps the
+caller's environment (it calls pgf shell itself), and pgf view runs your own
+ParaView.
+
+## What is set
+pgf sources \$PGF_FOAM_BASHRC (default \$WM_PROJECT_DIR/etc/bashrc) with set +eu.
+Then it points WM_PROJECT_USER_DIR, FOAM_USER_APPBIN and FOAM_USER_LIBBIN at
+the build and removes every PATH and LD_LIBRARY_PATH entry under the user dir
+the bashrc chose. It puts utilities/pgf/shims/ first on PATH. Its wmake
+refuses to install into the build while WM_PROJECT_USER_DIR, FOAM_USER_APPBIN
+and FOAM_USER_LIBBIN point at it (edit, then pgf build); a case's dynamicCode/
+passes. With --bare, wmake is OpenFOAM's own. It also sets UCX_VFS_ENABLE=n
+UCX_LOG_LEVEL=fatal, FOAM_RUN=\$PGF_RUN_ROOT and TMPDIR=\$PGF_RUN_ROOT/tmp
+(PGF_RUN_ROOT default: \$TMPDIR/pgf-runs), and exports PGF_ROOT, so a copied
+case finds the checkout's shared data. It checks that porousGasificationFoam
+resolves into the build.
+
+On stderr it prints what it uses: OpenFOAM, the build and what chose it, and
+MPI when it restricts it, except on a serial pgf run (a non-DEM case without
+system/decomposeParDict), where the restriction still applies but is not
+printed. While it runs, pgf shell or pgf run holds a shared flock on
+\$PGF_BUILD_ROOT/<key>.use.lock, which keeps pgf gc off the build.
+
+--bare uses no build: OpenFOAM only; pgf build runs the build engine in it.
+
+## Yade (--yade)
+--yade adds YADE_TRUNK (default submodules/Foam-Yade), a yade on PATH (from
+YADE_BIN or the caller's PATH, linked as plain yade) and PYTHONPATH
+(YADE_PYTHONPATH, or found beside the yade install). It checks the coupling
+stamp and yade's version against the pin. If /tmp is read-only, it also
+preloads a small shim that moves yade's /tmp/yade-XXXXXX into \$TMPDIR.
+
+## MPI (--mpi, PGF_MPI)
+loopback restricts Open MPI to self,vader,tcp on lo. The DEM coupling connects
+yade's MPI job to the solver it spawns over TCP, and Open MPI leaves lo out by
+default, so on a host or sandbox whose only interface is lo the run hangs with
+help-mca-bml-r2.txt / unreachable proc; on a host with docker or libvirt
+bridges it can hang probing them. The default, auto, applies loopback when a
+docker*, virbr*, br-* or veth* interface is up or when not exactly one other
+interface is up, and says so in the banner (MPI: local only (lo), because ...).
+default leaves Open MPI alone. Runs are single-host; auto does not handle
+multi-host jobs."
 
 # _pgf_help_rows ROWS — tab-separated rows as aligned columns; a first column
 #   over 36 characters is not padded. A third column is the default ("yes": default).
@@ -311,13 +507,15 @@ pgf_cli_help() {
   build and clean through pgf.
 EOF
   local g w=0
-  for c in "${PGF_CMDS[@]}"; do [ ${#c} -gt "$w" ] && w=${#c}; done
+  for c in "${PGF_CMDS[@]}" "${PGF_TOPICS[@]}"; do [ ${#c} -gt "$w" ] && w=${#c}; done
   for g in "${PGF_HELP_GROUPS[@]}"; do
     _pgf_help_section "$g"
     for c in ${PGF_HELP_GROUP[$g]}; do printf "  %-${w}s  %s\n" "$c" "${PGF_CMD_SUM[$c]}"; done
   done
   echo
   echo "  Old names still work: where (status), ls (builds), exec (shell --)."
+  _pgf_help_section "Help Topics"
+  for c in "${PGF_TOPICS[@]}"; do printf "  %-${w}s  %s\n" "$c" "${PGF_TOPIC_SUM[$c]}"; done
   _pgf_help_section Options
   _pgf_help_rows "--color WHEN	colour: auto (when output goes to a terminal and NO_COLOR is unset), always, never	auto
 -h, --help	this help, or a command's"
@@ -329,7 +527,43 @@ pgf run ~/OpenFOAM/\$USER-v2406/run/main/solidAdvection	run that copy
 pgf view ~/OpenFOAM/\$USER-v2406/run/main/solidAdvection	look at the results
 pgf doctor	check the setup, with fixes"
   echo
-  echo "Use \"pgf help <command>\" or \"pgf <command> --help\" for more about a command."
+  echo "Use \"pgf help <command>\" or \"pgf <command> --help\" for more about a command,"
+  echo "\"pgf help <topic>\" for a topic, \"pgf help --all\" for every page."
+}
+
+# pgf_cli_help_topic TOPIC — one topic's page; returns 2 for an unknown topic.
+pgf_cli_help_topic() {
+  local t="$1" line prev=x
+  [ -n "${PGF_TOPIC_SUM[$t]+x}" ] || return 2
+  echo "pgf help $t: ${PGF_TOPIC_SUM[$t]}"
+  # A blank line before a heading is the heading's own.
+  while IFS= read -r line; do
+    case "$line" in
+    "## "*) _pgf_help_section "${line#\#\# }" ;;
+    "") ;;
+    *) [ -z "$prev" ] && echo; echo "  $line" ;;
+    esac
+    prev="$line"
+  done <<<"${PGF_TOPIC_TEXT[$t]}"
+  echo
+  echo "All commands and topics: pgf help."
+}
+
+# pgf_cli_help_all — every page: pgf, each command in group order, each topic.
+pgf_cli_help_all() {
+  local c g rule
+  rule="$(printf '%*s' 78 '' | tr ' ' '=')"
+  pgf_cli_help
+  for g in "${PGF_HELP_GROUPS[@]}"; do
+    for c in ${PGF_HELP_GROUP[$g]} $([ "$g" = "Other Commands" ] && echo completion); do
+      printf '\n%s\n\n' "$rule"
+      pgf_cli_help_cmd "$c"
+    done
+  done
+  for c in "${PGF_TOPICS[@]}"; do
+    printf '\n%s\n\n' "$rule"
+    pgf_cli_help_topic "$c"
+  done
 }
 
 # pgf_cli_help_cmd CMD — one command's page: Usage, Description, Options, Examples.
@@ -390,6 +624,7 @@ pgf_completion_cmd() {
   printf ')\ndeclare -gA _pgf_optval=( '
   for c in "${!PGF_OPT_VALUE[@]}"; do printf '[%q]=%q ' "$c" "${PGF_OPT_VALUE[$c]}"; done
   printf ')\n_pgf_keys=%q\n' "${PGF_CONF_KEYS[*]}"
+  printf '_pgf_topics=%q\n' "${PGF_TOPICS[*]}"
   cat <<'EOF'
 
 # _pgf_values KIND PGF CUR — candidate words for one value kind.
@@ -481,7 +716,7 @@ _pgf() {
     fi
     ;;
   dir) [ ${#pos[@]} -eq 0 ] && COMPREPLY=($(compgen -d -- "$cur")) ;;
-  cmd) [ ${#pos[@]} -eq 0 ] && COMPREPLY=($(compgen -W "$_pgf_cmds" -- "$cur")) ;;
+  cmd) [ ${#pos[@]} -eq 0 ] && COMPREPLY=($(compgen -W "$_pgf_cmds $_pgf_topics" -- "$cur")) ;;
   build-options) COMPREPLY=($(compgen -W "$(_pgf_values build-options "$pgf")" -- "$cur")) ;;
   build | tier | shell | tutorial) [ ${#pos[@]} -eq 0 ] && COMPREPLY=($(compgen -W "$(_pgf_values "${_pgf_args[$sub]}" "$pgf")" -- "$cur")) ;;
   esac
