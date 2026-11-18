@@ -5,7 +5,7 @@ New to PGF? Start with the [README](../README.md) quick start, then [build your 
 ## Using PGF
 
 - [The pgf tool](pgf.md): settings, builds and runs.
-- [Setting up your own case](case-setup.md): required fields, input files, tutorial cases, tips, utilities.
+- [Setting up your own case](case-setup.md): required fields, input files, tutorial cases, tips.
 - [Viewing a case in ParaView](paraview.md): the case's views, comparing two cases, rendering to PNG.
 
 ## Building and deploying

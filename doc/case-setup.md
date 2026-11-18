@@ -41,7 +41,7 @@ Every tutorial `Allrun` / `Allclean` changes into its own directory first, so `/
 
 **Notes:**
 
-- `Df` is a tensor field. For isotropic porous media, use a diagonal tensor with large values (e.g. `1e9`) in gas-only regions and smaller values (based on permeability) in porous zones. Use the `setPorosity` utility to create appropriate fields.
+- `Df` is a tensor field. For isotropic porous media, use a diagonal tensor with large values (e.g. `1e9`) in gas-only regions and smaller values (based on permeability) in porous zones. Initialise it with `setFields` (see [Tips](#biomass-distribution-initial-porosityf)).
 - Solid species field names: `Y` + component name from `solidThermophysicalProperties` (e.g. `wood` → `Ywood`).
 - Gas species field names match the `species` list in `chemistryProperties`.
 
@@ -99,7 +99,7 @@ Cases under `tutorials/cases/`; `pgf copy --list` lists them, `pgf copy <case>` 
 
 `tutorials/experimental/` holds DEM cases that are kept but not tested or supported: `simple_line_case/`
 (a DEM-coupled 1-D packed line, pyrolysing) and `MicroTGA-DEM_Us_UsInterp/` (a long `UsInterp` demonstration run).
-Both need a `--yade` build; `tutorials/TestAllCases.sh` does not run them.
+Both need a `--yade` build; `pgf test` does not run them.
 
 `tutorials/CleanAllCases.sh` runs every case's `Allclean` (nested cases included) and exits non-zero if any fails.
 Cases with a `.foamcli-monitor.toml` save PNG snapshots under `<case>/render/` when run under `foamcli`;
@@ -412,11 +412,10 @@ Practical notes that are easy to get wrong on a first PGF case.
 
 ### Biomass distribution (initial `porosityF`)
 
-Three approaches, in increasing order of complexity:
+Two approaches, in increasing order of complexity:
 
 1. **`setFields`** (with or without `setSet`): the standard OpenFOAM workflow. Specify a `setFieldsDict` that sets `porosityF` inside a cell zone to the desired void fraction and leaves the rest at `1.0`. `setFields` alone is sufficient for simple geometries. Pair with `setSet` (batch mode) for more involved selection logic. Other fields (`T`, `Ts`, solid species mass fractions, …) can be initialised the same way. See `tutorials/cases/macroTGA_*` for an example chain (`blockMesh` → `setSet` → `refineHexMesh` → `setFields`).
 2. **STL + `setFields`**: for non-trivial bed geometries, build an STL of the porous region in Salome or Blender and feed it to `setSet`/`setFields` via a `surfaceToCell` selector.
-3. **`setPorosity` utility** *(possibly outdated)*: a code-driven generator (see `utilities/setPorosity/`). The user-editable description of the medium lives in `medium.H` — the tool must be recompiled after each change. Kept for backward compatibility with older cases and parametric sweeps. For new cases, prefer approaches 1 and 2 above.
 
 ### Solid thermophysical properties: true density, not bulk
 
@@ -452,15 +451,8 @@ Gas-phase reactions are typically orders of magnitude faster than heterogeneous 
 
 ### Mesh and parallel execution
 
-- Run `setPorosity` (if used) **before** `decomposePar` — it operates on the reconstructed mesh.
-- The `totalMassPorousGasificationFoam` utility also requires a reconstructed case. Run `reconstructPar` first, or operate on the un-decomposed run.
 - `paraView -builtin` can visualise the decomposed processor directories directly without reconstruction — useful for very large cases.
 - Re-running a regression baseline must use the same `numberOfSubdomains` as the original — floating-point sensitivity to decomposition is real (see [Regression testing](regression-testing.md)).
-
-## Utilities
-
-- **`setPorosity`** *(possibly outdated)* — generates `porosityF` and `Df` fields from medium parameters (particle diameter, tortuosity, permeability). Editable medium description in `utilities/setPorosity/medium.H`. Kept for backward compatibility — for new cases prefer the `setFields` + STL workflow (see [Tips](#biomass-distribution-initial-porosityf)).
-- **`totalMassPorousGasificationFoam`** — post-processing diagnostic that writes `totalMass.txt` (time, integrated solid mass `∫ρ_s · (1−porosityF) dV`) for the run. Operates on a reconstructed case — run `reconstructPar` first if the case was decomposed.
 
 ## Related pages
 

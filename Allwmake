@@ -1,6 +1,6 @@
 #!/bin/sh
 # Allwmake: build this checkout (OpenFOAM convention).
-# what:    pgf build --all --no-DEM [args]: libraries, solver, utilities into this tree's isolated build
+# what:    pgf build --all --no-DEM [args]: libraries and solver into this tree's isolated build
 # why:     ./Allwmake is where OpenFOAM users look first
 # instead: pgf build [--yade] for options (the DEM variant, single targets, -v)
 cd "${0%/*}" || exit 1

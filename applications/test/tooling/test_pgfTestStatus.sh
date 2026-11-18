@@ -29,7 +29,7 @@ check "--if-stale 1d skips a fresh PASS" grep -q "is fresh" "$TEST_TMP/skip"
 "$PGF_TEST" --status --if-stale 0s smoke >"$TEST_TMP/status0" 2>&1
 check "--status --if-stale 0s reports it stale by age" grep -q "stale (older than 0s)" "$TEST_TMP/status0"
 
-probe="$PGF_ROOT/utilities/setPorosity/pgfToolingProbe.C"
+probe="$PGF_ROOT/porousGasificationFoam/pgfToolingProbe.C"
 [ -e "$probe" ] && die "$probe already exists"
 trap 'rm -f "$probe"; rm -rf "$TEST_TMP"' EXIT
 echo "// tooling test probe: changes the source fingerprint only" >"$probe"

@@ -6,7 +6,7 @@ There is one way to build: `pgf build` (or `./Allwmake`, which runs it) compiles
 
 ```bash
 ./pgf setup                       # once: where OpenFOAM (and yade) live; puts pgf on PATH
-./Allwmake                        # pgf build --all --no-DEM: libraries, solver, utilities
+./Allwmake                        # pgf build --all --no-DEM: libraries and solver
 pgf build --yade                  # the DEM variant, beside the normal one
 pgf run <case>                    # run a case with the checkout's build (or work in pgf shell)
 ```
@@ -148,7 +148,6 @@ pgf build --all --no-DEM                       # everything except DEM (this is 
 | thermophysicalModels | library suite | — |
 | pyrolysisModels | library | all above |
 | porousGasificationFoam | executable | all libraries |
-| utilities | executable suite | — |
 
 ## Editor navigation (clangd)
 

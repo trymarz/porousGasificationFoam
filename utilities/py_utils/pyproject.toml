@@ -11,9 +11,6 @@ dependencies = [
     "typing-extensions>=4.15.0",
 ]
 
-[project.scripts]
-pgf-py-utils = "pgf_py_utils:main"
-
-[build-system]
-requires = ["uv_build>=0.9.13,<0.10.0"]
-build-backend = "uv_build"
+# Dependency-only project (classy_blocks for LEIgasifierDEM meshing); no package code.
+[tool.uv]
+package = false
