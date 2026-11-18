@@ -28,6 +28,8 @@ pgf decides *what* to build and *where* it goes; OpenFOAM's own `wmake` does the
 
 `./Allwclean` empties the worktree cache; `pgf gc` removes old build folders.
 
+`utilities/pgf/build.sh` is the engine behind step 5, not a second way in: called directly, it exits with `needs --isolated or --prefix DIR` and names the `pgf build` command to run instead.
+
 ## Where things land
 
 | What | Where |
@@ -50,7 +52,7 @@ pgf decides *what* to build and *where* it goes; OpenFOAM's own `wmake` does the
 
 After editing the sources, run `pgf build` (or `./Allwmake`) again. The new sources have a new key, so the build goes into a new prefix and recompiles only what wmake finds changed; an unchanged tree is a cache hit and returns at once. The previous prefix stays as it was for whatever still uses it; `pgf gc` removes old ones.
 
-Do not run `wmake` yourself inside `pgf shell`: there the user output directories point at the active build's prefix, so a `wmake` would overwrite a build that its key says came from other sources. `pgf shell` refuses it with a pointer to `pgf build`. (OpenFOAM's own `wmake` for coded functions, under a case's `dynamicCode/`, is not affected.)
+Do not run `wmake` yourself inside `pgf shell`: there the user output directories point at the active build's prefix, so a `wmake` would overwrite a build that its key says came from other sources. `pgf shell` refuses it with `pgf: refusing wmake: it would install into the cached build <key>.` and a pointer to `pgf build`. (OpenFOAM's own `wmake` for coded functions, under a case's `dynamicCode/`, is not affected.)
 
 ## Switching variants
 
