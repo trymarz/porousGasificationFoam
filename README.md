@@ -94,7 +94,7 @@ pgf view .
 
 [doc/README.md](doc/README.md) lists every page. In short:
 
-- **Using PGF:** [the pgf tool](doc/pgf.md), [your own case](doc/case-setup.md), [ParaView](doc/paraview.md), [troubleshooting](doc/troubleshooting.md)
+- **Using PGF:** [the pgf tool](doc/pgf.md), [your own case](doc/case-setup.md), [ParaView](doc/paraview.md)
 - **Building and deploying:** [building](doc/build.md), [Apptainer images](doc/containers.md)
 - **Reference:** [pgf reference](doc/pgf-reference.md), [API reference (Doxygen)](doc/build.md#doxygen-documentation)
 - **The model:** [theory](doc/theory.md), [solid step](doc/solid-step.md)
