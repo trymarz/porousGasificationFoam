@@ -17,38 +17,7 @@ pgf run <case>                    # run a case with the checkout's build (or wor
 
 ## How a build works
 
-pgf decides *what* to build and *where* it goes; OpenFOAM's own `wmake` does the compiling.
-
-```mermaid
-%%{init: {"flowchart": {"nodeSpacing": 25, "rankSpacing": 30}}}%%
-flowchart TD
-    A["pgf build"] --> Q1{"Built before?"}
-    Q1 -->|yes| R["Reuse it"]
-    Q1 -->|no| Q2{"Variant switched?"}
-    Q2 -->|yes| S["Clean 2 parts"]
-    Q2 -->|no| Q3{"DEM?"}
-    S --> Q3
-    Q3 -->|yes| Y["Build coupling"]
-    Q3 -->|no| W["wmake"]
-    Y --> W
-    W --> F["Worktree cache"]
-    W --> G["Build folder"]
-    R --> G
-    G --> H["pgf run"]
-    I["./Allwclean"] -.-> F
-    J["pgf gc"] -.-> G
-
-    classDef pgf fill:#EEEDFE,stroke:#534AB7,color:#3C3489
-    classDef ask fill:#FAEEDA,stroke:#854F0B,color:#633806
-    classDef foam fill:#E1F5EE,stroke:#0F6E56,color:#085041
-    classDef disk fill:#F1EFE8,stroke:#5F5E5A,color:#444441
-    class A,R,S,Y,H,J pgf
-    class Q1,Q2,Q3 ask
-    class W,I foam
-    class F,G disk
-```
-
-Purple is pgf, amber is a question pgf answers for you, green is OpenFOAM's own tooling, grey is files on disk. In words:
+pgf decides *what* to build and *where* it goes; OpenFOAM's own `wmake` does the compiling:
 
 1. **pgf build** (or `./Allwmake`) names the build from your sources, the variant (normal or DEM), the OpenFOAM version and the compiler, in a clean shell that loads OpenFOAM.
 2. **Built before?** Then it is reused at once: nothing compiles, the checkout is not touched.
