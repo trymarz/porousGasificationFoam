@@ -5,7 +5,7 @@
 ```bash
 ./pgf pack                    # image of the checkout's HEAD, DEM variant
 ./pgf pack <build> --no-yade  # image of a build's commit, without yade
-./pgf pack --dry-run          # write the build context and print the definition only
+./pgf pack --dry-run          # write the build context and the definition; build nothing
 ```
 
 `pgf pack` writes `pgf-<commit12>-yade<0|1>.sif`, a self-contained image. It starts from the base image of `container/pgf-toolchain.def` (OpenFOAM v2406, gcc 13). Inside the image it compiles:
