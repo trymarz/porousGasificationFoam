@@ -37,7 +37,7 @@ The files hold `KEY=value` lines and `#` comments. They are parsed, not sourced:
 
 ## Builds
 
-What a build is and how its key is made: [build.md → The build store](build.md#the-build-store).
+What a build is and how its key is made: [build.md → Where things land](build.md#where-things-land).
 
 ### Choosing a build
 
@@ -83,9 +83,9 @@ pgf shell -c 'command -v porousGasificationFoam'
 pgf shell -- applications/test/regression/Allrun
 ```
 
-`pgf shell [--prefix DIR | --for-tree | --bare] [--yade] [--mpi loopback] -- <command>` (old name `pgf exec`) runs a command in a clean environment. It drops the caller's environment except `HOME USER LANG TERM TMPDIR WM_PROJECT_DIR XDG_CONFIG_HOME XDG_STATE_HOME PGF_* YADE_*` and sources `$PGF_FOAM_BASHRC` (default `$WM_PROJECT_DIR/etc/bashrc`) with `set +eu`. Then it points `WM_PROJECT_USER_DIR`, `FOAM_USER_APPBIN` and `FOAM_USER_LIBBIN` at the build and removes every `PATH` / `LD_LIBRARY_PATH` entry under the user dir `bashrc` chose. It also sets `UCX_VFS_ENABLE=n UCX_LOG_LEVEL=fatal`, `PGF_ISOLATED_ONLY=1` (`build.sh` then refuses to build without `--prefix` / `--isolated`) and `TMPDIR=$PGF_RUN_ROOT/tmp`. It checks that `porousGasificationFoam` resolves into the build and prints on stderr what it uses: OpenFOAM, the build and what chose it, and MPI when it restricts it, except on a serial `pgf run` (a non-DEM case without `system/decomposeParDict`), where the restriction still applies but is not printed.
+`pgf shell [--prefix DIR | --for-tree | --bare] [--yade] [--mpi loopback] -- <command>` (old name `pgf exec`) runs a command in a clean environment. It drops the caller's environment except `HOME USER LANG TERM TMPDIR WM_PROJECT_DIR XDG_CONFIG_HOME XDG_STATE_HOME PGF_* YADE_*` and sources `$PGF_FOAM_BASHRC` (default `$WM_PROJECT_DIR/etc/bashrc`) with `set +eu`. Then it points `WM_PROJECT_USER_DIR`, `FOAM_USER_APPBIN` and `FOAM_USER_LIBBIN` at the build and removes every `PATH` / `LD_LIBRARY_PATH` entry under the user dir `bashrc` chose. It puts `utilities/pgf/shims/` first on `PATH`, whose `wmake` refuses to install into that build (edit, then `pgf build`; a case's `dynamicCode/` passes). It also sets `UCX_VFS_ENABLE=n UCX_LOG_LEVEL=fatal` and `TMPDIR=$PGF_RUN_ROOT/tmp`. It checks that `porousGasificationFoam` resolves into the build and prints on stderr what it uses: OpenFOAM, the build and what chose it, and MPI when it restricts it, except on a serial `pgf run` (a non-DEM case without `system/decomposeParDict`), where the restriction still applies but is not printed.
 
-- `--for-tree` (default) uses the build of the checkout pgf runs from and exits 2 if it is not built. `--bare` uses no build; use it to run `build.sh`.
+- `--for-tree` (default) uses the build of the checkout pgf runs from and exits 2 if it is not built. `--bare` uses no build; `pgf build` runs the build engine in it.
 - `--yade` adds `YADE_TRUNK` (default `submodules/Foam-Yade`), a `yade` on `PATH` (from `YADE_BIN` or the caller's `PATH`) and `PYTHONPATH` (`YADE_PYTHONPATH`, or derived from the install). If `/tmp` is read-only, it also preloads a small shim that moves Yade's `/tmp/yade-XXXXXX` into `$TMPDIR`.
 - `--mpi loopback` restricts Open MPI to `self,vader,tcp` on `lo`. The DEM coupling connects Yade's MPI job to the solver it spawns over TCP, and Open MPI leaves `lo` out by default, so on a host or sandbox whose only interface is `lo` the run hangs with `help-mca-bml-r2.txt / unreachable proc`; on a host with docker/libvirt bridges it can hang probing them. The default, `PGF_MPI=auto`, applies loopback when a `docker*`, `virbr*`, `br-*` or `veth*` interface is up or when not exactly one other interface is up, and says so in the banner (`MPI loopback (auto: …)`). `--mpi default` (or `PGF_MPI=default`) leaves Open MPI alone. Runs are single-host; `auto` does not handle multi-host jobs.
 - Nested `pgf` calls inside it skip the `env -i` step.
@@ -108,24 +108,21 @@ Build keys need the build root. When `PGF_BUILD_ROOT` is not set, finding it sou
 ## Scripts at the top of the checkout
 
 **`pgf`**: settings, builds, runs in a clean environment, test tiers.
-- *Why:* one front door instead of hand-sourcing OpenFOAM and sharing `$FOAM_USER_APPBIN`.
+- *Why:* one front door instead of hand-sourcing OpenFOAM; each build gets its own prefix.
 - *Instead:* `./Allwmake` / `./Allwclean` if you only want the OpenFOAM-style entry point.
 
 **`Allwmake`**: runs `pgf build --all --no-DEM [args]`.
 - *Why:* `./Allwmake` is where OpenFOAM users look first.
-- *Instead:* `pgf build [--yade]` for options; `utilities/pgf/build.sh` for an in-place build.
+- *Instead:* `pgf build [--yade]` for options (the DEM variant, single targets, `-v`).
 
-**`Allwclean`**: runs `pgf build clean --all [args]`, DEM included.
-- *Why:* the same convention; cleaning DEM too means no `--yade` state survives a switch back.
-- *Instead:* `pgf build clean [targets]` for one target; add `--purge` to drop the installed build.
-
-**`build.sh`**: deprecated shim (#274), forwards to `utilities/pgf/build.sh` so old scripts keep working.
-- *Instead:* `pgf build`, or `utilities/pgf/build.sh` in place.
+**`Allwclean`**: runs `pgf build clean --all [args]`: cleans this checkout's in-tree cache (`lnInclude/`, `Make/<WM_OPTIONS>/`), DEM included.
+- *Why:* `./Allwclean` is where OpenFOAM users look first; built prefixes are untouched.
+- *Instead:* `pgf build clean [targets]` for one target; `pgf gc` removes built prefixes.
 
 **`pgf-test`**: deprecated shim (#274), forwards to `pgf test` so old scripts keep working.
 - *Instead:* `pgf test <tier|all>`, `--status`, `--gc`.
 
-Old names (#274, #287): `pgf-env` is gone (use `pgf shell`, `pgf setup`, …); `pgf-test` is now `pgf test`; `pgf where`, `pgf ls` and `pgf exec` still work as `pgf status`, `pgf builds` and `pgf shell --`; the build driver moved from `build.sh` to `utilities/pgf/build.sh`. The root `pgf-test` and `build.sh` still forward to the new commands, with a note on stderr, for a deprecation period.
+Old names (#274, #287): `pgf-env` is gone (use `pgf shell`, `pgf setup`, …); `pgf-test` is now `pgf test`; `pgf where`, `pgf ls` and `pgf exec` still work as `pgf status`, `pgf builds` and `pgf shell --`; the root `build.sh` is gone (#288; use `pgf build`). The root `pgf-test` still forwards to `pgf test`, with a note on stderr, for a deprecation period.
 
 Tests for pgf itself live in `applications/test/tooling/test_*.sh`; each runs alone with `PGF_FOAM_BASHRC` set and builds under `PGF_BUILD_ROOT` (default `$TMPDIR/pgf-tooling-builds`).
 

@@ -11,7 +11,7 @@ New to PGF? Start with the [README](../README.md) quick start, then [build your 
 
 ## Building and deploying
 
-- [Building](build.md): the build store, the DEM coupling, cleaning, `build.sh`.
+- [Building](build.md): `pgf build`, where builds land, the DEM coupling, switching variants, cleaning.
 - [Apptainer images](containers.md): `pgf pack`, an image of one PGF commit to run on a server.
 
 ## Reference

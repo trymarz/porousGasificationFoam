@@ -1,9 +1,12 @@
 #!/bin/sh
-# Allwclean: clean this checkout (OpenFOAM convention).
+# Allwclean: clean this checkout's in-tree build cache (OpenFOAM convention).
 # what:    pgf build clean --all [args]: wclean every target, DEM included
-# why:     ./Allwclean is where OpenFOAM users look first; cleaning DEM too means no
-#          state from an earlier --yade build survives a switch back
-# instead: pgf build clean [targets]; add --purge to drop the installed build
+# why:     ./Allwclean is where OpenFOAM users look first; built prefixes are untouched
+# instead: pgf build clean [targets] for one target; pgf gc removes built prefixes
 cd "${0%/*}" || exit 1
 
+case "${1:-}" in -h | --help)
+  echo "Usage: ./Allwclean: cleans this checkout's in-tree cache (lnInclude/, Make/<WM_OPTIONS>/); built prefixes stay (pgf gc)"
+  exit 0 ;;
+esac
 exec ./pgf build clean --all "$@"

@@ -70,4 +70,18 @@ check "  and says when the checkout that built it no longer exists (S4-15)" \
 fb "${targets[@]}" -v >"$TEST_TMP/out" 2>&1
 check "--verbose streams wmake's output" grep -q "a-very-long-compile-line" "$TEST_TMP/out"
 
+# A variant switch drops the other variant's objects and says so (#288); a
+# cache hit leaves them. The stamps live in the checkout's Make/linux64/.
+objs="$PGF_ROOT/porousGasificationMedia/pyrolysisModels/Make/linux64"
+mkdir -p "$objs" && echo WITH_YADE=1 >"$objs/.pgf-build-mode" && : >"$objs/marker.o"
+iso "${targets[@]}" >"$TEST_TMP/out" 2>&1
+check "a cache hit leaves the other variant's objects" [ -e "$objs/marker.o" ]
+fb "${targets[@]}" >"$TEST_TMP/out" 2>&1
+rc=$?
+check "a build over DEM objects switches (rc=$rc)" [ "$rc" -eq 0 ]
+check "  in one INFO line naming the cleaned target" \
+    grep -qx "  INFO switching to the normal variant: cleaned the DEM objects of pyrolysisModels; they recompile now" "$TEST_TMP/out"
+check "  having dropped the DEM objects" [ ! -e "$objs/marker.o" ]
+check "  and restamped the target" grep -qx WITH_YADE=0 "$objs/.pgf-build-mode"
+
 finish

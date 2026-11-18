@@ -20,7 +20,7 @@ EOF
 
 tree="$TEST_TMP/tree"
 mkdir -p "$tree/utilities/pgf"
-cp "$PGF" "$PGF_ROOT"/{build.sh,pgf-test,Allwmake,Allwclean} "$tree/" && cp "$PGF_ROOT"/utilities/pgf/* "$tree/utilities/pgf/" || die "cannot copy pgf"
+cp "$PGF" "$PGF_ROOT"/{pgf-test,Allwmake,Allwclean} "$tree/" && cp -r "$PGF_ROOT"/utilities/pgf/* "$tree/utilities/pgf/" || die "cannot copy pgf"
 
 prefix="$TEST_TMP/prefix"
 mkdir -p "$prefix/bin" "$prefix/lib"
@@ -346,13 +346,14 @@ check "build runs build.sh --isolated --yade with the extra options" grep -qx "b
 check "  in a bare env (user dir is the build root)" grep -qx "user=/keep" <<<"$out"
 out="$(root Allwmake --yade 2>/dev/null)"
 check "Allwmake is pgf build --all --no-DEM" grep -qx "build.sh --isolated --all --no-DEM --yade" <<<"$out"
-out="$(root Allwclean --purge 2>/dev/null)"
-check "Allwclean is pgf build clean --all" grep -qx "build.sh --isolated clean --all --purge" <<<"$out"
+out="$(root Allwclean --DEM 2>/dev/null)"
+check "Allwclean is pgf build clean --all" grep -qx "build.sh --isolated clean --all --DEM" <<<"$out"
+out="$(root Allwclean --help 2>/dev/null)"
+check "  its help says in one line it cleans the in-tree cache only" \
+    bash -c '[ "$(wc -l <<<"$1")" -eq 1 ] && grep -q "in-tree cache" <<<"$1" && grep -q "pgf gc" <<<"$1"' _ "$out"
 
-# the root shims (#274)
-out="$(root build.sh --print-key 2>"$TEST_TMP/err")"
-check "the build.sh shim forwards to utilities/pgf/build.sh" grep -qx "build.sh --print-key" <<<"$out"
-check "  and names the new command on stderr" grep -q "use: pgf build --print-key" "$TEST_TMP/err"
+# the root build.sh shim is gone (#288)
+check "no build.sh at the root" [ ! -e "$PGF_ROOT/build.sh" ]
 printf '#!/bin/sh\necho "test.sh $*"\n' >"$tree/utilities/pgf/test.sh"
 chmod +x "$tree/utilities/pgf/test.sh"
 out="$(penv test --status fast 2>/dev/null)"
@@ -390,9 +391,16 @@ check "exec without a command still refuses (rc=$?)" grep -q "no command given" 
 penv shell --prefix "$prefix" -c true -- true >/dev/null 2>"$TEST_TMP/err"
 check "shell refuses -c together with -- COMMAND" grep -q "not both" "$TEST_TMP/err"
 
+# wmake inside pgf shell would install into the cached prefix: refused (#288)
+penv shell --prefix "$prefix" -- wmake >/dev/null 2>"$TEST_TMP/err"
+check "wmake in pgf shell is refused (rc=$?)" grep -q "refusing wmake: it would install into the cached build" "$TEST_TMP/err"
+check "  and names pgf build" grep -q "run: pgf build" "$TEST_TMP/err"
+penv shell --prefix "$prefix" -- wmake -s libso "$TEST_TMP/case/dynamicCode/x" >/dev/null 2>"$TEST_TMP/err"
+check "  but a coded function's dynamicCode build passes through" bash -c '! grep -q "refusing wmake" "$1"' _ "$TEST_TMP/err"
+
 # pgf tools: one what / why / instead block per root tool
 penv tools >"$TEST_TMP/tools" 2>&1
-for t in pgf Allwmake Allwclean build.sh pgf-test; do
+for t in pgf Allwmake Allwclean pgf-test; do
     check "pgf tools explains $t" bash -c 'awk -v t="$2" "\$0 == t { f = 1; next } f && /^$/ { exit } f" "$1" |
         grep -c -E "^  (what|why|instead): " | grep -qx 3' _ "$TEST_TMP/tools" "$t"
 done

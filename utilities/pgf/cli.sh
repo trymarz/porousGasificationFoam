@@ -84,13 +84,16 @@ pgf_cmd build "build the checkout (libraries, solver, utilities)" "pgf build [--
 pgf_cmd_desc build "Builds the checkout pgf runs from into the build store, in a prefix named by
 a key made of the sources, the variant, the OpenFOAM version and the compiler. A prefix with
 the same key is reused without compiling. wmake's output goes to
-<prefix>/build.log; the screen shows one line per target. ./Allwmake runs this."
+<prefix>/build.log; the screen shows one line per target. ./Allwmake runs this.
+Switching between the normal and DEM variants needs no clean: pgf build drops the
+other variant's objects of the targets that differ and says so. After editing the
+sources, run pgf build again; wmake inside pgf shell is refused."
 pgf_cmd_opt build --yade "the DEM variant (WITH_YADE=1)"
 pgf_cmd_opt build "-v, --verbose" "stream wmake's output instead of logging it"
 pgf_cmd_opt build --libs-only "only the libraries"
 pgf_cmd_opt build --dry-run "show what would be built; build nothing"
 pgf_cmd_opt build --print-prefix "print the prefix the checkout builds into"
-pgf_cmd_opt build "clean [--purge]" "clean the build state (and the binaries)"
+pgf_cmd_opt build clean "clean the in-tree cache (lnInclude/, Make/<WM_OPTIONS>/); prefixes stay"
 pgf_cmd_ex build "pgf build"
 pgf_cmd_ex build "pgf build --yade" "the DEM variant"
 pgf_cmd_ex build "utilities/pgf/build.sh --help" "every build.sh option"
@@ -301,7 +304,7 @@ pgf_cli_help() {
   pgf is the one entry point to porousGasificationFoam. It remembers where
   OpenFOAM and yade live, builds each checkout into its own prefix, and runs
   cases and test tiers in a clean environment with that build, so nothing
-  depends on what your shell has sourced or on a shared $FOAM_USER_APPBIN.
+  depends on what your shell has sourced.
   Settings come from, later winning: the default, ~/.config/pgf/env.conf,
   <checkout>/.pgf.conf, the environment, the command line (pgf help config).
   If you only need the OpenFOAM-style entry point, ./Allwmake and ./Allwclean
