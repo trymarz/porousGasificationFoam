@@ -1,7 +1,7 @@
 #!/bin/bash
-# With PGF_ISOLATED_ONLY=1, build.sh without --prefix / --isolated exits
-# non-zero and writes nothing: not the user output dirs (here an empty scratch
-# pair) and not the checkout's generated lnInclude/ and Make/<WM_OPTIONS>/.
+# build.sh without --prefix / --isolated exits non-zero with one line pointing
+# at pgf build (#288), and writes nothing: not the user output dirs (here an
+# empty scratch pair) and not the checkout's lnInclude/ and Make/<WM_OPTIONS>/.
 
 . "$(dirname "${BASH_SOURCE[0]}")/toolingLib.sh"
 
@@ -14,22 +14,26 @@ snapshot() {
 touch "$TEST_TMP/stamp"
 snapshot >"$TEST_TMP/tree.before"
 
-run_shared() {
+run_sourced() {
     bash -c '
         cmd=("$@"); set +eu; set --; . "$PGF_FOAM_BASHRC"
-        export FOAM_USER_APPBIN="$0/bin" FOAM_USER_LIBBIN="$0/lib" PGF_ISOLATED_ONLY=1
+        export FOAM_USER_APPBIN="$0/bin" FOAM_USER_LIBBIN="$0/lib"
         "${cmd[@]}"
     ' "$user" "$@"
 }
 
-for args in "build" "build --all" "clean --all --purge"; do
+for args in "build" "build --all" "--yade" "clean --all"; do
     # shellcheck disable=SC2086
-    run_shared "$BUILD_SH" $args >"$TEST_TMP/out" 2>&1
+    run_sourced "$BUILD_SH" $args >"$TEST_TMP/out" 2>&1
     rc=$?
     check "build.sh $args refused (rc=$rc)" [ "$rc" -ne 0 ]
-    check "build.sh $args names PGF_ISOLATED_ONLY" grep -q "PGF_ISOLATED_ONLY=1" "$TEST_TMP/out"
+    check "build.sh $args points at pgf build" grep -q "run: pgf build" "$TEST_TMP/out"
+    check "build.sh $args says it in one line" [ "$(wc -l <"$TEST_TMP/out")" -eq 1 ]
     check "build.sh $args ran no wmake target" bash -c '! grep -qE "Building |Cleaning " "$1"' _ "$TEST_TMP/out"
 done
+
+run_sourced "$BUILD_SH" clean --purge >"$TEST_TMP/out" 2>&1
+check "--purge is gone" grep -q "Unknown option '--purge'" "$TEST_TMP/out"
 
 check "user bin/ and lib/ still empty" bash -c '[ -z "$(find "$1" -mindepth 2)" ]' _ "$user"
 snapshot >"$TEST_TMP/tree.after"

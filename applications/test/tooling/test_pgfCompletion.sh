@@ -73,7 +73,7 @@ check "completion completes bash" [ "$(comp "pgf completion ")" = bash ]
 # pgf setup offers it; --yes installs it, --no-completion does not
 tree="$TEST_TMP/tree"
 mkdir -p "$tree/utilities/pgf"
-cp "$PGF" "$tree/" && cp "$PGF_ROOT"/utilities/pgf/* "$tree/utilities/pgf/" || die "cannot copy pgf"
+cp "$PGF" "$tree/" && cp -r "$PGF_ROOT"/utilities/pgf/* "$tree/utilities/pgf/" || die "cannot copy pgf"
 env -i PATH=/usr/bin:/bin HOME="$home" TMPDIR="$TEST_TMP" "$tree/pgf" setup --checkout --yes --no-link \
     --foam-bashrc "$PGF_FOAM_BASHRC" --no-completion >/dev/null 2>&1
 check "setup --no-completion installs nothing" [ ! -e "$home/.local/share/bash-completion/completions/pgf" ]
