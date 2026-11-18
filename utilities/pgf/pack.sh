@@ -159,6 +159,7 @@ print(m.get("git_head") or "-", m.get("variant") or "-", int(bool((m.get("checko
   pgf_pack_def "$commit" "$variant" "$pin" "$api" "$yver" >"$ctx/pgf-pack.def" || return 2
   {
     st INFO "commit ${commit:0:12}, $variant$([ "$variant" = yade1 ] && echo " (compiles Foam-Yade ${pin:0:10} in the image)")"
+    st INFO "image $(pgf_tilde "$out")"
     st INFO "build context $(pgf_tilde "$ctx")"
   } >&2
   if [ "$dry" -eq 1 ]; then
@@ -174,7 +175,7 @@ print(m.get("git_head") or "-", m.get("variant") or "-", int(bool((m.get("checko
   export PATH="${PGF_ENV_CALLER_PATH:-$PATH}"
   command -v apptainer >/dev/null || { pgf_pack_fail "apptainer not found on PATH"; return; }
   {
-    st INFO "building $(pgf_tilde "$out"): $(pgf_pack_eta "$variant")"
+    st INFO "building the image: $(pgf_pack_eta "$variant")"
     st INFO "apptainer's output goes to $(pgf_tilde "$ctx/build.log"); its subuid and 'nodev' on /tmp warnings are expected"
   } >&2
   t0=$(date +%s)
