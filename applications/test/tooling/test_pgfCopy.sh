@@ -26,7 +26,7 @@ g() { git -C "$1" -c user.name=t -c user.email=t@example.invalid "${@:2}"; }
 mktree() {
     local t="$1"
     mkdir -p "$t/utilities/pgf" "$t/doc" "$t/tutorials/cases/family/demo/system" "$t/tutorials/cases/family/common"
-    cp "$PGF" "$t/" && cp "$PGF_ROOT"/utilities/pgf/* "$t/utilities/pgf/" || die "cannot copy pgf"
+    cp "$PGF" "$t/" && cp -r "$PGF_ROOT"/utilities/pgf/* "$t/utilities/pgf/" || die "cannot copy pgf"
     printf '#!/bin/sh\ncase "$*" in *--print-prefix*) echo "%s" ;; *--print-key*) echo "${2##*/}" ;; esac\n' "$2" \
         >"$t/utilities/pgf/build.sh"
     printf '## Tutorial Cases\n\n| Case | What it is | Notes |\n|---|---|---|\n| `family/*` | A demo family | |\n' \

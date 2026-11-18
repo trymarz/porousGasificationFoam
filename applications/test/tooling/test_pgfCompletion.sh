@@ -36,6 +36,8 @@ check "the table drives --help: one row per command, but completion" \
 check "  and the menu is just those" [ "$(sort <<<"$out")" = "$(sort <<<"$cmds")" ]
 check "the command menu does not offer --help" bash -c '! grep -q -- "^-" <<<"$1"' _ "$out"
 check "help completes the commands" has setup "$(comp "pgf help se")"
+check "  and the help topics" has environment "$(comp "pgf help env")"
+check "  and --all" has --all "$(comp "pgf help --")"
 check "a prefix narrows the subcommands" [ "$(comp "pgf bu")" = "$(printf 'build\nbuilds')" ]
 check "exec options include the environment options" has --use "$(comp "pgf exec --")"
 check "build options come from build.sh" has --libs-only "$(comp "pgf build --")"
@@ -73,7 +75,7 @@ check "completion completes bash" [ "$(comp "pgf completion ")" = bash ]
 # pgf setup offers it; --yes installs it, --no-completion does not
 tree="$TEST_TMP/tree"
 mkdir -p "$tree/utilities/pgf"
-cp "$PGF" "$tree/" && cp "$PGF_ROOT"/utilities/pgf/* "$tree/utilities/pgf/" || die "cannot copy pgf"
+cp "$PGF" "$tree/" && cp -r "$PGF_ROOT"/utilities/pgf/* "$tree/utilities/pgf/" || die "cannot copy pgf"
 env -i PATH=/usr/bin:/bin HOME="$home" TMPDIR="$TEST_TMP" "$tree/pgf" setup --checkout --yes --no-link \
     --foam-bashrc "$PGF_FOAM_BASHRC" --no-completion >/dev/null 2>&1
 check "setup --no-completion installs nothing" [ ! -e "$home/.local/share/bash-completion/completions/pgf" ]

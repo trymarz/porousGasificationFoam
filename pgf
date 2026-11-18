@@ -2,7 +2,7 @@
 #
 # pgf: the one entry point for porousGasificationFoam (#264, #274). See doc/pgf.md.
 # what:    settings, isolated builds, runs in a clean environment, test tiers
-# why:     one front door instead of hand-sourcing OpenFOAM and sharing $FOAM_USER_APPBIN
+# why:     one front door instead of hand-sourcing OpenFOAM; each build gets its own prefix
 # instead: ./Allwmake / ./Allwclean when the OpenFOAM-style entry point is all you need
 #
 # The help pages, options and command table are in utilities/pgf/cli.sh (pgf help);
@@ -33,13 +33,19 @@ done
 set -- "${args[@]}"
 case "${PGF_COLOR:-auto}" in auto | always | never) ;; *) die "--color takes auto, always or never, not '$PGF_COLOR'" ;; esac
 
-# pgf_help [CMD] — the global help page, or CMD's.
+# pgf_help [CMD | TOPIC | --all] — the global help page, CMD's, TOPIC's, or all.
 pgf_help() {
   . "$PGF_LIB/ui.sh"
   . "$PGF_LIB/config.sh"
   . "$PGF_LIB/cli.sh"
   if [ -z "${1:-}" ]; then pgf_cli_help; exit 0; fi
-  pgf_cli_help_cmd "$1" || die "unknown command '$1' (see pgf help)"
+  if [ "$1" = --all ]; then
+    # Paged like man on a terminal; plain when piped.
+    if [ -t 1 ]; then pgf_cli_help_all | LESS="${LESS:-FRX}" ${PAGER:-less}; else pgf_cli_help_all; fi
+    exit 0
+  fi
+  pgf_cli_help_topic "$1" && exit 0
+  pgf_cli_help_cmd "$1" || die "unknown command or topic '$1' (see pgf help)"
   exit 0
 }
 
@@ -372,7 +378,7 @@ else
   export WM_PROJECT_USER_DIR="$prefix"
   export FOAM_USER_APPBIN="$prefix/bin"
   export FOAM_USER_LIBBIN="$prefix/lib"
-  PATH="$FOAM_USER_APPBIN:$PATH"
+  PATH="$PGF_LIB/shims:$FOAM_USER_APPBIN:$PATH" # shims/wmake guards the prefix
   LD_LIBRARY_PATH="$FOAM_USER_LIBBIN${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 fi
 export PATH LD_LIBRARY_PATH
@@ -382,7 +388,6 @@ export PATH LD_LIBRARY_PATH
 # UCX may print "failed to create VFS socket" on stdout, which RunFunctions'
 # getApplication then reads as the application name.
 export UCX_VFS_ENABLE=n UCX_LOG_LEVEL=fatal
-export PGF_ISOLATED_ONLY=1
 mkdir -p "$PGF_RUN_ROOT/tmp" || die "cannot create $PGF_RUN_ROOT/tmp"
 export TMPDIR="$PGF_RUN_ROOT/tmp"
 

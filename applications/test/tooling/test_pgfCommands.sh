@@ -20,7 +20,7 @@ EOF
 
 tree="$TEST_TMP/tree"
 mkdir -p "$tree/utilities/pgf"
-cp "$PGF" "$PGF_ROOT"/{build.sh,pgf-test,Allwmake,Allwclean} "$tree/" && cp "$PGF_ROOT"/utilities/pgf/* "$tree/utilities/pgf/" || die "cannot copy pgf"
+cp "$PGF" "$PGF_ROOT"/{pgf-test,Allwmake,Allwclean} "$tree/" && cp -r "$PGF_ROOT"/utilities/pgf/* "$tree/utilities/pgf/" || die "cannot copy pgf"
 
 prefix="$TEST_TMP/prefix"
 mkdir -p "$prefix/bin" "$prefix/lib"
@@ -101,9 +101,9 @@ check "  and a bad --color value is refused" grep -q "color takes auto, always o
 
 # help: one page per command, the same as <cmd> --help (#285)
 penv help >"$TEST_TMP/help" 2>&1
-check "pgf help has Usage, Description, the Settings/Build/Run/Other groups, Options, Examples, in order" \
-    bash -c '[ "$(grep -E "^(Usage|Description|[A-Za-z]+ Commands|Options|Examples):$" "$1" | tr "\n" " ")" = \
-        "Usage: Description: Settings Commands: Build Commands: Run Commands: Other Commands: Options: Examples: " ] && grep -q "^Use \"pgf help <command>\"" "$1"' _ "$TEST_TMP/help"
+check "pgf help has Usage, Description, the Settings/Build/Run/Other groups, Help Topics, Options, Examples, in order" \
+    bash -c '[ "$(grep -E "^(Usage|Description|[A-Za-z]+ Commands|Help Topics|Options|Examples):$" "$1" | tr "\n" " ")" = \
+        "Usage: Description: Settings Commands: Build Commands: Run Commands: Other Commands: Help Topics: Options: Examples: " ] && grep -q "^Use \"pgf help <command>\"" "$1"' _ "$TEST_TMP/help"
 check "  and pgf --help is the same page" cmp -s "$TEST_TMP/help" <(penv --help 2>&1)
 check "  the commands grouped as doc/pgf.md groups them" \
     [ "$(sed -n '/Commands:$/,/^$/s/^  \([a-z]*\) .*/\1/p' "$TEST_TMP/help" | tr '\n' ' ')" = \
@@ -127,7 +127,34 @@ check "pgf help where shows status's page, saying where is its old name" \
 check "run --help lists the environment options" bash -c '"$1" run --help | grep -qE "^  --use SEL +the build"' _ "$tree/pgf"
 check "config --help gives each key a meaning" bash -c '"$1" help config | grep -qE "^  PGF_MPI +Open MPI"' _ "$tree/pgf"
 penv help nosuch >/dev/null 2>"$TEST_TMP/err"
-check "help of an unknown command fails (rc=$?)" grep -q "unknown command 'nosuch'" "$TEST_TMP/err"
+check "help of an unknown command fails (rc=$?)" grep -q "unknown command or topic 'nosuch'" "$TEST_TMP/err"
+
+# help topics and help --all: pgf help is the only pgf reference (#280)
+penv help >"$TEST_TMP/help" 2>&1
+topics="$(sed -n '/^Help Topics:$/,/^$/s/^  \([a-z-]*\) .*/\1/p' "$TEST_TMP/help")"
+check "pgf help lists the topics: build-selection, run-record, environment" \
+    [ "$(tr '\n' ' ' <<<"$topics")" = "build-selection run-record environment " ]
+for t in $topics; do
+    check "pgf help $t is its page" bash -c '"$1" help "$2" | head -1 | grep -q "^pgf help $2: "' _ "$tree/pgf" "$t"
+done
+keep="$(sed -n 's/^ *for v in \(HOME .*\); do$/\1/p' "$tree/pgf")"
+check "the environment topic names every variable pgf keeps ($keep)" \
+    bash -c 'page="$("$1" help environment | tr "\n" " ")"; for v in $2 "PGF_\*" "YADE_\*"; do
+        grep -qw -- "$v" <<<"$page" || exit 1; done' _ "$tree/pgf" "$keep"
+check "  NO_COLOR among them" grep -qw NO_COLOR <<<"$keep"
+penv help --all >"$TEST_TMP/all" 2>&1
+check "help --all piped exits 0 and prints plain text" \
+    bash -c '[ "$2" -eq 0 ] && ! grep -q $'"'"'\e'"'"' "$1"' _ "$TEST_TMP/all" $?
+check "  starting with the pgf page" cmp -s <(head -n "$(wc -l <"$TEST_TMP/help")" "$TEST_TMP/all") "$TEST_TMP/help"
+for c in $(sed -n '/Commands:/,/^$/s/^  \([a-z]*\) .*/\1/p' "$TEST_TMP/help") completion; do
+    check "  with the page of $c" grep -q "^pgf $c: " "$TEST_TMP/all"
+done
+for t in $topics; do check "  and of the topic $t" grep -q "^pgf help $t: " "$TEST_TMP/all"; done
+printf '#!/bin/sh\necho "pager LESS=$LESS"; wc -l\n' >"$TEST_TMP/pager" && chmod +x "$TEST_TMP/pager"
+out="$(env -i PATH=/usr/bin:/bin HOME="$home" TERM=dumb PAGER="$TEST_TMP/pager" \
+    script -qec "$tree/pgf help --all" /dev/null 2>&1 | tr -d '\r')"
+check "  on a terminal it goes through \$PAGER with LESS=FRX" \
+    bash -c 'grep -qx "pager LESS=FRX" <<<"$1" && grep -qx "$2" <<<"$1"' _ "$out" "$(wc -l <"$TEST_TMP/all")"
 
 echo "# hand-written comment" >>"$tree/.pgf.conf"
 penv setup --checkout --yes --no-link --no-completion >"$TEST_TMP/out2" 2>&1
@@ -346,13 +373,14 @@ check "build runs build.sh --isolated --yade with the extra options" grep -qx "b
 check "  in a bare env (user dir is the build root)" grep -qx "user=/keep" <<<"$out"
 out="$(root Allwmake --yade 2>/dev/null)"
 check "Allwmake is pgf build --all --no-DEM" grep -qx "build.sh --isolated --all --no-DEM --yade" <<<"$out"
-out="$(root Allwclean --purge 2>/dev/null)"
-check "Allwclean is pgf build clean --all" grep -qx "build.sh --isolated clean --all --purge" <<<"$out"
+out="$(root Allwclean --DEM 2>/dev/null)"
+check "Allwclean is pgf build clean --all" grep -qx "build.sh --isolated clean --all --DEM" <<<"$out"
+out="$(root Allwclean --help 2>/dev/null)"
+check "  its help says in one line it cleans the in-tree cache only" \
+    bash -c '[ "$(wc -l <<<"$1")" -eq 1 ] && grep -q "in-tree cache" <<<"$1" && grep -q "pgf gc" <<<"$1"' _ "$out"
 
-# the root shims (#274)
-out="$(root build.sh --print-key 2>"$TEST_TMP/err")"
-check "the build.sh shim forwards to utilities/pgf/build.sh" grep -qx "build.sh --print-key" <<<"$out"
-check "  and names the new command on stderr" grep -q "use: pgf build --print-key" "$TEST_TMP/err"
+# the root build.sh shim is gone (#288)
+check "no build.sh at the root" [ ! -e "$PGF_ROOT/build.sh" ]
 printf '#!/bin/sh\necho "test.sh $*"\n' >"$tree/utilities/pgf/test.sh"
 chmod +x "$tree/utilities/pgf/test.sh"
 out="$(penv test --status fast 2>/dev/null)"
@@ -390,9 +418,16 @@ check "exec without a command still refuses (rc=$?)" grep -q "no command given" 
 penv shell --prefix "$prefix" -c true -- true >/dev/null 2>"$TEST_TMP/err"
 check "shell refuses -c together with -- COMMAND" grep -q "not both" "$TEST_TMP/err"
 
+# wmake inside pgf shell would install into the cached prefix: refused (#288)
+penv shell --prefix "$prefix" -- wmake >/dev/null 2>"$TEST_TMP/err"
+check "wmake in pgf shell is refused (rc=$?)" grep -q "refusing wmake: it would install into the cached build" "$TEST_TMP/err"
+check "  and names pgf build" grep -q "run: pgf build" "$TEST_TMP/err"
+penv shell --prefix "$prefix" -- wmake -s libso "$TEST_TMP/case/dynamicCode/x" >/dev/null 2>"$TEST_TMP/err"
+check "  but a coded function's dynamicCode build passes through" bash -c '! grep -q "refusing wmake" "$1"' _ "$TEST_TMP/err"
+
 # pgf tools: one what / why / instead block per root tool
 penv tools >"$TEST_TMP/tools" 2>&1
-for t in pgf Allwmake Allwclean build.sh pgf-test; do
+for t in pgf Allwmake Allwclean pgf-test; do
     check "pgf tools explains $t" bash -c 'awk -v t="$2" "\$0 == t { f = 1; next } f && /^$/ { exit } f" "$1" |
         grep -c -E "^  (what|why|instead): " | grep -qx 3' _ "$TEST_TMP/tools" "$t"
 done

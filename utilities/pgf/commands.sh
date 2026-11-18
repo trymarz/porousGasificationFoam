@@ -537,7 +537,7 @@ pgf_config_cmd() {
 }
 
 # pgf_build_cmd [--yade] [pgf env options] [build.sh options] — build this tree
-#   into the shared store (build.sh --isolated); an identical build is reused.
+#   into the build store (build.sh --isolated); an identical build is reused.
 pgf_build_cmd() {
   local envopts=() bopts=() build=1
   while [ $# -gt 0 ]; do

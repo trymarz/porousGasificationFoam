@@ -18,7 +18,7 @@ cd applications/test/regression
 ./Allrun --run-root /scratch/r --keep-runs  # where the case copies go; keep passed ones too
 ```
 
-Exit `0` = every case passed; non-zero = at least one did not. A single case without the suite: `tools/runCase.sh tutorials/cases/canonical/pyrolysis [--no-run] [--run-dir D] [--rtol R] [--atol A]`. To run against an isolated build instead of the solver on your `PATH`, prefix the command with `./pgf shell --` (see [The build store](build.md#the-build-store)).
+Exit `0` = every case passed; non-zero = at least one did not. A single case without the suite: `tools/runCase.sh tutorials/cases/canonical/pyrolysis [--no-run] [--run-dir D] [--rtol R] [--atol A]`. Run it with the checkout's build by prefixing the command with `./pgf shell --` (see [Where things land](build.md#where-things-land)).
 
 `--case` accepts the `cases.list` path, a trailing part of it or the basename, and selects every tag unless `--tag` is also given.
 
@@ -42,7 +42,7 @@ The suite is green only if at least one case ran and every case passed. There is
 
 ### Tiers with `pgf test`
 
-`pgf test` runs a whole tier against the build of the checkout pgf runs from (see [The build store](build.md#the-build-store)) and remembers the result. The tiers are rows in `applications/test/tiers.conf`: driver, build variant, jobs, timeout, `pgf shell` flags, selection and cadence.
+`pgf test` runs a whole tier against the build of the checkout pgf runs from (see [Where things land](build.md#where-things-land)) and remembers the result. The tiers are rows in `applications/test/tiers.conf`: driver, build variant, jobs, timeout, `pgf shell` flags, selection and cadence.
 
 | Tier | Driver and selection | Variant | Jobs | Cadence |
 |---|---|---|---|---|
