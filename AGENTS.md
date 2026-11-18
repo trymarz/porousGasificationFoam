@@ -12,7 +12,7 @@ Also flag if the *Last verified* date below predates significant recent commits 
 
 ## Documentation split
 
-- **`README.md`** (short front page), **`doc/*.md`** and **`CONTRIBUTING.md`** — human-facing. Quick start and doc index in the README; build, case setup, tutorials, theory and regression testing in `doc/`; contribution workflow in `CONTRIBUTING.md`.
+- **`README.md`** (short front page), **`doc/*.md`** and **`CONTRIBUTING.md`** — human-facing. Quick start and doc index in the README; build, case setup, tutorials, troubleshooting, theory and regression testing in `doc/`; contribution workflow in `CONTRIBUTING.md`.
 - **`AGENTS.md`** (this file) — agent-operating instructions only.
 
 **Rule for new content**: if a fact is useful to *either* a human contributor *or* an agent, it goes in `README.md` or `doc/` (whichever fits; the README stays short and links out). Only put content in `AGENTS.md` when it is 100% agent-targeted and would be noise for a human reader (e.g. "pass git identity per-invocation rather than touching global config", "verify before claiming"). When in doubt, choose `README.md` — false positives there are cheap; missing facts are not.
@@ -139,7 +139,8 @@ When you need a load-bearing fact, go to `README.md` and `doc/` rather than re-d
 | Per-case input dictionaries (`chemistryProperties`, `solidThermophysicalProperties`, `radiationProperties`, `pyrolysisProperties`, `lambdaDict`, `heatTransferProperties`, `specieTransferProperties`, `porosityProperties`) | `doc/case-setup.md` → "Input File Reference" |
 | DEM `lambdaDict` keys, and which side owns `lambdaDot` vs `lambda` | `doc/case-setup.md` → "Input File Reference → `constant/lambdaDict`" |
 | Required `0/` fields and their meaning | `doc/case-setup.md` → "Required Initial Fields" |
-| Practical pitfalls (true vs bulk density, JANAF substitution, radiation calibration, time-step coupling, numerics symptoms) | `doc/case-setup.md` → "Tips for Preparing New Simulations" |
+| Practical pitfalls (true vs bulk density, JANAF substitution, radiation calibration, time-step coupling) | `doc/case-setup.md` → "Tips for Preparing New Simulations" |
 | Build targets and dependencies | `doc/build.md` |
+| Common failure modes | `doc/troubleshooting.md` |
 | Regression framework — hook a case, capture a baseline, run comparisons | `doc/regression-testing.md` |
 | GitHub Issues workflow — issue-per-plan creation, checkbox ticks, reconciliation, branch/PR linkage | "GitHub Issues Workflow" (this file) |

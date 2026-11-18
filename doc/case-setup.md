@@ -441,15 +441,6 @@ Gas-phase reactions are typically orders of magnitude faster than heterogeneous 
 - For slow heterogeneous processes, prefer chemistry mechanisms with the minimum gas-phase detail needed for the result you care about.
 - `maxCo`, `maxDi`, and `initialChemicalTimeStep` in `controlDict` / `chemistryProperties` interact — tightening any one of them can mask the actual bottleneck. Check the solver log for which limit is binding before tuning.
 
-### When the numbers go wrong
-
-| Symptom | Likely cause | What to try |
-|---|---|---|
-| Negative temperatures | Time step too large, or aggressive reaction parameters | Reduce `deltaT`, `maxCo`, `maxDi` or `initialChemicalTimeStep` |
-| Porosity above 1 or below 0 | Bed collapse too aggressive | Reduce `deltaT`, or adjust `solidRegimes/connectedAboveSolidFraction` in `pyrolysisProperties` |
-| Gas mass fractions do not sum to 1 | Missing `Ydefault` field, or a gas species without its `0/` file | Check that every gas species has a `0/` file, and that `0/Ydefault` exists |
-| Slow pressure convergence | Tight PIMPLE settings | Increase `nCorrectors`, or relax the `p` tolerance |
-
 ### Mesh and parallel execution
 
 - Run `setPorosity` (if used) **before** `decomposePar` — it operates on the reconstructed mesh.
@@ -466,5 +457,6 @@ Gas-phase reactions are typically orders of magnitude faster than heterogeneous 
 
 - [The pgf tool](pgf.md): settings, builds and runs.
 - [Viewing a case in ParaView](paraview.md): the case's views, comparing cases, PNGs.
+- [Troubleshooting](troubleshooting.md): symptoms, likely causes and fixes.
 - [Theory](theory.md): the model, its equations and where they live in the source.
 - [All documentation](README.md)
