@@ -137,6 +137,7 @@ def configure_case(case_dir: Path, spec: StudySpec) -> None:
     velocity_path.write_text(velocity_text, encoding="utf-8")
 
     # The copy is outside the checkout: point its dp expectation here, at this spec.
+    # The canonical Allruns quote the script path (#284), hence the optional quote.
     allrun_path = case_dir / "Allrun"
     expectation = (
         f"python3 {shlex.quote(str(Path(__file__).resolve()))} \\\n"
@@ -144,7 +145,7 @@ def configure_case(case_dir: Path, spec: StudySpec) -> None:
     )
     allrun_text = replace_required(
         allrun_path.read_text(encoding="utf-8"),
-        r"python3 \S*porousResistanceStudy\.py \\\n\s*--expect \. --df \S+ --forchheimer \S+",
+        r"python3 \S*porousResistanceStudy\.py\"? \\\n\s*--expect \. --df \S+ --forchheimer \S+",
         expectation.replace("\\", "\\\\"),
         "Allrun dp expectation",
     )
