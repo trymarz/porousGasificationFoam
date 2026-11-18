@@ -170,7 +170,12 @@ pgf_cmd test "run a test tier against the checkout's build" \
 pgf_cmd_desc test "Builds (or reuses) the tier's build, runs its cases and records the outcome
 in ~/.local/state/pgf/runs/last/<tier>.json. Tiers are in
 applications/test/tiers.conf: fast, convergence, dem. Exit 0 PASS, 1 FAIL,
-2 ERROR, 124 TIMEOUT."
+2 ERROR, 124 TIMEOUT.
+
+dem first checks yade (YADE_BIN, or yade on PATH) and refuses, before the
+build, one not built at the Foam-Yade pin or that does not say which commit
+built it: its baselines were made with the pin. PGF_YADE_OFF_PIN=1 runs it
+anyway with a WARN naming both commits."
 pgf_cmd_opt test --rebuild "delete the tier's build first, then build it again"
 pgf_cmd_opt test "--if-stale AGE" "run only when the last PASS is older than AGE or of other sources"
 pgf_cmd_opt test "--run-root DIR" "the run dir" '$PGF_RUN_ROOT/pgf-test-<tier>-<time>'
@@ -182,11 +187,13 @@ pgf_cmd_opt test --dry-run "with --gc: only list what would go"
 pgf_cmd_ex test "pgf test fast"
 pgf_cmd_ex test "pgf test fast --if-stale 7d"
 pgf_cmd_ex test "pgf test --status"
+pgf_cmd_ex test "PGF_YADE_OFF_PIN=1 pgf test dem" "with a yade off the pin, on purpose"
 
 pgf_cmd status "what pgf uses and where: files, the build, your case copies" "pgf status [PATH] [--json] [options]" "--json @env" dir
 pgf_cmd_desc status "One screen: the checkout pgf runs from and its branch, the settings files, the
 build store, the run records, scratch and the case root, the build pgf would
-use now and what chose it, that checkout's two builds (non-DEM, DEM), and your
+use now and what chose it, that checkout's two builds (non-DEM, DEM), the yade
+DEM runs would use against the Foam-Yade pin (when one is set or on PATH), and your
 case copies (pgf copy) per branch. With PATH, asks that checkout instead. Every setting
 with its layer: pgf config. pgf with no command runs status. Old name: where."
 pgf_cmd_opt status --json "every setting with its layer, and the builds, as JSON"

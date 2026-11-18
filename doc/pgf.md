@@ -64,9 +64,9 @@ It checks, in groups: OpenFOAM, the builds of the checkout pgf runs from, yade a
 ```text
 yade and DEM
   OK   yade ~/.local/bin/yade (Yade version: …), with MPI
-  WARN yade … was built from Foam-Yade d5c33e0, whose coupling API
-       differs from the pinned 287187f703: DEM runs would exchange wrong data
-       fix: rebuild yade from Foam-Yade 287187f703 (doc/build.md, …),
+  WARN yade … was built from Foam-Yade d5c33e0, 6 commits older than the
+       pin 287187f703; DEM results may differ from the dem baselines
+       fix: build yade at Foam-Yade 287187f703 (doc/build.md, …),
        then pgf config set YADE_BIN=<that yade>
 
 verdict: ready for non-DEM runs; DEM needs: a yade built from the Foam-Yade pin
