@@ -113,13 +113,13 @@ pgf_pack_fail() {
 }
 
 pgf_pack_cmd() {
-  local sel="" variant=yade1 out="" dry=0 commit meta trunk pin="" api="" ctx yver="" dirty again t0 dt
+  local sel="" variant=yade1 out="" dry=0 commit meta trunk pin="" api="" ctx yver="" dirty again="" t0 dt
   while [ $# -gt 0 ]; do
     case "$1" in
     --no-yade) variant=yade0 ;;
     --yade) variant=yade1 ;;
     --dry-run) dry=1 ;;
-    --output) out="${2:?--output needs a file}"; shift ;;
+    --output) out="${2:?--output needs a file}"; again+=" --output $2"; shift ;;
     -h | --help) pgf_pack_usage; return 0 ;;
     -*) st FAIL "unknown option $1" >&2; pgf_pack_usage >&2; return 2 ;;
     *) sel="$1" ;;
@@ -162,10 +162,10 @@ print(m.get("git_head") or "-", m.get("variant") or "-", int(bool((m.get("checko
     st INFO "build context $(pgf_tilde "$ctx")"
   } >&2
   if [ "$dry" -eq 1 ]; then
-    again="pgf pack${sel:+ $sel}$([ "$variant" = yade0 ] && echo " --no-yade") --output $(pgf_tilde "$out")"
+    again="pgf pack${sel:+ $sel}$([ "$variant" = yade0 ] && echo " --no-yade")$again"
     {
       st OK "wrote the image definition" "$(pgf_tilde "$ctx/pgf-pack.def")"
-      st INFO "dry run: built nothing; the context ($(du -sh "$ctx" | cut -f1)) stays until you remove it" "rm -r $(pgf_tilde "$ctx")"
+      st INFO "dry run: built nothing; the context ($(du -sh "$ctx" | cut -f1)) stays until you remove it" "(rm -r $(pgf_tilde "$ctx"))"
       st_next "$again" "build the image ($(pgf_pack_eta "$variant"))"
     } >&2
     return 0
