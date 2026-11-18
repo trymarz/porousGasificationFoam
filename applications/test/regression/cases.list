@@ -141,6 +141,15 @@ tutorials/cases/canonical/conservation/gasPressureWork              fast
 # within 1e-8. Before #226 YEqn left porosityF off R(Yi) and both were 2.5.
 tutorials/cases/canonical/conservation/gasReactionPorosity          fast
 
+# Radiation checks with no baseline: each Allrun compares against an exact
+# answer and writes '<case>: PASS' to its log.<case>. gasRadiativeEquilibrium is
+# a closed gas box with a = 1 that must hold 1000 K within 1e-2 K (#237; it
+# gained 85 K before). radiationGasSlab is a 1-D gas slab between black Marshak
+# walls, checked by slabCheck.py against the cosh solution for G and the wall
+# flux within 1e-3 (#238; 7.3e-3 and 1.08% before).
+tutorials/cases/canonical/conservation/gasRadiativeEquilibrium      fast  expectLog  ^gasRadiativeEquilibrium: PASS$
+tutorials/cases/canonical/radiationGasSlab                          fast  expectLog  ^radiationGasSlab: PASS$
+
 # Prescribed-Us solid-transport suite — Ycharm advection under analytic Us
 # fields (asserts the transported Ycharm and the porosityF recovered from it,
 # max(porosityF) included so an unbounded void fraction fails the tier).

@@ -7,7 +7,9 @@ runApplication $(getApplication)
 
 # Gas at radiative equilibrium must hold 1000 K (#237); before the fix it
 # gained 85 K.  It settles 1e-3 K low once (solver tolerance), then holds.
-python3 - <<'PY' || exit 1
+# The check writes log.gasRadiativeEquilibrium, which the fast tier's expectLog greps.
+L=log.gasRadiativeEquilibrium
+python3 - > $L 2>&1 <<'PY' || { cat $L >&2; exit 1; }
 import glob
 drift = 0.0
 for f in ("Min", "Max"):
@@ -17,4 +19,5 @@ for f in ("Min", "Max"):
 print(f"gasRadiativeEquilibrium: max |T - 1000 K| = {drift:.3e} K")
 raise SystemExit(0 if drift < 1e-2 else 1)
 PY
-echo "gasRadiativeEquilibrium: PASS"
+echo "gasRadiativeEquilibrium: PASS" >> $L
+cat $L
