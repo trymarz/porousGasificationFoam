@@ -101,9 +101,9 @@ check "  and a bad --color value is refused" grep -q "color takes auto, always o
 
 # help: one page per command, the same as <cmd> --help (#285)
 penv help >"$TEST_TMP/help" 2>&1
-check "pgf help has Usage, Description, the Settings/Build/Run/Other groups, Options, Examples, in order" \
-    bash -c '[ "$(grep -E "^(Usage|Description|[A-Za-z]+ Commands|Options|Examples):$" "$1" | tr "\n" " ")" = \
-        "Usage: Description: Settings Commands: Build Commands: Run Commands: Other Commands: Options: Examples: " ] && grep -q "^Use \"pgf help <command>\"" "$1"' _ "$TEST_TMP/help"
+check "pgf help has Usage, Description, the Settings/Build/Run/Other groups, Help Topics, Options, Examples, in order" \
+    bash -c '[ "$(grep -E "^(Usage|Description|[A-Za-z]+ Commands|Help Topics|Options|Examples):$" "$1" | tr "\n" " ")" = \
+        "Usage: Description: Settings Commands: Build Commands: Run Commands: Other Commands: Help Topics: Options: Examples: " ] && grep -q "^Use \"pgf help <command>\"" "$1"' _ "$TEST_TMP/help"
 check "  and pgf --help is the same page" cmp -s "$TEST_TMP/help" <(penv --help 2>&1)
 check "  the commands grouped as doc/pgf.md groups them" \
     [ "$(sed -n '/Commands:$/,/^$/s/^  \([a-z]*\) .*/\1/p' "$TEST_TMP/help" | tr '\n' ' ')" = \
@@ -127,7 +127,34 @@ check "pgf help where shows status's page, saying where is its old name" \
 check "run --help lists the environment options" bash -c '"$1" run --help | grep -qE "^  --use SEL +the build"' _ "$tree/pgf"
 check "config --help gives each key a meaning" bash -c '"$1" help config | grep -qE "^  PGF_MPI +Open MPI"' _ "$tree/pgf"
 penv help nosuch >/dev/null 2>"$TEST_TMP/err"
-check "help of an unknown command fails (rc=$?)" grep -q "unknown command 'nosuch'" "$TEST_TMP/err"
+check "help of an unknown command fails (rc=$?)" grep -q "unknown command or topic 'nosuch'" "$TEST_TMP/err"
+
+# help topics and help --all replace doc/pgf-reference.md (#280)
+penv help >"$TEST_TMP/help" 2>&1
+topics="$(sed -n '/^Help Topics:$/,/^$/s/^  \([a-z-]*\) .*/\1/p' "$TEST_TMP/help")"
+check "pgf help lists the topics: build-selection, run-record, environment" \
+    [ "$(tr '\n' ' ' <<<"$topics")" = "build-selection run-record environment " ]
+for t in $topics; do
+    check "pgf help $t is its page" bash -c '"$1" help "$2" | head -1 | grep -q "^pgf help $2: "' _ "$tree/pgf" "$t"
+done
+keep="$(sed -n 's/^ *for v in \(HOME .*\); do$/\1/p' "$tree/pgf")"
+check "the environment topic names every variable pgf keeps ($keep)" \
+    bash -c 'page="$("$1" help environment | tr "\n" " ")"; for v in $2 "PGF_\*" "YADE_\*"; do
+        grep -qw -- "$v" <<<"$page" || exit 1; done' _ "$tree/pgf" "$keep"
+check "  NO_COLOR among them" grep -qw NO_COLOR <<<"$keep"
+penv help --all >"$TEST_TMP/all" 2>&1
+check "help --all piped exits 0 and prints plain text" \
+    bash -c '[ "$2" -eq 0 ] && ! grep -q $'"'"'\e'"'"' "$1"' _ "$TEST_TMP/all" $?
+check "  starting with the pgf page" cmp -s <(head -n "$(wc -l <"$TEST_TMP/help")" "$TEST_TMP/all") "$TEST_TMP/help"
+for c in $(sed -n '/Commands:/,/^$/s/^  \([a-z]*\) .*/\1/p' "$TEST_TMP/help") completion; do
+    check "  with the page of $c" grep -q "^pgf $c: " "$TEST_TMP/all"
+done
+for t in $topics; do check "  and of the topic $t" grep -q "^pgf help $t: " "$TEST_TMP/all"; done
+printf '#!/bin/sh\necho "pager LESS=$LESS"; wc -l\n' >"$TEST_TMP/pager" && chmod +x "$TEST_TMP/pager"
+out="$(env -i PATH=/usr/bin:/bin HOME="$home" TERM=dumb PAGER="$TEST_TMP/pager" \
+    script -qec "$tree/pgf help --all" /dev/null 2>&1 | tr -d '\r')"
+check "  on a terminal it goes through \$PAGER with LESS=FRX" \
+    bash -c 'grep -qx "pager LESS=FRX" <<<"$1" && grep -qx "$2" <<<"$1"' _ "$out" "$(wc -l <"$TEST_TMP/all")"
 
 echo "# hand-written comment" >>"$tree/.pgf.conf"
 penv setup --checkout --yes --no-link --no-completion >"$TEST_TMP/out2" 2>&1

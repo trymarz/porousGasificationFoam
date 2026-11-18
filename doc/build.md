@@ -174,5 +174,4 @@ Output: `$WM_PROJECT_DIR/doc/Doxygen/html/index.html`. Needs `doxygen` and `grap
 
 - [The pgf tool](pgf.md): settings, builds and runs.
 - [Apptainer images](containers.md): `pgf pack`, an image of one commit for a server.
-- [pgf reference](pgf-reference.md): every setting, choosing a build, the run record, the clean environment.
 - [All documentation](README.md)

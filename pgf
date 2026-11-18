@@ -33,13 +33,19 @@ done
 set -- "${args[@]}"
 case "${PGF_COLOR:-auto}" in auto | always | never) ;; *) die "--color takes auto, always or never, not '$PGF_COLOR'" ;; esac
 
-# pgf_help [CMD] — the global help page, or CMD's.
+# pgf_help [CMD | TOPIC | --all] — the global help page, CMD's, TOPIC's, or all.
 pgf_help() {
   . "$PGF_LIB/ui.sh"
   . "$PGF_LIB/config.sh"
   . "$PGF_LIB/cli.sh"
   if [ -z "${1:-}" ]; then pgf_cli_help; exit 0; fi
-  pgf_cli_help_cmd "$1" || die "unknown command '$1' (see pgf help)"
+  if [ "$1" = --all ]; then
+    # Paged like man on a terminal; plain when piped.
+    if [ -t 1 ]; then pgf_cli_help_all | LESS="${LESS:-FRX}" ${PAGER:-less}; else pgf_cli_help_all; fi
+    exit 0
+  fi
+  pgf_cli_help_topic "$1" && exit 0
+  pgf_cli_help_cmd "$1" || die "unknown command or topic '$1' (see pgf help)"
   exit 0
 }
 
