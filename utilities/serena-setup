@@ -1,0 +1,143 @@
+#!/usr/bin/env bash
+# One-shot Serena setup for the PGF development environment.
+#
+#   utilities/serena-setup [--all] [--fresh] [TREE...]
+#
+# With no TREE it sets up the PGF worktree this script lives in. --all adds
+# every worktree of this repository that carries .serena/project.yml, and the
+# sibling repositories next to it ($SERENA_SIBLINGS, default "foamcli
+# Foam-Yade"). --fresh drops a tree's Serena cache before indexing it.
+#
+# What a tree gets depends on what it is:
+#   PGF worktree   core.hooksPath, lnInclude links (no compile),
+#                  compile_commands.json, Serena index
+#   Python repo    .serena/project.yml and .mcp.json when missing (kept out of
+#                  git through .git/info/exclude while the repo does not track
+#                  them), Serena index
+#   CMake C++      skipped for now: needs a compile database from a configured
+#                  build
+#
+# Serena itself is installed with `uv tool install` into ~/.local when missing.
+# Rerunning is safe: each step is skipped or cheap when already done.
+set -euo pipefail
+
+here=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+all=0 fresh=0 trees=()
+for a; do
+  case $a in
+    --all) all=1 ;;
+    --fresh) fresh=1 ;;
+    -h | --help) awk 'NR > 1 && !/^#/ {exit} NR > 1 {sub(/^# ?/, ""); print}' "$0"; exit 0 ;;
+    -*) echo "serena-setup: unknown option $a" >&2; exit 2 ;;
+    *) trees+=("$(cd "$a" && pwd)") ;;
+  esac
+done
+[ ${#trees[@]} -gt 0 ] || trees=("$here")
+if [ "$all" -eq 1 ]; then
+  while read -r k v; do
+    [ "$k" = worktree ] && [ -f "$v/.serena/project.yml" ] && trees+=("$v")
+  done < <(git -C "$here" worktree list --porcelain)
+  parent=$(dirname "$(git -C "$here" rev-parse --path-format=absolute --git-common-dir)")
+  parent=$(dirname "$parent")    # .bare/.git sits in the repository folder
+  for s in ${SERENA_SIBLINGS:-foamcli Foam-Yade}; do
+    [ -d "$parent/$s" ] && trees+=("$parent/$s")
+  done
+fi
+mapfile -t trees < <(printf '%s\n' "${trees[@]}" | awk '!seen[$0]++')
+
+say() { printf '\n== %s\n' "$*"; }
+
+# -- Serena -------------------------------------------------------------------
+export PATH="$PATH:$HOME/.local/bin"
+if ! command -v serena >/dev/null; then
+  command -v uv >/dev/null || { echo "serena-setup: needs uv (https://docs.astral.sh/uv/)" >&2; exit 1; }
+  say "installing Serena into ~/.local (uv tool)"
+  uv tool install -p 3.13 serena-agent
+fi
+echo "serena: $(command -v serena)"
+
+mcp_json='{
+  "mcpServers": {
+    "serena": {
+      "type": "stdio",
+      "command": "sh",
+      "args": ["-c", "PATH=\"$PATH:$HOME/.local/bin\" exec serena \"$@\"", "serena",
+               "start-mcp-server", "--context", "claude-code", "--project-from-cwd",
+               "--open-web-dashboard", "false"],
+      "env": { "SERENA_USAGE_REPORTING": "false" }
+    }
+  }
+}'
+
+# Keep a generated file out of git unless the repository tracks it.
+exclude() {
+  local t=$1 path=$2 ex
+  git -C "$t" ls-files --error-unmatch "$path" >/dev/null 2>&1 && return
+  ex=$(git -C "$t" rev-parse --path-format=absolute --git-path info/exclude)
+  mkdir -p "$(dirname "$ex")"
+  grep -qxF "/$path" "$ex" 2>/dev/null || echo "/$path" >>"$ex"
+}
+
+index() {
+  local t=$1
+  if [ "$fresh" -eq 1 ] && [ -d "$t/.serena/cache" ]; then
+    local old; old=$(mktemp -d "${TMPDIR:-/tmp}/serena-cache-old.XXXXXX")
+    mv "$t/.serena/cache" "$old/" && echo "old cache moved to $old"
+  fi
+  echo "indexing (minutes on a first run)..."
+  (cd "$t" && serena project index 2>&1) | grep -v IncludeCleaner | tail -3
+  return "${PIPESTATUS[0]}"
+}
+
+setup_pgf() {
+  local t=$1 hp dirs
+  if [ ! -f "$t/.serena/project.yml" ]; then
+    echo "skipped: this branch has no .serena/project.yml yet"; return
+  fi
+  hp=$(git -C "$t" config core.hooksPath || true)
+  if [ -z "$hp" ]; then
+    git -C "$t" config core.hooksPath utilities/githooks || return 1
+    echo "git hooks enabled (core.hooksPath)"
+  elif [ "$hp" != utilities/githooks ]; then
+    echo "note: core.hooksPath is '$hp', left as is"
+  fi
+  dirs=$(cd "$t" && find . -path ./submodules -prune -o -path ./tutorials -prune \
+           -o -name Make -type d -print | xargs -n1 dirname | sort)
+  echo "linking lnInclude/ ($(wc -w <<<"$dirs") components, no compile)"
+  # shellcheck disable=SC2086
+  (cd "$t" && ./pgf shell --bare -- sh -c 'for d; do wmakeLnInclude -update "$d" >/dev/null || exit 1; done' sh $dirs) || return 1
+  (cd "$t" && python3 utilities/gen-compile-commands.py --if-stale --report) || return 1
+  index "$t" || return 1
+  (cd "$t" && python3 utilities/gen-compile-commands.py --if-stale --report)
+}
+
+setup_python() {
+  local t=$1 name; name=$(basename "$t")
+  if [ ! -f "$t/.serena/project.yml" ]; then
+    serena project create --language python --name "$name" "$t" >/dev/null || return 1
+    sed -i 's/^read_only: false/read_only: true/' "$t/.serena/project.yml"
+    echo "wrote .serena/project.yml (python, read-only)"
+  fi
+  exclude "$t" .serena/
+  if [ ! -s "$t/.mcp.json" ]; then
+    printf '%s\n' "$mcp_json" >"$t/.mcp.json" && echo "wrote .mcp.json"
+  fi
+  exclude "$t" .mcp.json
+  index "$t"
+}
+
+status=0
+for t in "${trees[@]}"; do
+  say "$t"
+  if [ -x "$t/pgf" ] && [ -f "$t/utilities/gen-compile-commands.py" ]; then
+    setup_pgf "$t" || status=1
+  elif [ -f "$t/CMakeLists.txt" ]; then
+    echo "skipped: CMake C++ needs a compile database from a configured build (not supported yet)"
+  elif [ -f "$t/pyproject.toml" ] || [ -f "$t/setup.py" ]; then
+    setup_python "$t" || status=1
+  else
+    echo "skipped: not a tree this script knows"
+  fi
+done
+say "done$([ $status -eq 0 ] || echo ', with errors')"
+exit $status
