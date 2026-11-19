@@ -85,7 +85,7 @@ index() {
     mv "$t/.serena/cache" "$old/" && echo "old cache moved to $old"
   fi
   echo "indexing (minutes on a first run)..."
-  (cd "$t" && serena project index 2>&1) | grep -v IncludeCleaner | tail -3
+  (cd "$t" && serena project index 2>&1) | tr '\r' '\n' | grep -v -e IncludeCleaner -e '^Indexing' | tail -2
   return "${PIPESTATUS[0]}"
 }
 
@@ -118,12 +118,18 @@ setup_python() {
     sed -i 's/^read_only: false/read_only: true/' "$t/.serena/project.yml"
     echo "wrote .serena/project.yml (python, read-only)"
   fi
-  exclude "$t" .serena/
+  exclude "$t" .serena/ || return 1
+  exclude "$t" .mcp.json || return 1
+  index "$t" || return 1
   if [ ! -s "$t/.mcp.json" ]; then
-    printf '%s\n' "$mcp_json" >"$t/.mcp.json" && echo "wrote .mcp.json"
+    if [ -e "$t/.mcp.json" ] && [ ! -w "$t/.mcp.json" ]; then
+      # Claude Code's sandbox leaves such a placeholder to keep agents from adding MCP servers.
+      echo "error: $t/.mcp.json is an empty read-only placeholder; delete it and rerun" >&2
+      return 1
+    fi
+    printf '%s\n' "$mcp_json" >"$t/.mcp.json" || return 1
+    echo "wrote .mcp.json"
   fi
-  exclude "$t" .mcp.json
-  index "$t"
 }
 
 status=0

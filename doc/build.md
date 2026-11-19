@@ -171,12 +171,14 @@ git config core.hooksPath utilities/githooks   # once per clone; covers all its 
 
 `pgf build` relinks `lnInclude/`. A cached build compiles nothing and leaves it alone; then `./pgf shell --bare -- wmakeLnInclude -update <component dir>` adds the missing links.
 
-Claude Code sessions in this repository also start [Serena](https://github.com/oraios/serena) (`.mcp.json`, `.serena/project.yml`), which gives the agent symbol lookups over the same database. Install it once per machine and index each worktree once:
+Claude Code sessions in this repository also start [Serena](https://github.com/oraios/serena) (`.mcp.json`, `.serena/project.yml`), which gives the agent symbol lookups over the same database. One command sets it up; rerun it in any worktree that was never built or indexed:
 
 ```bash
-uv tool install -p 3.13 serena-agent    # needs uv; puts serena in ~/.local/bin
-serena project index                    # in the worktree, after gen-compile-commands.py
+utilities/serena-setup          # this worktree
+utilities/serena-setup --all    # every worktree with Serena config, plus ../foamcli and ../Foam-Yade
 ```
+
+It installs Serena with `uv tool install` into `~/.local` when missing, enables the git hooks, links `lnInclude/` without compiling, writes `compile_commands.json` and indexes the worktree (minutes on a first run). A Python repository such as foamcli gets a local Serena config (`.serena/`, `.mcp.json`, kept out of git) and an index. Foam-Yade is skipped for now: its CMake builds do not export a compile database. `--fresh` rebuilds an index from scratch.
 
 Serena runs locally and calls no AI service; it hands clangd's answers to the agent. Its first start downloads clangd into `~/.serena`. `.mcp.json` turns off its anonymous usage ping and keeps its web dashboard from opening a browser; the dashboard (logs and tool calls) stays reachable on 127.0.0.1 and checks for Serena updates.
 
