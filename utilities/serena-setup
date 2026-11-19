@@ -182,6 +182,7 @@ json.dump(db, open(dst, "w"), indent=1)
 print(f"compile_commands.json: {len(db)} entries")
 EOF
   exclude "$t" compile_commands.json || return 1
+  exclude "$t" .cache/ || return 1    # clangd's background index
   setup_local "$t" cpp
 }
 
