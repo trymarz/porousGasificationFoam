@@ -1,46 +1,62 @@
 #!/usr/bin/env bash
 # One-shot Serena setup for the PGF development environment.
 #
-#   utilities/serena-setup [--all] [--fresh] [TREE...]
+#   utilities/serena-setup [--all] [--with REPO]... [--with-submodules] [--fresh] [TREE...]
 #
 # With no TREE it sets up the PGF worktree this script lives in. --all adds
-# every worktree of this repository that carries .serena/project.yml, and the
-# sibling repositories next to it ($SERENA_SIBLINGS, default "foamcli
-# Foam-Yade"). --fresh drops a tree's Serena cache before indexing it.
+# every worktree of this repository that carries .serena/project.yml.
+# --with REPO adds a sibling repository next to this one (foamcli, Foam-Yade);
+# siblings are only set up when asked for. --with-submodules also sets up each
+# PGF worktree's checked-out submodules (submodules/Foam-Yade) as trees of
+# their own; empty ones are skipped. --fresh drops a tree's Serena cache
+# before indexing it.
 #
 # What a tree gets depends on what it is:
 #   PGF worktree   core.hooksPath, lnInclude links (no compile),
 #                  compile_commands.json, Serena index
+#   CMake C++      a configure-only CMake run (no compile) in
+#                  ~/.cache/serena-setup, whose compile database is copied to
+#                  the tree's root with GCC-only flags removed; then as below
+#                  with language cpp. YADE trees (Foam-Yade) are configured as
+#                  in pgf's container recipe; $SERENA_CMAKE_ARGS adds options.
+#                  Rerun after adding or removing sources: there are no hooks.
 #   Python repo    .serena/project.yml and .mcp.json when missing (kept out of
 #                  git through .git/info/exclude while the repo does not track
 #                  them), Serena index
-#   CMake C++      skipped for now: needs a compile database from a configured
-#                  build
 #
 # Serena itself is installed with `uv tool install` into ~/.local when missing.
 # Rerunning is safe: each step is skipped or cheap when already done.
 set -euo pipefail
 
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-all=0 fresh=0 trees=()
-for a; do
+all=0 fresh=0 subs=0 trees=() with=()
+while [ $# -gt 0 ]; do
+  a=$1; shift
   case $a in
     --all) all=1 ;;
+    --with) [ $# -gt 0 ] || { echo "serena-setup: --with needs a repository name" >&2; exit 2; }
+            with+=("$1"); shift ;;
+    --with=*) with+=("${a#--with=}") ;;
+    --with-submodules) subs=1 ;;
     --fresh) fresh=1 ;;
     -h | --help) awk 'NR > 1 && !/^#/ {exit} NR > 1 {sub(/^# ?/, ""); print}' "$0"; exit 0 ;;
     -*) echo "serena-setup: unknown option $a" >&2; exit 2 ;;
     *) trees+=("$(cd "$a" && pwd)") ;;
   esac
 done
-[ ${#trees[@]} -gt 0 ] || trees=("$here")
+[ ${#trees[@]} -gt 0 ] || [ "$all" -eq 1 ] || trees=("$here")
 if [ "$all" -eq 1 ]; then
+  trees+=("$here")
   while read -r k v; do
     [ "$k" = worktree ] && [ -f "$v/.serena/project.yml" ] && trees+=("$v")
   done < <(git -C "$here" worktree list --porcelain)
+fi
+if [ ${#with[@]} -gt 0 ]; then
   parent=$(dirname "$(git -C "$here" rev-parse --path-format=absolute --git-common-dir)")
   parent=$(dirname "$parent")    # .bare/.git sits in the repository folder
-  for s in ${SERENA_SIBLINGS:-foamcli Foam-Yade}; do
-    [ -d "$parent/$s" ] && trees+=("$parent/$s")
+  for s in "${with[@]}"; do
+    [ -d "$parent/$s" ] || { echo "serena-setup: no repository $parent/$s" >&2; exit 2; }
+    trees+=("$parent/$s")
   done
 fi
 mapfile -t trees < <(printf '%s\n' "${trees[@]}" | awk '!seen[$0]++')
@@ -111,12 +127,13 @@ setup_pgf() {
   (cd "$t" && python3 utilities/gen-compile-commands.py --if-stale --report)
 }
 
-setup_python() {
-  local t=$1 name; name=$(basename "$t")
+# A repository that does not carry Serena config itself gets a local one.
+setup_local() {
+  local t=$1 lang=$2 name; name=$(basename "$t")
   if [ ! -f "$t/.serena/project.yml" ]; then
-    serena project create --language python --name "$name" "$t" >/dev/null || return 1
+    serena project create --language "$lang" --name "$name" "$t" >/dev/null || return 1
     sed -i 's/^read_only: false/read_only: true/' "$t/.serena/project.yml"
-    echo "wrote .serena/project.yml (python, read-only)"
+    echo "wrote .serena/project.yml ($lang, read-only)"
   fi
   exclude "$t" .serena/ || return 1
   exclude "$t" .mcp.json || return 1
@@ -132,15 +149,68 @@ setup_python() {
   fi
 }
 
+# Configure only, outside the tree, then copy the compile database into it.
+setup_cmake() {
+  local t=$1 bd args=() gcc_inc
+  command -v cmake >/dev/null || { echo "error: needs cmake" >&2; return 1; }
+  bd="${XDG_CACHE_HOME:-$HOME/.cache}/serena-setup/$(printf %s "${t#/}" | tr / %)"
+  [ -d "$t/core" ] && [ -d "$t/pkg/dem" ] &&
+    args=(-DENABLE_GUI=OFF -DNOSUFFIX=ON -DCMAKE_BUILD_TYPE=Release)   # YADE
+  # shellcheck disable=SC2206
+  args+=(${SERENA_CMAKE_ARGS:-})
+  echo "configuring with cmake (no compile) in $bd"
+  mkdir -p "$bd"
+  if ! cmake -S "$t" -B "$bd" -DCMAKE_EXPORT_COMPILE_COMMANDS=ON "${args[@]}" >"$bd/configure.log" 2>&1; then
+    tail -5 "$bd/configure.log" >&2
+    echo "error: cmake configure failed; full log: $bd/configure.log" >&2
+    return 1
+  fi
+  # clangd rejects GCC-only flags and lacks GCC's own headers (quadmath.h).
+  gcc_inc=$(c++ -print-file-name=include 2>/dev/null || true)
+  python3 - "$bd/compile_commands.json" "$t/compile_commands.json" "$gcc_inc" <<'EOF' || return 1
+import json, os, shlex, sys
+src, dst, gcc_inc = sys.argv[1:]
+drop = {"-fdce", "-ftrack-macro-expansion=0", "-save-temps", "-frounding-math"}
+db = json.load(open(src))
+for e in db:
+    args = e.pop("arguments", None) or shlex.split(e.pop("command"))
+    args = [a for a in args if a not in drop]
+    if os.path.isdir(gcc_inc):
+        args[1:1] = ["-idirafter", gcc_inc]
+    e["arguments"] = args
+json.dump(db, open(dst, "w"), indent=1)
+print(f"compile_commands.json: {len(db)} entries")
+EOF
+  exclude "$t" compile_commands.json || return 1
+  setup_local "$t" cpp
+}
+
+# Checked-out submodules of a PGF worktree, as extra trees.
+submodules() {
+  local t=$1 k p
+  [ -f "$t/.gitmodules" ] || return 0
+  git -C "$t" config -f .gitmodules --get-regexp '\.path$' | while read -r k p; do
+    if [ -e "$t/$p/.git" ]; then echo "$t/$p"
+    else echo "note: $t/$p is not checked out (git submodule update --init $p); skipped" >&2
+    fi
+  done
+}
+
 status=0
 for t in "${trees[@]}"; do
   say "$t"
   if [ -x "$t/pgf" ] && [ -f "$t/utilities/gen-compile-commands.py" ]; then
     setup_pgf "$t" || status=1
+    if [ "$subs" -eq 1 ]; then
+      while read -r s; do
+        say "$s"
+        setup_cmake "$s" || status=1
+      done < <(submodules "$t")
+    fi
   elif [ -f "$t/CMakeLists.txt" ]; then
-    echo "skipped: CMake C++ needs a compile database from a configured build (not supported yet)"
+    setup_cmake "$t" || status=1
   elif [ -f "$t/pyproject.toml" ] || [ -f "$t/setup.py" ]; then
-    setup_python "$t" || status=1
+    setup_local "$t" python || status=1
   else
     echo "skipped: not a tree this script knows"
   fi

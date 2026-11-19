@@ -174,11 +174,17 @@ git config core.hooksPath utilities/githooks   # once per clone; covers all its 
 Claude Code sessions in this repository also start [Serena](https://github.com/oraios/serena) (`.mcp.json`, `.serena/project.yml`), which gives the agent symbol lookups over the same database. One command sets it up; rerun it in any worktree that was never built or indexed:
 
 ```bash
-utilities/serena-setup          # this worktree
-utilities/serena-setup --all    # every worktree with Serena config, plus ../foamcli and ../Foam-Yade
+utilities/serena-setup                                  # this worktree
+utilities/serena-setup --all                            # every worktree with Serena config
+utilities/serena-setup --with foamcli --with Foam-Yade  # also these sibling repositories
+utilities/serena-setup --with-submodules                # also submodules/Foam-Yade, if checked out
 ```
 
-It installs Serena with `uv tool install` into `~/.local` when missing, enables the git hooks, links `lnInclude/` without compiling, writes `compile_commands.json` and indexes the worktree (minutes on a first run). A Python repository such as foamcli gets a local Serena config (`.serena/`, `.mcp.json`, kept out of git) and an index. Foam-Yade is skipped for now: its CMake builds do not export a compile database. `--fresh` rebuilds an index from scratch.
+It installs Serena with `uv tool install` into `~/.local` when missing, enables the git hooks, links `lnInclude/` without compiling, writes `compile_commands.json` and indexes the worktree (minutes on a first run). `--fresh` rebuilds an index from scratch.
+
+Sibling repositories are set up only when named with `--with`, or given by path. They get a local Serena config (`.serena/`, `.mcp.json`, kept out of git through `.git/info/exclude`) and an index. A Python repository such as foamcli needs nothing else. A CMake repository such as Foam-Yade gets a configure-only CMake run (no compile, about 10 s) in `~/.cache/serena-setup/`; its compile database goes to the repository's root without the GCC-only flags clangd rejects. YADE is configured as in the container recipe (`-DENABLE_GUI=OFF`); `SERENA_CMAKE_ARGS` adds options. These repositories have no freshness hooks, so rerun the command after adding or removing sources there.
+
+`--with-submodules` treats each PGF worktree's checked-out `submodules/Foam-Yade` the same way, as a project of its own (its excludes go to the submodule's git directory); a submodule that is not checked out is skipped with a note. The worktree's own index still ignores `submodules/`, so a session started in the worktree does not see YADE symbols; start one in the submodule for that.
 
 Serena runs locally and calls no AI service; it hands clangd's answers to the agent. Its first start downloads clangd into `~/.serena`. `.mcp.json` turns off its anonymous usage ping and keeps its web dashboard from opening a browser; the dashboard (logs and tool calls) stays reachable on 127.0.0.1 and checks for Serena updates.
 
