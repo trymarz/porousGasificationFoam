@@ -127,13 +127,15 @@ Solved for internal energy `e`, the pressure work `− ε ∂p/∂t` becomes `�
 
 ### Gas–solid exchange
 
-**Mass.** Mass moves between solid and gas only through the solid reactions. Their rates, in kg per m³ of cell per second:
+**Mass.** Gas and solid exchange mass only through the solid reactions. A solid reaction may have solid and gas species on both sides: solid and gas reactants turn into solid and gas products. For example, in gasification, char reacts with a gasifying agent such as O₂ or CO₂ to give gases; in pyrolysis, wood gives char and volatiles. Each reaction must conserve mass; this is checked when it is read.
 
-- `S_ρ,i` (`RRg(i)`): gas species `i` released by the solid (> 0, a product) or taken up by it (< 0, a gasifying agent). It is 0 for species in no solid reaction.
-- `S_ρ = Σᵢ S_ρ,i` (`Srho`): the net gas mass gained.
-- `R_k` (`RRs(k)`): the change in the mass of solid species `k`.
+The solid chemistry reports this per cell as three rates, each in kg per m³ of cell per second:
 
-They are step means of one chemistry ODE per cell, computed once at the start of the solid step; the gas equations and the solid species equation then use the same values. What a rate is per, how it is split among species, what the ODE state is and what stays frozen are in the `Description` of `ODESolidHeterogeneousChemistryModel.H` (#209; paper Eq. 4–6, 10, 12).
+- `R_k` (code: `RRs(k)`): how fast solid species `k` is made (> 0) or consumed (< 0). It drives the solid species equation.
+- `S_ρ,i` (code: `RRg(i)`): how fast gas species `i` enters the gas as a product (> 0) or leaves the gas as a reactant (< 0). It is 0 for gas species that take part in no solid reaction. It drives the gas species equation.
+- `S_ρ = Σᵢ S_ρ,i` (code: `Srho`): the net gas mass gained. It drives the gas continuity equation.
+
+All three come from one chemistry ODE per cell, integrated over the time step at the start of the solid step; they are the mean rates over that step. The gas and solid equations then use the same values, so both sides see one consistent exchange. For more detail, such as what each rate is normalised by, how it is split among species and which quantities stay fixed while the ODE is integrated, see the `Description` at the top of `ODESolidHeterogeneousChemistryModel.H` (#209; paper Eq. 4–6, 10, 12).
 
 **Heat.**
 
@@ -152,13 +154,13 @@ $$
 
 ### Solid
 
-**Species** (`SolidSpeciesTransport::solve`; paper 3a without the transport term)
+**Species** (`SolidSpeciesTransport::solve`; paper Eq. 3a plus solid advection, which the paper does not have). `Ym_k` is the mass of solid species `k` per m³ of cell. It changes through the solid reactions (`R_k`) and, when the solid moves, through the solid flux `φ_s`:
 
 $$
 {\color{blue}\frac{\partial\,\mathrm{Ym}_k}{\partial t}} + {\color{orange}\nabla\cdot(\varphi_s\,\mathrm{Ym}_k)} = {\color{red}R_k}
 $$
 
-`φ_s` is the solid flux after limiting (`solidFluxLimiter`), so `Ym` stays physical when solid moves.
+`φ_s` is limited (`solidFluxLimiter`) so that no cell gives away more solid than it holds, which keeps `Ym` non-negative.
 
 **Porosity** (`PorosityRecovery::updatePorosity`). Not transported; derived from the solid mass each step. Nearly empty (flipped) cells are cleared only with `bedCollapse`, which moves the column onto them, or with `emptyFlippedCells`, which destroys their mass; both are off by default, and then their solid stays ([solid-step.md](solid-step.md), stages 9–10).
 
