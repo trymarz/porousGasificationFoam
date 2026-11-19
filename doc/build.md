@@ -178,7 +178,7 @@ uv tool install -p 3.13 serena-agent    # needs uv; puts serena in ~/.local/bin
 serena project index                    # in the worktree, after gen-compile-commands.py
 ```
 
-Serena runs locally and calls no AI service; it hands clangd's answers to the agent. `.mcp.json` turns off its usage ping and its web dashboard (which fetches a news feed and checks PyPI), so it makes no network calls. Its first start downloads clangd into `~/.serena`.
+Serena runs locally and calls no AI service; it hands clangd's answers to the agent. Its first start downloads clangd into `~/.serena`. `.mcp.json` turns off its anonymous usage ping and keeps its web dashboard from opening a browser; the dashboard (logs and tool calls) stays reachable on 127.0.0.1 and checks for Serena updates.
 
 `.mcp.json` finds `serena` on `PATH` or in `~/.local/bin`. Claude Code asks once per project to approve the server. A session opened at the bare repository's root, outside every worktree, has no `.mcp.json` and so no Serena. Every worktree's project is named `porousGasificationFoam`; Serena finds it by path, so worktrees can be open side by side.
 
