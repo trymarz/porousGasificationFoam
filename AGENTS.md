@@ -109,6 +109,20 @@ automatically — don't link it by hand. That auto-generated branch name
 "item closed → Done" workflow rule then moves the card to `Done`
 automatically — no manual board edit needed.
 
+## Code navigation (Serena)
+
+For C++ definitions, callers, subclasses and a file's structure, use the Serena tools first (`find_symbol`,
+`find_referencing_symbols`, `find_implementations`, `get_symbols_overview`); read only the bodies you need.
+Fall back to Grep/Read when they return nothing.
+
+Use Grep for strings, dictionary keys, run-time selection names (`TypeName`, `addToRunTimeSelectionTable`),
+macros and non-C++ files. Serena cannot see these, nor code under `#ifdef WITH_YADE` (normal-variant index).
+
+Name paths: a method defined in a `.C` is `Class::method`; a leading `/Foam/...` separates a class from its
+constructors; `get_symbols_overview` on a `.C` needs `depth=3`. Hook lines starting `gen-compile-commands:`
+(session start, after edits) report the database and `lnInclude/`; act on a WARNING before trusting results.
+After adding, renaming or deleting sources with Bash (`git mv`, `del`), run `utilities/gen-compile-commands.py --if-stale`.
+
 ## Verification habits
 
 - **Before claiming a file, symbol, or flag exists, verify it.** Grep or read the file. Memory and prior conversation context are not authoritative; the current tree is.

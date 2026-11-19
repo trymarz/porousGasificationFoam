@@ -1,0 +1,28 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PROJECT_DIR}/utilities/gen-compile-commands.py\" --root \"${CLAUDE_PROJECT_DIR}\" --claude-hook session-start",
+            "timeout": 90
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PROJECT_DIR}/utilities/gen-compile-commands.py\" --root \"${CLAUDE_PROJECT_DIR}\" --claude-hook post-tool-use",
+            "timeout": 90
+          }
+        ]
+      }
+    ]
+  }
+}
