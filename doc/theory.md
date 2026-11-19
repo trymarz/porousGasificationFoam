@@ -1,225 +1,193 @@
 # Theory
 
-What the solver models and where each piece lives in the source. The equations are short-form summaries checked against the code, with the model first described in [Żuk et al. 2022](https://doi.org/10.1016/j.cpc.2022.108407) (CPC 278, 108407). **If this page and the code differ, the code wins** — its comments and the files named below are authoritative.
+What the solver models and where each piece lives in the source. The equations are short-form summaries checked against the code, with the model first described in [Żuk et al. 2022](https://doi.org/10.1016/j.cpc.2022.108407) (CPC 278, 108407); reaction kinetics, diffusive resistance, reaction enthalpies, heat-transfer correlations and the radiation models are described there (§2.2–2.4) and in the source. **If this page and the code differ, the code wins** — please open an issue or PR.
 
-The paper treats the solid as a fixed bed. The solver now also moves the solid and derives porosity from the solid mass, so the solid equations below differ from the paper's (3a–3c).
+In the paper the solid stays in place, and its porosity changes through a chemistry source term. Here the solid can move with the velocity `Us`, and porosity is recomputed each step from the solid mass in the cell. The solid equations below therefore differ from the paper's (3a–3c).
 
 ## Model overview
 
-Gas and solid coexist in every cell, split by the porosity `ε` (`porosityF`): `ε = 1` is pure gas, `ε = 0` pure solid, in between a porous medium holding both. Phases exchange mass, momentum and energy through source terms from the solid chemistry.
+Each cell holds gas and solid in proportions set by the porosity `ε` (`porosityF`): `ε = 1` is pure gas, `ε = 0` pure solid, and anything in between is a porous medium. The solid chemistry passes mass and energy between solid and gas. Momentum goes one way only: the solid slows the gas through the Darcy–Forchheimer resistance, while the gas does not push the solid, whose velocity `Us` is given in `0/Us` or comes from DEM. Gas released by the solid brings no momentum with it.
 
-| Symbol | Field / name | Meaning |
+## Notation
+
+| Symbol | Field | Meaning |
 |---|---|---|
 | `ε` | `porosityF` | gas volume fraction |
-| `ρ`, `φ` | `rho`, `phi` | gas density, gas mass flux |
-| `Yᵍᵢ` | `<gasName>` | gas species mass fractions |
-| `T`, `Tₛ` | `T`, `Ts` | gas and solid temperature |
-| `Ymₖ` | `Ym` (per solid component) | solid mass per **cell** volume [kg/m³] |
-| `ρₛ`, `Ysₖ` | `rhos`, `Y<solidName>` | solid density, solid mass fractions |
-| `Uₛ`, `φₛ` | `Us`, `phiSolid` | solid velocity, limited solid volume flux |
+| `ρ_g` | `rho` | gas density |
+| `φ_g` | `phi` | gas mass flux |
+| `Y_g,i` | `<gasName>` | gas species mass fractions |
+| `T_g`, `T_s` | `T`, `Ts` | gas, solid temperature |
+| `Ymₖ` | `Ym` | solid mass per **cell** volume [kg/m³], one per solid specie |
+| `Ysₖ` | `Y<solidName>` | solid mass fractions |
+| `ρ_s,k` | `rho` | skeletal density of solid specie `k` |
+| `ρ_s` | `rhos` | skeletal density of the solid mixture |
+| `ρ_app,k` | `rhoApparent` | apparent density of solid specie `k` |
+| `U_s` | `Us` | solid velocity |
+| `φ_s` | `phiSolid` | limited solid volume flux |
+
+- **Densities.** Skeletal is the material without its pores; apparent is a particle's mass over its envelope volume, pores included. Both are per-specie entries in `solidThermophysicalProperties`; `rhoApparent` is optional and only `lambdaMode apparentVolume` reads it. The bulk density is `ρ_s (1 − ε)`.
+- **Solid velocity.** `U_s` is prescribed in `0/Us` (fixed in time) or, with DEM, interpolated from `UsDEM`, the raw cell mean of the particle velocities (`interpolationMode` in `constant/lambdaDict`). No equation solves for it. The solid actually moves with `φ_s`: the volume flux of `U_s`, scaled down so no cell gives more solid than it holds or takes more than it has room for.
+
+## Models at a glance
+
+| Model | Configured in | Implemented in |
+|---|---|---|
+| Gas flow | `thermophysicalProperties`, `turbulenceProperties` | `{rho,U,Y,E,p,pc}Eqn.H` |
+| Gas reactions | `combustionProperties`, `chemistryProperties`, `reactions` | OpenFOAM `CombustionModel` |
+| Darcy–Forchheimer | `0/Df`, `porosityProperties` | `fieldPorosityModel/` |
+| Solid chemistry | `chemistryProperties`, `reactions`, `solidThermophysicalProperties` | `porousSolidChemistryModel/` |
+| Diffusion limit | `specieTransferProperties` | `specieTransfer/` |
+| Solid transport, porosity | `0/Us`, `pyrolysisProperties`, `system/fvSchemes` | `solidSpeciesTransport/`, `solidFluxLimiter/`, `porosityRecovery/` |
+| Solid energy | `solidThermophysicalProperties`, `0/anisotropyK` | `solidEnergy/` |
+| Gas–solid heat | `heatTransferProperties` | `heatTransfer/`, `gasSolidHeatExchange/` |
+| Radiation | `radiationProperties` | `heterogeneousRadiationModels/` |
+| DEM coupling | `lambdaDict`, `yadeProperties` | `DEM/`, `demCoupling/` |
+
+- **Paths.** Inputs are in `constant/` unless they start with `0/` or `system/`. The `*Eqn.H` files are in `porousGasificationFoam/`. Model folders are under `porousGasificationMedia/`, and the solid-step ones under its `pyrolysisModels/pyrolysisModel/volPyrolysis/`. `volPyrolysis.C` there runs the solid step. Keys: [case-setup.md](case-setup.md#input-file-reference).
+- **Gas reactions.** These are the `R_hom,i` and `Q̇_chem` terms. Each enters multiplied by `ε` (`YEqn.H`, `EEqn.H`).
+- **Optional inputs.** `porosityProperties` (default Darcy only), `0/anisotropyK` (default identity), and `specieTransferProperties`, which is read only when `diffusionLimitedReactions` is on in `chemistryProperties`.
+- **Solid transport.** `pyrolysisProperties` → `pyrolysisCoeffs` holds the limiter and bed switches. The `div(phiSolid)` entry is in `system/fvSchemes`.
+- **DEM coupling.** Needs a `WITH_YADE` build; see [DEM coupling](theory-DEM.md).
 
 ## Per-time-step flow
 
-The loop is `porousGasificationFoam/porousGasificationFoam.C`; each step is an `#include` or call.
+The time loop in `porousGasificationFoam/porousGasificationFoam.C`:
 
-1. **Time step** — the Courant (gas) and diffusion (solid) limits give `deltaT` (`setMultiRegionDeltaT.H`). The chemistry's ODE time scale does not limit it. Only with `solidChemistryTimeStepControl true` in `chemistryProperties` (default `false`) does `updateChemistryTimeStep.H` cut `deltaT` further: when, in the last chemistry solve, a specie's mass fraction reached 0 or 1, to about the time it took to get there (`ODESolidHeterogeneousChemistryModel::updateSolidRates`, `updateGasRates`).
-2. **DEM coupling** (only with `WITH_YADE`) — particle state is exchanged with YADE; `Us` and `lambda` are rebuilt from it and `lambdaDot` is pushed back (`DEM/lambdaDotModel.C`): a rate YADE integrates, or under `apparentVolume` a factor `r` it applies once.
-3. **Radiation** — updates the solid radiative source (`radiation.H`, `radiationModels/`).
-4. **Solid region, `pyrolysisZone.evolve()`** (`volPyrolysis::evolveRegion()`), in this order: chemistry ODE and gas-solid exchange, both from the step-start state; solid-flux limit; solid species transport (`SolidSpeciesTransport::solve`); solid enthalpy balance on the new mass, solved for `Ts` (`SolidEnergy::solve`); one classification of the post-step state into the solid regimes, which sets the next step's gate and drives the trace and dispersed rules on `Ts` (`SolidState::classify`, `SolidEnergy::finishStep`); the DEM `lambdaDot` temperature term; porosity from the solid mass, bed collapse or emptying of flipped cells, their checks, and the solid masks, reclassified only where the bed motion rewrote cells (`PorosityRecovery`, `volPyrolysis::moveBed`, `checkPorosity`, `updateSolidState`). Each stage, with its kind, the fields it reads and writes and its checks: [solid-step.md](solid-step.md).
+```
+for each time step:
+    choose Δt              # gas Courant and solid diffusion limits;
+                           # optionally capped by the solid chemistry
+    exchange with DEM      # WITH_YADE builds only
+    update radiation
+    solid step:
+        chemistry and gas–solid heat exchange, from the step-start state
+        limit the solid flux
+        transport the solid species
+        solve the solid energy for T_s
+        classify cells: connected / dispersed / trace
+        DEM λ temperature term
+        porosity from the solid mass; collapse or empty the bed
+    gas continuity
+    PIMPLE loop:
+        momentum, species, energy
+        pressure correctors
+    turbulence
+```
+
+1. **Time step** — the gas Courant and solid diffusion limits set Δt (`setMultiRegionDeltaT.H`); with local time stepping (LTS) `setRDeltaT.H` sets a local Δt instead. With `adjustTimeStep` and `solidChemistryTimeStepControl` both on, `updateChemistryTimeStep.H` also caps Δt by about the time a specie's mass fraction took to reach 0 or 1 in the last chemistry solve.
+2. **DEM exchange** — particle data from YADE rebuild `Us` and `lambda`; `lambdaDot` goes back to YADE (`DEM/lambdaDotModel.C`, [DEM coupling](theory-DEM.md)).
+3. **Radiation** — updates the solid radiative source (`radiation.H`).
+4. **Solid step** — `pyrolysisZone.evolve()` (`volPyrolysis::evolveRegion()`) runs the stages in the order shown. Each stage, with the fields it reads and writes and its checks: [solid-step.md](solid-step.md).
 5. **Gas continuity** — `rhoEqn.H`.
-6. **PIMPLE loop** — momentum `UEqn.H`, species `YEqn.H`, energy `EEqn.H`, pressure `pEqn.H` or `pcEqn.H` (`pimple.consistent()`).
-7. **Turbulence** — `turbulence->correct()`.
-
-## Model → input → source
-
-| Model | Input | Source |
-|---|---|---|
-| Gas continuity, momentum, species, energy | `constant/thermophysicalProperties`, `turbulenceProperties`, `0/` fields | `porousGasificationFoam/{rhoEqn,UEqn,YEqn,EEqn,pEqn,pcEqn}.H` |
-| Darcy–Forchheimer resistance | `0/Df`, `constant/porosityProperties` (optional) | `fieldPorosityModel/` |
-| Solid chemistry (sources `R`) | `constant/chemistryProperties`, `reactions`, `solidThermophysicalProperties` | `thermophysicalModels/porousSolidChemistryModel/`, `volPyrolysis.C` |
-| Solid transport, porosity | `0/Us`, `div(phiSolid)` in `system/fvSchemes` | `solidSpeciesTransport/`, `porosityRecovery/`, `solidFluxLimiter/` |
-| Solid energy, gas–solid heat exchange | `solidThermophysicalProperties`, `heatTransferProperties` | `volPyrolysis/solidEnergy/solidEnergy.C`, `thermophysicalModels/solid/heatTransfer/` |
-| Radiation | `constant/radiationProperties` | `radiationModels/heterogeneousRadiationModels/` |
-| DEM coupling | `constant/lambdaDict` | `porousGasificationMedia/DEM/lambdaDotModel.C` |
-
-`volPyrolysis.C` is under `pyrolysisModels/pyrolysisModel/volPyrolysis/`. Input keys: [case-setup.md](case-setup.md#input-file-reference).
+6. **PIMPLE loop** — `UEqn.H`, `YEqn.H`, `EEqn.H`, then `pEqn.H`, or `pcEqn.H` when `consistent` is on.
+7. **Turbulence** — `turbulence->correct()`, gated by `pimple.turbCorr()`.
 
 ## Equations
 
-`S_ρ,i` is the gas-species mass source from solid reactions (`solidChemistry_->RRg(i)`, kg/m³/s) and `S_ρ = Σᵢ S_ρ,i`. `Rₖ` is the solid mass source of component `k` (`RRs(k)`).
+Colours mark the kind of term: ${\color{blue}\text{storage}}$, ${\color{orange}\text{advection}}$, ${\color{green}\text{diffusion}}$, ${\color{red}\text{gas–solid exchange}}$, ${\color{purple}\text{other sources}}$.
 
-**Gas continuity** (`rhoEqn.H`; paper 2b)
+### Gas
 
-```
-∂(ε ρ)/∂t + ∇·φ = S_ρ
-```
+**Continuity** (`rhoEqn.H`; paper 2b)
 
-**Gas species** (`YEqn.H`; paper 2a). Fractions are clipped at 0 and renormalised to sum to 1 after each solve.
+$$
+{\color{blue}\frac{\partial(\varepsilon\rho_g)}{\partial t}} + {\color{orange}\nabla\cdot\varphi_g} = {\color{red}S_\rho}
+$$
 
-```
-∂(ε ρ Yᵢ)/∂t + ∇·(φ Yᵢ) − ∇·(μ_eff ∇Yᵢ) = ε R_hom,ᵢ + S_ρ,ᵢ
-```
+**Species** (`YEqn.H`; paper 2a). Fractions are clipped at 0 and renormalised to sum to 1 after each solve.
 
-`R_hom,ᵢ` is the gas-phase reaction rate per unit gas volume, hence the `ε` (#226). The interface sources `S_ρ` and `S_ρ,ᵢ` are per unit total volume and carry none (#125).
+$$
+{\color{blue}\frac{\partial(\varepsilon\rho_g Y_{g,i})}{\partial t}} + {\color{orange}\nabla\cdot(\varphi_g Y_{g,i})} - {\color{green}\nabla\cdot(\mu_{\mathrm{eff}}\nabla Y_{g,i})} = {\color{purple}\varepsilon R_{\mathrm{hom},i}} + {\color{red}S_{\rho,i}}
+$$
 
-**Gas momentum** (`UEqn.H` with `fieldPorosityModel`; paper 2d)
+`R_hom,i` is the gas-phase reaction rate per unit gas volume, hence the `ε` (#226). The interface sources `S_ρ` and `S_ρ,i` are per unit total volume and carry none (#125).
 
-```
-∂(ρU)/∂t + ∇·(φU) + ∇·R_eff = ρg − ∇p − C·U
-C = (μ + f ρ |U| √3 / |Df|) · Df
-```
+**Momentum** (`UEqn.H` with `fieldPorosityModel`; paper 2d)
 
-`U` is the superficial velocity: `φ` is the face flux of `ρU` (`compressibleCreatePhi.H`), and `rhoEqn.H` pairs it with `∂(ερ)/∂t`. `Df` is the Darcy resistance tensor (`0/Df`) and `f` the Forchheimer coefficient (`forchheimerCoeff` in `constant/porosityProperties`, default 0, so Darcy only). The paper writes the non-Darcy term in a different form; the code is as above.
+$$
+{\color{blue}\frac{\partial(\rho_g U_g)}{\partial t}} + {\color{orange}\nabla\cdot(\varphi_g U_g)} + {\color{green}\nabla\cdot R_{\mathrm{eff}}} = {\color{purple}\rho_g g - \nabla p} - {\color{red}C\cdot U_g}
+$$
 
-**Gas energy** (`EEqn.H`; paper 2c). Solved for sensible enthalpy `h` (or internal energy, depending on the thermo type); `K` is kinetic energy.
+$$
+C = \left(\mu + \frac{f\rho_g|U_g|\sqrt{3}}{|D_f|}\right) D_f
+$$
 
-```
-∂(ε ρ h)/∂t + ∇·(φ h) + ∂(ε ρ K)/∂t + ∇·(φ K) − ε ∂p/∂t − ∇·(α_eff ∇h)
-    = ε Q̇_chem + Q_conv + Q_int + S_rad
-Q_int = Σ_{S_ρ,i>0} S_ρ,i hₛ,ᵢ(Tₛ) + Σ_{S_ρ,i<0} S_ρ,i hₛ,ᵢ(T)
-```
+`U_g` is the superficial velocity: `φ_g` is the face flux of `ρ_g U_g` (`compressibleCreatePhi.H`), and `rhoEqn.H` pairs it with `∂(ερ_g)/∂t`. `D_f` is the Darcy resistance tensor (`0/Df`) and `f` the Forchheimer coefficient (`forchheimerCoeff` in `constant/porosityProperties`, default 0, so Darcy only). The paper writes the non-Darcy term in a different form; the code is as above.
 
-Solved for internal energy `e`, the pressure work `− ε ∂p/∂t` becomes `∇·(φ/ρ p) + p ∂ε/∂t` (from `h = e + p/ρ`, with `φ` the superficial mass flux; see the `EEqn.H` Description). `Q_conv` is the solid-to-gas convective exchange (`heatTransfer()`), `S_rad` the radiation source. `Q_int` (`interfaceEnthalpy`, `GasSolidHeatExchange`) is the sensible enthalpy the interface mass `S_ρ,i` brings with it (#212): products are born at `Tₛ`, consumed agents leave at the gas `T`. It uses the same `S_ρ,i` as `rhoEqn.H` and `YEqn.H`, and is `h` even when solving for `e`.
+**Energy** (`EEqn.H`; paper 2c). Solved for sensible enthalpy `h_g` (or internal energy, depending on the thermo type); `K` is kinetic energy.
 
-**Solid chemistry sources** (`Rₖ`, `S_ρ,i`, `S_chem`; paper Eq. 4–6, 10, 12). They are step means of one ODE per cell. What a rate is per, how it is split among species, what the ODE state is and what stays frozen in a step are in the `Description` of `ODESolidHeterogeneousChemistryModel.H` (#209); the code wins.
+$$
+\begin{aligned}
+&{\color{blue}\frac{\partial(\varepsilon\rho_g h_g)}{\partial t} + \frac{\partial(\varepsilon\rho_g K)}{\partial t}} + {\color{orange}\nabla\cdot(\varphi_g h_g) + \nabla\cdot(\varphi_g K)} - {\color{purple}\varepsilon\frac{\partial p}{\partial t}} - {\color{green}\nabla\cdot(\alpha_{\mathrm{eff}}\nabla h_g)} \\
+&\quad = {\color{purple}\varepsilon\dot Q_{\mathrm{chem}}} + {\color{red}Q_{\mathrm{conv}} + Q_{\mathrm{int}} + S_{\mathrm{rad}}}
+\end{aligned}
+$$
 
-**Solid species** (`SolidSpeciesTransport::solve`; paper 3a without the transport term)
+Solved for internal energy `e`, the pressure work `− ε ∂p/∂t` becomes `∇·(φ_g/ρ_g p) + p ∂ε/∂t` (from `h = e + p/ρ`; see the `EEqn.H` Description).
 
-```
-∂Ymₖ/∂t + ∇·(φₛ Ymₖ) = Rₖ
-```
+### Gas–solid exchange
 
-`φₛ` is the solid flux after limiting (`solidFluxLimiter`), so Ym stays physical when solid moves.
+**Mass.** Mass moves between solid and gas only through the solid reactions. Their rates, in kg per m³ of cell per second:
+
+- `S_ρ,i` (`RRg(i)`): gas species `i` released by the solid (> 0, a product) or taken up by it (< 0, a gasifying agent). It is 0 for species in no solid reaction.
+- `S_ρ = Σᵢ S_ρ,i` (`Srho`): the net gas mass gained.
+- `R_k` (`RRs(k)`): the change in the mass of solid species `k`.
+
+They are step means of one chemistry ODE per cell, computed once at the start of the solid step; the gas equations and the solid species equation then use the same values. What a rate is per, how it is split among species, what the ODE state is and what stays frozen are in the `Description` of `ODESolidHeterogeneousChemistryModel.H` (#209; paper Eq. 4–6, 10, 12).
+
+**Heat.**
+
+$$
+Q_{\mathrm{int}} = \sum_{S_{\rho,i}>0} S_{\rho,i}\,h_i(T_s) + \sum_{S_{\rho,i}<0} S_{\rho,i}\,h_i(T_g)
+$$
+
+$$
+Q_{\mathrm{agent}} = \sum_{S_{\rho,i}<0} |S_{\rho,i}|\,\bigl(h_i(T_s) - h_i(T_g)\bigr)
+$$
+
+- `Q_conv` (`heatTransfer()`): convective heat from solid to gas; it enters the gas with `+` and the solid with `−`.
+- `Q_int` (`interfaceEnthalpy`, `GasSolidHeatExchange`, #212): the sensible enthalpy the interface mass brings into the gas. Products are born at `T_s`; consumed agents leave at `T_g`. It is `h` even when the gas solves for `e`.
+- `Q_agent` (`agentHeatUp`): heats a consumed agent from `T_g` to `T_s`, taken from the solid. Products need no solid term: the solid energy equation already lets the converted solid leave at `T_s`.
+- `S_rad`, `S_rad,s`: the gas and solid radiation sources (`radiation.H`).
+
+### Solid
+
+**Species** (`SolidSpeciesTransport::solve`; paper 3a without the transport term)
+
+$$
+{\color{blue}\frac{\partial\,\mathrm{Ym}_k}{\partial t}} + {\color{orange}\nabla\cdot(\varphi_s\,\mathrm{Ym}_k)} = {\color{red}R_k}
+$$
+
+`φ_s` is the solid flux after limiting (`solidFluxLimiter`), so `Ym` stays physical when solid moves.
 
 **Porosity** (`PorosityRecovery::updatePorosity`). Not transported; derived from the solid mass each step. Nearly empty (flipped) cells are cleared only with `bedCollapse`, which moves the column onto them, or with `emptyFlippedCells`, which destroys their mass; both are off by default, and then their solid stays ([solid-step.md](solid-step.md), stages 9–10).
 
-```
-1/ρₛ = Σₖ Ysₖ/ρₖ ,    1 − ε = Σₖ Ymₖ/ρₖ
-```
+$$
+\frac{1}{\rho_s} = \sum_k \frac{\mathrm{Ys}_k}{\rho_{s,k}}, \qquad 1-\varepsilon = \sum_k \frac{\mathrm{Ym}_k}{\rho_{s,k}}
+$$
 
-**Solid energy** (`SolidEnergy::solve`, after the species step; paper 3c). The stored variable is `H = Σₖ Ymₖ cₚ,ₖ Tₛ` (`solidH`), but the equation is solved for `Tₛ` (`SolidEnergy::solveEnthalpyBalance`):
+**Energy** (`SolidEnergy::solve`, after the species step; paper 3c). The stored variable is `H = Σₖ Ym_k c_p,k T_s` (`solidH`), but the equation is solved for `T_s`:
 
-```
-∂(ρcₚ* Tₛ)/∂t + (ρcₚ* Tₛ⁰ − H⁰)/Δt + ∇·(Σₖ φ_Ym,k cₚ,ₖ Tₛ) − ∇·((1 − ε) K_s · A ∇Tₛ)
-    = S_chem − Q_conv − Q_agent + S_rad,s
-ρcₚ* = Σₖ cₚ,ₖ (Ymₖ − Δt RRsₖ)
-Q_agent = Σ_{S_ρ,i<0} |S_ρ,i| (hₛ,ᵢ(Tₛ) − hₛ,ᵢ(T))
-```
+$$
+\begin{aligned}
+&{\color{blue}\frac{\partial(\rho c_p^* T_s)}{\partial t} + \frac{\rho c_p^* T_s^0 - H^0}{\Delta t}} + {\color{orange}\nabla\cdot\Bigl(\sum_k \varphi_{\mathrm{Ym},k}\,c_{p,k}T_s\Bigr)} - {\color{green}\nabla\cdot\bigl((1-\varepsilon)K_s A\,\nabla T_s\bigr)} \\
+&\quad = {\color{purple}S_{\mathrm{chem}}} {\color{red}\;-\;Q_{\mathrm{conv}} - Q_{\mathrm{agent}} + S_{\mathrm{rad},s}}
+\end{aligned}
+$$
 
-- `ρcₚ*` (`rhoCpCarrier`) is the heat capacity of the solid before this step's reaction. With Euler the first two terms are `(ρcₚ* Tₛ − H⁰)/Δt`, which is `∂H/∂t − Σₖ RRsₖ cₚ,ₖ Tₛ`: the sensible heat of the composition change, taken implicitly. The first term follows the case's `ddtSchemes` entry; the second is zero unless transport changed the mass.
-- The advective enthalpy flux is explicit, and upwind on each specie's own mass flux `φ_Ym,k` (`advectiveEnthalpyFlux`).
-- Conduction is implicit, but cut at the bed border (`conductionWithinSolid`): its coefficients are zeroed on every internal, processor and cyclic face where the interpolated `solidPresent` lies strictly between 0 and 1. Its non-orthogonal correction is dropped.
+$$
+\rho c_p^* = \sum_k c_{p,k}\,(\mathrm{Ym}_k - \Delta t\,R_k)
+$$
 
-`H` is then stored on the mass that remains.
-
-`A` is the optional `anisotropyK` tensor; `S_chem` is the solid reaction heat (`chemistrySh`), `hr` with all participants at `Tₛ`. `Q_agent` (`agentHeatUp`) heats a consumed agent from the gas `T` to `Tₛ`. Products need no further solid term: the implicit composition-change term already lets the converted solid leave at `Tₛ`. Reference temperatures differ (solid `H` from 0 K, gas `h` from 298.15 K; to be unified in #173); no temperature depends on them.
-
-**Particle size under `lambdaMode apparentVolume`** (`DEM/lambdaDotModels/apparentVolumeLambdaDot/`). With `λ³ₖ = 1/ρ_app,k` the apparent specific volume of specie `k`, and `Ymₖ` taken before this step's solve:
-
-```
-V_old = Σₖ Ymₖ λ³ₖ ,    ΔV_chem = Δt Σₖ Rₖ λ³ₖ ,    r = ∛(1 + ΔV_chem/V_old)
-λ ← r λ        (in YADE, once per coupling exchange)
-```
-
-Only chemistry changes the particle size; solid transport moves particles without resizing them. Every particle in a cell gets the same cell-mean `r`.
+`ρc_p*` (`rhoCpCarrier`) is the heat capacity of the solid before this step's reaction, so the storage terms take the sensible heat of the composition change implicitly. `A` is the optional `anisotropyK` tensor; `S_chem` is the solid reaction heat (`chemistrySh`), with all participants at `T_s`. `H` is then stored on the mass that remains. How each term is discretised: [solid-step.md](solid-step.md), stage 7. Reference temperatures differ (solid `H` from 0 K, gas `h` from 298.15 K; to be unified in #173); no temperature depends on them.
 
 ## DEM coupling
 
-Only in a `WITH_YADE` build with `constant/yadeProperties` `active true`. YADE starts `porousGasificationFoam` itself (`FoamCoupling::StartFoamSolver`, always with `-parallel`), and the two sides exchange once per solver step, in step 2 of the [per-time-step flow](#per-time-step-flow). OpenFOAM side: `FoamYade` (`submodules/Foam-Yade/pkg/openfoam/coupling/FoamYade/`) and `porousGasificationMedia/DEM/lambdaDotModel.C`. YADE side: `FoamCoupling` (`submodules/Foam-Yade/pkg/openfoam/FoamCoupling.cpp`). Build: [build.md](build.md#yade-dem-coupling).
-
-**Who owns what.** YADE owns the integrated length scale `λ` (`State::lambda_`, default 1). PGF owns only what it sends: the rate `λ̇` or, under `apparentVolume`, a factor `r`. PGF's `lambda` field is cell-averaged diagnostic output; no PGF equation reads it (`lambdaDotModel::updateParticleFields`).
-
-### Exchanged fields
-
-Two per-particle buffers, with strides fixed in the code on both sides (no layout negotiation):
-
-| Slot | YADE → OpenFOAM (`sendBodyData`, `TAG_PRT_DATA` 1002, 11 per body) | Unit |
-|---|---|---|
-| 0–2 | position | m |
-| 3–5 | linear velocity | m/s |
-| 6–8 | angular velocity | rad/s |
-| 9 | sphere radius | m |
-| 10 | `λ` (`State::lambda_`) | as `lambda` (see below) |
-
-| Slot | OpenFOAM → YADE (`sendHydroForceYadeMPI`, `TAG_FORCE` 1005, 7 per body) | Unit |
-|---|---|---|
-| 0–2 | hydrodynamic force | N |
-| 3–5 | hydrodynamic torque | N·m |
-| 6 | `λ̇` of the body's cell (`lambdaMode` 0), or `r` (`lambdaMode` 1) | m/s, or – |
-
-- **On the mesh.** Each OpenFOAM rank locates the bodies in its cells. It fills `nParticles`, the cell means `UsDEM` and `lambdaDEM`, and then `Us` and `lambda` from those, smoothed by the `interpolationMode` / `lambdaInterpolationMode` models of `constant/lambdaDict` ([case-setup.md](case-setup.md#constantlambdadict-required-by-with_yade-builds-running-a-dem-case)).
-- **Force.** The point-force path (`gaussianInterp` is `false` in `createYadeCoupling.H`): Stokes drag `F = 3π d ν ρ_f (u_f − v_p)` and torque `π d³ ν ρ_f (ω_f − ω_p)`, with `ν`, `ρ_f` from `yadeProperties` (`FoamYade::stokesDragForce`, `stokesDragTorque`). It acts on the particles only: the `uSource` it fills is read by no PGF equation. YADE adds the last received force every DEM step (`setHydroForce`).
-- **Other messages.** Once at startup, the mesh bounding box (`TAG_GRID_BBOX`) and the λ mode (`TAG_LAMBDA_MODE`, one int; all OpenFOAM ranks must agree). Every exchange, the found flags (`TAG_SEARCH_RES`), OpenFOAM's `deltaT` (`TAG_FLUID_DT`) and YADE's smallest `O.dt` over its ranks (`TAG_YADE_DT`).
-- **Units of λ.** `lambda`, `lambdaDEM` and `lambdaBackgroundValue` are declared in m, and `λ̇` in m/s. In the fixtures' spring model λ starts at 1 and multiplies a rest length, so it acts as a stretch ratio.
-
-### λ modes
-
-`lambdaMode` in `constant/lambdaDict` selects the `LambdaDotCalculationModel` (`DEM/lambdaDotModels/`), and through it the integer `createYadeCoupling.H` sends YADE at startup:
-
-| `lambdaMode` | Sent in slot 6 | YADE applies it | Source |
-|---|---|---|---|
-| `constant` (default) | rate `λ̇ = lambdaValue` [m/s] | `λ += λ̇·dt` every DEM step (`NewtonIntegrator`) | `constantLambdaDot` |
-| `exactDifferential` | rate `λ̇ = (∂λ/∂Tₛ) dTₛ/dt + Σᵢ (∂λ/∂Ymᵢ) Rᵢ` [m/s] | as above | `exactDifferentialLambdaDot.H` (Description) |
-| `apparentVolume` | factor `r = ∛(1 + ΔV_chem/V_old)` [–] | `λ ← r λ` once per exchange (`applyLambdaFactor`) | `apparentVolumeLambdaDot.H`; equations [above](#equations) |
-
-Before the exchange, `lambdaDotModel::updateLambdaDot()` sets the neutral value (0 for a rate, 1 for `r`) wherever `porosityF ≥ connectedBelowPorosity`. The comment there: "the value gated and pushed to particles here is the previous step's", because the models assemble the value later in the step, inside the solid solve.
-
-### Which rank sets λ̇ (#229)
-
-A body near a rank boundary lies in the bounding box of several OpenFOAM ranks. Each rank sends a value for every body YADE gave it, and zeros for the bodies it did not find in its cells. YADE takes slot 6 only from the rank whose search found the body (`found[i] > 0`): `setHydroForce` sets `lambdaDot` from that rank alone, and `applyLambdaFactor` multiplies by `r` once per body, "by the one that found it". A body that no rank found keeps its previous `λ̇`.
-
-### Time step (#230)
-
-YADE exchanges every `n` DEM steps (`dataExchangeInterval`, `FoamCoupling::setExchangeInterval`):
-
-- **Rate modes** (`constant`, `exactDifferential`): `n = round(foamDt/yadeDt)`. The run stops (`MPI_Abort`, message `in a lambdaDot rate mode Yade's dt must divide the OpenFOAM deltaT exactly`) unless `n ≥ 1` and `|foamDt/yadeDt − n| ≤ 10⁻⁶ n`. That is, `yadeDt ≤ foamDt` with an integer ratio. YADE integrates `λ̇` every DEM step, so λ then advances by `λ̇·n·yadeDt = λ̇·foamDt` per exchange. Before #230, the fixtures ran at `yadeDt = 5·foamDt`, so λ advanced 5× too fast.
-- **`apparentVolume`**: `n = int(foamDt/yadeDt)` when `yadeDt < foamDt`, else 1. `r` is applied once per exchange, so the ratio does not change λ.
-
-The step must be fixed on both sides: `adjustTimeStep no` and a fixed `O.dt` (`tutorials/cases/DEM_common/yadeEndpoint.py` refuses anything else).
-
-### Spring model and engine order (#231)
-
-The springs are not part of YADE or Foam-Yade. They are Python in the DEM fixtures' shared script `tutorials/cases/MicroTGA-DEM_lambdaDot_common/MPI_lambda.py`, the only place λ has a mechanical effect (#206).
-
-- **Topology.** Each sphere is joined to its 6 nearest neighbours (`cKDTree`). `L₀` is their initial distance.
-- **Rest length.** `L_target = L₀ · λ̄`, with `λ̄` the mean of the two endpoints' `state.lambda_`. "lambda is read, not integrated, here".
-- **Clamps.** `λ̄` is clamped to [0.1, 2.0] for the force only, without writing back into `lambda_`. The spring "freezes" (adds no force) when `L ≤ 0.8 L₀`. It breaks and is removed when the elongation `(L − L₀)/L₀` exceeds 100 %.
-- **Force.** Hooke, `F = k (L − L_target)` along the spring, equal and opposite on both ends. `k = c²/(4m)`, with `c = spring_damping = 1.0` and `m = 0.000268`, the relation for critical damping, used only to set `k`. There is no dashpot term; motion is damped by `NewtonIntegrator(damping=0.99)`.
-- **Engine order.** `ForceResetter` → collider → `InteractionLoop` → `FoamCoupling` (adds the drag, sets `λ̇` or applies `r`) → `apply_spring_forces()` (every step) → `spring_force_at_newton()` → `NewtonIntegrator` (moves bodies, `λ += λ̇·dt`) → output runners. The script's own reason: "addF is non-permanent, so a force added after Newton is reset unused (#231)". `springForceAtNewton` in `postProcessing/` records the spring force Newton integrates. The `lambdaDotChemistry`, `lambdaDotAltInterp` and `lambdaDotApparentVolume` fixtures assert it is > 0 (`system/regressionInvariants`).
-
-### Minimal coupler (`coupler pgf`, #271)
-
-`coupler` in `constant/yadeProperties` selects the OpenFOAM half: `foamYade` (default, everything above) or `pgf`, the PGF-owned `porousGasificationMedia/DEM/pgfYadeCoupler/`. Its YADE half is the `PgfCoupling` engine in the Foam-Yade fork (`pkg/openfoam/PgfCoupling.cpp`); the fixtures' `MPI_lambda.py` builds it when `yadeProperties` says `coupler pgf;`. `pgfYadeCoupler` includes no Foam-Yade header, so the wire format is written down in both files' banners and checked at startup:
-
-| Message | Direction | Per body | Content |
-|---|---|---|---|
-| HELLO 2701, BBOX 2702 | each OpenFOAM rank → every YADE rank, once | – | magic, protocol version (1), strides 8/2, `lambdaMode`, rank count; mesh bounding box |
-| ACK 2703 | YADE rank 0 → each OpenFOAM rank, once | – | magic, version, status, first worker rank, worker count |
-| COUNT 2711, DATA 2712 | each YADE worker → each OpenFOAM rank | 8 | body id, position, velocity, `λ` |
-| REPLY_COUNT 2713, REPLY 2714 | each OpenFOAM rank → each YADE worker | 2 | body id, `λ̇` or `r`, only for bodies whose centre that rank found |
-| FOAM_DT 2721 | OpenFOAM rank 0 → YADE rank 0 | – | `deltaT` |
-
-- **Stops by name** on a version, stride or `lambdaMode` mismatch, on OpenFOAM ranks disagreeing on `lambdaMode`, and on `PgfCoupling.expectLambdaMode` ≠ the case's mode. A legacy peer is caught too: YADE sees tag 1001 from `FoamYade`; OpenFOAM gets no ACK from `FoamCoupling` within `handshakeTimeout` (`yadeProperties`, default 60 s).
-- **No drag or torque.** Only the fields the solver uses cross: radius, angular velocity, `SHARED_ID` and `YADE_DT` are gone. Stokes drag moved the spheres, so `Us` differs from the `foamYade` path (an intended physics change).
-- **#229, #230 kept.** Only a rank that found a body replies for it, and YADE takes the first reply per body. The rate-mode `foamDt/yadeDt` integer check is the same as `FoamCoupling::setExchangeInterval`.
-- **Erased bodies.** YADE applies `λ̇` or `r` once per exchange, looking each body up by id with `BodyContainer::exists`. A body erased with `mp.bodyErase` is skipped, so a stale list cannot be dereferenced.
-- **Same mesh side.** Both paths feed `lambdaDotModel` the same per-rank particle list (`DEM/demParticle.H`), so `nParticles`, `UsDEM`, `lambdaDEM`, `Us` and `lambda` are built the same way.
-
-### Limitations
-
-- **The YADE radius, mass and inertia do not follow λ** (#206). Nothing in YADE reads `lambda_` except the fixtures' springs. Slot 9 sends the unchanged radius, and the OpenFOAM side computes the Stokes drag from that diameter.
-- **Cross-rank springs** (#231, B4). Every YADE rank computes every spring whose two bodies it can see, and remote copies carry a stale `lambda_`. With 2 or more YADE workers, a spring across ranks is counted 0, 1 or 2 times. The fixtures run `-n 2` (an empty master plus one worker), so it does not occur there.
-- **At least 2 OpenFOAM ranks.** The solver is always spawned with `-parallel`, so the case must be decomposed; the fixtures use `numProcOF = 2`.
-- **One `r` per cell.** Every particle in a cell gets the cell's `λ̇` or `r`, whatever its own composition.
-
-## Not summarised here
-
-Reaction kinetics, diffusive resistance, reaction enthalpies, heat-transfer correlations and the radiation models are described in the paper (§2.2–2.4) and in the source under `thermophysicalModels/` and `radiationModels/`.
-
-If you find a discrepancy between this page and the code, the code wins — please open an issue or PR.
+Only in a `WITH_YADE` build with `constant/yadeProperties` `active true`. What the two sides exchange, the λ modes and the particle-size update: [theory-DEM.md](theory-DEM.md).
 
 ## Related pages
 
 - [Solid step](solid-step.md): the solid step, stage by stage.
+- [DEM coupling](theory-DEM.md): the YADE coupling.
 - [Setting up your own case](case-setup.md): required fields, input files, tutorial cases, tips.
 - [All documentation](README.md)

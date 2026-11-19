@@ -21,6 +21,7 @@ New to PGF? Start with the [README](../README.md) quick start, then [build your 
 ## The model
 
 - [Theory](theory.md): what the solver models, the equations, the per-time-step flow, where each piece lives in the source.
+- [DEM coupling](theory-DEM.md): the YADE coupling — exchanged fields, λ modes, time step, springs.
 - [Solid step](solid-step.md): step 4 of that flow, stage by stage.
 
 ## Developing PGF
