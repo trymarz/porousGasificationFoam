@@ -178,6 +178,8 @@ uv tool install -p 3.13 serena-agent    # needs uv; puts serena in ~/.local/bin
 serena project index                    # in the worktree, after gen-compile-commands.py
 ```
 
+Serena runs locally and calls no AI service; it hands clangd's answers to the agent. `.mcp.json` turns off its usage ping and its web dashboard (which fetches a news feed and checks PyPI), so it makes no network calls. Its first start downloads clangd into `~/.serena`.
+
 `.mcp.json` finds `serena` on `PATH` or in `~/.local/bin`. Claude Code asks once per project to approve the server. A session opened at the bare repository's root, outside every worktree, has no `.mcp.json` and so no Serena. Every worktree's project is named `porousGasificationFoam`; Serena finds it by path, so worktrees can be open side by side.
 
 ## Doxygen documentation
