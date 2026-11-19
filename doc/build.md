@@ -180,7 +180,7 @@ utilities/serena-setup --with foamcli --with Foam-Yade  # also these sibling rep
 utilities/serena-setup --with-submodules                # also submodules/Foam-Yade, if checked out
 ```
 
-It installs Serena with `uv tool install` into `~/.local` when missing, enables the git hooks, links `lnInclude/` without compiling, writes `compile_commands.json` and indexes the worktree (minutes on a first run). `--fresh` rebuilds an index from scratch.
+It installs Serena with `uv tool install` into `~/.local` when missing, enables the git hooks, links `lnInclude/` without compiling, writes `compile_commands.json` and indexes the worktree (minutes on a first run). A new worktree's index starts from the newest one among the other worktrees when their files share the same compile flags, so only the files that differ are indexed (seconds instead of minutes). `--fresh` rebuilds an index from scratch.
 
 Sibling repositories are set up only when named with `--with`, or given by path. They get a local Serena config (`.serena/`, `.mcp.json`, kept out of git through `.git/info/exclude`) and an index. A Python repository such as foamcli needs nothing else. A CMake repository such as Foam-Yade gets a configure-only CMake run (no compile, about 10 s) in `~/.cache/serena-setup/`; its compile database goes to the repository's root without the GCC-only flags clangd rejects. YADE is configured as in the container recipe (`-DENABLE_GUI=OFF`); `SERENA_CMAKE_ARGS` adds options. These repositories have no freshness hooks, so rerun the command after adding or removing sources there.
 

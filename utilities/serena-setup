@@ -9,7 +9,8 @@
 # siblings are only set up when asked for. --with-submodules also sets up each
 # PGF worktree's checked-out submodules (submodules/Foam-Yade) as trees of
 # their own; empty ones are skipped. --fresh drops a tree's Serena cache
-# before indexing it.
+# before indexing it. A PGF worktree with no cache yet is seeded from the newest
+# cache among the other worktrees, so only the files that differ are indexed.
 #
 # What a tree gets depends on what it is:
 #   PGF worktree   core.hooksPath, lnInclude links (no compile),
@@ -105,6 +106,43 @@ index() {
   return "${PIPESTATUS[0]}"
 }
 
+# A worktree without a cache starts from the newest one among its sibling worktrees.
+# Only the raw clangd symbols are copied: they are keyed by relative path and content
+# hash, while the other cache file holds the source tree's absolute paths. Serena ties
+# them to the compile database's md5, which differs between trees by their paths alone;
+# the copy is re-stamped with this tree's md5 when the shared files' flags are the same.
+seed_cache() {
+  local t=$1 k w f src=""
+  [ "$fresh" -eq 0 ] && [ ! -e "$t/.serena/cache" ] || return 0
+  while read -r k w; do
+    [ "$k" = worktree ] && [ "$w" != "$t" ] && [ -f "$w/compile_commands.json" ] || continue
+    for f in "$w"/.serena/cache/cpp/raw_document_symbols.pkl; do
+      [ -f "$f" ] && { [ -z "$src" ] || [ "$f" -nt "$src" ]; } && src=$f
+    done
+  done < <(git -C "$t" worktree list --porcelain)
+  [ -n "$src" ] || return 0
+  python3 - "${src%/.serena/*}" "$t" <<'EOF'
+import hashlib, json, os, pickle, sys
+src, dst = sys.argv[1:]
+def db(tree, root):
+    raw = open(os.path.join(tree, "compile_commands.json"), "rb").read()
+    entries = json.loads(raw.decode().replace(root, "@ROOT"))
+    return hashlib.md5(raw).hexdigest(), {e["file"]: e for e in entries}
+src_md5, src_db = db(src, src)
+dst_md5, dst_db = db(dst, dst)
+if any(src_db[f] != dst_db[f] for f in src_db.keys() & dst_db.keys()):
+    sys.exit(print("cache not seeded: compile flags differ from " + src))
+cache = pickle.load(open(os.path.join(src, ".serena/cache/cpp/raw_document_symbols.pkl"), "rb"))
+v = cache.get("__cache_version")
+if not (isinstance(v, tuple) and isinstance(v[-1], tuple) and v[-1][-1] == src_md5):
+    sys.exit(print("cache not seeded: unknown Serena cache format"))
+cache["__cache_version"] = (*v[:-1], (*v[-1][:-1], dst_md5))
+os.makedirs(os.path.join(dst, ".serena/cache/cpp"))
+pickle.dump(cache, open(os.path.join(dst, ".serena/cache/cpp/raw_document_symbols.pkl"), "wb"))
+print(f"cache seeded from {src} ({len(cache['obj'])} files)")
+EOF
+}
+
 setup_pgf() {
   local t=$1 hp dirs
   if [ ! -f "$t/.serena/project.yml" ]; then
@@ -123,6 +161,7 @@ setup_pgf() {
   # shellcheck disable=SC2086
   (cd "$t" && ./pgf shell --bare -- sh -c 'for d; do wmakeLnInclude -update "$d" >/dev/null || exit 1; done' sh $dirs) || return 1
   (cd "$t" && python3 utilities/gen-compile-commands.py --if-stale --report) || return 1
+  seed_cache "$t" || echo "note: cache not seeded; indexing from scratch"
   index "$t" || return 1
   (cd "$t" && python3 utilities/gen-compile-commands.py --if-stale --report)
 }
