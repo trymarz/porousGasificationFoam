@@ -203,14 +203,14 @@ pgf_cmd_ex status "pgf status ~/Code/pgf-feature" "another checkout"
 
 pgf_cmd doctor "check that pgf can build and run, with a fix for each problem" "pgf doctor [options]" "@env" none
 pgf_cmd_desc doctor "Read-only checks in groups: OpenFOAM, the builds of the checkout pgf runs
-from, yade and DEM, MPI, and pgf on PATH. Each check is one OK, WARN or FAIL line; under a WARN
+from, yade and DEM, MPI, ParaView, and pgf on PATH. Each check is one OK, WARN or FAIL line; under a WARN
 or FAIL, the detail and the command that fixes it. It ends with a one-line
 verdict and exits 1 when a check fails. The settings themselves: pgf config.
 
 It checks the OpenFOAM bashrc and version, the build of the checkout pgf runs
 from, yade (the binary, its version against the Foam-Yade pin, MPI among its
-features), the coupling stamp, the MPI decision and the interfaces it saw, and
-whether pgf is on PATH."
+features), the coupling stamp, the MPI decision and the interfaces it saw, whether
+the ParaView on your PATH has Python for pgf view, and whether pgf is on PATH."
 pgf_cmd_opt doctor @env
 pgf_cmd_ex doctor "pgf doctor"
 pgf_cmd_ex doctor "pgf doctor --yade" "also check the DEM build"

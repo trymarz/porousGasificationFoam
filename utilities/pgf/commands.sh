@@ -348,6 +348,27 @@ pgf_doctor_trunk_source() {
   while IFS= read -r line; do _r "${line%% *}" "${line#* }"; done < <(pgf_trunk_pin_check "$own")
 }
 
+# pgf_paraview_check — one OK, WARN or SKIP line on the ParaView on PATH, for pgf view:
+#   paraview.simple must import in pvpython. Names Debian's python3-vtk9 clash.
+pgf_paraview_check() {
+  local pv ver
+  pv="$(command -v pvpython)"
+  if [ -z "$pv" ]; then
+    if command -v paraview >/dev/null; then
+      echo "WARN ParaView $(pgf_tilde "$(command -v paraview)") has no Python (no pvpython); fix: sudo apt install python3-paraview (doc/build.md, ParaView and Yade's VTK)"
+    else
+      echo "SKIP no ParaView on PATH; only pgf view needs it (doc/paraview.md)"
+    fi
+    return 0
+  fi
+  ver="$(UCX_VFS_ENABLE=n timeout 60 "$pv" -c 'import paraview.simple as s; v = s.GetParaViewVersion(); print("%s.%s" % (v.major, v.minor))' 2>/dev/null | tail -1)"
+  if [ -n "$ver" ]; then
+    echo "OK ParaView $ver with Python, $(pgf_tilde "$pv")"
+  else
+    echo "WARN $(pgf_tilde "$pv") cannot import paraview.simple; fix: install a ParaView with Python (doc/paraview.md, Requirements)"
+  fi
+}
+
 # pgf_doctor — read-only checks in groups, one line each with the fix under a
 #   WARN or FAIL, then a verdict; returns 1 when any FAIL. OpenFOAM is sourced
 #   in children only.
@@ -449,6 +470,11 @@ pgf_doctor() {
     ;;
   *) _r OK "PGF_MPI=${PGF_MPI}, set by you; interfaces: $(pgf_mpi_ifaces | tr '\n' ' ' | sed 's/ $//')" ;;
   esac
+
+  echo
+  st_head "ParaView"
+  line="$(PATH="$PGF_ENV_CALLER_PATH" pgf_paraview_check)"
+  if [ "${line%% *}" = SKIP ]; then st SKIP "${line#* }"; else _r "${line%% *}" "${line#* }"; fi
 
   echo
   st_head "PATH"
