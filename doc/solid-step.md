@@ -58,6 +58,10 @@ Each stage reads what the stages above it left, so the order sets the results.
 - Reads: `Ym`, `rho`, `K`, the `phiYm` from stage 6, the radiation, reaction and exchange sources, the gas `T`, the SolidState masks and gate; `Us` and `porosity` only for the abort report.
 - Writes: `Ts` (the unknown), the solid thermo through `solidThermo.correct()` (which sets the `rho` read by stages 7a and 9), and its own `radiationSh`.
 - Checks: **`abortOnInvalidTs`** after the enthalpy balance, on cells holding more than trace mass.
+- Discretisation ([theory](theory.md#solid)):
+  - Storage: with Euler the two storage terms are `(ρc_p* T_s − H⁰)/Δt`, i.e. `∂H/∂t − Σₖ R_k c_p,k T_s`. The first follows the case's `ddtSchemes`; the second is zero unless transport changed the mass.
+  - Advection: explicit, upwind on each specie's own mass flux `phiYm` (`advectiveEnthalpyFlux`).
+  - Conduction: implicit, cut at the bed border (`conductionWithinSolid`): coefficients are zeroed on every internal, processor and cyclic face where the interpolated `solidPresent` lies strictly between 0 and 1. No non-orthogonal correction.
 
 **7a. `classifyPostStep()`** — state update (`SolidState::classify()`).
 - Reads: `Ym`, `rho` from stage 7, the porosity they give (the expression stage 9 writes), and `solidPresent` as the step started.
