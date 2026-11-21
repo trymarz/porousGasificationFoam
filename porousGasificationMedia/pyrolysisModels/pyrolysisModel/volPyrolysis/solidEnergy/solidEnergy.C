@@ -55,7 +55,7 @@ SolidEnergy::SolidEnergy
     const volScalarField& chemistrySh,
     const GasSolidHeatExchange& heatExchange,
     const SolidDiagnostics& solidDiagnostics,
-    const Switch& equilibrium
+    const Switch& frozenTemperature
 )
 :
     mesh_(solid.mesh),
@@ -75,7 +75,7 @@ SolidEnergy::SolidEnergy
     solidState_(solid.state),
     heatExchange_(heatExchange),
     solidDiagnostics_(solidDiagnostics),
-    equilibrium_(equilibrium),
+    frozenTemperature_(frozenTemperature),
     active_(solid.active),
     radiationSh_
     (
@@ -243,9 +243,10 @@ Foam::tmp<Foam::volScalarField> SolidEnergy::solidSources()
     // again here would be a no-op, not a safeguard.
     const volScalarField& interphaseHeatTransfer =
         heatExchange_.heatTransfer();
-    // An agent's mass source is gated like every Srho_i: zero outside the
-    // reacting (connectedAtStepStart) cells, so no gate is added here.
-    const volScalarField& agentHeatUp = heatExchange_.agentHeatUp();
+    // A gaseous reactant's mass source is gated like every Srho_i: zero
+    // outside the reacting (connectedAtStepStart) cells, so no gate here.
+    const volScalarField& heatUpGasReactantsToTs =
+        heatExchange_.heatUpGasReactantsToTs();
 
     // radiationSh_ carries no connected gate of its own: as a cell
     // empties, rhoCp collapses toward its SMALL floor while the T^4
@@ -260,7 +261,7 @@ Foam::tmp<Foam::volScalarField> SolidEnergy::solidSources()
     return
         solidChemistrySource
       - interphaseHeatTransfer
-      - agentHeatUp
+      - heatUpGasReactantsToTs
       + solidRadiationSource;
 }
 
@@ -360,8 +361,8 @@ void SolidEnergy::abortOnInvalidTs
         << "    chemistrySh  = " << gate*chemistrySh_[badCell] << nl
         << "    heatTransfer = "
         << heatExchange_.heatTransfer()[badCell] << nl
-        << "    agentHeatUp  = "
-        << heatExchange_.agentHeatUp()[badCell] << nl
+        << "    heatUpGasReactantsToTs = "
+        << heatExchange_.heatUpGasReactantsToTs()[badCell] << nl
         << "    radiationSh  = " << gate*radiationSh_[badCell] << nl
         << "    Us           = " << Us_[badCell] << nl
         << "    porosity     = " << porosity_[badCell] << nl
@@ -414,7 +415,7 @@ void SolidEnergy::solve(const PtrList<surfaceScalarField>& phiYm)
 
     radiationSh_ = radiation_;
 
-    if (equilibrium_)
+    if (frozenTemperature_)
     {
         return;
     }
@@ -446,7 +447,7 @@ void SolidEnergy::solve(const PtrList<surfaceScalarField>& phiYm)
 
 void SolidEnergy::finishStep()
 {
-    if (!active_ || equilibrium_)
+    if (!active_ || frozenTemperature_)
     {
         return;
     }

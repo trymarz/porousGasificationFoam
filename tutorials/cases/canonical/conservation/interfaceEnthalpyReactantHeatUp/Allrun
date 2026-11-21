@@ -1,7 +1,7 @@
 #!/bin/sh
 cd "${0%/*}" || exit
 # char + 1.33 O2 = 2.33 CO with Ts = 900 K above Tg = 600 K, hr = 0. O2 leaves
-# the gas at Tg and the solid pays its heat-up to Ts (agentHeatUp); CO enters
+# the gas at Tg and the solid pays its heat-up to Ts (heatUpGasReactantsToTs); CO enters
 # the gas at Ts. checkInterfaceEnergy.py holds Tg, Ts and their sum per step
 # against the closed form; a flipped heat-up sign moves Ts the wrong way.
 # One cell, one open face, h = 0, dpdt no, Euler, gas reaction off (#312 E1).

@@ -97,8 +97,9 @@ tutorials/cases/canonical/conservation/radiationReservoir           fast
 
 # chemistryGateCrossing reacts one cell from connected to dispersed mid-run. Its
 # assertions are regressionChemistryHeatOutsideGate,
-# regressionGasSourceOutsideGate, regressionInterfaceEnthalpyOutsideGate and
-# regressionAgentHeatUpOutsideGate, all columns of exact zeros: no reaction
+# regressionGasSourceOutsideGate and the three interface enthalpy terms
+# (regressionGasProductEnthalpyAtTs-, regressionGasReactantEnthalpyAtTg- and
+# regressionHeatUpGasReactantsToTsOutsideGate), all columns of exact zeros: no reaction
 # heat, no converted mass and no interface enthalpy in a cell whose energy
 # equation refuses the heat. regressionPorosityMax is a diagnostic, not an
 # assertion - the crossing moves it by only 1e-6 relative, inside rtol.
@@ -109,9 +110,10 @@ tutorials/cases/canonical/conservation/chemistryGateCrossing        fast
 
 # gatedBandSources starts every cell dispersed, so
 # solidConnectedAtStepStart is 0 from t = 0 while solidPresent is still
-# 1. Six columns of
+# 1. Seven columns of
 # exact zeros - radiationSh, solidChemistrySh, heatTransfer,
-# interfaceEnthalpy, agentHeatUp and Srho - say no solid source and no
+# gasProductEnthalpyAtTs, gasReactantEnthalpyAtTg, heatUpGasReactantsToTs and
+# Srho - say no solid source and no
 # interphase term reaches an energy equation there. The liveness columns are what make them mean something:
 # volAverage(G) sits at 1e+05 while the solid books nothing from it, and the
 # solid holds 900 K above the gas for the whole run without exchanging a
@@ -131,7 +133,7 @@ tutorials/cases/canonical/conservation/interfaceEnthalpyGasification  fast
 # The same setup with Ts above Tg (900 or 700 K over 600 K), so the interface
 # terms are nonzero (#312). Each Allrun runs checkInterfaceEnergy.py: per step,
 # Tg, Ts and their sum against a closed form from the case's own inputs.
-# ReactantHeatUp: the solid heats the consumed O2 to Ts (agentHeatUp); with its
+# ReactantHeatUp: the solid heats the consumed O2 to Ts (heatUpGasReactantsToTs); with its
 # sign flipped Ts misses by 0.25 K in step 1. ...EnthalpyMode: the same in
 # solidReactionEnergyFromEnthalpy true, where the absolute enthalpy closes too.
 # NetSource: CO2 made and eaten in one cell; only its net source counts.

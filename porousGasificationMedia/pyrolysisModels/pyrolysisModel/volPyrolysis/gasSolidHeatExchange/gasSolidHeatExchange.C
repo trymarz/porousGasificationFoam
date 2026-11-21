@@ -40,7 +40,7 @@ GasSolidHeatExchange::GasSolidHeatExchange
     const SolidFields& solid,
     const volScalarField& porosityArch,
     const psiReactionThermo& gasThermo,
-    const Switch& equilibrium
+    const Switch& frozenTemperature
 )
 :
     mesh_(solid.mesh),
@@ -49,12 +49,12 @@ GasSolidHeatExchange::GasSolidHeatExchange
     T_(solid.T),
     rho_(solid.rho),
     solidState_(solid.state),
-    equilibrium_(equilibrium),
-    interfaceEnthalpy_
+    frozenTemperature_(frozenTemperature),
+    gasProductEnthalpyAtTs_
     (
         IOobject
         (
-            "interfaceEnthalpy",
+            "gasProductEnthalpyAtTs",
             mesh_.time().timeName(),
             mesh_,
             IOobject::NO_READ,
@@ -63,11 +63,24 @@ GasSolidHeatExchange::GasSolidHeatExchange
         mesh_,
         dimensionedScalar("zero", dimEnergy/dimTime/dimVolume, 0.0)
     ),
-    agentHeatUp_
+    gasReactantEnthalpyAtTg_
     (
         IOobject
         (
-            "agentHeatUp",
+            "gasReactantEnthalpyAtTg",
+            mesh_.time().timeName(),
+            mesh_,
+            IOobject::NO_READ,
+            IOobject::AUTO_WRITE
+        ),
+        mesh_,
+        dimensionedScalar("zero", dimEnergy/dimTime/dimVolume, 0.0)
+    ),
+    heatUpGasReactantsToTs_
+    (
+        IOobject
+        (
+            "heatUpGasReactantsToTs",
             mesh_.time().timeName(),
             mesh_,
             IOobject::NO_READ,
@@ -140,7 +153,7 @@ Foam::tmp<Foam::volScalarField> GasSolidHeatExchange::heatTransferCalc() const
         )
     );
 
-    if (!equilibrium_)
+    if (!frozenTemperature_)
     {
         // Gate the emitted exchange at the producer so the solid TEqn and the
         // gas EEqn consume the same field: an ungated gas side would exchange
@@ -268,7 +281,7 @@ Foam::tmp<Foam::volScalarField> GasSolidHeatExchange::heatTransferCoeffCalc() co
         )
     );
 
-    if (!equilibrium_)
+    if (!frozenTemperature_)
     {
         tCoeff = HTmodel_->CONV()*solidState_.solidPresent();
     }
@@ -295,12 +308,14 @@ void GasSolidHeatExchange::updateInterfaceEnthalpy
     const PtrList<volScalarField>& SrhoI
 )
 {
-    scalarField& gasSide = interfaceEnthalpy_.primitiveFieldRef();
-    scalarField& solidSide = agentHeatUp_.primitiveFieldRef();
-    gasSide = 0;
+    scalarField& gasProducts = gasProductEnthalpyAtTs_.primitiveFieldRef();
+    scalarField& gasReactants = gasReactantEnthalpyAtTg_.primitiveFieldRef();
+    scalarField& solidSide = heatUpGasReactantsToTs_.primitiveFieldRef();
+    gasProducts = 0;
+    gasReactants = 0;
     solidSide = 0;
 
-    if (equilibrium_)
+    if (frozenTemperature_)
     {
         return;
     }
@@ -315,23 +330,25 @@ void GasSolidHeatExchange::updateInterfaceEnthalpy
 
         forAll(S, celli)
         {
-            // Products leave the solid at Ts; agents leave the gas at Tg.
+            // Products leave the solid at Ts; gaseous reactants leave the
+            // gas at Tg.
             if (S[celli] > 0)
             {
-                gasSide[celli] += S[celli]*gas.Hs(i, p[celli], T_[celli]);
+                gasProducts[celli] += S[celli]*gas.Hs(i, p[celli], T_[celli]);
             }
             else if (S[celli] < 0)
             {
                 const scalar hsTg = gas.Hs(i, p[celli], Tg[celli]);
-                gasSide[celli] += S[celli]*hsTg;
+                gasReactants[celli] += S[celli]*hsTg;
                 solidSide[celli] -=
                     S[celli]*(gas.Hs(i, p[celli], T_[celli]) - hsTg);
             }
         }
     }
 
-    interfaceEnthalpy_.correctBoundaryConditions();
-    agentHeatUp_.correctBoundaryConditions();
+    gasProductEnthalpyAtTs_.correctBoundaryConditions();
+    gasReactantEnthalpyAtTg_.correctBoundaryConditions();
+    heatUpGasReactantsToTs_.correctBoundaryConditions();
 }
 
 

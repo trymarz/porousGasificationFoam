@@ -41,15 +41,15 @@ gasSourceOutsideGate
     writeControl    writeTime;
 }
 
-// The energy half (#212 D4): the interface enthalpy and the agent heat-up
-// follow Srho_i, so they too are zero outside the gate.
-interfaceEnthalpyOutsideGate
+// The energy half (#212 D4): the interface enthalpy terms follow Srho_i,
+// so they too are zero outside the gate.
+gasProductEnthalpyAtTsOutsideGate
 {
     type            exprField;
     libs            (fieldFunctionObjects);
-    field           interfaceEnthalpyOutsideGate;
+    field           gasProductEnthalpyAtTsOutsideGate;
     dimensions      [1 -1 -3 0 0 0 0];
-    expression      "interfaceEnthalpy*(1 - solidConnectedAtStepStart)";
+    expression      "gasProductEnthalpyAtTs*(1 - solidConnectedAtStepStart)";
     action          new;
     store           true;
     autowrite       true;
@@ -58,13 +58,28 @@ interfaceEnthalpyOutsideGate
     writeControl    writeTime;
 }
 
-agentHeatUpOutsideGate
+gasReactantEnthalpyAtTgOutsideGate
 {
     type            exprField;
     libs            (fieldFunctionObjects);
-    field           agentHeatUpOutsideGate;
+    field           gasReactantEnthalpyAtTgOutsideGate;
     dimensions      [1 -1 -3 0 0 0 0];
-    expression      "agentHeatUp*(1 - solidConnectedAtStepStart)";
+    expression      "gasReactantEnthalpyAtTg*(1 - solidConnectedAtStepStart)";
+    action          new;
+    store           true;
+    autowrite       true;
+    executeControl  timeStep;
+    executeInterval 1;
+    writeControl    writeTime;
+}
+
+heatUpGasReactantsToTsOutsideGate
+{
+    type            exprField;
+    libs            (fieldFunctionObjects);
+    field           heatUpGasReactantsToTsOutsideGate;
+    dimensions      [1 -1 -3 0 0 0 0];
+    expression      "heatUpGasReactantsToTs*(1 - solidConnectedAtStepStart)";
     action          new;
     store           true;
     autowrite       true;
@@ -126,19 +141,27 @@ regressionGasSourceOutsideGate
     operation       volIntegrate;
 }
 
-regressionInterfaceEnthalpyOutsideGate
+regressionGasProductEnthalpyAtTsOutsideGate
 {
     ${regressionBase}
     enabled         true;
-    fields          (interfaceEnthalpyOutsideGate);
+    fields          (gasProductEnthalpyAtTsOutsideGate);
     operation       volIntegrate;
 }
 
-regressionAgentHeatUpOutsideGate
+regressionGasReactantEnthalpyAtTgOutsideGate
 {
     ${regressionBase}
     enabled         true;
-    fields          (agentHeatUpOutsideGate);
+    fields          (gasReactantEnthalpyAtTgOutsideGate);
+    operation       volIntegrate;
+}
+
+regressionHeatUpGasReactantsToTsOutsideGate
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (heatUpGasReactantsToTsOutsideGate);
     operation       volIntegrate;
 }
 

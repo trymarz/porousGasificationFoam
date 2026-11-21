@@ -4,7 +4,8 @@ Description
 
         d(porosityF*rho*he)/dt + div(phi,he) + d(porosityF*rho*K)/dt
       + div(phi,K) - porosityF*dp/dt - laplacian(alphaEff,he)
-      = Qdot*porosityF + heatTransfer + interfaceEnthalpy + radiation->Sh
+      = Qdot*porosityF + heatTransfer
+      + (gasProductEnthalpyAtTs + gasReactantEnthalpyAtTg) + radiation->Sh
 
     Like the storage term, the pressure work is per unit total volume, so
     dp/dt carries the gas fraction porosityF. The he = e form follows from
@@ -23,25 +24,33 @@ Description
     registered, stored-old-time stand-in that avoids this; YEqn.H shares
     the same weight and must stay consistent with it.
 
-    interfaceEnthalpy is the sensible enthalpy h of the mass Srho_i brings
-    across the interface (products at Ts, agents at Tg; GasSolidHeatExchange),
-    h and not e even in e form: entering mass brings its flow work.
+    gasProductEnthalpyAtTs and gasReactantEnthalpyAtTg are the sensible
+    enthalpy h of the mass Srho_i brings across the interface (products at
+    Ts, gaseous reactants at Tg; GasSolidHeatExchange), h and not e even in
+    e form: entering mass brings its flow work.
+
+    With frozenTemperature no energy equation is solved: gas and solid keep
+    their own, separate temperatures.
 \*---------------------------------------------------------------------------*/
 
 if (solveEnergy)
 {
-    if (pyrolysisZone.equilibrium())
+    if (pyrolysisZone.frozenTemperature())
     {}
     else
     {
         volScalarField& he = thermo.he();
-        volScalarField interfaceEnthalpy = pyrolysisZone.interfaceEnthalpy()();
+        volScalarField gasProductEnthalpyAtTs =
+            pyrolysisZone.gasProductEnthalpyAtTs()();
+        volScalarField gasReactantEnthalpyAtTg =
+            pyrolysisZone.gasReactantEnthalpyAtTg()();
         heatTransfer = pyrolysisZone.heatTransfer()();
 
         Info<< " rho gas min/max = " << gMin(rho) << ", " << gMax(rho) << endl;
         Info<< " Sh gas min/max = " << gMin(chemistrySh) << ", " << gMax(chemistrySh) << endl;
         Info<< " porosity min/max = " << gMin(porosityF) << ", " << gMax(porosityF) << endl;
-        Info<< " interfaceEnthalpy min/max = " << gMin(interfaceEnthalpy) << ", " << gMax(interfaceEnthalpy) << endl;
+        Info<< " gasProductEnthalpyAtTs min/max = " << gMin(gasProductEnthalpyAtTs) << ", " << gMax(gasProductEnthalpyAtTs) << endl;
+        Info<< " gasReactantEnthalpyAtTg min/max = " << gMin(gasReactantEnthalpyAtTg) << ", " << gMax(gasReactantEnthalpyAtTg) << endl;
         Info<< " heatTransfer min/max = " << gMin(heatTransfer) << ", " << gMax(heatTransfer) << endl;
 
         fvScalarMatrix EEqn
@@ -66,7 +75,9 @@ if (solveEnergy)
             reaction->Qdot() * porosityF
           + fvOptions(rho, he)
           + heatTransfer
-          + interfaceEnthalpy
+            // Summed first, as the single field they split, so round-off
+            // matches the one-source form.
+          + (gasProductEnthalpyAtTs + gasReactantEnthalpyAtTg)
           + radiation->Sh(thermo, he)
         );
 

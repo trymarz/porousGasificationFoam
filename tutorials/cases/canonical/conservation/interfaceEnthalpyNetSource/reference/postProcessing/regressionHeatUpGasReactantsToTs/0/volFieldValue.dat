@@ -1,0 +1,9 @@
+# Region            : all region0
+# Cells             : 1
+# Volume            : 5.000000000000e-07
+# Time              	volIntegrate(heatUpGasReactantsToTs)
+0.002               	3.470684706804e+00
+0.004               	2.174211330027e+00
+0.006               	1.818217604080e+00
+0.008               	1.310690566288e+00
+0.01                	8.772167867787e-01

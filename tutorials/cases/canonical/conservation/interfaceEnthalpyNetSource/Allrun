@@ -2,7 +2,7 @@
 cd "${0%/*}" || exit
 # char + 2.67 O2 = 3.67 CO2 and coke + 3.67 CO2 = 4.67 CO, Ts = 900 K, Tg = 600 K,
 # hr = 0: CO2 is made and consumed in every step. The interface terms use its
-# net source (#312 E6): a product entering at Ts (step 1), then an agent the
+# net source (#312 E6): a product entering at Ts (step 1), then a reactant the
 # solid heats from Tg. Gross bookkeeping would have the solid pay the heat-up of
 # min(made, consumed) and the gas gain it: same total, other split. Checked per
 # step by checkInterfaceEnergy.py, which prints that shift. One cell, h = 0, Euler.

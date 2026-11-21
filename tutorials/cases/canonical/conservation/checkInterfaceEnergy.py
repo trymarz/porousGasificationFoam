@@ -12,22 +12,25 @@ against Y<solid>m); everything else is recomputed by hand from the case's
 input files, with the step-start Ts, Tg (as the solver does):
 
   S_i       = sum_k nu_ik r_k                net gas source of species i
-  Q_int,g   = sum_{S_i>0} S_i hs_i(Ts) + sum_{S_i<0} S_i hs_i(Tg)
-  Q_agent   = sum_{S_i<0} |S_i| (hs_i(Ts) - hs_i(Tg))
+  Q_prod    = sum_{S_i>0} S_i hs_i(Ts)               gasProductEnthalpyAtTs
+  Q_react   = sum_{S_i<0} S_i hs_i(Tg)               gasReactantEnthalpyAtTg
+  Q_int,g   = Q_prod + Q_react
+  Q_heat    = sum_{S_i<0} |S_i| (hs_i(Ts) - hs_i(Tg))  heatUpGasReactantsToTs
   S_chem    = -sum_j RRs_j h_j(Ts) - sum_i S_i Ha_i(Ts)    (enthalpy mode)
             = 0                                             (hr mode, hr = 0)
 
   gas:   (m + dt Srho) hs_mix(Tg', Y') = m hs_mix(Tg, Y) + dt Q_int,g
          (m + dt Srho) Y_i'            = m Y_i + dt S_i,      m = porosityF rho
-  solid: rhoCp_pre Ts' = H_old + dt (S_chem - Q_agent),  rhoCp_pre = sum Ym_j Cp_j
+  solid: rhoCp_pre Ts' = H_old + dt (S_chem - Q_heat),  rhoCp_pre = sum Ym_j Cp_j
 
 S_i is the NET source: a species both made and consumed in the cell is a
-product if S_i > 0 and an agent if S_i < 0, never both (#312 E6).
+product if S_i > 0 and a reactant if S_i < 0, never both (#312 E6).
 
 Checked per step: Tg' and Ts' against the closed form within TOL [K]; Y' within
-1e-6; the written Srho, interfaceEnthalpy, agentHeatUp (and solidChemistrySh in
-enthalpy mode) against the hand values; and the total
-    dE_gas + dE_solid = dt (Q_int,g - Q_agent + S_chem) = dt (sum_i S_i hs_i(Ts) + S_chem)
+1e-6; the written Srho, gasProductEnthalpyAtTs, gasReactantEnthalpyAtTg, their sum
+(Q_int,g), heatUpGasReactantsToTs (and solidChemistrySh in enthalpy mode)
+against the hand values; and the total
+    dE_gas + dE_solid = dt (Q_int,g - Q_heat + S_chem) = dt (sum_i S_i hs_i(Ts) + S_chem)
 from the measured temperatures. In enthalpy mode also the absolute enthalpy
 (formation included, solid h = Cp (T - Tstd) + Hf): its change is
 dt sum_j RRs_j Cp_j (Ts' - Ts), the converted solid's sensible heat between
@@ -203,7 +206,9 @@ def main():
         made = {i: sum(rk * max(nu.get(i, 0.0), 0) for rk, (_, _, nu) in zip(r, rxns)) for i in gas}
         eaten = {i: made[i] - S[i] for i in gas}
 
-        Qg = sum(S[i] * hs(sp[i], Tso if S[i] > 0 else To) for i in gas)
+        Qp = sum(S[i] * hs(sp[i], Tso) for i in gas if S[i] > 0)
+        Qr = sum(S[i] * hs(sp[i], To) for i in gas if S[i] < 0)
+        Qg = Qp + Qr
         Qa = sum(-S[i] * (hs(sp[i], Tso) - hs(sp[i], To)) for i in gas if S[i] < 0)
         Sch = 0.0
         if enthalpy:
@@ -239,20 +244,27 @@ def main():
         print(f"   gas   T={Tn:.9f}  closed form {Tx:.9f}  diff {Tn - Tx:+.3e} K   "
               f"dE={dEg:+.9e}  dt*Q_int,g={dt * Qg:+.9e}")
         print(f"   solid Ts={Tsn:.9f}  closed form {Tsx:.9f}  diff {Tsn - Tsx:+.3e} K   "
-              f"dE={dEs:+.9e}  dt*(S_chem-Q_agent)={dt * (Sch - Qa):+.9e}")
+              f"dE={dEs:+.9e}  dt*(S_chem-Q_heat)={dt * (Sch - Qa):+.9e}")
         print(f"   total dE_gas+dE_solid - dt*(sum S_i hs_i(Ts) + S_chem) = {tot:+.3e} J/m3 "
               f"(of {scale:.3e} exchanged)")
         expect(f"{new.name}: gas T", abs(Tn - Tx) <= a.tol)
         expect(f"{new.name}: solid Ts", abs(Tsn - Tsx) <= a.tol)
         expect(f"{new.name}: Y", all(abs(Yn[s] - Yx[s]) <= YTOL for s in gas))
         expect(f"{new.name}: total", abs(tot) <= ETOL * scale)
-        fields = [("Srho", Srho, Srho), ("interfaceEnthalpy", Qg, Qg), ("agentHeatUp", Qa, Qg)]
+        w = {f: internal(new / f) for f in ("Srho", "gasProductEnthalpyAtTs",
+             "gasReactantEnthalpyAtTg", "heatUpGasReactantsToTs")}
+        w["gasProductEnthalpyAtTs + gasReactantEnthalpyAtTg"] = (
+            w["gasProductEnthalpyAtTs"] + w["gasReactantEnthalpyAtTg"])
+        fields = [("Srho", Srho, Srho), ("gasProductEnthalpyAtTs", Qp, Qp),
+                  ("gasReactantEnthalpyAtTg", Qr, Qr),
+                  ("gasProductEnthalpyAtTs + gasReactantEnthalpyAtTg", Qg, Qg),
+                  ("heatUpGasReactantsToTs", Qa, Qg)]
         if enthalpy:
+            w["solidChemistrySh"] = internal(new / "solidChemistrySh")
             fields.append(("solidChemistrySh", Sch, Sch))
         for f, x, sc in fields:
-            w = internal(new / f)
-            print(f"   {f:18s} written {w:+.9e}  hand {x:+.9e}")
-            expect(f"{new.name}: {f}", rel(w, x, sc) <= FTOL or abs(w - x) <= 1e-12)
+            print(f"   {f:48s} written {w[f]:+.9e}  hand {x:+.9e}")
+            expect(f"{new.name}: {f}", rel(w[f], x, sc) <= FTOL or abs(w[f] - x) <= 1e-12)
         if enthalpy:
             dAbs = (dEg + dt * sum(S[i] * ha(sp[i], TSTD) for i in gas)
                     + sum((Ymo[j] + dt * RRs[j]) * (sol[j][0] * (Tsn - TSTD) + sol[j][1])
