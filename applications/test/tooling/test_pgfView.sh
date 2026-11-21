@@ -153,5 +153,26 @@ assert s.get(\"ColorPalette\") == want, s
     done
 fi
 
+# pgf doctor's ParaView line: Debian's paraview without python3-paraview has no
+# pvpython (it conflicts with python3-vtk9, which libvtk9-dev pulls in).
+# PATH is the fake ParaView and the few tools the check needs, never /usr/bin.
+pvcheck() {
+    PATH="$1:$TEST_TMP/pv-tools" "$BASH" -c '. "$1/utilities/pgf/ui.sh"; . "$1/utilities/pgf/commands.sh"; pgf_paraview_check' _ "$PGF_ROOT"
+}
+for d in tools none gui ok broken; do mkdir -p "$TEST_TMP/pv-$d"; done
+for t in timeout tail sh; do ln -s "$(command -v $t)" "$TEST_TMP/pv-tools/$t"; done
+printf '#!/bin/sh\n' >"$TEST_TMP/pv-gui/paraview"
+cp "$TEST_TMP/pv-gui/paraview" "$TEST_TMP/pv-ok/paraview"
+printf '#!/bin/sh\necho 5.13\n' >"$TEST_TMP/pv-ok/pvpython"
+printf '#!/bin/sh\necho "ModuleNotFoundError: paraview" >&2; exit 1\n' >"$TEST_TMP/pv-broken/pvpython"
+chmod +x "$TEST_TMP"/pv-{gui,ok,broken}/*
+check "doctor: no ParaView is a SKIP" bash -c '[[ "$1" == "SKIP no ParaView on PATH"* ]]' _ "$(pvcheck "$TEST_TMP/pv-none")"
+check "doctor: paraview without pvpython warns and names python3-paraview" \
+    bash -c '[[ "$1" == "WARN ParaView "*"has no Python"*"apt install python3-paraview"* ]]' _ "$(pvcheck "$TEST_TMP/pv-gui")"
+check "doctor: pvpython that imports paraview.simple is OK, with its version" \
+    bash -c '[[ "$1" == "OK ParaView 5.13 with Python, "* ]]' _ "$(pvcheck "$TEST_TMP/pv-ok")"
+check "doctor: pvpython without paraview.simple warns" \
+    bash -c '[[ "$1" == "WARN "*"cannot import paraview.simple"* ]]' _ "$(pvcheck "$TEST_TMP/pv-broken")"
+
 [ "$TEST_FAILURES" -eq 0 ] || echo "$out"
 finish

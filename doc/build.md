@@ -122,6 +122,25 @@ When the pin moves, rebuild YADE, the coupling libraries and PGF's `--yade` buil
 - **YADE side.** `yade --help` ends its description with the compiled features; the list must contain `MPI`.
 - **At run time.** A `WITH_YADE` solver prints `DEM coupling: active` (or `inactive (yadeProperties absent or active=false)`) at startup, from `createDEMFields.H`; a normal build prints no such line. YADE prints `Starting OpenFOAM solver --> porousGasificationFoam` before it spawns the solver. YADE always spawns it with `-parallel`, so the case must be decomposed.
 
+### ParaView and Yade's VTK
+
+YADE is configured with `ENABLE_VTK=ON` for `VTKRecorder` (C++, in `libpost_vtk.so`), which DEM cases such as `MicroTGA-DEM_lambdaDot_common` use for their sphere output. On Debian 13 that means two packages with different jobs:
+
+| Package | Needed for |
+|---|---|
+| `libvtk9-dev` (depends on `python3-vtk9`) | configuring and compiling YADE (`VTK_DIR=/usr/lib/x86_64-linux-gnu/cmake/vtk-9.3`, the headers) |
+| `libvtk9.3` | running YADE: the `libvtk*-9.3.so.1` that `libyade.so`, `libpost_vtk.so` and others link |
+
+Neither YADE's Python modules nor PGF's DEM scripts import the `vtk` Python module: `yade.export.VTKExporter` and the cases' `MPI_lambda.py` write VTK files as text. `pgf build --yade` does not need VTK either; the coupling libraries are plain `wmake` libraries.
+
+`python3-paraview`, which [`pgf view`](paraview.md) needs, conflicts with `python3-vtk9` (both ship the `vtkmodules` Python package), so `libvtk9-dev` and `python3-paraview` cannot be installed together. The route that works:
+
+1. Day to day, keep `paraview python3-paraview` and the runtime `libvtk9.3`. `libvtk9.3` is usually marked as automatically installed, so keep `apt autoremove` from taking it: `sudo apt-mark manual libvtk9.3`.
+2. To build or rebuild YADE (for example when the pin moves), swap: `sudo apt install libvtk9-dev` (removes `python3-paraview`), build YADE, then `sudo apt install python3-paraview` (removes `libvtk9-dev` and `python3-vtk9` again). The installed YADE keeps working; `ldd <yade lib dir>/libpost_vtk.so | grep 'not found'` should print nothing.
+3. If you need both at once, use a Kitware ParaView binary (its own Python and VTK, no apt packages) with its `bin/` first on `PATH`, and keep `libvtk9-dev`.
+
+`pgf doctor` reports, under "ParaView", whether the ParaView on your `PATH` has Python.
+
 ## Cleaning
 
 `./Allwclean` (`pgf build clean --all`) cleans this checkout's in-tree cache: `lnInclude/` and `Make/<WM_OPTIONS>/` of every target, through `wclean`. Built prefixes are not touched; `pgf gc` removes those. Switching variants does not need it.
