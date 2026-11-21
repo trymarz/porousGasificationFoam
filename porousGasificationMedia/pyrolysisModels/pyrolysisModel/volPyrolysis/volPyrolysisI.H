@@ -88,9 +88,9 @@ Foam::heterogeneousPyrolysisModels::volPyrolysis::maxTime() const
 }
 
 inline Foam::Switch
-Foam::heterogeneousPyrolysisModels::volPyrolysis::equilibrium() const
+Foam::heterogeneousPyrolysisModels::volPyrolysis::frozenTemperature() const
 {
-    return equilibrium_;
+    return frozenTemperature_;
 }
 
 inline Foam::tmp<Foam::volScalarField>
@@ -100,9 +100,15 @@ Foam::heterogeneousPyrolysisModels::volPyrolysis::heatTransfer() const
 }
 
 inline Foam::tmp<Foam::volScalarField>
-Foam::heterogeneousPyrolysisModels::volPyrolysis::interfaceEnthalpy() const
+Foam::heterogeneousPyrolysisModels::volPyrolysis::gasProductEnthalpyAtTs() const
 {
-    return heatExchange_->interfaceEnthalpy();
+    return heatExchange_->gasProductEnthalpyAtTs();
+}
+
+inline Foam::tmp<Foam::volScalarField>
+Foam::heterogeneousPyrolysisModels::volPyrolysis::gasReactantEnthalpyAtTg() const
+{
+    return heatExchange_->gasReactantEnthalpyAtTg();
 }
 
 inline Foam::tmp<Foam::volScalarField>

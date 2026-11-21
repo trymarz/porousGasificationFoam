@@ -124,11 +124,11 @@ These cases assert a balance; the comments in their `regressionFunctions` state 
 |---|---|---|
 | `interphaseHeatTransfer`, `…Plain` | `HeatTransferResidual` 1e-19–1e-18 | `HeatTransferExchanged`, `TsAverage` |
 | `radiationReservoir` | `RadiationBookResidual` 0; `RadiationWallFlux` 0 (zeroGradient G) | `RadiationBookedMax/Min` ±2e7, `GAverage`, `TsAverage` |
-| `chemistryGateCrossing` | `ChemistryHeatOutsideGate`, `GasSourceOutsideGate`, `InterfaceEnthalpyOutsideGate`, `AgentHeatUpOutsideGate` 0; `PorosityMax` flat after the crossing | `SolidMass` (`Ywoodm`), `ChemistryHeat`, `TsMax`; `SolidSensible` and `GasTempMax` are reported, not asserted (`GasTempMax`: rigid-tank filling with gas at h(Ts), #212) |
-| `gatedBandSources` | `RadiationSh`, `ChemistrySh`, `HeatTransfer`, `InterfaceEnthalpy`, `AgentHeatUp`, `Srho` 0 | `TsMax` 1200, `GasTempMax` 300, `GAverage`, `PorosityMax`: flat by design, liveness is that they are far apart |
-| `interfaceEnthalpyPyrolysis` | `GasTempMax`, `TsMax` == 600 | `Srho`, `InterfaceEnthalpy` |
-| `interfaceEnthalpyMixing` | `TsMax` == 700; `GasTempMax` is the hs mixing temperature to 1e-5 K (checked by its `Allrun`) | `Srho`, `InterfaceEnthalpy`, `TargasMax` |
-| `interfaceEnthalpyGasification` | `GasTempMax`, `TsMax` == 900 | `COMax`, `O2Min`, `Srho`, `InterfaceEnthalpy`; `AgentHeatUp` 0 to roundoff |
+| `chemistryGateCrossing` | `ChemistryHeatOutsideGate`, `GasSourceOutsideGate`, `GasProductEnthalpyAtTsOutsideGate`, `GasReactantEnthalpyAtTgOutsideGate`, `HeatUpGasReactantsToTsOutsideGate` 0; `PorosityMax` flat after the crossing | `SolidMass` (`Ywoodm`), `ChemistryHeat`, `TsMax`; `SolidSensible` and `GasTempMax` are reported, not asserted (`GasTempMax`: rigid-tank filling with gas at h(Ts), #212) |
+| `gatedBandSources` | `RadiationSh`, `ChemistrySh`, `HeatTransfer`, `GasProductEnthalpyAtTs`, `GasReactantEnthalpyAtTg`, `HeatUpGasReactantsToTs`, `Srho` 0 | `TsMax` 1200, `GasTempMax` 300, `GAverage`, `PorosityMax`: flat by design, liveness is that they are far apart |
+| `interfaceEnthalpyPyrolysis` | `GasTempMax`, `TsMax` == 600 | `Srho`, `GasProductEnthalpyAtTs` |
+| `interfaceEnthalpyMixing` | `TsMax` == 700; `GasTempMax` is the hs mixing temperature to 1e-5 K (checked by its `Allrun`) | `Srho`, `GasProductEnthalpyAtTs`, `TargasMax` |
+| `interfaceEnthalpyGasification` | `GasTempMax`, `TsMax` == 900 | `COMax`, `O2Min`, `Srho`, `GasInterfaceEnthalpy` (product + reactant halves); `HeatUpGasReactantsToTs` 0 to roundoff |
 | `gasPressureWork` | `HeatTransferResidual` ~8e-16; `GasEnergyResidual` **question** (finding 6) | `HeatTransferExchanged`, `PAverage`, `TAverage`, `TsAverage` |
 | `gasReactionPorosity` (#226) | `energyRatioMin/Max`, `speciesRatioMin/Max` == 1 within 1e-8 (observed 1e-9; 2.5 = 1/eps with YEqn's unweighted `R(Yi)`); `massChange` 0 | `regressionGasState`: the cell's `N2 O2 CO CO2 T h rho p porosityF` per step |
 

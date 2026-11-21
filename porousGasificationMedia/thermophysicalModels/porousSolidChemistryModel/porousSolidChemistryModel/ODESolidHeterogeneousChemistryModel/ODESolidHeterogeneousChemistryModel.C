@@ -757,7 +757,7 @@ Foam::ODESolidHeterogeneousChemistryModel<SolidThermo, SolidThermoType, GasTherm
         {
             // -sum RR_k h_k(Ts), formation plus sensible: the solid TEqn has
             // already taken each solid's Cp*Ts out with its mass, and the
-            // products' hs(Ts) goes to the gas as interfaceEnthalpy.
+            // products' hs(Ts) goes to the gas as gasProductEnthalpyAtTs.
             const scalarField& Ts = this->solidThermo().T();
             const scalarField& p =
                 this->mesh_.template lookupObject<psiReactionThermo>

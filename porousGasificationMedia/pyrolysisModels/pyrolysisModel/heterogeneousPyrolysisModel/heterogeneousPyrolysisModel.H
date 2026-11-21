@@ -243,8 +243,8 @@ public:
             //- Returm time modification factor
             virtual scalar maxTime() const;
 
-            //- Return equilbirium model switch
-            virtual Switch equilibrium() const;
+            //- Whether no energy equation is solved (both temperatures frozen)
+            virtual Switch frozenTemperature() const;
 
             //- Return the solution dictionary
             inline const dictionary& solution() const;
@@ -269,8 +269,11 @@ public:
             //- Return enthalpy source - Eulerian phase only
             virtual Foam::tmp<Foam::volScalarField> heatTransfer() const;
 
-            //- Sensible enthalpy the gas gains with the interface mass [W/m3]
-            virtual Foam::tmp<Foam::volScalarField> interfaceEnthalpy() const;
+            //- Gaseous products' enthalpy entering the gas at Ts [W/m3]
+            virtual Foam::tmp<Foam::volScalarField> gasProductEnthalpyAtTs() const;
+
+            //- Gaseous reactants' enthalpy leaving the gas at Tg [W/m3]
+            virtual Foam::tmp<Foam::volScalarField> gasReactantEnthalpyAtTg() const;
 
             //- Heat released by the solid reactions [J/s/m3]
             virtual Foam::tmp<Foam::volScalarField> solidChemistrySh() const;

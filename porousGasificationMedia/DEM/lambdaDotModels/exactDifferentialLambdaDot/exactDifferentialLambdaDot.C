@@ -120,7 +120,7 @@ void exactDifferentialLambdaDot::calculateTemperatureDriven()
 
     // Called after SolidEnergy::solve(), so TsField is this step's Ts and
     // dTsdt = (Ts^n - Ts^(n-1))/deltaT^n. The previous sample is kept here:
-    // Ts.oldTime() is not maintained on the equilibrium path.
+    // Ts.oldTime() is not maintained on the frozenTemperature path.
     if (!haveTsForLambdaOld_ || TsForLambdaOld_.size() != TsField.size())
     {
         TsForLambdaOld_ = TsField;

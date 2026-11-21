@@ -25,8 +25,8 @@ Class
     Foam::heterogeneousPyrolysisModels::GasSolidHeatExchange
 
 Description
-    Heat exchanged between the gas and the solid in the non-equilibrium
-    (two-temperature) model, as source terms shared by the solid TEqn and
+    Heat exchanged between the gas and the solid in the two-temperature
+    model, as source terms shared by the solid TEqn and
     the gas EEqn [W/m3].
 
     CONV is the volumetric heat transfer coefficient [W/m3/K] from the
@@ -39,13 +39,13 @@ Description
     it leaves (#212, D4), per species i with the mass source Srho_i that
     feeds rhoEqn and YEqn:
 
-        interfaceEnthalpy = sum_{Srho_i>0} Srho_i*hs_i(Ts)
-                          + sum_{Srho_i<0} Srho_i*hs_i(Tg)       (gas EEqn)
-        agentHeatUp       = sum_{Srho_i<0} |Srho_i|*(hs_i(Ts) - hs_i(Tg))
+        gasProductEnthalpyAtTs  = sum_{Srho_i>0} Srho_i*hs_i(Ts)     (gas EEqn)
+        gasReactantEnthalpyAtTg = sum_{Srho_i<0} Srho_i*hs_i(Tg)     (gas EEqn)
+        heatUpGasReactantsToTs  = sum_{Srho_i<0} |Srho_i|*(hs_i(Ts) - hs_i(Tg))
                                                                  (solid TEqn, -)
 
-    Products are born at Ts; a consumed agent leaves the gas at Tg and the
-    solid heats it to Ts, so the reaction heat hr holds with all
+    Products are born at Ts; a consumed gaseous reactant leaves the gas at
+    Tg and the solid heats it to Ts, so the reaction heat hr holds with all
     participants at Ts. The solid needs no product term: the converted
     solid already leaves at Ts (SolidEnergy's carrier heat capacity).
     hs_i is the gas thermo's own, so the gas source is h even when the gas
@@ -54,7 +54,7 @@ Description
 
     The exchange is gated by connectedAtStepStart where it is produced, so
     the solid and gas equations consume one field and the pair conserves
-    energy. All three are zero in equilibrium mode.
+    energy. All four are zero in frozenTemperature mode.
 
     Owned directly by volPyrolysis (like BedCollapse) - no runtime
     selection; the heat transfer model itself is selected at runtime.
@@ -63,7 +63,8 @@ Description
       reads   Ts, rho, porosity, porosityF0, the gas thermo (Tg, hs_i),
               the SolidState gate, Srho_i passed in;
       writes  only what it owns: the heat transfer coefficient, the
-              exchange, interfaceEnthalpy and agentHeatUp.
+              exchange, gasProductEnthalpyAtTs, gasReactantEnthalpyAtTg and
+              heatUpGasReactantsToTs.
 
 SourceFiles
     gasSolidHeatExchange.C
@@ -110,13 +111,17 @@ class GasSolidHeatExchange
         const SolidState& solidState_;
 
         //- The owner's switch, bound so a runtime read() takes effect
-        const Switch& equilibrium_;
+        const Switch& frozenTemperature_;
 
-        //- Sensible enthalpy the gas gains with the interface mass [W/m3]
-        volScalarField interfaceEnthalpy_;
+        //- Sensible enthalpy of gaseous products entering the gas at Ts [W/m3]
+        volScalarField gasProductEnthalpyAtTs_;
 
-        //- Heat the solid gives a consumed agent, from Tg to Ts [W/m3]
-        volScalarField agentHeatUp_;
+        //- Sensible enthalpy of gaseous reactants leaving the gas at Tg
+        //  (negative) [W/m3]
+        volScalarField gasReactantEnthalpyAtTg_;
+
+        //- Heat the solid gives consumed gaseous reactants, Tg to Ts [W/m3]
+        volScalarField heatUpGasReactantsToTs_;
 
         //- Interphase exchange as the solid TEqn consumed it, stored so the
         //  gas EEqn adds back the same joules rather than a fresh evaluation
@@ -184,7 +189,7 @@ public:
             const SolidFields& solid,
             const volScalarField& porosityArch,
             const psiReactionThermo& gasThermo,
-            const Switch& equilibrium
+            const Switch& frozenTemperature
         );
 
 
@@ -200,7 +205,7 @@ public:
         //- Evaluate and store the exchange for this step
         const volScalarField& updateHeatTransfer();
 
-        //- Evaluate and store interfaceEnthalpy and agentHeatUp from the
+        //- Evaluate and store the three interface enthalpy terms from the
         //  per-species gas mass sources, indexed like the gas species
         void updateInterfaceEnthalpy(const PtrList<volScalarField>& SrhoI);
 
@@ -210,16 +215,22 @@ public:
             return heatTransferSh_;
         }
 
-        //- Gas-side interface enthalpy [W/m3]
-        const volScalarField& interfaceEnthalpy() const
+        //- Gas side: gaseous products' enthalpy at Ts [W/m3]
+        const volScalarField& gasProductEnthalpyAtTs() const
         {
-            return interfaceEnthalpy_;
+            return gasProductEnthalpyAtTs_;
         }
 
-        //- Solid-side agent heat-up [W/m3]
-        const volScalarField& agentHeatUp() const
+        //- Gas side: gaseous reactants' enthalpy at Tg, negative [W/m3]
+        const volScalarField& gasReactantEnthalpyAtTg() const
         {
-            return agentHeatUp_;
+            return gasReactantEnthalpyAtTg_;
+        }
+
+        //- Solid side: heat-up of consumed gaseous reactants to Ts [W/m3]
+        const volScalarField& heatUpGasReactantsToTs() const
+        {
+            return heatUpGasReactantsToTs_;
         }
 };
 

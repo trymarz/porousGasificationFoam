@@ -27,7 +27,7 @@ Each stage reads what the stages above it left, so the order sets the results.
 
 **2. `updateTransferCoefficients()`** — model (`GasSolidHeatExchange`, specie transfer).
 - Reads: for `GasSolidHeatExchange`, `Ts`, `rho`, `porosity`, `porosityF0` and the gas thermo; the specie transfer model (`ST()`) has no "Field access" list.
-- Writes: the heat transfer coefficient (owned by `GasSolidHeatExchange`, skipped under `equilibrium`) and volPyrolysis's `specieTransferCoeff`.
+- Writes: the heat transfer coefficient (owned by `GasSolidHeatExchange`, skipped under `frozenTemperature`) and volPyrolysis's `specieTransferCoeff`.
 - Checks: none.
 
 **3. `solveChemistry()`** — model (solid chemistry).
@@ -37,7 +37,7 @@ Each stage reads what the stages above it left, so the order sets the results.
 
 **4. `exchangeHeatWithGas()`** — model (`GasSolidHeatExchange`).
 - Reads: `Ts`, `rho`, `porosity`, `porosityF0`, the gas `T` and `hs_i`, the gate, and this step's `Srho_i`, the same per-species sources that `rhoEqn.H` and `YEqn.H` read.
-- Writes: only what it owns: `interfaceEnthalpy`, `agentHeatUp`, and the gas-solid heat transfer (unless in `equilibrium` or inactive).
+- Writes: only what it owns: `gasProductEnthalpyAtTs`, `gasReactantEnthalpyAtTg`, `heatUpGasReactantsToTs`, and the gas-solid heat transfer (unless in `frozenTemperature` or inactive).
 - Checks: none.
 
 ### Solid flux
