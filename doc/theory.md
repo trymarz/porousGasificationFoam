@@ -119,7 +119,7 @@ $$
 $$
 \begin{aligned}
 &{\color{blue}\frac{\partial(\varepsilon\rho_g h_g)}{\partial t} + \frac{\partial(\varepsilon\rho_g K)}{\partial t}} + {\color{orange}\nabla\cdot(\varphi_g h_g) + \nabla\cdot(\varphi_g K)} - {\color{purple}\varepsilon\frac{\partial p}{\partial t}} - {\color{green}\nabla\cdot(\alpha_{\mathrm{eff}}\nabla h_g)} \\
-&\quad = {\color{purple}\varepsilon\dot Q_{\mathrm{chem}}} + {\color{red}Q_{\mathrm{conv}} + Q_{\mathrm{int}} + S_{\mathrm{rad}}}
+&\quad = {\color{purple}\varepsilon\dot Q_{\mathrm{chem}}} + {\color{red}Q_{\mathrm{conv}} + Q_{\mathrm{prod}} + Q_{\mathrm{reac}} + S_{\mathrm{rad}}}
 \end{aligned}
 $$
 
@@ -137,20 +137,62 @@ The solid chemistry reports this per cell as three rates, each in kg per m³ of 
 
 All three come from one chemistry ODE per cell, integrated over the time step at the start of the solid step; they are the mean rates over that step. The gas and solid equations then use the same values, so both sides see one consistent exchange. For more detail, such as what each rate is normalised by, how it is split among species and which quantities stay fixed while the ODE is integrated, see the `Description` at the top of `ODESolidHeterogeneousChemistryModel.H` (#209; paper Eq. 4–6, 10, 12).
 
-**Heat.**
+**Energy.** Gas and solid each have their own temperature, `T_g` and `T_s`. Energy passes between them by convection, with the mass that crosses the interface, and as radiation. `GasSolidHeatExchange` computes the convection and interface terms once per step, from the step-start temperatures, in cells whose solid is connected at the start of the step (its `Description` has the details). Gas and solid read the same stored values, so what one phase loses the other gains in the same step:
+
+| Route | Gas | Solid |
+|---|---|---|
+| Convection | $+Q_{\mathrm{conv}}$ | $-Q_{\mathrm{conv}}$ |
+| Gas products | $+Q_{\mathrm{prod}}$ | leaves with the converted mass |
+| Gas reactants | $+Q_{\mathrm{reac}}$ (< 0) | $-Q_{\mathrm{reac},s}$ |
+
+With `frozenTemperature` (formerly `equilibrium`, in `pyrolysisCoeffs`) no energy equation is solved at all: both temperatures stay at their initial values, each phase its own, and all exchange terms are zero.
+
+*Convection.* $Q_{\mathrm{conv}} = h_v\,(T_s - T_g)$ (`heatTransfer()`), where `h_v` [W/m³/K] is the volumetric heat transfer coefficient from the model chosen in `heatTransferProperties`; it is zero where there is no solid. With `subintegrateHeatTransfer` the code uses the exact two-temperature relaxation over the step instead, which stays stable for large `h_v`.
+
+*Mass crossing the interface.* Gas that crosses carries its sensible enthalpy `h_i` at the temperature of the phase it leaves, the donor. The sign of `S_ρ,i` picks the donor (`updateInterfaceEnthalpy`):
+
+- A gas product (`S_ρ,i > 0`) is born in the solid and enters the gas at `T_s`.
+- A gas reactant (`S_ρ,i < 0`) leaves the gas at `T_g`. The solid then warms it to `T_s`, where it reacts.
 
 $$
-Q_{\mathrm{int}} = \sum_{S_{\rho,i}>0} S_{\rho,i}\,h_i(T_s) + \sum_{S_{\rho,i}<0} S_{\rho,i}\,h_i(T_g)
+Q_{\mathrm{prod}} = \sum_{S_{\rho,i}>0} S_{\rho,i}\,h_i(T_s), \qquad
+Q_{\mathrm{reac}} = \sum_{S_{\rho,i}<0} S_{\rho,i}\,h_i(T_g)
 $$
 
 $$
-Q_{\mathrm{agent}} = \sum_{S_{\rho,i}<0} |S_{\rho,i}|\,\bigl(h_i(T_s) - h_i(T_g)\bigr)
+Q_{\mathrm{reac},s} = \sum_{S_{\rho,i}<0} |S_{\rho,i}|\,\bigl(h_i(T_s) - h_i(T_g)\bigr)
 $$
 
-- `Q_conv` (`heatTransfer()`): convective heat from solid to gas; it enters the gas with `+` and the solid with `−`.
-- `Q_int` (`interfaceEnthalpy`, `GasSolidHeatExchange`, #212): the sensible enthalpy the interface mass brings into the gas. Products are born at `T_s`; consumed agents leave at `T_g`. It is `h` even when the gas solves for `e`.
-- `Q_agent` (`agentHeatUp`): heats a consumed agent from `T_g` to `T_s`, taken from the solid. Products need no solid term: the solid energy equation already lets the converted solid leave at `T_s`.
-- `S_rad`, `S_rad,s`: the gas and solid radiation sources (`radiation.H`).
+- `Q_prod` (`gasProductEnthalpyAtTs`) and `Q_reac` (`gasReactantEnthalpyAtTg`) go into the gas energy equation. Both are `h` even when the gas solves for `e`: entering mass brings its flow work.
+- `Q_reac,s` (`heatUpGasReactantsToTs`) is taken from the solid energy equation.
+
+*The solid's half of a gas product.* The solid has no explicit product term. Its storage terms use the pre-reaction mass (`carrierHeatCapacity`), and `H` is then stored on the mass that remains (`storeH`). Together they equal $\frac{dH}{dt} - \sum_k R_k c_{p,k} T_s$, so the converted solid leaves with its sensible heat at `T_s` (`SolidEnergy::solveEnthalpyBalance`). An explicit term would count it twice.
+
+*Reaction heat.* It is booked once, in the solid, as `S_chem` (`chemistrySh`), with every participant at `T_s`. `solidReactionEnergyFromEnthalpy` in `chemistryProperties` (default `true`) picks how it is computed:
+
+- `false`: `S_chem` is each reaction's `heatReact` times its rate. `heatReact` must then be the heat of reaction with all participants at `T_s`; `Q_reac,s` is what brings the gas reactants there.
+- `true`: $S_{\mathrm{chem}} = -\sum_k R_k\,h_k(T_s) - \sum_i S_{\rho,i}\,h_{a,i}(T_s)$, with `h_a,i` the gas absolute enthalpy (formation plus sensible). Then $S_{\mathrm{chem}} - Q_{\mathrm{reac},s}$ is the solid's open-system balance, with gas reactants in at `T_g` and products out at `T_s`; `Q_reac,s` only splits it into two terms.
+
+For char oxidation, C + ½O₂ → CO, the steps are:
+
+```mermaid
+flowchart LR
+    A["O₂ in the gas, at T_g"] -->|"leaves the gas: Q_reac"| B["O₂ at the surface, at T_g"]
+    B -->|"warmed by the solid: Q_reac,s"| C["C + ½O₂ at T_s"]
+    C -->|"reacts at T_s: S_chem, into the solid"| D["CO at T_s"]
+    D -->|"enters the gas: Q_prod"| E["CO in the gas, at T_s"]
+```
+
+By Hess's law the direct route from O₂ at `T_g` to CO at `T_s` gives the same total. The code books it in steps so that each has one sender and one receiver.
+
+*Why the source is at the donor's temperature.* The gas energy equation is conservative: it solves for the energy in the cell, `ερ_g h_g` (`fvm::ddt(porosityRho, he) + fvm::div(phi, he)`, `EEqn.H`). Mass added by `S_ρ` without a matching energy source would arrive with `h = 0`, which for sensible enthalpy is 298.15 K. That was the case before #213; the old `heatUpGas` term only partly corrected it. In the non-conservative form, `ρ_g Dh_g/Dt`, the same omission is silent: new mass takes the cell's `h`, as if born at `T_g`.
+
+- OpenFOAM's compressible solvers (`rhoPimpleFoam`, `reactingFoam`) use the conservative form. `twoPhaseEulerFoam` subtracts the numerical continuity error, `fvm::Sp(contErr, he)` (`EEqns.H`).
+- If such a term is ever added to PGF's `EEqn.H`, its `contErr` must exclude `Σᵢ S_ρ,i`, or gas products are again born at `T_g`.
+
+*Reference temperatures.* The gas `h_i` counts from 298.15 K, the solid `H` from 0 K. The offset is absorbed in `heatReact` (it is defined at `T_s`) or, in enthalpy mode, in the `−c_p,k T_std` term of the solid `h_k(T)`; no temperature depends on it. It cancels exactly only for constant `c_p` (#173).
+
+*Radiation.* `S_rad` and `S_rad,s` are the gas and solid radiation sources (`radiation.H`).
 
 ### Solid
 
@@ -173,7 +215,7 @@ $$
 $$
 \begin{aligned}
 &{\color{blue}\frac{\partial(\rho c_p^* T_s)}{\partial t} + \frac{\rho c_p^* T_s^0 - H^0}{\Delta t}} + {\color{orange}\nabla\cdot\Bigl(\sum_k \varphi_{\mathrm{Ym},k}\,c_{p,k}T_s\Bigr)} - {\color{green}\nabla\cdot\bigl((1-\varepsilon)K_s A\,\nabla T_s\bigr)} \\
-&\quad = {\color{purple}S_{\mathrm{chem}}} {\color{red}\;-\;Q_{\mathrm{conv}} - Q_{\mathrm{agent}} + S_{\mathrm{rad},s}}
+&\quad = {\color{purple}S_{\mathrm{chem}}} {\color{red}\;-\;Q_{\mathrm{conv}} - Q_{\mathrm{reac},s} + S_{\mathrm{rad},s}}
 \end{aligned}
 $$
 
@@ -181,7 +223,7 @@ $$
 \rho c_p^* = \sum_k c_{p,k}\,(\mathrm{Ym}_k - \Delta t\,R_k)
 $$
 
-`ρc_p*` (`rhoCpCarrier`) is the heat capacity of the solid before this step's reaction, so the storage terms take the sensible heat of the composition change implicitly. `A` is the optional `anisotropyK` tensor; `S_chem` is the solid reaction heat (`chemistrySh`), with all participants at `T_s`. `H` is then stored on the mass that remains. How each term is discretised: [solid-step.md](solid-step.md), stage 7. Reference temperatures differ (solid `H` from 0 K, gas `h` from 298.15 K; to be unified in #173); no temperature depends on them.
+`ρc_p*` (`rhoCpCarrier`) is the heat capacity of the solid before this step's reaction, so the storage terms take the sensible heat of the composition change implicitly. `A` is the optional `anisotropyK` tensor; `S_chem` is the solid reaction heat (`chemistrySh`), with all participants at `T_s`. `H` is then stored on the mass that remains. How each term is discretised: [solid-step.md](solid-step.md), stage 7. Exchange terms and reference temperatures: [Gas–solid exchange](#gassolid-exchange).
 
 ## DEM coupling
 
