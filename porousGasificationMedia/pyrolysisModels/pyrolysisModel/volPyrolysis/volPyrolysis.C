@@ -60,7 +60,15 @@ void volPyrolysis::readControls()
     const dictionary& solution = this->solution().subDict("PIMPLE");
     solution.lookup("nNonOrthogonalCorrectors") >> nNonOrthCorr_;
     time_.controlDict().lookup("maxDi") >> maxDiff_;
-    equilibrium_.readIfPresent("equilibrium",coeffs_);
+    if (coeffs_.found("equilibrium"))
+    {
+        WarningInFunction
+            << "Keyword 'equilibrium' in " << coeffs_.name()
+            << " is deprecated; use 'frozenTemperature' (no energy solve)."
+            << endl;
+        frozenTemperature_.readIfPresent("equilibrium", coeffs_);
+    }
+    frozenTemperature_.readIfPresent("frozenTemperature", coeffs_);
 }
 
 bool volPyrolysis::read()
@@ -287,7 +295,7 @@ void volPyrolysis::createBedModels(const SolidFields& solid)
             solid,
             porosityArch_,
             gasThermo_,
-            equilibrium_
+            frozenTemperature_
         )
     );
 
@@ -316,7 +324,7 @@ void volPyrolysis::createEquations(const SolidFields& solid)
             chemistrySh_,
             heatExchange_(),
             solidDiagnostics_(),
-            equilibrium_
+            frozenTemperature_
         )
     );
 
@@ -420,7 +428,7 @@ volPyrolysis::volPyrolysis
     Ym_(Ys_.size()),
     T_(solidThermo_.T()),
     solidH_(nullptr),
-    equilibrium_(false),
+    frozenTemperature_(false),
     nNonOrthCorr_(-1),
     maxDiff_(10),
     radiation_(radiation),
@@ -568,7 +576,7 @@ void volPyrolysis::markReactingCells()
 
 void volPyrolysis::updateTransferCoefficients()
 {
-    if (!equilibrium_)
+    if (!frozenTemperature_)
     {
         heatExchange_->updateHeatTransferCoeff();
     }
@@ -598,7 +606,7 @@ void volPyrolysis::exchangeHeatWithGas()
     }
     heatExchange_->updateInterfaceEnthalpy(SrhoI);
 
-    if (active_ && !equilibrium_)
+    if (active_ && !frozenTemperature_)
     {
         heatExchange_->updateHeatTransfer();
     }

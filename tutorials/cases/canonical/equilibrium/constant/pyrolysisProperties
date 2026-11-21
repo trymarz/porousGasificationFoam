@@ -22,7 +22,7 @@ heterogeneousPyrolysisModel  volPyrolysis;
 pyrolysisCoeffs
 {
     subintegrateHeatTransfer true;
-    equilibrium          true;
+    frozenTemperature    true;   // no energy solve; Ts and T stay frozen
 
     // Solid regimes, by solid volume fraction alpha = 1 - porosityF.
     // Each threshold ends the regime below it:

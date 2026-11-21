@@ -76,7 +76,8 @@ private:
         //- Disallow default bitwise assignment
         void operator=(const volPyrolysis&);
 
-        //- Read the controls: nNonOrthogonalCorrectors, maxDi, equilibrium
+        //- Read the controls: nNonOrthogonalCorrectors, maxDi, frozenTemperature
+        //  (or its deprecated alias equilibrium)
         void readControls();
 
         //- Scale the shared solid flux to what the cells can supply and take
@@ -131,8 +132,8 @@ private:
         //- A zero, unregistered mass source [kg/m3/s]
         tmp<volScalarField> zeroSrho(const word& name) const;
 
-        //- Interface enthalpy and agent heat-up from this step's Srho(i),
-        //  then the gas-solid heat transfer unless in equilibrium
+        //- Interface enthalpy terms from this step's Srho(i), then the
+        //  gas-solid heat transfer unless frozenTemperature
         void exchangeHeatWithGas();
 
         //- Regimes and next step's gate, from the post-step mass, once
@@ -195,8 +196,8 @@ protected:
         // Non-const access to energy of solid phase
         autoPtr<volScalarField> solidH_;
 
-    //- Switch for equilibrium/nonequilibrium model
-    Switch equilibrium_;
+    //- No energy solve: gas and solid keep their own, separate temperatures
+    Switch frozenTemperature_;
 
     // Solution parameters
 
@@ -341,8 +342,8 @@ public:
             //- Time step suggested by the last chemistry solve [s]
             inline virtual scalar maxTime() const;
 
-            //- Whether gas and solid share one temperature
-            inline virtual Switch equilibrium() const;
+            //- Whether no energy equation is solved (both temperatures frozen)
+            inline virtual Switch frozenTemperature() const;
 
         // Source fields (read/write access)
 
@@ -365,8 +366,11 @@ public:
             //- Return enthalpy source - Eulerian phase only
             inline virtual tmp<volScalarField> heatTransfer() const;
 
-            //- Sensible enthalpy the gas gains with the interface mass [W/m3]
-            inline virtual tmp<volScalarField> interfaceEnthalpy() const;
+            //- Gaseous products' enthalpy entering the gas at Ts [W/m3]
+            inline virtual tmp<volScalarField> gasProductEnthalpyAtTs() const;
+
+            //- Gaseous reactants' enthalpy leaving the gas at Tg [W/m3]
+            inline virtual tmp<volScalarField> gasReactantEnthalpyAtTg() const;
 
             //- Heat released by the solid reactions [J/s/m3]
             inline virtual tmp<volScalarField> solidChemistrySh() const;

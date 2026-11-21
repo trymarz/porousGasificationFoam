@@ -54,11 +54,11 @@ regressionSrho
     operation       volIntegrate;
 }
 
-regressionInterfaceEnthalpy
+regressionGasProductEnthalpyAtTs
 {
     ${regressionBase}
     enabled         true;
-    fields          (interfaceEnthalpy);
+    fields          (gasProductEnthalpyAtTs);
     operation       volIntegrate;
 }
 

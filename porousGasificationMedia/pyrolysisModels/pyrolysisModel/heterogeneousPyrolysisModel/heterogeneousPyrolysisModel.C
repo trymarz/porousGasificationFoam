@@ -162,7 +162,7 @@ scalar heterogeneousPyrolysisModel::maxDiff() const
     return GREAT;
 }
 
-Switch heterogeneousPyrolysisModel::equilibrium() const
+Switch heterogeneousPyrolysisModel::frozenTemperature() const
 {
     return false;
 }
@@ -200,11 +200,21 @@ Foam::tmp<Foam::volScalarField> heterogeneousPyrolysisModel::heatTransfer() cons
     return nullptr;
 }
 
-Foam::tmp<Foam::volScalarField> heterogeneousPyrolysisModel::interfaceEnthalpy() const
+Foam::tmp<Foam::volScalarField> heterogeneousPyrolysisModel::gasProductEnthalpyAtTs() const
 {
     notImplemented
     (
-        "tmp<DimensionedField<scalar, volMesh> > heterogeneousPyrolysisModel::interfaceEnthalpy() const"
+        "tmp<volScalarField> heterogeneousPyrolysisModel::gasProductEnthalpyAtTs() const"
+    )
+
+    return nullptr;
+}
+
+Foam::tmp<Foam::volScalarField> heterogeneousPyrolysisModel::gasReactantEnthalpyAtTg() const
+{
+    notImplemented
+    (
+        "tmp<volScalarField> heterogeneousPyrolysisModel::gasReactantEnthalpyAtTg() const"
     )
 
     return nullptr;

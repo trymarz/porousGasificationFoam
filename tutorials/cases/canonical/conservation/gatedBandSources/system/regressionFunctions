@@ -54,21 +54,29 @@ regressionHeatTransfer
     operation       volIntegrate;
 }
 
-// The interface enthalpy (gas EEqn) and the agent heat-up (solid TEqn)
-// follow Srho_i, which is zero outside the reacting cells.
-regressionInterfaceEnthalpy
+// The interface enthalpy terms (gas EEqn, solid TEqn) follow Srho_i,
+// which is zero outside the reacting cells.
+regressionGasProductEnthalpyAtTs
 {
     ${regressionBase}
     enabled         true;
-    fields          (interfaceEnthalpy);
+    fields          (gasProductEnthalpyAtTs);
     operation       volIntegrate;
 }
 
-regressionAgentHeatUp
+regressionGasReactantEnthalpyAtTg
 {
     ${regressionBase}
     enabled         true;
-    fields          (agentHeatUp);
+    fields          (gasReactantEnthalpyAtTg);
+    operation       volIntegrate;
+}
+
+regressionHeatUpGasReactantsToTs
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (heatUpGasReactantsToTs);
     operation       volIntegrate;
 }
 

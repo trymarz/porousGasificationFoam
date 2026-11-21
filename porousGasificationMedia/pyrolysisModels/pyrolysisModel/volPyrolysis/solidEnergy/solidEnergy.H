@@ -25,7 +25,7 @@ Class
     Foam::heterogeneousPyrolysisModels::SolidEnergy
 
 Description
-    Solid-phase energy of the non-equilibrium (two-temperature) model.
+    Solid-phase energy of the two-temperature model.
 
     The conserved variable is the solid enthalpy solidH = rhoCp*Ts
     [J/m3], with rhoCp the floored heat capacity of the solid the cell
@@ -45,13 +45,13 @@ Description
       - enthalpy rides each specie's own mass flux, upwind and explicit;
       - conduction is cut at faces on the edge of the solid;
       - sources: reaction heat and radiation gated by connectedAtStepStart,
-        gas-solid exchange and the agent heat-up (GasSolidHeatExchange).
+        gas-solid exchange and heatUpGasReactantsToTs (GasSolidHeatExchange).
 
     finishStep(), after SolidState::classify() has classified the post-step
     state, applies the dispersed and trace rules to Ts, once, and stores
     solidH = rhoCp*Ts on the mass that remains.
 
-    In equilibrium mode only the radiation source is refreshed.
+    In frozenTemperature mode only the radiation source is refreshed.
 
     Owned directly by volPyrolysis (like BedCollapse) - no runtime
     selection.
@@ -141,7 +141,7 @@ class SolidEnergy
         const SolidDiagnostics& solidDiagnostics_;
 
         //- The owner's switches, bound so a runtime read() takes effect
-        const Switch& equilibrium_;
+        const Switch& frozenTemperature_;
         const Switch& active_;
 
         //- Radiative source the solid takes this step [W/m3]
@@ -180,7 +180,7 @@ class SolidEnergy
         );
 
         //- Sources [W/m3]: reaction heat and radiation gated by
-        //  connectedAtStepStart, minus gas exchange and agent heat-up
+        //  connectedAtStepStart, minus gas exchange and heatUpGasReactantsToTs
         tmp<volScalarField> solidSources();
 
         //- div of the enthalpy flux, sum_i phiYm_i*upwind(Cp_i*Ts) [W/m3]
@@ -240,7 +240,7 @@ public:
             const volScalarField& chemistrySh,
             const GasSolidHeatExchange& heatExchange,
             const SolidDiagnostics& solidDiagnostics,
-            const Switch& equilibrium
+            const Switch& frozenTemperature
         );
 
 

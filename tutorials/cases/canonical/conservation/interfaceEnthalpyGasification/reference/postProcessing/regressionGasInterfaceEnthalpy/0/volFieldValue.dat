@@ -1,7 +1,7 @@
 # Region            : all region0
 # Cells             : 1
 # Volume            : 5.000000000000e-07
-# Time              	volIntegrate(interfaceEnthalpy)
+# Time              	volIntegrate(gasInterfaceEnthalpy)
 0.002               	1.478050166290e-02
 0.004               	1.472183329229e-02
 0.006               	1.467067279993e-02
