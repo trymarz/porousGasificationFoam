@@ -1,0 +1,116 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     |                                                 |
+|   \\  /    A nd           |                                                 |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+
+// The gas EEqn's interface source, both halves summed: O2 leaves at Tg,
+// CO enters at Ts.
+gasInterfaceEnthalpy
+{
+    type            exprField;
+    libs            (fieldFunctionObjects);
+    field           gasInterfaceEnthalpy;
+    dimensions      [1 -1 -3 0 0 0 0];
+    expression      "gasProductEnthalpyAtTs + gasReactantEnthalpyAtTg";
+    action          new;
+    store           true;
+    autowrite       true;
+    executeControl  timeStep;
+    executeInterval 1;
+    writeControl    writeTime;
+}
+
+regressionBase
+{
+    type            volFieldValue;
+    libs            (fieldFunctionObjects);
+    regionType      all;
+    postOperation   none;
+    weightField     none;
+    writeFields     false;
+    writePrecision  12;
+    writeToFile     true;
+    log             false;
+    enabled         false;
+    executeControl  timeStep;
+    executeInterval 1;
+    writeControl    writeTime;
+    writeInterval   -1;
+}
+
+// One cell, one open face, no interphase exchange (h = 0), no
+// pressure work (dpdt no), Euler: the reaction heat and the gas crossing
+// the interface move the temperatures.
+
+// Baselines; the closed form is checked by checkInterfaceEnergy.py (Allrun).
+regressionGasTempMax
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (T);
+    operation       max;
+}
+
+regressionTsMax
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (Ts);
+    operation       max;
+}
+
+// Liveness: O2 is consumed and CO released.
+regressionCOMax
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (CO);
+    operation       max;
+}
+
+regressionO2Min
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (O2);
+    operation       min;
+}
+
+regressionSrho
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (Srho);
+    operation       volIntegrate;
+}
+
+regressionGasInterfaceEnthalpy
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (gasInterfaceEnthalpy);
+    operation       volIntegrate;
+}
+
+// The solid heats the consumed O2 from Tg = 600 K towards Ts = 900 K.
+regressionHeatUpGasReactantsToTs
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (heatUpGasReactantsToTs);
+    operation       volIntegrate;
+}
+
+// The enthalpy-mode reaction heat, -sum RR h(Ts).
+regressionSolidChemistrySh
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (solidChemistrySh);
+    operation       volIntegrate;
+}
+
+// ************************************************************************* //

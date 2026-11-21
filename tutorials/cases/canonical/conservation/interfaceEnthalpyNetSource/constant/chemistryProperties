@@ -1,0 +1,67 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  v2406
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      chemistryProperties;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+chemistry           on;
+
+chemistryType
+{
+    solver            ode;
+}
+
+solidChemistryType
+{
+    solver              solidOde;
+    method              ODESolidHeterogeneousChemistryModel;
+    solidThermoType     const<constRad<constThermo<constRho>>>;
+}
+
+initialChemicalTimeStep 1e-5;
+
+turbulentReaction   off;
+solidReactionEnergyFromEnthalpy false;
+stoichiometricReactions false;
+showRelativeReactionRates false;
+solidChemistryTimeStepControl false;
+
+diffusionLimitedReactions false;
+
+odeCoeffs
+{
+    solver      seulex;
+}
+
+solidOdeCoeffs
+{
+    solver      seulex;
+}
+
+#include "reactions"
+
+solidReactions
+(
+    // CO2 is made by the oxidation and eaten by the Boudouard reaction in
+    // the same cell; each has its own substrate so its rate can be read back.
+    irreversibleSolidArrheniusHeterogeneousReaction
+    char + 2.67 O2 = 3.67 CO2
+    (2.40772532e9 1.96e4 300 0 1 1)
+
+    irreversibleSolidArrheniusHeterogeneousReaction
+    coke + 3.67 CO2 = 4.67 CO
+    (2.40772532e9 1.96e4 300 0 1 1)
+);
+
+// ************************************************************************* //
