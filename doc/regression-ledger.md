@@ -129,6 +129,9 @@ These cases assert a balance; the comments in their `regressionFunctions` state 
 | `interfaceEnthalpyPyrolysis` | `GasTempMax`, `TsMax` == 600 | `Srho`, `InterfaceEnthalpy` |
 | `interfaceEnthalpyMixing` | `TsMax` == 700; `GasTempMax` is the hs mixing temperature to 1e-5 K (checked by its `Allrun`) | `Srho`, `InterfaceEnthalpy`, `TargasMax` |
 | `interfaceEnthalpyGasification` | `GasTempMax`, `TsMax` == 900 | `COMax`, `O2Min`, `Srho`, `InterfaceEnthalpy`; `AgentHeatUp` 0 to roundoff |
+| `interfaceEnthalpyReactantHeatUp` (#312) | `Allrun`: per step Tg, Ts within 1e-5 K of the closed form, their sum within 1e-6 of the exchanged energy, written `Srho`, `InterfaceEnthalpy`, `AgentHeatUp` within 1e-7 (`checkInterfaceEnergy.py`) | `GasTempMax`, `TsMin`, `COMax`, `O2Min`, `Srho`, `InterfaceEnthalpy`, `AgentHeatUp` |
+| `interfaceEnthalpyPyrolysisEnthalpyMode`, `…GasificationEnthalpyMode` (#312) | as `…ReactantHeatUp`, plus `SolidChemistrySh` and the absolute enthalpy (see its docstring) | as `…ReactantHeatUp`, plus `SolidChemistrySh`; pyrolysis has `TargasMax`, no agent |
+| `interfaceEnthalpyNetSource` (#312) | as `…ReactantHeatUp`, with CO2 made and consumed in every step (`--both-ways CO2`) | as `…ReactantHeatUp`, plus `CO2Max` |
 | `gasPressureWork` | `HeatTransferResidual` ~8e-16; `GasEnergyResidual` **question** (finding 6) | `HeatTransferExchanged`, `PAverage`, `TAverage`, `TsAverage` |
 | `gasReactionPorosity` (#226) | `energyRatioMin/Max`, `speciesRatioMin/Max` == 1 within 1e-8 (observed 1e-9; 2.5 = 1/eps with YEqn's unweighted `R(Yi)`); `massChange` 0 | `regressionGasState`: the cell's `N2 O2 CO CO2 T h rho p porosityF` per step |
 

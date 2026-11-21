@@ -1,0 +1,81 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     |                                                 |
+|   \\  /    A nd           |                                                 |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+
+regressionBase
+{
+    type            volFieldValue;
+    libs            (fieldFunctionObjects);
+    regionType      all;
+    postOperation   none;
+    weightField     none;
+    writeFields     false;
+    writePrecision  12;
+    writeToFile     true;
+    log             false;
+    enabled         false;
+    executeControl  timeStep;
+    executeInterval 1;
+    writeControl    writeTime;
+    writeInterval   -1;
+}
+
+// One cell, one open face, no interphase exchange (h = 0), no
+// pressure work (dpdt no), Euler: the reaction heat and the gas crossing
+// the interface move the temperatures.
+
+// Baselines; the closed form is checked by checkInterfaceEnergy.py (Allrun).
+regressionTsMin
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (Ts);
+    operation       min;
+}
+
+regressionGasTempMax
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (T);
+    operation       max;
+}
+
+regressionTargasMax
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (targas);
+    operation       max;
+}
+
+regressionSrho
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (Srho);
+    operation       volIntegrate;
+}
+
+regressionInterfaceEnthalpy
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (interfaceEnthalpy);
+    operation       volIntegrate;
+}
+
+// The enthalpy-mode reaction heat, -sum RR h(Ts).
+regressionSolidChemistrySh
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (solidChemistrySh);
+    operation       volIntegrate;
+}
+
+// ************************************************************************* //

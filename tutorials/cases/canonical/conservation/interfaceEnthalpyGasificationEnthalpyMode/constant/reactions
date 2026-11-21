@@ -1,0 +1,19 @@
+species
+(
+    N2 O2 CO CO2
+);
+
+reactions
+{
+    OxidationOfCarbonMonoxide
+    {
+        type     irreversibleArrheniusReaction;
+        reaction "2 CO + O2 = 2 CO2";
+        // 1000x the 1e10 the other tutorials use, so CO oxidation is a visible fraction
+        // (about half of the CO) of this 0.2 s fixture. The gas path is what
+        // regressionCO2Average and regressionTAverage exercise (#69).
+        A        1e13;
+        beta     0;
+        Ta       15155.16;
+    }
+}

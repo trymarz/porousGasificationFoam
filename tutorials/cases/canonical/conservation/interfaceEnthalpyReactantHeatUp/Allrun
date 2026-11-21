@@ -1,0 +1,15 @@
+#!/bin/sh
+cd "${0%/*}" || exit
+# char + 1.33 O2 = 2.33 CO with Ts = 900 K above Tg = 600 K, hr = 0. O2 leaves
+# the gas at Tg and the solid pays its heat-up to Ts (agentHeatUp); CO enters
+# the gas at Ts. checkInterfaceEnergy.py holds Tg, Ts and their sum per step
+# against the closed form; a flipped heat-up sign moves Ts the wrong way.
+# One cell, one open face, h = 0, dpdt no, Euler, gas reaction off (#312 E1).
+. ${WM_PROJECT_DIR:?}/bin/tools/RunFunctions
+restore0Dir
+runApplication blockMesh
+runApplication $(getApplication)
+
+python3 "${PGF_ROOT:-../../../../..}/tutorials/cases/canonical/conservation/checkInterfaceEnergy.py" \
+    > log.checkInterfaceEnergy 2>&1 \
+ || { echo "interface energy misses its closed form, see log.checkInterfaceEnergy" >&2; exit 1; }

@@ -128,6 +128,18 @@ tutorials/cases/canonical/conservation/interfaceEnthalpyPyrolysis     fast
 tutorials/cases/canonical/conservation/interfaceEnthalpyMixing        fast
 tutorials/cases/canonical/conservation/interfaceEnthalpyGasification  fast
 
+# The same setup with Ts above Tg (900 or 700 K over 600 K), so the interface
+# terms are nonzero (#312). Each Allrun runs checkInterfaceEnergy.py: per step,
+# Tg, Ts and their sum against a closed form from the case's own inputs.
+# ReactantHeatUp: the solid heats the consumed O2 to Ts (agentHeatUp); with its
+# sign flipped Ts misses by 0.25 K in step 1. ...EnthalpyMode: the same in
+# solidReactionEnergyFromEnthalpy true, where the absolute enthalpy closes too.
+# NetSource: CO2 made and eaten in one cell; only its net source counts.
+tutorials/cases/canonical/conservation/interfaceEnthalpyReactantHeatUp        fast
+tutorials/cases/canonical/conservation/interfaceEnthalpyPyrolysisEnthalpyMode fast
+tutorials/cases/canonical/conservation/interfaceEnthalpyGasificationEnthalpyMode fast
+tutorials/cases/canonical/conservation/interfaceEnthalpyNetSource             fast
+
 # gasPressureWork is a sealed box at porosity 0.4 whose solid heats the gas, so
 # p rises with fixed gas mass. regressionGasEnergyResidual is the gas internal
 # energy minus the joules received; it must stay flat. Before #132 it drifted

@@ -1,0 +1,98 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     |                                                 |
+|   \\  /    A nd           |                                                 |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+
+regressionBase
+{
+    type            volFieldValue;
+    libs            (fieldFunctionObjects);
+    regionType      all;
+    postOperation   none;
+    weightField     none;
+    writeFields     false;
+    writePrecision  12;
+    writeToFile     true;
+    log             false;
+    enabled         false;
+    executeControl  timeStep;
+    executeInterval 1;
+    writeControl    writeTime;
+    writeInterval   -1;
+}
+
+// One cell, one open face, no interphase exchange (h = 0), hr = 0, no
+// pressure work (dpdt no), Euler: nothing but the gas crossing the
+// interface moves either temperature (#212 D4).
+
+// Baselines; the closed form is checked by checkInterfaceEnergy.py (Allrun).
+regressionGasTempMax
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (T);
+    operation       max;
+}
+
+regressionTsMin
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (Ts);
+    operation       min;
+}
+
+// Liveness: O2 is consumed and CO released.
+regressionCOMax
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (CO);
+    operation       max;
+}
+
+regressionO2Min
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (O2);
+    operation       min;
+}
+
+regressionCO2Max
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (CO2);
+    operation       max;
+}
+
+regressionSrho
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (Srho);
+    operation       volIntegrate;
+}
+
+regressionInterfaceEnthalpy
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (interfaceEnthalpy);
+    operation       volIntegrate;
+}
+
+// The solid heats the net-consumed O2 (and CO2 after step 1) from Tg to Ts.
+regressionAgentHeatUp
+{
+    ${regressionBase}
+    enabled         true;
+    fields          (agentHeatUp);
+    operation       volIntegrate;
+}
+
+// ************************************************************************* //
