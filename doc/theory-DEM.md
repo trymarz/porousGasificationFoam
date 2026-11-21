@@ -1,27 +1,33 @@
 # DEM coupling
 
-Only in a `WITH_YADE` build with `constant/yadeProperties` `active true`. YADE starts `porousGasificationFoam` itself (`FoamCoupling::StartFoamSolver`, always with `-parallel`), and the two sides exchange once per solver step, in step 2 of the [per-time-step flow](theory.md#per-time-step-flow). OpenFOAM side: `FoamYade` (`submodules/Foam-Yade/pkg/openfoam/coupling/FoamYade/`) and `porousGasificationMedia/DEM/lambdaDotModel.C`. YADE side: `FoamCoupling` (`submodules/Foam-Yade/pkg/openfoam/FoamCoupling.cpp`). Build: [build.md](build.md#yade-dem-coupling).
+PGF can run coupled to YADE, a discrete-element (DEM) code that moves individual particles. This needs a `WITH_YADE` build ([build.md](build.md#yade-dem-coupling)) and `active true` in `constant/yadeProperties`. You start YADE, and YADE launches `porousGasificationFoam` itself, always in parallel. The two exchange data once per PGF time step, in step 2 of the [per-time-step flow](theory.md#per-time-step-flow).
 
-**Who owns what.** YADE owns the integrated length scale `λ` (`State::lambda_`, default 1). PGF owns only what it sends: the rate `λ̇` or, under `apparentVolume`, a factor `r`. PGF's `lambda` field is cell-averaged diagnostic output; no PGF equation reads it (`lambdaDotModel::updateParticleFields`).
+**Who owns what.**
+- YADE moves the particles and owns each particle's length scale `λ` (default 1).
+- PGF sends back only how `λ` should change: a rate `λ̇`, or, under `apparentVolume`, a factor `r`. PGF's `lambda` field is a cell average written for output, and no PGF equation reads it.
+- PGF builds the solid velocity `U_s` from the particle velocities.
+
+**Code.** PGF side: `FoamYade` (`submodules/Foam-Yade/pkg/openfoam/coupling/FoamYade/`) and `DEM/lambdaDotModel.C`. YADE side: `FoamCoupling` (`submodules/Foam-Yade/pkg/openfoam/FoamCoupling.cpp`).
 
 ## Exchanged fields
 
-Two per-particle buffers, with strides fixed in the code on both sides (no layout negotiation):
+Each exchange, per particle:
 
-| Slot | YADE → OpenFOAM (`sendBodyData`, `TAG_PRT_DATA` 1002, 11 per body) | Unit |
+| Slots | YADE → PGF | Unit |
 |---|---|---|
 | 0–2 | position | m |
-| 3–5 | linear velocity | m/s |
+| 3–5 | velocity | m/s |
 | 6–8 | angular velocity | rad/s |
-| 9 | sphere radius | m |
-| 10 | `λ` (`State::lambda_`) | as `lambda` (see below) |
+| 9 | radius | m |
+| 10 | `λ` | m |
 
-| Slot | OpenFOAM → YADE (`sendHydroForceYadeMPI`, `TAG_FORCE` 1005, 7 per body) | Unit |
+| Slots | PGF → YADE | Unit |
 |---|---|---|
-| 0–2 | hydrodynamic force | N |
-| 3–5 | hydrodynamic torque | N·m |
-| 6 | `λ̇` of the body's cell (`lambdaMode` 0), or `r` (`lambdaMode` 1) | m/s, or – |
+| 0–2 | force | N |
+| 3–5 | torque | N·m |
+| 6 | `λ̇` or `r` | m/s or – |
 
+- **Buffers.** YADE sends 11 values per body (`sendBodyData`, tag 1002) and PGF sends 7 (`sendHydroForceYadeMPI`, tag 1005). Both sides hard-code these layouts.
 - **On the mesh.** Each OpenFOAM rank locates the bodies in its cells. It fills `nParticles`, the cell means `UsDEM` and `lambdaDEM`, and then `Us` and `lambda` from those, smoothed by the `interpolationMode` / `lambdaInterpolationMode` models of `constant/lambdaDict` ([case-setup.md](case-setup.md#constantlambdadict-required-by-with_yade-builds-running-a-dem-case)).
 - **Force.** The point-force path (`gaussianInterp` is `false` in `createYadeCoupling.H`): Stokes drag `F = 3π d ν ρ_f (u_f − v_p)` and torque `π d³ ν ρ_f (ω_f − ω_p)`, with `ν`, `ρ_f` from `yadeProperties` (`FoamYade::stokesDragForce`, `stokesDragTorque`). It acts on the particles only: the `uSource` it fills is read by no PGF equation. YADE adds the last received force every DEM step (`setHydroForce`).
 - **Other messages.** Once at startup, the mesh bounding box (`TAG_GRID_BBOX`) and the λ mode (`TAG_LAMBDA_MODE`, one int; all OpenFOAM ranks must agree). Every exchange, the found flags (`TAG_SEARCH_RES`), OpenFOAM's `deltaT` (`TAG_FLUID_DT`) and YADE's smallest `O.dt` over its ranks (`TAG_YADE_DT`).
@@ -29,14 +35,21 @@ Two per-particle buffers, with strides fixed in the code on both sides (no layou
 
 ## Particle size under `lambdaMode apparentVolume`
 
-(`DEM/lambdaDotModels/apparentVolumeLambdaDot/`). With `λ³ₖ = 1/ρ_app,k` the apparent specific volume of specie `k`, and `Ymₖ` taken before this step's solve:
+(`DEM/lambdaDotModels/apparentVolumeLambdaDot/`). In this mode a particle grows or shrinks with the apparent volume of the solid in its cell. One kilogram of solid specie `k` fills `1/ρ_app,k` of particle volume, pores included (`rhoApparent` in `solidThermophysicalProperties`, required here). `V_old` is the volume the solid in a cell takes up before this step's reactions, and `ΔV_chem` is how much the reactions change it over the step:
 
-```
-V_old = Σₖ Ymₖ λ³ₖ ,    ΔV_chem = Δt Σₖ Rₖ λ³ₖ ,    r = ∛(1 + ΔV_chem/V_old)
-λ ← r λ        (in YADE, once per coupling exchange)
-```
+$$
+V_{\mathrm{old}} = \sum_k \frac{\mathrm{Ym}_k}{\rho_{\mathrm{app},k}}, \qquad \Delta V_{\mathrm{chem}} = \Delta t \sum_k \frac{R_k}{\rho_{\mathrm{app},k}}
+$$
 
-Only chemistry changes the particle size; solid transport moves particles without resizing them. Every particle in a cell gets the same cell-mean `r`.
+A particle's volume scales with `λ³`, so PGF sends YADE the cube root of the volume ratio, and YADE scales `λ` by it once per exchange:
+
+$$
+r = \sqrt[3]{1 + \Delta V_{\mathrm{chem}}/V_{\mathrm{old}}}, \qquad \lambda \leftarrow r\,\lambda
+$$
+
+- Only chemistry changes the size. Solid transport moves particles without resizing them.
+- Every particle in a cell gets the same `r`.
+- `r = 1` in nearly empty cells (`V_old < minSolidVolume`). At full burnout the ratio is floored at `minVolumeRatio`, with a warning. Both keys are optional in `lambdaDict`.
 
 ## λ modes
 
