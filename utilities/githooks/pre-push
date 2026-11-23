@@ -1,0 +1,36 @@
+#!/bin/sh
+# Refuses a push to the public repo when an outgoing commit touches a private-only
+# path (utilities/githooks/private-paths). Private work goes to the `private`
+# remote; see CONTRIBUTING.md, "Private companion repository".
+remote=$1
+url=$2
+case "$url" in
+    *porousGasificationFoam-private*) exit 0 ;;
+    *trymarz/porousGasificationFoam|*trymarz/porousGasificationFoam.git) ;;
+    *) [ "$remote" = origin ] || exit 0 ;;
+esac
+
+root=$(git rev-parse --show-toplevel) || exit 1
+patterns="$root/utilities/githooks/private-paths"
+[ -f "$patterns" ] || exit 0
+regex=$(grep -v -e '^#' -e '^[[:space:]]*$' "$patterns" | paste -sd'|' -)
+[ -n "$regex" ] || exit 0
+
+zero=0000000000000000000000000000000000000000
+status=0
+while read -r local_ref local_sha remote_ref remote_sha; do
+    case "$local_sha" in *[!0]*) ;; *) continue ;; esac   # branch deletion
+    case "$remote_sha" in
+        *[!0]*) range="$remote_sha..$local_sha" ;;
+        *)      range="$local_sha --not --remotes=origin" ;;
+    esac
+    # shellcheck disable=SC2086
+    hits=$(git log --format= --name-only $range | sort -u | grep -E "$regex")
+    if [ -n "$hits" ]; then
+        echo "pre-push: refusing $local_ref -> $remote ($url): private-only paths:" >&2
+        echo "$hits" | sed 's/^/    /' >&2
+        status=1
+    fi
+done
+[ $status -eq 0 ] || echo "pre-push: push these to 'private', or publish via a clean branch from origin/main." >&2
+exit $status

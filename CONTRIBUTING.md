@@ -72,6 +72,14 @@ When you submit a PR:
 
 If you catch a theory.md claim (beyond a short-form equation) that's already in the code as a comment, replace it with a pointer in the same PR. The migration is opportunistic — no need to wait for a dedicated cleanup branch.
 
+## Private companion repository
+
+The maintainer keeps work not meant for publication (e.g. third-party gasifier campaigns, server runs) in a private repo added as a second remote, `private`.
+
+- Private branches and issues live on `private`. Its `main` is public `main` plus private-only commits, synced by merging `origin/main` into it.
+- To publish, branch from `origin/main`, cherry-pick (or `git checkout <commit> -- <paths>`) only the wanted changes, push to `origin` and open a public PR.
+- `utilities/githooks/pre-push` refuses a push to the public repo when an outgoing commit touches a path listed in `utilities/githooks/private-paths` (top-level `private/`, `tutorials/cases/LEIgasifier*`, `LEIgeometry.local`). It needs `core.hooksPath` set as in [doc/build.md](doc/build.md).
+
 ## Related pages
 
 - [Regression testing](doc/regression-testing.md): running the tests, adding a case.

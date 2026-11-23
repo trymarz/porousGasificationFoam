@@ -1,0 +1,5 @@
+# Extended regexes (one per line) for paths that must never reach the public
+# repo; checked by utilities/githooks/pre-push on pushes to origin.
+^private/
+^tutorials/cases/LEIgasifier
+(^|/)LEIgeometry\.local$
