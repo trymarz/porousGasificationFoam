@@ -206,8 +206,7 @@ FlipCells PorosityRecovery::findFlipCells() const
 
     flips.allRanks.setSize(Pstream::nProcs());
     flips.allRanks[Pstream::myProcNo()] = flips.local;
-    Pstream::gatherList(flips.allRanks);
-    Pstream::scatterList(flips.allRanks);
+    Pstream::allGatherList(flips.allRanks);
 
     return flips;
 }
