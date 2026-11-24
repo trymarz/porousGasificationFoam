@@ -25,10 +25,8 @@ issue meant to be touched routinely.
 
 ## Working details
 
-Full implementation detail — files to touch, approach, step-by-step log,
-work reports, dead ends — lives in the linked `/plans` file, not here:
-
-`/plans/github.com/trymarz/porousGasificationFoam/<active-or-backlog>/<id>.md`
+Implementation detail, work reports and dead ends go in the PRs that resolve
+this issue and in comments on it, not in this body.
 
 The branch that resolves this issue should be created via this issue's
 **Development** panel ("Create a branch") so it's linked here automatically.
@@ -38,6 +36,6 @@ The branch that resolves this issue should be created via this issue's
 **This issue is a stable spec, not a status feed.** Once created, edit the
 Problem/Objective/Deliverables sections only when work on the linked plan
 reveals the original assumptions were wrong — not for routine progress
-updates (those are checklist ticks, or belong in `/plans` instead). Apply a
+updates (those are checklist ticks, or belong in PRs and issue comments). Apply a
 `domain:*` label and add this issue to the PGF development project board
 after creating it.
