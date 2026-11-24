@@ -168,7 +168,7 @@ FlipCells PorosityRecovery::findFlipCells() const
 
     label nCandidates = candidateStack.size();
     label nProtected = 0;
-    FIFOStack<label> flipStack = {};
+    DynamicList<label> flipList;
 
     while (!candidateStack.empty())
     {
@@ -184,13 +184,13 @@ FlipCells PorosityRecovery::findFlipCells() const
         }
         else
         {
-            flipStack.push(cellI);
+            flipList.append(cellI);
         }
     }
 
     FlipCells flips;
-    flips.local = labelList(flipStack);
-    flips.nGlobal = flipStack.size();
+    flips.local.transfer(flipList);
+    flips.nGlobal = flips.local.size();
 
     reduce(nCandidates, sumOp<label>());
     reduce(nProtected, sumOp<label>());
