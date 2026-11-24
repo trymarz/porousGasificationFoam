@@ -44,70 +44,41 @@ The full human-facing version of this rule is in `CONTRIBUTING.md` → Documenta
 
 ## GitHub Issues Workflow
 
-GitHub Issues + Project #4 ("PGF development") is the current-status source for
-planning on this repo — the issue itself (public, like this repo) should show
-an accurate Problem/Objective/Deliverables and rough progress without digging
-through `/plans`. The project board is currently private to the maintainer
-(unlike the repo and its issues), so don't imply board access when writing for
-an external audience — cite the issue by number/label/state instead.
-`/plans` stays the store for implementation detail (files to touch, approach,
-step log) and is unaffected by this section. (This is
-porousGasificationFoam-specific for now; generalizing it into a reusable
-pattern is tracked as backlog item `github-issues-plans-sync-skill-2026-09-02`
-in agent-corral's `/plans`, not part of this repo's workflow yet.)
+GitHub Issues + Project #4 ("PGF development") is the planning record for this
+repo. Each issue is public, like the repo, and should show an accurate
+Problem/Objective/Deliverables and rough progress. Detail goes in the PRs
+that resolve it and in issue comments. The project board is currently private
+to the maintainer, unlike the repo and its issues. When writing for an external
+audience, don't imply board access; cite the issue by number, label and state.
 
-**Status mapping** (`/plans` frontmatter `status:` → Project `Status`):
+**On creating a plan for this repo**: create an issue from the `Plan` template
+(`.github/ISSUE_TEMPLATE/plan.md`). The title is `Plan: <title>`. Fill in:
+- Problem: why the work is needed.
+- Objective / Deliverables: what done looks like, plus acceptance criteria.
+- A `Plan` checklist with one box per deliverable, each with a rough time
+  estimate.
 
-| `/plans` `status:` | Project `Status` |
-|---|---|
-| `backlog` | `Backlog` |
-| `active` | `Ready` |
-| `in_progress` | `In progress` |
-| `done` | `Done` |
-| `superseded` | `Done` (closed, with a note) |
-
-**On creating a new plan for this repo**:
-1. Write the `/plans` file as usual.
-2. Create a matching GitHub issue using the `Plan` template
-   (`.github/ISSUE_TEMPLATE/plan.md`): title `Plan: <same title as the plan's
-   `# Plan: …` heading>`; Problem from the plan's Context → Why; Objective /
-   Deliverables from Context → What + any acceptance criteria; a `Plan`
-   checklist with one box per the plan's `## Approach` Blocks (or, for a
-   backlog item with no Blocks yet, per its logical phases), each with a
-   rough time estimate; `domain:*` label(s) matching the plan's frontmatter
-   `domain:`.
-3. Add the issue to project #4 with `Status` per the mapping above.
-4. Record `github_issue: <N>` in the plan's frontmatter (see AGENT-KB.md's
-   Plan Metadata field table).
+Then apply fitting labels.
 
 **As each block lands**: tick that block's checkbox on the issue. This is the
 routine, cheap touchpoint — a checkbox flip, not a rewrite. Nothing else on
 the issue should change for routine progress.
 
-**Body edits are explicit and rare**: only rewrite Problem/Objective/
-Deliverables when work on the plan proves the original spec wrong — flag it
-to the user first, then correct deliberately. Never edit the spec as a side
-effect of routine progress; that belongs in `/plans`' step log instead.
+**Body edits are explicit and rare**: rewrite Problem/Objective/Deliverables
+only when the work proves the original spec wrong. Flag it to the user first,
+then correct it deliberately. Never edit the spec as a side effect of routine
+progress; progress notes go in PRs or issue comments.
 
 **Before starting work tied to an issue number**: fetch the issue's current
-body + recent comments (`gh issue view <N> --comments`) and compare against
-what `/plans` last recorded. If it diverged — the user edited the issue
-directly — reconcile by discussing with the user; never silently overwrite
-either side.
+body + recent comments (`gh issue view <N> --comments`). If it diverges from
+what you were told (the user edited the issue directly), reconcile it with the
+user; never silently overwrite it.
 
-**Anyone can edit either side.** This isn't an exclusivity rule — it's a
-"don't let the public-facing copy go stale" discipline. The freshness
-guarantee comes from checking in at the right moments, not from restricting
-who writes where.
-
-**Branch / PR linkage**: create the branch that resolves an issue via the
+**Branch / PR linkage**: create the branch that resolves an issue from the
 issue's own **Development** panel → "Create a branch", so GitHub links it
-automatically — don't link it by hand. That auto-generated branch name
-(`<issue-number>-<slug>`) becomes this repo's worktree `<short-name>` (see
-`/plans` memory: `worktree-layout-main-in-primary`). PR bodies include
-`Closes #<issue>` so merging auto-closes the issue, which the project's
-"item closed → Done" workflow rule then moves the card to `Done`
-automatically — no manual board edit needed.
+automatically; don't link it by hand. PR bodies include `Closes #<issue>`, so
+merging auto-closes the issue. The project's "item closed → Done" workflow
+rule then moves the card to `Done` automatically, with no manual board edit.
 
 ## Code navigation (Serena)
 
@@ -131,7 +102,7 @@ After adding, renaming or deleting sources with Bash (`git mv`, `del`), run `uti
 
 ## Plans and interactive testing
 
-- Substantial work is tracked in the central plans store under `/plans/github.com/trymarz/porousGasificationFoam/`; read the relevant `active/` plan before acting and use it as the execution record.
+- Substantial work is tracked in its GitHub issue (see "GitHub Issues Workflow"); read the issue and its comments before acting.
 - For host-run OpenFOAM campaigns, guide the user through bounded checkpoints rather than silently running the campaign. Explain the purpose and expected evidence before each checkpoint, have the user run it, then interpret the output against the current source and plan.
 - Keep disposable case output, logs, state directories, and post-processing data outside the checkout, normally below a user-selected test root such as `$PGF_TEST_ROOT`.
 - Distinguish build success, solver completion, numerical comparison, and physical or diagnostic correctness. Do not call a test green from a tally alone; inspect per-case outcomes, relevant log diagnostics, and the actual fields or metrics under test.
@@ -156,4 +127,4 @@ When you need a load-bearing fact, go to `README.md` and `doc/` rather than re-d
 | Practical pitfalls (true vs bulk density, JANAF substitution, radiation calibration, time-step coupling, numerics symptoms) | `doc/case-setup.md` → "Tips for Preparing New Simulations" |
 | Build targets and dependencies | `doc/build.md` |
 | Regression framework — hook a case, capture a baseline, run comparisons | `doc/regression-testing.md` |
-| GitHub Issues workflow — issue-per-plan creation, checkbox ticks, reconciliation, branch/PR linkage | "GitHub Issues Workflow" (this file) |
+| GitHub Issues workflow — plan issues, checkbox ticks, reconciliation, branch/PR linkage | "GitHub Issues Workflow" (this file) |
