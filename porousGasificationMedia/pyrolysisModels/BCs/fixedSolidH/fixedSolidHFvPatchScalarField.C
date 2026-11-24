@@ -74,7 +74,7 @@ fixedSolidHFvPatchScalarField::fixedSolidHFvPatchScalarField
     const fixedSolidHFvPatchScalarField& tppsf
 )
 :
-    fixedValueFvPatchScalarField(tppsf)
+    fixedValueFvPatchScalarField(tppsf, tppsf.internalField())
 {}
 
 
