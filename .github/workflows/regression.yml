@@ -1,4 +1,7 @@
-# Regression tiers in the pinned OpenFOAM v2406 image (#130).
+# Regression tiers in the pinned OpenFOAM v2606 image (#130; v2606 since #326).
+# The image is openfoam-run:2606 plus openfoam2606-dev from ESI's apt repo.
+# TODO(#326): FOAM_DEV_VERSION is release candidate 2606.0~rc2-1; switch it (and
+# the one in container/pgf-toolchain.def) to the final package once ESI publishes it.
 # fast: every PR to main and every push to main; convergence: nightly and on demand.
 # build-yade: compile-only check of the DEM (WITH_YADE) variant on PRs and pushes.
 # The dem tier stays local-only: the image has no Yade.
@@ -43,8 +46,8 @@ jobs:
         run: |
           set -eu
           ref="$(sed -n 's/^From:[[:space:]]*//p' container/pgf-toolchain.def)"
-          [[ "$ref" =~ ^opencfd/openfoam-dev@sha256:[0-9a-f]{64}$ ]] ||
-            { echo "::error::pgf-toolchain.def From: is not a digest-pinned opencfd/openfoam-dev image: '$ref'"; exit 1; }
+          [[ "$ref" =~ ^opencfd/openfoam-run@sha256:[0-9a-f]{64}$ ]] ||
+            { echo "::error::pgf-toolchain.def From: is not a digest-pinned opencfd/openfoam-run image: '$ref'"; exit 1; }
           echo "ref=$ref" >>"$GITHUB_OUTPUT"
           echo "image: $ref"
 
@@ -58,17 +61,19 @@ jobs:
       options: --user root
     env:
       TIER: ${{ github.event_name == 'schedule' && 'convergence' || inputs.tier || 'fast' }}
-      PGF_FOAM_BASHRC: /usr/lib/openfoam/openfoam2406/etc/bashrc
+      PGF_FOAM_BASHRC: /usr/lib/openfoam/openfoam2606/etc/bashrc
+      FOAM_DEV_VERSION: 2606.0~rc2-1  # rc2; see the TODO at the top
     defaults:
       run:
         shell: bash
     steps:
-      - name: Install python3 and git
+      - name: Install openfoam2606-dev, python3 and git
         run: |
           set -eu
           export DEBIAN_FRONTEND=noninteractive
           apt-get update -q
-          apt-get install -y --no-install-recommends python3 git ca-certificates zstd
+          apt-get install -y --no-install-recommends --allow-downgrades python3 git ca-certificates zstd \
+            "openfoam2606-dev=$FOAM_DEV_VERSION"
 
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -174,17 +179,19 @@ jobs:
       image: ${{ needs.image.outputs.ref }}
       options: --user root
     env:
-      PGF_FOAM_BASHRC: /usr/lib/openfoam/openfoam2406/etc/bashrc
+      PGF_FOAM_BASHRC: /usr/lib/openfoam/openfoam2606/etc/bashrc
+      FOAM_DEV_VERSION: 2606.0~rc2-1  # rc2; see the TODO at the top
     defaults:
       run:
         shell: bash
     steps:
-      - name: Install python3 and git
+      - name: Install openfoam2606-dev, python3 and git
         run: |
           set -eu
           export DEBIAN_FRONTEND=noninteractive
           apt-get update -q
-          apt-get install -y --no-install-recommends python3 git ca-certificates zstd
+          apt-get install -y --no-install-recommends --allow-downgrades python3 git ca-certificates zstd \
+            "openfoam2606-dev=$FOAM_DEV_VERSION"
 
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
