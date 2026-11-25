@@ -447,16 +447,11 @@ pgf_doctor() {
   trunk="${YADE_TRUNK:-$PGF_ROOT/submodules/Foam-Yade}"
   if [ -n "$yb" ] || [ "${PGF_YADE:-0}" = 1 ]; then
     if pgf_coupling_api_hash "$trunk" >/dev/null; then
-      libdir="${PGF_YADE_LIBDIR:-}"
-      if [ -n "$libdir" ]; then
-        while IFS= read -r line; do _r "${line%% *}" "${line#* }"; done < <(pgf_coupling_check "$libdir" "$trunk")
-      else
-        _r OK "Foam-Yade coupling headers in $(pgf_tilde "$trunk")"
-        while IFS= read -r line; do _r "${line%% *}" "${line#* }"; done < <(pgf_trunk_pin_check "$trunk")
-      fi
+      _r OK "PgfCoupling sources in $(pgf_tilde "$trunk")"
+      while IFS= read -r line; do _r "${line%% *}" "${line#* }"; done < <(pgf_trunk_pin_check "$trunk")
       pgf_doctor_trunk_source "$trunk"
     else
-      _r "$([ "${PGF_YADE:-0}" = 1 ] && echo FAIL || echo WARN)" "no Foam-Yade coupling headers under $(pgf_tilde "$trunk"); fix: git submodule update --init submodules/Foam-Yade, or set YADE_TRUNK"
+      _r "$([ "${PGF_YADE:-0}" = 1 ] && echo FAIL || echo WARN)" "no PgfCoupling sources under $(pgf_tilde "$trunk"); fix: git submodule update --init submodules/Foam-Yade, or set YADE_TRUNK"
       _dem "the Foam-Yade submodule"
     fi
   fi

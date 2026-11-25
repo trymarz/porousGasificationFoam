@@ -8,15 +8,15 @@
 export XDG_CACHE_HOME="$TEST_TMP/cache"
 
 g() { git -C "$TEST_TMP/fy" -c user.name=t -c user.email=t@t "$@"; }
-c="$TEST_TMP/fy/pkg/openfoam/coupling/FoamYade"
+c="$TEST_TMP/fy/pkg/openfoam"
 mkdir -p "$c" "$TEST_TMP/fy/py" && g init -q || die "git init failed"
-echo "// api 1" >"$c/FoamYade.H" && echo "# mpy old" >"$TEST_TMP/fy/py/mpy.py" && g add -A && g commit -qm old
+echo "// api 1" >"$c/PgfCoupling.hpp" && echo "# mpy old" >"$TEST_TMP/fy/py/mpy.py" && g add -A && g commit -qm old
 old="$(g rev-parse HEAD)"
 echo "# mpy pin" >"$TEST_TMP/fy/py/mpy.py" && g add -A && g commit -qm pin
 pin="$(g rev-parse HEAD)"
 echo "// not the API" >"$TEST_TMP/fy/README" && g add -A && g commit -qm docs
 same="$(g rev-parse HEAD)"
-echo "// api 2" >"$c/FoamYade.H" && g add -A && g commit -qm api
+echo "// api 2" >"$c/PgfCoupling.hpp" && g add -A && g commit -qm api
 other="$(g rev-parse HEAD)"
 g checkout -q "$pin"
 
@@ -86,7 +86,6 @@ prefix="$TEST_TMP/prefix"
 mkdir -p "$prefix/bin" "$prefix/lib"
 printf '#!/bin/sh\n' >"$prefix/bin/porousGasificationFoam" && chmod +x "$prefix/bin/porousGasificationFoam"
 echo '{"variant": "yade1"}' >"$prefix/.pgf-build.json"
-pgf_coupling_write_stamp "$prefix/lib" "$TEST_TMP/fy"
 YADE_TRUNK="$TEST_TMP/fy" YADE_BIN="$(fake_yade "$other")" "$PGF" exec --prefix "$prefix" --yade -- true 2>"$TEST_TMP/err"
 rc=$?
 # This checkout's pin is not in the fake trunk, so the API comparison decides.

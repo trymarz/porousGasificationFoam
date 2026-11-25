@@ -32,8 +32,8 @@ printf '#!/bin/sh\necho fake yade\n' >"$yadedir/yade-2026.1"
 chmod +x "$prefix/bin/porousGasificationFoam" "$yadedir/yade-2026.1"
 
 trunk="$TEST_TMP/trunk"
-mkdir -p "$trunk/pkg/openfoam/coupling/FoamYade"
-echo '// fake' >"$trunk/pkg/openfoam/coupling/FoamYade/FoamYade.H"
+mkdir -p "$trunk/pkg/openfoam"
+echo '// fake' >"$trunk/pkg/openfoam/PgfCoupling.hpp"
 
 # penv ARGS — pgf for a clean caller (HOME, TMPDIR, a PATH with only a suffixed yade).
 penv() {
@@ -218,24 +218,24 @@ mv "$tree/.pgf.conf.keep" "$tree/.pgf.conf"
 
 # config
 check "config get reads the resolved value" [ "$(penv config get PGF_MPI)" = loopback ]
-penv config get PGF_YADE_LIBDIR >/dev/null 2>&1
+penv config get PGF_CASE_ROOT >/dev/null 2>&1
 check "config get of an unset key exits 1" [ $? -eq 1 ]
 penv config get NOPE >/dev/null 2>&1
 check "config get of an unknown key exits 2" [ $? -eq 2 ]
-penv config set PGF_YADE_LIBDIR=/opt/libs --checkout 2>/dev/null
-check "config set --checkout writes the checkout file" grep -qx "PGF_YADE_LIBDIR=/opt/libs" "$tree/.pgf.conf"
+penv config set PGF_CASE_ROOT=/opt/libs --checkout 2>/dev/null
+check "config set --checkout writes the checkout file" grep -qx "PGF_CASE_ROOT=/opt/libs" "$tree/.pgf.conf"
 check "  and keeps the other keys" grep -qx "PGF_MPI=loopback" "$tree/.pgf.conf"
 penv config set PGF_MPI=sometimes 2>/dev/null
 check "config set rejects a bad value with exit 2" [ $? -eq 2 ]
-penv config unset PGF_YADE_LIBDIR --checkout 2>/dev/null
-check "config unset removes the key" bash -c '! grep -q PGF_YADE_LIBDIR "$1"' _ "$tree/.pgf.conf"
+penv config unset PGF_CASE_ROOT --checkout 2>/dev/null
+check "config unset removes the key" bash -c '! grep -q PGF_CASE_ROOT "$1"' _ "$tree/.pgf.conf"
 penv config --json >"$TEST_TMP/json"
 check "config --json gives value and layer per key" python3 -c '
 import json, sys
 d = json.load(open(sys.argv[1]))
 s = d["settings"]
 assert s["PGF_MPI"]["value"] == "loopback" and s["PGF_MPI"]["layer"] == "checkout"
-assert s["PGF_YADE_LIBDIR"]["value"] is None and d["files"]["checkout"]["exists"]
+assert s["PGF_CASE_ROOT"]["value"] is None and d["files"]["checkout"]["exists"]
 ' "$TEST_TMP/json"
 penv --prefix x >/dev/null 2>&1
 check "options without a subcommand exit 2" [ $? -eq 2 ]

@@ -7,10 +7,10 @@
 
 g() { git -C "$1" -c user.name=t -c user.email=t@t "${@:2}"; }
 
-# A Foam-Yade repo with coupling headers, and a scratch PGF commit pinning it.
+# A Yade repo with the PgfCoupling sources, and a scratch PGF commit pinning it.
 fy="$TEST_TMP/fy"
-mkdir -p "$fy/pkg/openfoam/coupling/FoamYade" && g "$fy" init -q
-echo "// api" >"$fy/pkg/openfoam/coupling/FoamYade/FoamYade.H"
+mkdir -p "$fy/pkg/openfoam" && g "$fy" init -q
+echo "// api" >"$fy/pkg/openfoam/PgfCoupling.hpp"
 g "$fy" add -A && g "$fy" commit -qm pin
 pin="$(g "$fy" rev-parse HEAD)"
 
@@ -28,7 +28,7 @@ rc=$?
 cp "$TEST_TMP/ctx/pgf-pack.def" "$TEST_TMP/def" 2>/dev/null
 check "pack --dry-run exits 0 (rc=$rc)" [ "$rc" -eq 0 ]
 check "the context holds the PGF commit" bash -c 'tar -tf "$1/pgf-src.tar" | grep -qx pgf' _ "$TEST_TMP/ctx"
-check "and the pinned Foam-Yade" bash -c 'tar -tf "$1/foam-yade.tar" | grep -q FoamYade.H' _ "$TEST_TMP/ctx"
+check "and the pinned Foam-Yade" bash -c 'tar -tf "$1/foam-yade.tar" | grep -q PgfCoupling.hpp' _ "$TEST_TMP/ctx"
 check "the definition uses the toolchain base image" \
     grep -qF "$(grep -m1 '^From:' "$PGF_ROOT/container/pgf-toolchain.def")" "$TEST_TMP/def"
 check "yade is built with the pin in its version" grep -q "YADE_VERSION=.*-git-${pin:0:7}" "$TEST_TMP/def"

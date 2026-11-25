@@ -395,13 +395,9 @@ export TMPDIR="$PGF_RUN_ROOT/tmp"
 
 if [ "$yade" -eq 1 ]; then
   export YADE_TRUNK="${YADE_TRUNK:-$PGF_ROOT/submodules/Foam-Yade}"
-  if [ "$mode" != "bare" ]; then
-    checks="$(pgf_coupling_check "$prefix/lib" "$YADE_TRUNK")" || die "$(grep '^FAIL' <<<"$checks" | cut -c6-)"
-    grep '^WARN' <<<"$checks" | while IFS= read -r l; do st WARN "${l#WARN }"; done >&2
-  fi
   yade_bin="${YADE_BIN:-$(PATH="$PGF_ENV_CALLER_PATH" command -v yade)}"
 fi
-# Building (--bare) needs the trunk, not the yade binary.
+# Building (--bare) needs neither the trunk nor the yade binary.
 if [ "$yade" -eq 1 ] && { [ "$mode" != bare ] || [ -x "$yade_bin" ]; }; then
   [ -x "$yade_bin" ] || die "no yade binary: set YADE_BIN or put yade on PATH"
   if [ "$mode" != bare ]; then
