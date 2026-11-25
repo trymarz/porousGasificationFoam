@@ -5,7 +5,7 @@
 **Advanced multiphase solver for generalized thermochemical conversion in porous media**
 
 [![License: GPL v3](https://img.shields.io/badge/license-GPL%20v3-blue)](https://www.gnu.org/licenses/gpl-3.0)
-[![OpenFOAM](https://img.shields.io/badge/OpenFOAM-v2406-green)](https://www.openfoam.com)
+[![OpenFOAM](https://img.shields.io/badge/OpenFOAM-v2606-green)](https://www.openfoam.com)
 [![Paper](https://img.shields.io/badge/CPC-10.1016%2Fj.cpc.2022.108407-orange)](https://doi.org/10.1016/j.cpc.2022.108407)
 
 Arbitrary chemistry · Dynamic porosity and permeability · Interphase heat and mass exchange<br>
@@ -42,11 +42,13 @@ Example application areas:
 
 …and other processes that share a reactive or transforming porous solid exchanging mass and heat with a gas. The name *porousGasificationFoam* reflects the solver's origins in biomass-to-syngas gasification (feedstock + air/O₂/steam/CO₂ → H₂/CO), not a limit on what it can model.
 
-Target: **OpenFOAM-v2406** · License: **GPL v3** · Earlier versions for [OpenFOAM 8](https://github.com/btuznik/porousGasificationFoam) and [foam-extend 4.1](https://github.com/pjzuk/porousGasificationFoam) are no longer maintained.
+Target: **OpenFOAM-v2606** · License: **GPL v3** · Earlier versions for [OpenFOAM 8](https://github.com/btuznik/porousGasificationFoam) and [foam-extend 4.1](https://github.com/pjzuk/porousGasificationFoam) are no longer maintained.
+
+**On OpenFOAM v2406?** That line is frozen at tag `v2406-final` and branch `maint/of2406`, with the legacy `foamYade` coupler and trymarz/Foam-Yade branch `legacy-2406`.
 
 ## Quick start
 
-You need OpenFOAM-v2406, installed and sourceable.
+You need OpenFOAM v2606, installed and sourceable. [doc/install.md](doc/install.md) installs it and PGF on a clean Debian or Ubuntu machine, with the optional DEM coupling; the steps below are its short form.
 
 PGF comes with `pgf`, a command-line tool that finds OpenFOAM, builds the solver, runs and views cases and runs the tests, each in a clean OpenFOAM environment. `pgf help` lists its commands; [doc/pgf.md](doc/pgf.md) covers it in full.
 
@@ -75,7 +77,7 @@ pgf copy charOnlyMoveCases/serial
 **4. Run it and look at the results** in ParaView:
 
 ```bash
-cd ~/OpenFOAM/$USER-v2406/run/main/charOnlyMoveCases/serial
+cd ~/OpenFOAM/$USER-v2606/run/main/charOnlyMoveCases/serial
 pgf run .
 pgf view .
 ```
@@ -88,6 +90,7 @@ pgf view .
 
 - **More tutorials:** [Tutorial cases](doc/case-setup.md#tutorial-cases) describes each one; `pgf copy --list` lists them.
 - **A full reactive-flow demo:** `pgf copy gasifier`, a fixed-bed gasifier. It runs for hours on 4 MPI ranks.
+- **DEM coupling to YADE:** build YADE from trymarz/yade-pgf at the pinned commit, then `pgf build --yade`, `pgf doctor --yade` and `pgf copy MicroTGA-DEM_lambdaDotOff`; [doc/install.md → DEM coupling](doc/install.md#3-dem-coupling-optional) has every step.
 - **Your own case:** start from [doc/case-setup.md](doc/case-setup.md).
 
 ## Documentation
@@ -95,7 +98,7 @@ pgf view .
 [doc/README.md](doc/README.md) lists every page. In short:
 
 - **Using PGF:** [the pgf tool](doc/pgf.md), [your own case](doc/case-setup.md), [ParaView](doc/paraview.md)
-- **Building and deploying:** [building](doc/build.md), [Apptainer images](doc/containers.md)
+- **Installing, building and deploying:** [installing](doc/install.md), [building](doc/build.md), [Apptainer images](doc/containers.md)
 - **Reference:** `pgf help` (every command and setting), [API reference (Doxygen)](doc/build.md#doxygen-documentation)
 - **The model:** [theory](doc/theory.md), [solid step](doc/solid-step.md)
 - **Developing PGF:** [contributing](CONTRIBUTING.md), [regression testing](doc/regression-testing.md), [regression metric ledger](doc/regression-ledger.md)
