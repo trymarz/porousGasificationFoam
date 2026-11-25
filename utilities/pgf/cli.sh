@@ -65,7 +65,7 @@ changed. Change a value later with pgf config set KEY=VALUE; what each setting
 means and how the layers combine: pgf help config.
 
 It looks for OpenFOAM at \$WM_PROJECT_DIR/etc/bashrc, ~/OpenFOAM/*/etc/bashrc,
-/opt/openfoam* and /usr/lib/openfoam/* (v2406 first), and for yade or a
+/opt/openfoam* and /usr/lib/openfoam/* (v2606 first), and for yade or a
 suffixed yade-* on your PATH. Values given with --foam-bashrc, --yade-bin,
 --yade-trunk or --set win, and keys already in the file are kept. --checkout
 also records submodules/yade-pgf as YADE_TRUNK when it is checked out.
@@ -86,7 +86,7 @@ pgf_cmd_opt setup "--yade-trunk DIR" "this yade-pgf source tree"
 pgf_cmd_opt setup "--set KEY=VALUE" "save any setting (keys: pgf help config)"
 pgf_cmd_ex setup "./pgf setup" "ask, then save and link"
 pgf_cmd_ex setup "./pgf setup --yes" "take the detected choices"
-pgf_cmd_ex setup "./pgf setup --foam-bashrc ~/OpenFOAM/OpenFOAM-v2406/etc/bashrc"
+pgf_cmd_ex setup "./pgf setup --foam-bashrc ~/OpenFOAM/OpenFOAM-v2606/etc/bashrc"
 pgf_cmd_ex setup "./pgf setup --link-only --force" "make pgf on PATH the ./pgf you call"
 
 pgf_cmd build "build the checkout (libraries and solver)" "pgf build [--yade] [-v] [build.sh options]" \
@@ -114,7 +114,7 @@ pgf_cmd_desc copy "Copies tutorials/cases/<tutorial>, the whole case with linked
 (cp -rL), to \$PGF_CASE_ROOT/<branch>/<tutorial>, or <branch>/NAME. <branch> is
 the branch of the checkout pgf runs from, with / as -, or its short commit.
 PGF_CASE_ROOT defaults to OpenFOAM's run dir, \$WM_PROJECT_USER_DIR/run
-(~/OpenFOAM/<user>-v2406/run), not pgf's scratch \$FOAM_RUN.
+(~/OpenFOAM/<user>-v2606/run), not pgf's scratch \$FOAM_RUN.
 
 The copy records the checkout and commit it came from: pgf run then uses that
 checkout's build, and warns when the branch has moved on since. The record is
@@ -144,8 +144,8 @@ pgf_cmd_opt run --build "build the checkout pgf runs from first"
 pgf_cmd_opt run --allow-stale "run with a build of other sources"
 pgf_cmd_opt run @env
 pgf_cmd_ex run "pgf copy solidAdvection" "prints where the copy went"
-pgf_cmd_ex run "pgf run ~/OpenFOAM/\$USER-v2406/run/main/solidAdvection" "the copy of a checkout on main"
-pgf_cmd_ex run "pgf run ~/OpenFOAM/\$USER-v2406/run/main/solidAdvection Allclean"
+pgf_cmd_ex run "pgf run ~/OpenFOAM/\$USER-v2606/run/main/solidAdvection" "the copy of a checkout on main"
+pgf_cmd_ex run "pgf run ~/OpenFOAM/\$USER-v2606/run/main/solidAdvection Allclean"
 
 pgf_cmd view "look at a case's results in ParaView (pgfView)" \
   "pgf view <caseDir> [--png DIR [--time T] [--size WxH] [--xvfb]] [--compare OTHER] [--palette NAME]" \
@@ -161,7 +161,7 @@ pgf_cmd_opt view "--size WxH" "with --png: the image size" 1000x750
 pgf_cmd_opt view --xvfb "with --png: render under xvfb-run (also when DISPLAY is unset)"
 pgf_cmd_opt view "--compare OTHER" "the case, OTHER and their difference, side by side"
 pgf_cmd_opt view "--palette NAME" "a ParaView palette, e.g. BlackBackground"
-pgf_cmd_ex view "pgf view ~/OpenFOAM/\$USER-v2406/run/main/solidAdvection"
+pgf_cmd_ex view "pgf view ~/OpenFOAM/\$USER-v2606/run/main/solidAdvection"
 pgf_cmd_ex view "pgf view <caseDir> --png out/" "headless: out/<view>.png"
 
 pgf_cmd test "run a test tier against the checkout's build" \
@@ -239,7 +239,7 @@ pgf_cmd_opt config --user "edit ~/.config/pgf/env.conf" "yes"
 pgf_cmd_opt config --checkout "edit <checkout>/.pgf.conf"
 pgf_cmd_opt config --json "print the settings and layers as JSON"
 pgf_cmd_ex config "pgf config"
-pgf_cmd_ex config "pgf config set PGF_FOAM_BASHRC=~/OpenFOAM/OpenFOAM-v2406/etc/bashrc"
+pgf_cmd_ex config "pgf config set PGF_FOAM_BASHRC=~/OpenFOAM/OpenFOAM-v2606/etc/bashrc"
 pgf_cmd_ex config "pgf config set PGF_MPI=loopback --checkout" "only the checkout pgf runs from"
 pgf_cmd_ex config "pgf config get YADE_BIN"
 
@@ -534,8 +534,8 @@ EOF
   _pgf_help_examples "./pgf setup	find OpenFOAM, save it, put pgf on PATH
 pgf build	build the checkout pgf runs from
 pgf copy solidAdvection	copy a tutorial out of the checkout; prints its path
-pgf run ~/OpenFOAM/\$USER-v2406/run/main/solidAdvection	run that copy
-pgf view ~/OpenFOAM/\$USER-v2406/run/main/solidAdvection	look at the results
+pgf run ~/OpenFOAM/\$USER-v2606/run/main/solidAdvection	run that copy
+pgf view ~/OpenFOAM/\$USER-v2606/run/main/solidAdvection	look at the results
 pgf doctor	check the setup, with fixes"
   echo
   echo "Use \"pgf help <command>\" or \"pgf <command> --help\" for more about a command,"

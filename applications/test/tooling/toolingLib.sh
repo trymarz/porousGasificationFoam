@@ -2,7 +2,7 @@
 # toolingLib.sh — shared helpers for the build/environment tooling tests.
 #
 # Source-only. Each test_*.sh in this directory sources it and runs alone:
-#   PGF_FOAM_BASHRC=/path/to/OpenFOAM-v2406/etc/bashrc \
+#   PGF_FOAM_BASHRC=/path/to/OpenFOAM-v2606/etc/bashrc \
 #   PGF_BUILD_ROOT=/scratch/pgf-builds  applications/test/tooling/test_<name>.sh
 # PGF_BUILD_ROOT defaults to ${TMPDIR:-/tmp}/pgf-tooling-builds, so a test never
 # builds into the default $WM_PROJECT_USER_DIR/pgf-builds. Exit 0 PASS, 1 FAIL,

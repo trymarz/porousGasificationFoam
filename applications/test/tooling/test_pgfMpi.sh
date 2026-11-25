@@ -13,7 +13,7 @@ trap 'rm -rf "$TEST_TMP" "$FAKE"' EXIT
 bashrc="$FAKE/foam/etc/bashrc"
 mkdir -p "${bashrc%/*}"
 cat >"$bashrc" <<'EOF2'
-export WM_PROJECT_DIR=/fake WM_PROJECT_VERSION=v2406 WM_OPTIONS=linux64GccDPInt32Opt
+export WM_PROJECT_DIR=/fake WM_PROJECT_VERSION=v2606 WM_OPTIONS=linux64GccDPInt32Opt
 export WM_PROJECT_USER_DIR="$HOME/fake-user"
 EOF2
 tree="$TEST_TMP/tree"
@@ -73,7 +73,7 @@ env -i PATH=/usr/bin:/bin HOME="$TEST_TMP" TMPDIR="$TEST_TMP" PGF_FOAM_BASHRC="$
     PGF_ENV_SYSFS_NET="$bridge" "$tree/pgf" doctor >"$TEST_TMP/doctor" 2>&1
 check "doctor reports the auto decision and interfaces under MPI" \
     bash -c 'grep -A1 -x MPI "$1" | grep -qx "  OK   auto: local only (lo), because bridge/virtual interfaces up: docker0"' _ "$TEST_TMP/doctor"
-check "doctor checks the bashrc under OpenFOAM" bash -c 'grep -A1 -x OpenFOAM "$1" | grep -qx "  OK   v2406, $2"' _ "$TEST_TMP/doctor" "$bashrc"
+check "doctor checks the bashrc under OpenFOAM" bash -c 'grep -A1 -x OpenFOAM "$1" | grep -qx "  OK   v2606, $2"' _ "$TEST_TMP/doctor" "$bashrc"
 check "doctor opens with one line on what it checks, and no settings block" \
     bash -c 'head -1 "$1" | grep -q "^pgf doctor: read-only checks" && ! grep -q "^settings:" "$1"' _ "$TEST_TMP/doctor"
 check "  groups the checks" \

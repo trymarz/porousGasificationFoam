@@ -19,7 +19,7 @@ chmod +x "$TEST_TMP/bin/wmake"
 # fb ARGS — build.sh in a fake OpenFOAM env with the fake wmake.
 fb() {
     env -i PATH="$TEST_TMP/bin:/usr/bin:/bin" HOME="$TEST_TMP" TMPDIR="$TEST_TMP" FAIL_IN="${FAIL_IN:-none}" PGF_COLOR="${PGF_COLOR:-auto}" \
-        WM_PROJECT_DIR=/fake WM_OPTIONS=linux64 WM_PROJECT_VERSION=v2406 \
+        WM_PROJECT_DIR=/fake WM_OPTIONS=linux64 WM_PROJECT_VERSION=v2606 \
         FOAM_USER_LIBBIN="$TEST_TMP/u/lib" FOAM_USER_APPBIN="$TEST_TMP/u/bin" \
         "$BUILD_SH" --prefix "$TEST_TMP/pre" "$@"
 }
@@ -50,7 +50,7 @@ check "  and colours OK with PGF_COLOR=always" grep -q $'\e\[32mOK  \e\[0m \[1/3
 # iso ARGS — build.sh --isolated into a store: a second identical build is reused.
 iso() {
     env -i PATH="$TEST_TMP/bin:/usr/bin:/bin" HOME="$TEST_TMP" TMPDIR="$TEST_TMP" \
-        WM_PROJECT_DIR=/fake WM_OPTIONS=linux64 WM_PROJECT_VERSION=v2406 PGF_BUILD_ROOT="$TEST_TMP/store" \
+        WM_PROJECT_DIR=/fake WM_OPTIONS=linux64 WM_PROJECT_VERSION=v2606 PGF_BUILD_ROOT="$TEST_TMP/store" \
         FOAM_USER_LIBBIN="$TEST_TMP/u/lib" FOAM_USER_APPBIN="$TEST_TMP/u/bin" \
         "$BUILD_SH" --isolated "$@"
 }

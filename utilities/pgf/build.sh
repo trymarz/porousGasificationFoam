@@ -10,7 +10,7 @@
 # <fingerprint12>-<yade0|yade1>-<OpenFOAM version>-gcc<version> under
 # $PGF_BUILD_ROOT; a prefix holding .pgf-build.json is complete and is reused
 # without compiling. Make/options link with -L$(FOAM_USER_LIBBIN), so nothing
-# else needs to change, and v2406 embeds no RPATH, so a prefix can be moved.
+# else needs to change, and v2606 embeds no RPATH on Linux, so a prefix can be moved.
 
 PGF_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 . "$PGF_ROOT/utilities/bash_utils/helpers.sh"

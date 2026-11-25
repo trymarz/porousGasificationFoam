@@ -11,8 +11,8 @@ trap 'rm -rf "$TEST_TMP" "$FAKE"' EXIT
 
 home="$TEST_TMP/home"
 broot="$TEST_TMP/builds"
-mkdir -p "$home" "$broot/abc123def456-yade0-v2406-gcc14" "$broot/half-built"
-echo '{}' >"$broot/abc123def456-yade0-v2406-gcc14/.pgf-build.json"
+mkdir -p "$home" "$broot/abc123def456-yade0-v2606-gcc14" "$broot/half-built"
+echo '{}' >"$broot/abc123def456-yade0-v2606-gcc14/.pgf-build.json"
 export HOME="$home" PGF_BUILD_ROOT="$broot"
 script="$TEST_TMP/pgf.bash"
 "$PGF" completion bash >"$script" 2>"$TEST_TMP/err"
@@ -43,11 +43,11 @@ check "exec options include the environment options" has --use "$(comp "pgf exec
 check "build options come from build.sh" has --libs-only "$(comp "pgf build --")"
 
 out="$(comp "pgf use ")"
-check "use completes complete builds" has abc123def456-yade0-v2406-gcc14 "$out"
+check "use completes complete builds" has abc123def456-yade0-v2606-gcc14 "$out"
 check "  and auto" has auto "$out"
 check "  and worktree names" has "$(basename "$PGF_ROOT")" "$out"
 check "  but not a prefix without .pgf-build.json" bash -c '! grep -qx half-built <<<"$1"' _ "$out"
-check "--use completes builds too" has abc123def456-yade0-v2406-gcc14 "$(comp "pgf run --use ab")"
+check "--use completes builds too" has abc123def456-yade0-v2606-gcc14 "$(comp "pgf run --use ab")"
 
 check "config verbs" [ "$(comp "pgf config ")" = "$(printf 'get\nset\nunset')" ]
 check "config get completes keys" has PGF_MPI "$(comp "pgf config get PGF_M")"
