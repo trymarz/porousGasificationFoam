@@ -1,7 +1,7 @@
 #!/bin/sh
 # Refuses a push to the public repo when an outgoing commit touches a private-only
-# path (utilities/githooks/private-paths). Private work goes to the `private`
-# remote; see CONTRIBUTING.md, "Private companion repository".
+# path (utilities/githooks/private-paths). Deleting such a path is allowed. Private
+# work goes to the `private` remote; see CONTRIBUTING.md, "Private companion repository".
 remote=$1
 url=$2
 case "$url" in
@@ -25,7 +25,7 @@ while read -r local_ref local_sha remote_ref remote_sha; do
         *)      range="$local_sha --not --remotes=origin" ;;
     esac
     # shellcheck disable=SC2086
-    hits=$(git log --format= --name-only $range | sort -u | grep -E "$regex")
+    hits=$(git log --format= --name-only --diff-filter=d $range | sort -u | grep -E "$regex")
     if [ -n "$hits" ]; then
         echo "pre-push: refusing $local_ref -> $remote ($url): private-only paths:" >&2
         echo "$hits" | sed 's/^/    /' >&2
