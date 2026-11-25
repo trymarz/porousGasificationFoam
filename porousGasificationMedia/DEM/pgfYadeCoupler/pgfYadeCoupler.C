@@ -67,7 +67,7 @@ pgfYadeCoupler::pgfYadeCoupler
     {
         fail
         (
-            "not started by Yade: 'coupler pgf' needs the solver spawned by"
+            "not started by Yade: DEM coupling needs the solver spawned by"
             " a DEM script running the PgfCoupling engine"
         );
     }
@@ -102,7 +102,7 @@ void pgfYadeCoupler::handshake(scalar timeout)
         MPI_Isend(box.data(), 6, MPI_DOUBLE, y, TAG_BBOX, interComm_, &reqs[2*y+1]);
     }
 
-    // A legacy FoamCoupling engine never answers, so wait with a deadline.
+    // A DEM script without PgfCoupling never answers, so wait with a deadline.
     const auto start = std::chrono::steady_clock::now();
     for (int flag = 0; !flag; )
     {
@@ -113,8 +113,7 @@ void pgfYadeCoupler::handshake(scalar timeout)
         {
             std::ostringstream m;
             m << "no handshake reply from Yade within " << timeout << " s."
-              << " 'coupler pgf' needs PgfCoupling() in the DEM script;"
-              << " the legacy FoamCoupling engine needs 'coupler foamYade'.";
+              << " The DEM script must run the PgfCoupling engine.";
             fail(m.str());
         }
         if (!flag) std::this_thread::sleep_for(std::chrono::milliseconds(5));

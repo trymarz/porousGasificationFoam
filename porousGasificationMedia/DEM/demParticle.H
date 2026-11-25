@@ -23,8 +23,7 @@ License
 
 Description
     One DEM particle this rank located in its mesh at the last exchange: the
-    backend-neutral view lambdaDotModel reads, filled either by pgfYadeCoupler
-    or, on the legacy path, from FoamYade's found particles.
+    view lambdaDotModel reads, filled by pgfYadeCoupler.
 
 \*---------------------------------------------------------------------------*/
 
@@ -39,7 +38,7 @@ namespace Foam
 
 struct demParticle
 {
-    label id;         // Yade body id (legacy path: index in its sender's buffer)
+    label id;         // Yade body id
     label cell;       // cell holding the particle centre
     vector U;         // particle velocity [m/s]
     scalar lambda;    // Yade's State::lambda_
