@@ -72,18 +72,18 @@ Building needs no YADE. Running a DEM case needs a YADE built with MPI from the 
 ### Supported versions
 
 - **OpenFOAM v2406**, the solver's only target.
-- **YADE from Foam-Yade** ([trymarz/Foam-Yade](https://github.com/trymarz/Foam-Yade)), a YADE fork, at the commit this repository pins. Upstream YADE does not work: the per-particle `lambda_`/`lambdaDot` state, and the `PgfCoupling` engine exist only in the fork. Its version string is the build date and commit, e.g. `yade -v` prints `Yade version: 2026-10-15.git-d5c33e0`.
+- **YADE from yade-pgf** ([trymarz/yade-pgf](https://github.com/trymarz/yade-pgf), branch `pgf-main`), a YADE fork, at the commit this repository pins. Upstream YADE does not work: the per-particle `lambda_`/`lambdaDot` state, and the `PgfCoupling` engine exist only in the fork. Its version string is the build date and commit, e.g. `yade -v` prints `Yade version: 2026-10-15.git-d5c33e0`.
 - **One MPI for both.** YADE starts the solver with `MPI_Comm_spawn` and merges the two jobs into one communicator, so YADE and OpenFOAM must use the same MPI installation (Open MPI here).
 - **Same protocol on both sides.** `pgfYadeCoupler` and `PgfCoupling` each hard-code wire protocol v1; the startup handshake compares version, strides and `lambdaMode`, and stops both sides by name on a mismatch ([theory-DEM.md](theory-DEM.md#exchanged-fields)).
 
 ### The submodule and its pin
 
-Foam-Yade is the submodule `submodules/Foam-Yade` (`.gitmodules`). The pinned commit is the gitlink in this repository's tree:
+yade-pgf is the submodule `submodules/yade-pgf` (`.gitmodules`). The pinned commit is the gitlink in this repository's tree:
 
 ```bash
-git submodule update --init submodules/Foam-Yade
-git ls-tree HEAD submodules/Foam-Yade     # the pinned commit
-git submodule status submodules/Foam-Yade # a leading '+' means the checkout differs from the pin
+git submodule update --init submodules/yade-pgf
+git ls-tree HEAD submodules/yade-pgf     # the pinned commit
+git submodule status submodules/yade-pgf # a leading '+' means the checkout differs from the pin
 ```
 
 When the pin moves, rebuild YADE. PGF's `--yade` build does not depend on the pin, so its key ignores it.
@@ -99,7 +99,7 @@ When the pin moves, rebuild YADE. PGF's `--yade` build does not depend on the pi
 
 `YADE_TRUNK` is the Foam-Yade source checkout. The build does not read it; `pgf` uses it for the pin checks above (its `PgfCoupling` sources and `py/mpy.py`).
 
-`pgf --yade` defaults `YADE_TRUNK` to `submodules/Foam-Yade`; set it (or `pgf setup --yade-trunk DIR`) to use another checkout.
+`pgf --yade` defaults `YADE_TRUNK` to `submodules/yade-pgf`; set it (or `pgf setup --yade-trunk DIR`) to use another checkout.
 
 ### Checking that the coupling is in
 
@@ -187,14 +187,14 @@ Claude Code sessions in this repository also start [Serena](https://github.com/o
 utilities/serena-setup                                  # this worktree
 utilities/serena-setup --all                            # every worktree with Serena config
 utilities/serena-setup --with foamcli --with Foam-Yade  # also these sibling repositories
-utilities/serena-setup --with-submodules                # also submodules/Foam-Yade, if checked out
+utilities/serena-setup --with-submodules                # also submodules/yade-pgf, if checked out
 ```
 
 It installs Serena with `uv tool install` into `~/.local` when missing, enables the git hooks, links `lnInclude/` without compiling, writes `compile_commands.json` and indexes the worktree (minutes on a first run). A new worktree's index starts from the newest one among the other worktrees when their files share the same compile flags, so only the files that differ are indexed (seconds instead of minutes). `--fresh` rebuilds an index from scratch.
 
 Sibling repositories are set up only when named with `--with`, or given by path. They get a local Serena config (`.serena/`, `.mcp.json`, kept out of git through `.git/info/exclude`) and an index. A Python repository such as foamcli needs nothing else. A CMake repository such as Foam-Yade gets a configure-only CMake run (no compile, about 10 s) in `~/.cache/serena-setup/`; its compile database goes to the repository's root without the GCC-only flags clangd rejects. YADE is configured as in the container recipe (`-DENABLE_GUI=OFF`); `SERENA_CMAKE_ARGS` adds options. These repositories have no freshness hooks, so rerun the command after adding or removing sources there.
 
-`--with-submodules` treats each PGF worktree's checked-out `submodules/Foam-Yade` the same way, as a project of its own (its excludes go to the submodule's git directory); a submodule that is not checked out is skipped with a note. The worktree's own index still ignores `submodules/`, so a session started in the worktree does not see YADE symbols; start one in the submodule for that.
+`--with-submodules` treats each PGF worktree's checked-out `submodules/yade-pgf` the same way, as a project of its own (its excludes go to the submodule's git directory); a submodule that is not checked out is skipped with a note. The worktree's own index still ignores `submodules/`, so a session started in the worktree does not see YADE symbols; start one in the submodule for that.
 
 Serena runs locally and calls no AI service; it hands clangd's answers to the agent. Its first start downloads clangd into `~/.serena`. `.mcp.json` turns off its anonymous usage ping and keeps its web dashboard from opening a browser; the dashboard (logs and tool calls) stays reachable on 127.0.0.1 and checks for Serena updates.
 

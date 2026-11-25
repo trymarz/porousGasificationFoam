@@ -7,7 +7,7 @@ PGF can run coupled to YADE, a discrete-element (DEM) code that moves individual
 - PGF sends back only how `λ` should change: a rate `λ̇`, or, under `apparentVolume`, a factor `r`. PGF's `lambda` field is a cell average written for output, and no PGF equation reads it.
 - PGF builds the solid velocity `U_s` from the particle velocities.
 
-**Code.** PGF side: `porousGasificationMedia/DEM/pgfYadeCoupler/` and `DEM/lambdaDotModel.C`. YADE side: the `PgfCoupling` engine (`pkg/openfoam/PgfCoupling.cpp` in the Yade fork, `submodules/Foam-Yade`). Neither side includes the other's headers, so the wire format is written down in both files' banners and checked at startup. The legacy `FoamYade`/`FoamCoupling` path with Stokes drag stays on `maint/of2406` (OpenFOAM v2406); a `yadeProperties` with `coupler` other than `pgf` stops the solver.
+**Code.** PGF side: `porousGasificationMedia/DEM/pgfYadeCoupler/` and `DEM/lambdaDotModel.C`. YADE side: the `PgfCoupling` engine (`pkg/openfoam/PgfCoupling.cpp` in the Yade fork, `submodules/yade-pgf`). Neither side includes the other's headers, so the wire format is written down in both files' banners and checked at startup. The legacy `FoamYade`/`FoamCoupling` path with Stokes drag stays on `maint/of2406` (OpenFOAM v2406); a `yadeProperties` with `coupler` other than `pgf` stops the solver.
 
 ## Exchanged fields
 
