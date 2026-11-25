@@ -2,20 +2,20 @@
 
 Twin-domain case (issue #104): both coupling channels are live --
   - lambdaDot (OpenFOAM -> Yade): per-FVM-cell apparent-volume factor r
-    (lambdaMode apparentVolume, constant/lambdaDict). FoamCoupling multiplies
+    (lambdaMode apparentVolume, constant/lambdaDict). PgfCoupling multiplies
     each body's state.lambda_ by r once per exchange; this script only reads
     lambda_ back to set the sphere's radius (radius = lambda_ * initial
     radius, see changeRadius() below).
-  - Us (Yade -> OpenFOAM): FoamCoupling maps sphere velocities onto solid
-    cells every step (isGaussianInterp), same mechanism as the reverse
-    lambdaDot mapping. No Python code needed for this side.
+  - Us (Yade -> OpenFOAM): PgfCoupling sends the sphere velocities each
+    exchange; PGF's lambdaDotModel maps them onto the solid cells. No Python
+    code needed for this side.
 
 The spheres start from relaxedSpheres.txt, written by relax.py: one
 hexagonal layer filling the bed, settled under gravity before coupling, so
 the run starts at rest. Only spheres in the reactive layer see r < 1; the
 inert bed's cells have no chemical volume change, so r = 1 there.
 
-Usage (2 Yade ranks pre-launched, 2 OpenFOAM ranks spawned by FoamCoupling):
+Usage (2 Yade ranks pre-launched, 2 OpenFOAM ranks spawned by PgfCoupling):
     mpirun -n 2 yade MPI_lambda.py
 """
 import os
@@ -34,7 +34,6 @@ comm = mp.comm_slave   # communicator for worker ranks
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
-parallelYade       = True
 numProcOF          = 2          # OpenFOAM MPI ranks
 
 writeInterval      = 0.25       # VTK write interval (virtual seconds)
@@ -73,18 +72,15 @@ if mp.rank == 0:
 # ---------------------------------------------------------------------------
 # Fluid coupling
 # ---------------------------------------------------------------------------
-fluidCoupling = FoamCoupling()
-fluidCoupling.couplingModeParallel = parallelYade
-fluidCoupling.isGaussianInterp     = True
+fluidCoupling = PgfCoupling()
 fluidCoupling.SetOpenFoamSolver("porousGasificationFoam", numProcOF)
 fluidCoupling.setIdList(sphereIDs)
-fluidCoupling.setNumParticles(len(sphereIDs))
 
 # ---------------------------------------------------------------------------
 # Radius shrinkage driven by lambda
 # ---------------------------------------------------------------------------
 def changeRadius():
-    # lambda_ is the dimensionless size factor FoamCoupling keeps per body
+    # lambda_ is the dimensionless size factor PgfCoupling updates per body
     # (multiplied by r at each exchange), so radius = sphere_radius * lambda_.
     for i in sphereIDs:
         if i >= len(O.bodies) or O.bodies[i] is None:

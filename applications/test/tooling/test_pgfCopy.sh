@@ -16,7 +16,7 @@ mkdir -p "$home"
 bashrc="$FAKE/foam/etc/bashrc"
 mkdir -p "${bashrc%/*}"
 cat >"$bashrc" <<'EOF'
-export WM_PROJECT_DIR=/fake WM_PROJECT_VERSION=v2406 WM_OPTIONS=linux64GccDPInt32Opt
+export WM_PROJECT_DIR=/fake WM_PROJECT_VERSION=v2606 WM_OPTIONS=linux64GccDPInt32Opt
 export WM_PROJECT_USER_DIR="$HOME/u" FOAM_RUN="$HOME/u/elsewhere"
 EOF
 
@@ -45,10 +45,10 @@ mkprefix() {
     echo '{"variant": "yade0"}' >"$1/.pgf-build.json"
 }
 one="$TEST_TMP/one" two="$TEST_TMP/two"
-mkprefix "$TEST_TMP/builds/aaaaaaaaaaaa-yade0-v2406-gcc0"
-mkprefix "$TEST_TMP/builds/bbbbbbbbbbbb-yade0-v2406-gcc0"
-mktree "$one" "$TEST_TMP/builds/aaaaaaaaaaaa-yade0-v2406-gcc0"
-mktree "$two" "$TEST_TMP/builds/bbbbbbbbbbbb-yade0-v2406-gcc0"
+mkprefix "$TEST_TMP/builds/aaaaaaaaaaaa-yade0-v2606-gcc0"
+mkprefix "$TEST_TMP/builds/bbbbbbbbbbbb-yade0-v2606-gcc0"
+mktree "$one" "$TEST_TMP/builds/aaaaaaaaaaaa-yade0-v2606-gcc0"
+mktree "$two" "$TEST_TMP/builds/bbbbbbbbbbbb-yade0-v2606-gcc0"
 g "$one" checkout -qb feature/x
 
 # p TREE ARGS — that checkout's pgf for a clean caller.
@@ -110,7 +110,7 @@ check "  says where the copy came from" \
 check "  and that the build is that checkout's" \
     grep -q "INFO using build aaaaaaaaaaaa (non-DEM, from .*one, where the case was copied from" "$TEST_TMP/err"
 check "  with no stale warning while the branch has not moved" bash -c '! grep -q "moved on" "$1"' _ "$TEST_TMP/err"
-(cd / && p "$two" run --prefix "$TEST_TMP/builds/bbbbbbbbbbbb-yade0-v2406-gcc0" "$dest") >/dev/null 2>&1
+(cd / && p "$two" run --prefix "$TEST_TMP/builds/bbbbbbbbbbbb-yade0-v2606-gcc0" "$dest") >/dev/null 2>&1
 check "a chosen build (--prefix) keeps the run in the calling checkout" grep -qx "$(cd "$two" && pwd -P)" "$dest/ran.txt"
 
 echo change >"$one/README" && g "$one" add README && g "$one" commit -qm change

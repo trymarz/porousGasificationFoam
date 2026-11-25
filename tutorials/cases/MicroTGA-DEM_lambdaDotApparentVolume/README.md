@@ -4,8 +4,9 @@ This is the case to start from when you build your own DEM-spring case
 (#207). It is also a regression fixture (`applications/test/regression/cases_yade.list`),
 so leave the original as it is and work on a copy.
 
-Facts below were checked against PGF at `8a0217d` and Foam-Yade at the pinned
-submodule commit `42126e8`. If you change either, check the facts again.
+Facts below were checked against PGF at `8a0217d` and Foam-Yade `42126e8`, the
+submodule before #326 replaced it with yade-pgf. If you change either, check the
+facts again.
 
 ## Why this fixture
 
@@ -47,9 +48,9 @@ There are six `MicroTGA-DEM_lambdaDot*` fixtures. They differ only in
 
 ## Running it
 
-You need a solver built with `pgf build --yade` against a matching
-Foam-Yade build. The particle buffer layout is a compile-time constant, so
-rebuild both together. `Allrun` launches `mpirun -n 2 yade MPI_lambda.py`.
+You need a solver built with `pgf build --yade` and a Yade built from the
+pinned fork, which carries the `PgfCoupling` engine. The startup handshake
+stops both sides by name on a protocol mismatch. `Allrun` launches `mpirun -n 2 yade MPI_lambda.py`.
 Yade then spawns the OpenFOAM ranks itself, so the run uses **4 MPI
 processes** (2 Yade + 2 OpenFOAM).
 
@@ -86,9 +87,8 @@ Line numbers refer to `MPI_lambda.py`.
 
 | Name | Value | Meaning |
 |---|---|---|
-| `numProcOF` | `2` | Used twice: `SetOpenFoamSolver("porousGasificationFoam", numProcOF)` spawns this many OpenFOAM ranks with `-parallel` (`MPI_Comm_spawn` in `FoamCoupling::StartFoamSolver`), and `mp.mpirun(NSTEPS, np=numProcOF)` sets the number of Yade processes. |
-| `parallelYade` / `fluidCoupling.couplingModeParallel` | `True` | No effect: `couplingModeParallel` is commented out in Foam-Yade's `FoamCoupling.hpp`. Whether Yade runs in parallel is decided by its process count (`serialYade` when it is 1). |
-| `setIdList(sphereIDs)`, `setNumParticles` | all spheres | Coupled bodies. The two box walls are not coupled. |
+| `numProcOF` | `2` | Used twice: `SetOpenFoamSolver("porousGasificationFoam", numProcOF)` spawns this many OpenFOAM ranks with `-parallel` (`MPI_Comm_spawn` in `PgfCoupling::startFoamSolver`), and `mp.mpirun(NSTEPS, np=numProcOF)` sets the number of Yade processes. |
+| `setIdList(sphereIDs)` | all spheres | Coupled bodies. The two box walls are not coupled. |
 | `O.periodic` | `False` | No periodic cell. |
 
 ### Material and packing
@@ -129,7 +129,7 @@ that far, scale the freeze threshold by λ.
 
 | Name | Value | Meaning |
 |---|---|---|
-| `NewtonIntegrator(damping=0.99)` | | Yade's non-viscous (Cundall) damping. 0.99 is close to quasi-static, and this is the only damping on the spheres apart from fluid drag. |
+| `NewtonIntegrator(damping=0.99)` | | Yade's non-viscous (Cundall) damping. 0.99 is close to quasi-static, and this is the only damping on the spheres (there is no fluid drag). |
 | `gravity` | `(0, 0, 0)` | Off. |
 
 ### Contact detection and `mpy` flags
@@ -138,19 +138,14 @@ that far, scale the freeze threshold by λ.
 |---|---|---|
 | `collider.verletDist` | `0.00075` m | Bounding-box enlargement, so the collider does not re-sort every step. |
 | `mp.DOMAIN_DECOMPOSITION` | `True` | `mpy` splits the bodies among the workers. Rank 0 is the master and holds none, so with 2 Yade processes one worker holds all 100 spheres. |
-| `mp.FLUID_COUPLING`, `mp.fluidBodies` | `True`, spheres | Tells `mpy` that a `FoamCoupling` engine is present and which bodies it couples. |
+| `mp.FLUID_COUPLING`, `mp.fluidBodies` | `True`, spheres | Tells `mpy` that a fluid-coupling engine (`PgfCoupling`) is present and which bodies it couples. |
 | `mp.ERASE_REMOTE_MASTER`, `mp.USE_CPP_INTERS`, `mp.VERBOSE_OUTPUT`, `mp.YADE_TIMING` | | These repeat `mpy`'s defaults. |
 | `mp.REALLOC_FREQUENCY` | `12` | No effect: `mpy`'s flag is called `REALLOCATE_FREQUENCY` (default 0, never reallocate). |
 
 ### Fluid-side settings (`constant/yadeProperties`)
 
-`nu 1e-6` and `fluidDensity 1.0` go into the Stokes drag that OpenFOAM
-returns for each sphere,
-`F = 3π·d·ν·ρ_f·(U_gas − v)`, plus a torque (`FoamYade::stokesDragForce`,
-non-Gaussian path). These are fixed values, not the gas thermo, and the
-reaction on the gas (`uSource`) is not used by PGF's momentum equation.
-`partDensity` is passed in, but it is read only by `addedMassForce`, which
-this path never calls.
+Only `active true;`. OpenFOAM returns no drag or torque: the spheres move
+under contacts and springs only, and their velocities become `Us`.
 
 ## Why the engines run in this order
 
@@ -163,13 +158,10 @@ Each step Yade runs `O.engines` from top to bottom:
    boxes.
 3. **`InteractionLoop`** computes contact geometry, stiffness and the
    Cundall–Strack contact forces.
-4. **`FoamCoupling`**. On exchange steps (`iter % k == 0`) it sends position,
-   velocity, angular velocity, radius and λ to OpenFOAM. It receives drag,
-   torque and slot 6, and in `apparentVolume` mode it applies
-   `λ ← λ·r` (`applyLambdaFactor`). It then exchanges the time step. On
-   every step, `setHydroForce` adds the last drag and torque received and
-   sets `lambdaDot` (0 in this mode). It has to come after `ForceResetter`,
-   or the drag would be erased.
+4. **`PgfCoupling`**. On exchange steps (`iter % k == 0`) it sends id,
+   position, velocity and λ to OpenFOAM and receives λ̇ or r for the bodies
+   OpenFOAM found; in `apparentVolume` mode it applies `λ ← λ·r`
+   (`receiveAndApply`). It then exchanges the time step. It adds no force.
 5. **`apply_spring_forces()`** reads the λ that step 4 has just updated and
    adds the spring forces. It has to come before `NewtonIntegrator`: run
    after it, the forces are reset unused (#231, which
@@ -185,7 +177,7 @@ Each step Yade runs `O.engines` from top to bottom:
 
 On the OpenFOAM side, each solver step runs before `pyrolysisZone.evolve()`:
 `lambdaDotModel::updateLambdaDot()`, then the exchange
-(`FoamYade::setParticleAction`), then `updateParticleFields()`. That last
+(`pgfYadeCoupler::exchange`), then `updateParticleFields()`. That last
 call averages the particle velocities and λ into each cell and smooths them
 into `Us` and `lambda`. The chemistry computes r later in the step, so the r
 sent at step n is the one from step n−1.
@@ -226,7 +218,7 @@ Total MPI processes = Yade processes + OpenFOAM ranks.
   step. Yade exchanges every `k` DEM steps:
   - in `apparentVolume` mode, `k = int(deltaT/O.dt)`, or 1 when
     `O.dt ≥ deltaT`;
-  - in the rate modes (`constant`, `exactDifferential`), Foam-Yade aborts
+  - in the rate modes (`constant`, `exactDifferential`), `PgfCoupling` aborts
     unless `deltaT/O.dt` is an integer (`setExchangeInterval`, #230).
 
   Keep `deltaT/O.dt` an integer in every mode, otherwise Yade's time drifts
@@ -249,7 +241,7 @@ Total MPI processes = Yade processes + OpenFOAM ranks.
 **It drives:**
 - the spring rest length `L0·λ̄` in `apply_spring_forces()` (clamped to
   [0.1, 2]). This is the **only** place λ has a mechanical effect;
-- PGF's `lambda` field: Yade sends λ back to OpenFOAM (buffer slot 10), and
+- PGF's `lambda` field: Yade sends λ back to OpenFOAM in each exchange, and
   `lambdaDotModel` averages and smooths it onto the mesh. It is output only;
   no solver equation uses it.
 
@@ -257,8 +249,6 @@ Total MPI processes = Yade processes + OpenFOAM ranks.
 - the sphere radius. `Sphere::radius` stays at `rMean`, so contact overlap
   and stiffness (`kn = E·R`) do not change;
 - mass or inertia;
-- the radius OpenFOAM receives (slot 9). That is the original radius, so
-  the Stokes drag diameter does not change either;
 - porosity. PGF's `porosityF` follows the chemistry's solid volume loss on
   its own, whatever λ does.
 

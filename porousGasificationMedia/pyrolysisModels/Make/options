@@ -25,7 +25,5 @@ ifeq ($(WITH_YADE),1)
         -I../DEM/lnInclude
 
     LIB_LIBS += \
-        -lMeshTree \
-        -lYadeFoam \
         -llambdaDotModel
 endif

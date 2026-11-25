@@ -157,7 +157,7 @@ PY
 # -- run -------------------------------------------------------------------------
 
 # yade_pin_gate <tier> — a DEM tier checks yade, resolved as pgf shell does, and
-#   refuses one off the Foam-Yade pin: its baselines were made with the pin.
+#   refuses one off the yade-pgf pin: its baselines were made with the pin.
 yade_pin_gate() {
   local out line rc
   [ "${T_VARIANT[$1]}" = yade1 ] || return 0

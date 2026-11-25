@@ -26,12 +26,12 @@ Class
 
 Description
     PGF-owned OpenFOAM half of the minimal PGF<->Yade coupling (#271),
-    selected by `coupler pgf;` in constant/yadeProperties. Its Yade half is
-    the PgfCoupling engine in the Foam-Yade fork; neither side includes the
+    active when constant/yadeProperties sets `active true;`. Its Yade half
+    is the PgfCoupling engine in the yade-pgf fork; neither side includes the
     other's headers, so the wire format lives in both and the startup
     handshake checks it.
 
-    Wire protocol, version 1 (tags 27xx; the legacy FoamYade uses 10xx):
+    Wire protocol, version 1 (tags 27xx):
       handshake  each OF rank -> every Yade rank: HELLO int[6] {magic,
                  version, strideUp 8, strideDown 2, lambdaMode, nFoamRanks}
                  and BBOX double[6] (its mesh points' min, max). Yade rank 0

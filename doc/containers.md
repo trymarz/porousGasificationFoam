@@ -9,7 +9,7 @@
 ```
 
 `pgf pack` writes `pgf-<commit12>-yade<0|1>.sif`, a self-contained image. It starts from the base image of `container/pgf-toolchain.def` (OpenFOAM v2406, gcc 13). Inside the image it compiles:
-- the Foam-Yade commit that this PGF commit pins as `submodules/Foam-Yade`, headless and with the pin in its version;
+- the yade-pgf commit that this PGF commit pins as `submodules/yade-pgf`, headless and with the pin in its version;
 - PGF itself, with `pgf build`.
 
 Nothing from the host build is copied. The tree must be committed and clean, because the image is built from the commit, not the working tree. The pin is taken from `YADE_TRUNK` or the submodule, whichever has it. `/opt/pgf/manifest.json` records the PGF commit, build key, Foam-Yade pin and coupling API hash, the base image, gcc and the OS.

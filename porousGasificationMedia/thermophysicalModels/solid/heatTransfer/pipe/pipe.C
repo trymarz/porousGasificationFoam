@@ -104,7 +104,8 @@ Foam::tmp<Foam::volScalarField> Foam::pipeCONV::CONV() const
         )
     );
     static const scalar Nu = 3.66;
-    const volScalarField& Cp = thermop_.Cp();
+    const tmp<volScalarField> tCp(thermop_.Cp());
+    const volScalarField& Cp = tCp();
 
     forAll (CONVloc_(),cellI)
     {

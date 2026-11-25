@@ -10,12 +10,7 @@ FoamFile
 
 // YADE-OpenFOAM coupling properties
 
-// Twin-domain: Us is DEM-derived -- FoamCoupling maps sphere velocities onto
+// Twin-domain: Us is DEM-derived -- PGF maps the sphere velocities onto
 // solid cells every coupling step -- and lambdaDot drives the sphere radius.
 active          true;
 
-nu              1.8e-5;    // air kinematic viscosity at ~300 K (m2/s)
-
-partDensity     1050;      // wood density (kg/m3)
-
-fluidDensity    0.6;       // approx. air at 800 K (kg/m3)

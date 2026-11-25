@@ -20,7 +20,8 @@ FoamFile
 // particle's lambda by once per exchange. With the Corymbia entries
 // (rhoApparent 583 wood and char1, 459 char), wood -> targas and char1 ->
 // 0.65 char both lose apparent volume, so r < 1 wherever the solid reacts.
-// Requires Foam-Yade with the lambda factor mode handshake (d5c33e0).
+// Requires yade-pgf's PgfCoupling (submodules/yade-pgf), which has the lambda
+// factor mode handshake.
 lambdaMode apparentVolume;
 
 // Optional guards, shown at their defaults.

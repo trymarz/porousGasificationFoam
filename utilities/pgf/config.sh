@@ -3,15 +3,14 @@
 # Later wins: default, user env.conf, checkout .pgf.conf, environment, CLI.
 # Files are parsed, never sourced, and only PGF_CONF_KEYS are accepted.
 
-PGF_CONF_KEYS=(PGF_FOAM_BASHRC YADE_TRUNK YADE_BIN YADE_PYTHONPATH PGF_YADE_LIBDIR
+PGF_CONF_KEYS=(PGF_FOAM_BASHRC YADE_TRUNK YADE_BIN YADE_PYTHONPATH
   PGF_BUILD_ROOT PGF_RUN_ROOT PGF_CASE_ROOT PGF_YADE PGF_MPI PGF_BUILD)
 # What each key means, for pgf setup and pgf help config.
 declare -gA PGF_CONF_DESC=(
   [PGF_FOAM_BASHRC]="OpenFOAM etc/bashrc sourced before every build and run"
-  [YADE_TRUNK]="Foam-Yade source tree (coupling headers); default: the submodule"
+  [YADE_TRUNK]="Yade source tree (PgfCoupling, mpy.py), for the pin checks; default: the submodule"
   [YADE_BIN]="yade binary for DEM (--yade) runs"
   [YADE_PYTHONPATH]="yade's Python modules; default: found beside YADE_BIN"
-  [PGF_YADE_LIBDIR]="directory of prebuilt Foam-Yade coupling libraries"
   [PGF_BUILD_ROOT]="the build store; default: \$WM_PROJECT_USER_DIR/pgf-builds"
   [PGF_RUN_ROOT]="scratch: test runs and temporary files; default: \$TMPDIR/pgf-runs"
   [PGF_CASE_ROOT]="where pgf copy puts cases, as <branch>/<case>; default: \$WM_PROJECT_USER_DIR/run"

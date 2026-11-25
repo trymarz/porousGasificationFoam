@@ -1,7 +1,7 @@
 """Derive a coupled Yade run's step count from the OpenFOAM case's controlDict.
 
 The coupling pairs one exchange per OpenFOAM time step, not per unit of
-physical time (Foam-Yade FoamCoupling::exchangeData). Yade exchanges at
+physical time (PgfCoupling::action, Yade fork). Yade exchanges at
 iterations 0, k, 2k, ... with
 
     k = int(deltaT_foam / dt_yade)   if dt_yade < deltaT_foam, else 1
@@ -115,7 +115,7 @@ def foamSteps(caseDir="."):
 
 
 def exchangeInterval(foamDt, yadeDt):
-    """Yade iterations per exchange, as FoamCoupling computes it."""
+    """Yade iterations per exchange, as PgfCoupling computes it."""
     return int(foamDt / yadeDt) if yadeDt < foamDt else 1
 
 

@@ -2,13 +2,23 @@
 # commands.sh — pgf's setup / config / build / doctor helpers (#257, #264).
 # Source-only; needs config.sh, PGF_ROOT, SELF and PGF_ENV_CALLER_PATH.
 
+# The OpenFOAM release this solver builds on; v2406 lives on maint/of2406.
+PGF_FOAM_TARGET=v2606
+
+# pgf_foam_fix VER — the fix line for an OpenFOAM other than PGF_FOAM_TARGET.
+pgf_foam_fix() {
+  printf 'fix: pgf config set PGF_FOAM_BASHRC=<OpenFOAM-%s>/etc/bashrc' "$PGF_FOAM_TARGET"
+  [ "${1:-}" = v2406 ] && printf ', or use tag v2406-final / branch maint/of2406 for v2406'
+  return 0
+}
+
 # pgf_case_wants_yade DIR — DIR/constant/yadeProperties says active true.
 pgf_case_wants_yade() {
   grep -qE '^[[:space:]]*active[[:space:]]+(true|yes|on|1)[[:space:]]*;' \
     "$1/constant/yadeProperties" 2>/dev/null
 }
 
-# pgf_detect_bashrc — candidate OpenFOAM etc/bashrc files, v2406 first.
+# pgf_detect_bashrc — candidate OpenFOAM etc/bashrc files, PGF_FOAM_TARGET first.
 pgf_detect_bashrc() {
   local c
   {
@@ -18,7 +28,7 @@ pgf_detect_bashrc() {
       echo "$c"
     done
   } | while IFS= read -r c; do [ -r "$c" ] && echo "$c"; done |
-    awk '!seen[$0]++' | awk '/2406/ {print; next} {rest[++n]=$0} END {for (i=1;i<=n;i++) print rest[i]}'
+    awk '!seen[$0]++' | awk -v t="${PGF_FOAM_TARGET#v}" 'index($0, t) {print; next} {rest[++n]=$0} END {for (i=1;i<=n;i++) print rest[i]}'
 }
 
 # pgf_detect_yade — yade binaries on the caller's PATH, plain name first.
@@ -80,12 +90,12 @@ pgf_init() {
     [ -n "$v" ] && out[YADE_BIN]="$v"
   fi
   if [ "$layer" = "checkout" ] && [ -z "${out[YADE_TRUNK]+x}" ] &&
-    [ -d "$PGF_ROOT/submodules/Foam-Yade/pkg/openfoam" ]; then
-    out[YADE_TRUNK]="$PGF_ROOT/submodules/Foam-Yade"
+    [ -d "$PGF_ROOT/submodules/yade-pgf/pkg/openfoam" ]; then
+    out[YADE_TRUNK]="$PGF_ROOT/submodules/yade-pgf"
   fi
   for k in "${!PGF_CONF_CLI[@]}"; do out[$k]="${PGF_CONF_CLI[$k]}"; done
   pgf_setup_step_foam "${out[PGF_FOAM_BASHRC]:-}"
-  pgf_setup_step_yade "${out[YADE_BIN]:-}" "${PGF_CONF_CLI[YADE_TRUNK]:-${YADE_TRUNK:-${out[YADE_TRUNK]:-$PGF_ROOT/submodules/Foam-Yade}}}"
+  pgf_setup_step_yade "${out[YADE_BIN]:-}" "${PGF_CONF_CLI[YADE_TRUNK]:-${YADE_TRUNK:-${out[YADE_TRUNK]:-$PGF_ROOT/submodules/yade-pgf}}}"
 
   # Remember old and new values for the outcome block; leave an unchanged file alone.
   PGF_SETUP_LAYER="$layer" PGF_SETUP_FILE="$file" PGF_SETUP_WROTE=0
@@ -125,15 +135,15 @@ pgf_setup_step_foam() {
   local ver
   if [ -z "$1" ] || [ ! -r "$1" ]; then
     st_step "looking for OpenFOAM" FAIL "$([ -n "$1" ] && echo "$(pgf_tilde "$1") is not readable" || echo "none found")"
-    st_more "fix: ./pgf setup --foam-bashrc <OpenFOAM-v2406>/etc/bashrc"
+    st_more "fix: ./pgf setup --foam-bashrc <OpenFOAM-$PGF_FOAM_TARGET>/etc/bashrc"
     return 0
   fi
   ver="$(pgf_foam_version "$1")"
-  if [ "$ver" = v2406 ]; then
+  if [ "$ver" = "$PGF_FOAM_TARGET" ]; then
     st_step "looking for OpenFOAM" OK "$ver, $(pgf_tilde "$1")"
   else
-    st_step "looking for OpenFOAM" WARN "${ver:-version unknown}, $(pgf_tilde "$1"); PGF targets v2406"
-    st_more "fix: pgf config set PGF_FOAM_BASHRC=<OpenFOAM-v2406>/etc/bashrc"
+    st_step "looking for OpenFOAM" WARN "${ver:-version unknown}, $(pgf_tilde "$1"); PGF targets $PGF_FOAM_TARGET"
+    st_more "$(pgf_foam_fix "$ver")"
   fi
 }
 
@@ -153,7 +163,7 @@ pgf_setup_step_yade() {
   line="$(pgf_yade_check "$1" "$2" | head -1)"
   lvl="${line%% *}" msg="$(sed -E 's/^[A-Z]+ +//; s/^yade [^ ]+ //' <<<"$line")"
   if [ "$lvl" = OK ]; then
-    st_step "looking for yade" OK "$(pgf_tilde "$1"), built from the pinned Foam-Yade"
+    st_step "looking for yade" OK "$(pgf_tilde "$1"), built from the pinned yade-pgf"
   else
     st_step "looking for yade" WARN "$(pgf_tilde "$1")"
     st_check WARN "$msg" | sed '1s/^  WARN /       /'
@@ -339,7 +349,7 @@ pgf_install_link() {
 # pgf_doctor_trunk_source TRUNK — warn (via _r) when YADE_TRUNK comes from the
 #   environment, and when the checkout's own submodule is off its pin.
 pgf_doctor_trunk_source() {
-  local own="$PGF_ROOT/submodules/Foam-Yade" line
+  local own="$PGF_ROOT/submodules/yade-pgf" line
   if [ "${PGF_CONF_SRC[YADE_TRUNK]:-}" = env ]; then
     _r WARN "YADE_TRUNK=$1 comes from the environment and overrides the checkout's submodule; find the export: grep -n YADE_TRUNK ~/.bashrc ~/.profile, or unset it"
   fi
@@ -390,9 +400,9 @@ pgf_doctor() {
   if [ -n "$bashrc" ] && [ -r "$bashrc" ]; then
     ver="$(pgf_foam_version "$bashrc")"
     if [ -z "$ver" ]; then
-      _r FAIL "$(pgf_tilde "$bashrc") sets no WM_PROJECT_VERSION; fix: pgf config set PGF_FOAM_BASHRC=<OpenFOAM-v2406>/etc/bashrc"
-    elif [ "$ver" != v2406 ]; then
-      _r WARN "$ver, $(pgf_tilde "$bashrc"); the solver targets v2406; fix: pgf config set PGF_FOAM_BASHRC=<OpenFOAM-v2406>/etc/bashrc"
+      _r FAIL "$(pgf_tilde "$bashrc") sets no WM_PROJECT_VERSION; $(pgf_foam_fix)"
+    elif [ "$ver" != "$PGF_FOAM_TARGET" ]; then
+      _r WARN "$ver, $(pgf_tilde "$bashrc"); the solver targets $PGF_FOAM_TARGET; $(pgf_foam_fix "$ver")"
     else
       _r OK "$ver, $(pgf_tilde "$bashrc")"
     fi
@@ -440,24 +450,19 @@ pgf_doctor() {
       _dem "a yade built with MPI"
     fi
     while IFS= read -r line; do
-      [ "${line%% *}" = OK ] || _dem "a yade built from the Foam-Yade pin"
+      [ "${line%% *}" = OK ] || _dem "a yade built from the yade-pgf pin"
       _r "$(sed 's/^FAIL/WARN/; s/ .*//' <<<"$line")" "$(sed -E 's/^[A-Z]+ +//' <<<"$line")"
-    done < <(pgf_yade_check "$yb" "${YADE_TRUNK:-$PGF_ROOT/submodules/Foam-Yade}")
+    done < <(pgf_yade_check "$yb" "${YADE_TRUNK:-$PGF_ROOT/submodules/yade-pgf}")
   fi
-  trunk="${YADE_TRUNK:-$PGF_ROOT/submodules/Foam-Yade}"
+  trunk="${YADE_TRUNK:-$PGF_ROOT/submodules/yade-pgf}"
   if [ -n "$yb" ] || [ "${PGF_YADE:-0}" = 1 ]; then
     if pgf_coupling_api_hash "$trunk" >/dev/null; then
-      libdir="${PGF_YADE_LIBDIR:-}"
-      if [ -n "$libdir" ]; then
-        while IFS= read -r line; do _r "${line%% *}" "${line#* }"; done < <(pgf_coupling_check "$libdir" "$trunk")
-      else
-        _r OK "Foam-Yade coupling headers in $(pgf_tilde "$trunk")"
-        while IFS= read -r line; do _r "${line%% *}" "${line#* }"; done < <(pgf_trunk_pin_check "$trunk")
-      fi
+      _r OK "PgfCoupling sources in $(pgf_tilde "$trunk")"
+      while IFS= read -r line; do _r "${line%% *}" "${line#* }"; done < <(pgf_trunk_pin_check "$trunk")
       pgf_doctor_trunk_source "$trunk"
     else
-      _r "$([ "${PGF_YADE:-0}" = 1 ] && echo FAIL || echo WARN)" "no Foam-Yade coupling headers under $(pgf_tilde "$trunk"); fix: git submodule update --init submodules/Foam-Yade, or set YADE_TRUNK"
-      _dem "the Foam-Yade submodule"
+      _r "$([ "${PGF_YADE:-0}" = 1 ] && echo FAIL || echo WARN)" "no PgfCoupling sources under $(pgf_tilde "$trunk"); fix: git submodule update --init submodules/yade-pgf, or set YADE_TRUNK"
+      _dem "the yade-pgf submodule"
     fi
   fi
   grp=""
@@ -662,7 +667,7 @@ pgf_status() {
     st_head "yade for DEM runs:"
     while IFS= read -r line; do
       st_check "$(sed 's/^FAIL/WARN/; s/ .*//' <<<"$line")" "$(sed -E 's/^[A-Z]+ +//' <<<"$line")"
-    done < <(pgf_yade_check "$yb" "${YADE_TRUNK:-$PGF_ROOT/submodules/Foam-Yade}")
+    done < <(pgf_yade_check "$yb" "${YADE_TRUNK:-$PGF_ROOT/submodules/yade-pgf}")
   fi
   echo
   st_head "case copies (pgf copy), per branch:"

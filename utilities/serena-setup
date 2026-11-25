@@ -5,9 +5,9 @@
 #
 # With no TREE it sets up the PGF worktree this script lives in. --all adds
 # every worktree of this repository that carries .serena/project.yml.
-# --with REPO adds a sibling repository next to this one (foamcli, Foam-Yade);
+# --with REPO adds a sibling repository next to this one (foamcli, yade-pgf);
 # siblings are only set up when asked for. --with-submodules also sets up each
-# PGF worktree's checked-out submodules (submodules/Foam-Yade) as trees of
+# PGF worktree's checked-out submodules (submodules/yade-pgf) as trees of
 # their own; empty ones are skipped. --fresh drops a tree's Serena cache
 # before indexing it. A PGF worktree with no cache yet is seeded from the newest
 # cache among the other worktrees, so only the files that differ are indexed.
@@ -18,7 +18,7 @@
 #   CMake C++      a configure-only CMake run (no compile) in
 #                  ~/.cache/serena-setup, whose compile database is copied to
 #                  the tree's root with GCC-only flags removed; then as below
-#                  with language cpp. YADE trees (Foam-Yade) are configured as
+#                  with language cpp. YADE trees (yade-pgf) are configured as
 #                  in pgf's container recipe; $SERENA_CMAKE_ARGS adds options.
 #                  Rerun after adding or removing sources: there are no hooks.
 #   Python repo    .serena/project.yml and .mcp.json when missing (kept out of

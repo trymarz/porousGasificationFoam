@@ -46,7 +46,6 @@ Description
 #include "HGSSolidThermo.H"
 
 #ifdef WITH_YADE 
-    #include "foamYadeApiCheck.H"
     #include "lambdaDotModel.H"
     #include "pgfYadeCoupler.H"
 #endif // WITH_YADE 
@@ -112,20 +111,11 @@ int main(int argc, char *argv[])
         Info<< "Time = " << runTime.timeName() << nl << endl;
 
         #ifdef WITH_YADE
-        if (DEM && pgfCoupling.valid())
+        if (DEM)
         {
             lambdaDotUpdater->updateLambdaDot();
             pgfCoupling->exchange(runTime.deltaT().value());
             lambdaDotUpdater->updateParticleFields();
-        }
-        else if (DEM)
-        {
-            vGrad = fvc::grad(U);
-            lambdaDotUpdater->updateLambdaDot();
-            yadeCoupling->setParticleAction(runTime.deltaT().value());
-            collectFoamYadeParticles();
-            lambdaDotUpdater->updateParticleFields();
-            yadeCoupling->setSourceZero();
         }
         #endif
 

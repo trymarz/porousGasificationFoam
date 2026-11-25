@@ -14,8 +14,7 @@ FoamFile
 
 active          true;
 
-nu                 1e-6;      // kinematic viscosity (m2/s)
+// The pgf coupler (pgfYadeCoupler, #271) is the only one; no drag, so the
+// particles only supply Us (#326, decision 9).
 
-partDensity        1000;      // particle density (kg/m3)
-
-fluidDensity       1.0;       // fluid density (kg/m3)
+// ************************************************************************* //

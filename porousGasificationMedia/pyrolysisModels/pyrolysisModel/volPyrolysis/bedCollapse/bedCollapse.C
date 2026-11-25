@@ -64,7 +64,7 @@ tmp<volScalarField> BedCollapse::globalCellNumbering
             prefix = prefix + sizes[gI];
         }
     }
-    Pstream::scatter(globalIndex);
+    Pstream::broadcast(globalIndex);
 
     tmp<volScalarField> tglobalIndices(solidState_.solidPresent()*0);
     volScalarField& globalIndices = tglobalIndices.ref();
@@ -187,7 +187,7 @@ List<List<label>> BedCollapse::collapseRoutes
             }
         }
     }
-    Pstream::scatter(realRoutes);
+    Pstream::broadcast(realRoutes);
 
     return realRoutes;
 }

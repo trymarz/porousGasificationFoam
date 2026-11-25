@@ -36,7 +36,6 @@ if mp.rank == 0:
 
 
 
-parallelYade=True 
 numProcOF=2
 
 #Lambda=1
@@ -282,8 +281,7 @@ def apply_spring_forces():
 #----------
 
 
-fluidCoupling = FoamCoupling()
-fluidCoupling.couplingModeParallel = parallelYade
+fluidCoupling = PgfCoupling()
 
 
 sphereIDs = [b.id for b in O.bodies if type(b.shape) == Sphere]
@@ -296,7 +294,6 @@ fluidCoupling.SetOpenFoamSolver("porousGasificationFoam", numProcOF)
 
 # tell the coupling engine which IDs to couple
 fluidCoupling.setIdList(sphereIDs)
-fluidCoupling.setNumParticles(len(sphereIDs))
 
 
 

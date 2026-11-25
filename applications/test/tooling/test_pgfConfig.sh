@@ -93,7 +93,7 @@ check "a bad PGF_YADE value exits 2" [ $? -eq 2 ]
 
 # Settings that name the default user dir must not put it back on PATH.
 default="$home/fake-user"
-printf 'PGF_YADE_LIBDIR=%s/lib\nPGF_RUN_ROOT=%s/run\n' "$default" "$default" >"$tree/.pgf.conf"
+printf 'PGF_CASE_ROOT=%s/cases\nPGF_RUN_ROOT=%s/run\n' "$default" "$default" >"$tree/.pgf.conf"
 path="$(penv -- exec --bare -- printenv PATH 2>"$TEST_TMP/err")"
 check "config pointing into the default user dir still runs" [ -n "$path" ]
 check "PATH holds nothing under the default user dir $default" \

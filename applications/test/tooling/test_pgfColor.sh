@@ -14,7 +14,7 @@ home="$TEST_TMP/home"
 mkdir -p "$home"
 bashrc="$FAKE/foam/etc/bashrc"
 mkdir -p "${bashrc%/*}"
-echo 'export WM_PROJECT_DIR=/fake WM_PROJECT_VERSION=v2406 WM_OPTIONS=linux64 WM_PROJECT_USER_DIR="$HOME/u"' >"$bashrc"
+echo 'export WM_PROJECT_DIR=/fake WM_PROJECT_VERSION=v2606 WM_OPTIONS=linux64 WM_PROJECT_USER_DIR="$HOME/u"' >"$bashrc"
 
 # pty CMD — CMD under a pseudo-terminal (stdout and stderr both the pty).
 pty() {

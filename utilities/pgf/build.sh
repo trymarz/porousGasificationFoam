@@ -10,7 +10,7 @@
 # <fingerprint12>-<yade0|yade1>-<OpenFOAM version>-gcc<version> under
 # $PGF_BUILD_ROOT; a prefix holding .pgf-build.json is complete and is reused
 # without compiling. Make/options link with -L$(FOAM_USER_LIBBIN), so nothing
-# else needs to change, and v2406 embeds no RPATH, so a prefix can be moved.
+# else needs to change, and v2606 embeds no RPATH on Linux, so a prefix can be moved.
 
 PGF_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 . "$PGF_ROOT/utilities/bash_utils/helpers.sh"
@@ -222,139 +222,16 @@ check_foam_environment() {
   return 0
 }
 
-# --yade / --DEM only; the normal build never requires Foam-Yade.
-check_yade_environment() {
-  YADE_TRUNK="${YADE_TRUNK:-$PGF_ROOT/submodules/Foam-Yade}"
-  if [ -z "$YADE_TRUNK" ]; then
-    clog ERROR "YADE_TRUNK is not set, but a DEM/Yade build was requested."
-    clog ERROR "Point it at the Foam-Yade source checkout, e.g."
-    clog ERROR "  export YADE_TRUNK=/path/to/foam-yade"
-    return 1
-  fi
-
-  local coupling="$YADE_TRUNK/pkg/openfoam/coupling/FoamYade"
-  local missing=()
-  if coupling_in_prefix; then
-    [ -f "$coupling/FoamYade.H" ] || {
-      clog ERROR "No Foam-Yade coupling sources under YADE_TRUNK=$YADE_TRUNK (missing $coupling/FoamYade.H)."
-      clog ERROR "Run: git submodule update --init submodules/Foam-Yade, or set YADE_TRUNK."
-      return 1
-    }
-    return 0
-  fi
-  [ -d "$coupling/lnInclude" ] || missing+=("$coupling/lnInclude")
-  [ -d "$coupling/meshtree/lnInclude" ] || missing+=("$coupling/meshtree/lnInclude")
-
-  if [ ${#missing[@]} -gt 0 ]; then
-    clog ERROR "Foam-Yade coupling headers not found under YADE_TRUNK=$YADE_TRUNK:"
-    local m
-    for m in "${missing[@]}"; do clog ERROR "  missing: $m"; done
-    clog ERROR "Build Foam-Yade (and its OpenFOAM coupling libraries) first."
-    return 1
-  fi
-
-  check_coupling_stamp
-}
-
-# The coupling libs must come from the headers wmake is about to compile
-# against (#257); a mismatch is refused before anything is built.
-check_coupling_stamp() {
-  local libdir="$PGF_YADE_LIBDIR" line rc=0
-  coupling_in_prefix && return 0
-  while IFS= read -r line; do
-    case "$line" in
-    OK*) clog INFO "${line#OK   }" ;;
-    WARN*) clog WARNING "${line#WARN }" ;;
-    FAIL*) clog ERROR "${line#FAIL }"; rc=1 ;;
-    esac
-  done < <(pgf_coupling_check "$libdir" "$YADE_TRUNK")
-  return "$rc"
-}
-
-# A prefix compiles its own coupling libs into <prefix>/lib (#264), unless
-# PGF_YADE_LIBDIR names prebuilt ones to copy instead.
-coupling_in_prefix() {
-  [ -z "${PGF_YADE_LIBDIR:-}" ]
-}
-
-# Compile the coupling from a copy of the trunk's sources in the prefix, so
-# the trunk stays untouched; later wmake calls take headers from that copy.
-build_coupling_in_prefix() {
-  local src="$YADE_TRUNK/pkg/openfoam/coupling/FoamYade"
-  local shadow="$PREFIX/foam-yade" dst="$PREFIX/foam-yade/pkg/openfoam/coupling/FoamYade" d
-  rm -rf "$shadow" && mkdir -p "$dst" || return 1
-  (cd "$src" && tar --exclude=lnInclude --exclude="Make/linux*" --exclude="Make/darwin*" -cf - .) |
-    (cd "$dst" && tar -xf -) || { clog ERROR "Cannot copy the coupling sources to $dst"; return 1; }
-  # libYadeFoam links libMeshTree, so meshtree goes first.
-  for d in meshtree commYade .; do
-    clog INFO "Building the Foam-Yade coupling: ${d/#./FoamYade}"
-    if [ -n "$BUILD_LOG" ]; then
-      (cd "$dst/$d" && wmake libso) >>"$BUILD_LOG" 2>&1
-    else
-      (cd "$dst/$d" && wmake libso)
-    fi || { clog ERROR "Coupling build failed in $dst/$d${BUILD_LOG:+; log: $BUILD_LOG}"; return 1; }
-  done
-  pgf_coupling_write_stamp "$FOAM_USER_LIBBIN" "$YADE_TRUNK" || return 1
-  YADE_SOURCE_TRUNK="$YADE_TRUNK"
-  export YADE_TRUNK="$shadow"
-  clog INFO "Coupling libs built into $FOAM_USER_LIBBIN from $YADE_SOURCE_TRUNK"
-}
-
-# Link-time deps of the DEM library and the WITH_YADE solver; libYadeComm
-# is a runtime dep of libYadeFoam. A prefix starts empty, so it is built or seeded.
-check_yade_libs() {
-  if coupling_in_prefix; then
-    build_coupling_in_prefix || return 1
-  else
-    seed_yade_libs || return 1
-  fi
-  local lib missing=()
-  for lib in "${YADE_LIBS[@]}"; do
-    [ -e "$FOAM_USER_LIBBIN/$lib.so" ] || missing+=("$lib.so")
-  done
-  if [ ${#missing[@]} -gt 0 ]; then
-    clog ERROR "Foam-Yade libraries not found in $FOAM_USER_LIBBIN: ${missing[*]}"
-    clog ERROR "Build the Foam-Yade coupling libraries (wmake libso in"
-    clog ERROR "\$YADE_TRUNK/pkg/openfoam/coupling/FoamYade) first."
-    return 1
-  fi
-
-  return 0
-}
-
-declare -a YADE_LIBS=(libMeshTree libYadeFoam libYadeComm)
-
-# With PGF_YADE_LIBDIR set, prebuilt coupling libs are copied from there.
-# Copies, not links: a later rebuild there must not change the prefix.
-seed_yade_libs() {
-  local src="$PGF_YADE_LIBDIR" lib
-  for lib in "${YADE_LIBS[@]}"; do
-    if [ ! -e "$src/$lib.so" ]; then
-      clog ERROR "$lib.so not found in $src."
-      clog ERROR "Set PGF_YADE_LIBDIR to the directory holding the Foam-Yade coupling libs."
-      return 1
-    fi
-    cp -fL "$src/$lib.so" "$FOAM_USER_LIBBIN/$lib.so" || return 1
-  done
-  rm -f "$FOAM_USER_LIBBIN/$PGF_COUPLING_STAMP"
-  [ ! -f "$src/$PGF_COUPLING_STAMP" ] || cp -f "$src/$PGF_COUPLING_STAMP" "$FOAM_USER_LIBBIN/" || return 1
-  clog INFO "Seeded ${YADE_LIBS[*]} from $src"
-}
-
 # ============================================================
 # BUILD PREFIX
 # ============================================================
 
 # The fingerprint covers the sources only, so the key adds what else changes
 # the binaries: the WITH_YADE variant, the OpenFOAM version and the compiler.
-# yade1 also folds in the Foam-Yade pin and coupling-header hash (#257).
+# Nothing from Yade is compiled or linked, so its pin is not part of the key.
 build_key() {
   local fp cc_version
   fp="$(source_fingerprint)" || return 1
-  if [ "$WITH_YADE" -eq 1 ]; then
-    local trunk="${YADE_TRUNK:-$PGF_ROOT/submodules/Foam-Yade}"
-    fp="$(printf '%s\n' "$fp" "$(pgf_coupling_pin)" "$(pgf_coupling_api_hash "$trunk")" | sha1sum | cut -c1-40)"
-  fi
   cc_version="$(gcc -dumpversion 2>/dev/null)" || {
     clog ERROR "gcc -dumpversion failed; cannot form the build key."
     return 1
@@ -483,7 +360,7 @@ write_build_metadata() {
   for t in "${ALL_TARGETS[@]}"; do
     [ "${BUILD_TARGETS[$t]:-0}" -eq 1 ] && targets+=("$t")
   done
-  local trunk="${YADE_SOURCE_TRUNK:-${YADE_TRUNK:-$PGF_ROOT/submodules/Foam-Yade}}" dirty=""
+  local trunk="${YADE_TRUNK:-$PGF_ROOT/submodules/yade-pgf}" dirty=""
   if git -C "$PGF_ROOT" rev-parse --git-dir >/dev/null 2>&1; then
     dirty=0
     [ -z "$(git -C "$PGF_ROOT" status --porcelain --untracked-files=no 2>/dev/null)" ] || dirty=1
@@ -795,13 +672,6 @@ main() {
   check_foam_environment || exit 1
   [ "$MODE" = "clean" ] || print_destination
 
-  local yade=0
-  if [ "$MODE" = "build" ] &&
-    { [ "$WITH_YADE" -eq 1 ] || [ "${BUILD_TARGETS[DEM]:-0}" -eq 1 ]; }; then
-    yade=1
-    check_yade_environment || exit 1
-  fi
-
   check_build_variant || exit 1
 
   [ "$MODE" = "clean" ] || invalidate_prefix
@@ -810,7 +680,6 @@ main() {
     BUILD_LOG="$PREFIX/build.log"
     : >"$BUILD_LOG" || exit 1
   fi
-  [ "$yade" -eq 0 ] || check_yade_libs || exit 1
 
   build_all_targets || exit 1
 

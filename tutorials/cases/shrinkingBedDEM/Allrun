@@ -10,14 +10,14 @@
 #
 # PREREQUISITES
 #   - porousGasificationFoam built with pgf build --yade
-#   - Yade built with FoamCoupling support, `yade` on PATH (or YADE_BIN set)
+#   - Yade built with the PgfCoupling engine, `yade` on PATH (or YADE_BIN set)
 #
 # STEPS (what this script runs)
 #       cp -r 0.orig 0 && blockMesh && setFields && decomposePar
 #       yade -n -x relax.py
 #       YADE_NSTEPS=<endTime/dem_dt> mpirun -n 2 yade MPI_lambda.py
 #
-#   mpirun -n 2 starts two Yade ranks; FoamCoupling spawns the two OpenFOAM
+#   mpirun -n 2 starts two Yade ranks; PgfCoupling spawns the two OpenFOAM
 #   ranks itself, so porousGasificationFoam is never launched directly.
 #
 # OUTPUT

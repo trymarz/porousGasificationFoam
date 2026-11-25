@@ -74,7 +74,7 @@ fixedYmFvPatchScalarField::fixedYmFvPatchScalarField
     const fixedYmFvPatchScalarField& tppsf
 )
 :
-    fixedValueFvPatchScalarField(tppsf)
+    fixedValueFvPatchScalarField(tppsf, tppsf.internalField())
 {}
 
 

@@ -32,8 +32,8 @@ printf '#!/bin/sh\necho fake yade\n' >"$yadedir/yade-2026.1"
 chmod +x "$prefix/bin/porousGasificationFoam" "$yadedir/yade-2026.1"
 
 trunk="$TEST_TMP/trunk"
-mkdir -p "$trunk/pkg/openfoam/coupling/FoamYade"
-echo '// fake' >"$trunk/pkg/openfoam/coupling/FoamYade/FoamYade.H"
+mkdir -p "$trunk/pkg/openfoam"
+echo '// fake' >"$trunk/pkg/openfoam/PgfCoupling.hpp"
 
 # penv ARGS — pgf for a clean caller (HOME, TMPDIR, a PATH with only a suffixed yade).
 penv() {
@@ -74,12 +74,12 @@ out="$(env -i PATH=/usr/bin:/bin HOME="$home" TMPDIR="$TEST_TMP" YADE_TRUNK="$tr
 check "pgf called through the ~/.local/bin/pgf symlink finds its checkout ($out)" [ "$out" = "$bashrc" ]
 
 # setup prints one step line per action, then what it saved where, then next: (#287).
-check "setup steps: OpenFOAM is not v2406, with the fix under it" \
-    bash -c 'grep -q "^  → looking for OpenFOAM … WARN fake, .*; PGF targets v2406$" "$1" &&
+check "setup steps: OpenFOAM is not v2606, with the fix under it" \
+    bash -c 'grep -q "^  → looking for OpenFOAM … WARN fake, .*; PGF targets v2606$" "$1" &&
         grep -A1 "looking for OpenFOAM" "$1" | grep -q "^       fix: pgf config set PGF_FOAM_BASHRC="' _ "$TEST_TMP/out"
 check "  the yade it found, and why its pin cannot be checked" \
     bash -c 'grep -q "^  → looking for yade … WARN $2/yade-2026.1$" "$1" &&
-        grep -q "^       does not say which Foam-Yade commit built it" "$1"' _ "$TEST_TMP/out" "$yadedir"
+        grep -q "^       does not say which yade-pgf commit built it" "$1"' _ "$TEST_TMP/out" "$yadedir"
 check "  the file it wrote" grep -q "^  → saving settings … OK wrote .*\.pgf\.conf (checkout layer)$" "$TEST_TMP/out"
 check "  that --no-link left pgf unlinked" grep -q "^  → linking pgf … skipped (--no-link)" "$TEST_TMP/out"
 check "  then what was saved where, one key a line" \
@@ -164,18 +164,26 @@ check "  shows kept values" grep -qE "^ +PGF_FOAM_BASHRC +$bashrc +\(kept\)$" "$
 check "  and leaves the file untouched" grep -qx "# hand-written comment" "$tree/.pgf.conf"
 check "  and does not claim a completion install with --no-completion" \
     bash -c '! grep -q "completion" "$1"' _ "$TEST_TMP/out2"
-bashrc2406="$FAKE/foam2406/etc/bashrc"
-mkdir -p "${bashrc2406%/*}"
-echo 'export WM_PROJECT_VERSION=v2406' >"$bashrc2406"
+bashrc2606="$FAKE/foam2606/etc/bashrc"
+mkdir -p "${bashrc2606%/*}"
+echo 'export WM_PROJECT_VERSION=v2606' >"$bashrc2606"
 home2="$TEST_TMP/home2"  # a fresh user, no yade, and no checkout file in the way
 mkdir -p "$home2"
 mv "$tree/.pgf.conf" "$tree/.pgf.conf.keep"
 env -i PATH=/usr/bin:/bin HOME="$home2" TMPDIR="$TEST_TMP" "$tree/pgf" setup --user --yes --no-completion \
     --foam-bashrc "$bashrc" >/dev/null 2>&1
 env -i PATH=/usr/bin:/bin HOME="$home2" TMPDIR="$TEST_TMP" "$tree/pgf" setup --user --yes --no-completion \
-    --foam-bashrc "$bashrc2406" >"$TEST_TMP/out3" 2>&1
-check "setup reports OpenFOAM v2406 as OK" grep -q "→ looking for OpenFOAM … OK v2406, " "$TEST_TMP/out3"
-check "  shows a changed value with the old one" grep -qE "^ +PGF_FOAM_BASHRC +.*foam2406/etc/bashrc +\(was $bashrc\)$" "$TEST_TMP/out3"
+    --foam-bashrc "$bashrc2606" >"$TEST_TMP/out3" 2>&1
+check "setup reports OpenFOAM v2606 as OK" grep -q "→ looking for OpenFOAM … OK v2606, " "$TEST_TMP/out3"
+check "  shows a changed value with the old one" grep -qE "^ +PGF_FOAM_BASHRC +.*foam2606/etc/bashrc +\(was $bashrc\)$" "$TEST_TMP/out3"
+bashrc2406="$FAKE/foam2406/etc/bashrc"
+mkdir -p "${bashrc2406%/*}" "$TEST_TMP/home3"
+echo 'export WM_PROJECT_VERSION=v2406' >"$bashrc2406"
+env -i PATH=/usr/bin:/bin HOME="$TEST_TMP/home3" TMPDIR="$TEST_TMP" "$tree/pgf" setup --user --yes --no-completion \
+    --no-link --foam-bashrc "$bashrc2406" >"$TEST_TMP/out2406" 2>&1
+check "setup warns on OpenFOAM v2406 and points to maint/of2406" \
+    bash -c 'grep -q "looking for OpenFOAM … WARN v2406, .*; PGF targets v2606$" "$1" &&
+        grep -A1 "looking for OpenFOAM" "$1" | grep -q "or use tag v2406-final / branch maint/of2406 for v2406$"' _ "$TEST_TMP/out2406"
 check "  says yade is optional when none is found" grep -q "→ looking for yade … none (only DEM runs need it" "$TEST_TMP/out3"
 check "  gives the PATH fix when ~/.local/bin is not on PATH" \
     grep -qF 'export PATH="$HOME/.local/bin:$PATH"' "$TEST_TMP/out3"
@@ -218,24 +226,24 @@ mv "$tree/.pgf.conf.keep" "$tree/.pgf.conf"
 
 # config
 check "config get reads the resolved value" [ "$(penv config get PGF_MPI)" = loopback ]
-penv config get PGF_YADE_LIBDIR >/dev/null 2>&1
+penv config get PGF_CASE_ROOT >/dev/null 2>&1
 check "config get of an unset key exits 1" [ $? -eq 1 ]
 penv config get NOPE >/dev/null 2>&1
 check "config get of an unknown key exits 2" [ $? -eq 2 ]
-penv config set PGF_YADE_LIBDIR=/opt/libs --checkout 2>/dev/null
-check "config set --checkout writes the checkout file" grep -qx "PGF_YADE_LIBDIR=/opt/libs" "$tree/.pgf.conf"
+penv config set PGF_CASE_ROOT=/opt/libs --checkout 2>/dev/null
+check "config set --checkout writes the checkout file" grep -qx "PGF_CASE_ROOT=/opt/libs" "$tree/.pgf.conf"
 check "  and keeps the other keys" grep -qx "PGF_MPI=loopback" "$tree/.pgf.conf"
 penv config set PGF_MPI=sometimes 2>/dev/null
 check "config set rejects a bad value with exit 2" [ $? -eq 2 ]
-penv config unset PGF_YADE_LIBDIR --checkout 2>/dev/null
-check "config unset removes the key" bash -c '! grep -q PGF_YADE_LIBDIR "$1"' _ "$tree/.pgf.conf"
+penv config unset PGF_CASE_ROOT --checkout 2>/dev/null
+check "config unset removes the key" bash -c '! grep -q PGF_CASE_ROOT "$1"' _ "$tree/.pgf.conf"
 penv config --json >"$TEST_TMP/json"
 check "config --json gives value and layer per key" python3 -c '
 import json, sys
 d = json.load(open(sys.argv[1]))
 s = d["settings"]
 assert s["PGF_MPI"]["value"] == "loopback" and s["PGF_MPI"]["layer"] == "checkout"
-assert s["PGF_YADE_LIBDIR"]["value"] is None and d["files"]["checkout"]["exists"]
+assert s["PGF_CASE_ROOT"]["value"] is None and d["files"]["checkout"]["exists"]
 ' "$TEST_TMP/json"
 penv --prefix x >/dev/null 2>&1
 check "options without a subcommand exit 2" [ $? -eq 2 ]
