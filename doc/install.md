@@ -74,7 +74,7 @@ cmake "$src" -DCMAKE_INSTALL_PREFIX=$HOME/opt/yade-pgf -DENABLE_GUI=OFF -DNOSUFF
 make -j"$(nproc)" install      # 30-60 min
 ```
 
-Run it in a plain shell, not one that has sourced OpenFOAM: YADE and OpenFOAM must use the same MPI, the system Open MPI. CMake must not print `MPI NOT FOUND, YADE-OpenFOAM coupling disabled`. `$HOME/opt/yade-pgf/bin/yade -v` then prints `Yade version: <date>-git-<commit>`.
+With less than about 4 GB of memory per core, lower `-j` ([Pitfalls](#pitfalls)). Run it in a plain shell, not one that has sourced OpenFOAM: YADE and OpenFOAM must use the same MPI, the system Open MPI. CMake must not print `MPI NOT FOUND, YADE-OpenFOAM coupling disabled`. `$HOME/opt/yade-pgf/bin/yade -v` then prints `Yade version: <date>-git-<commit>`.
 
 **Build and check the DEM variant of PGF.** Back in the PGF checkout:
 
@@ -109,6 +109,8 @@ cd <a pgf copy> && apptainer run pgf-<commit12>-yade1.sif ./Allrun
 
 - **One MPI.** YADE spawns the solver with `MPI_Comm_spawn`, so YADE, `mpi4py` and OpenFOAM must use the same Open MPI. Build YADE against the system Open MPI that `openfoam2606-dev` uses, not a ThirdParty or conda one.
 - **ParaView and `libvtk9-dev` (Debian 13).** `python3-paraview`, which `pgf view` needs, conflicts with `python3-vtk9`, which `libvtk9-dev` pulls in. Build YADE with `libvtk9-dev`, then swap back to `python3-paraview`; keep the runtime `libvtk9.3` with `sudo apt-mark manual libvtk9.3`. Details: [build.md → ParaView and Yade's VTK](build.md#paraview-and-yades-vtk).
+- **Memory for the YADE build.** Each `make` job needs roughly 3–4 GB; pick `-j` from the free memory, not the core count, or `cc1plus` is killed. Rerunning `make` resumes.
+- **A DEM run that does not exit.** After the solver's `End`, Open MPI can print `writev failed: Broken pipe` while one `yade` rank keeps a core busy and `mpirun` never returns. The results are complete; end it with Ctrl-C. It is a shutdown race of the spawn-based coupling, seen with Open MPI 4.1 (Ubuntu 24.04); [#328](https://github.com/trymarz/porousGasificationFoam/issues/328) replaces that launch.
 - **YADE off the pin.** After a `git pull` that moves `submodules/yade-pgf`, run `git submodule update` and rebuild YADE; `pgf doctor --yade` names the commits when they differ.
 - **Single-interface hosts.** On a host whose only network is `lo`, or with docker or libvirt bridges, Open MPI can hang the coupled run; `pgf` then restricts it to loopback by itself (`PGF_MPI=auto`; `pgf help`, section MPI).
 
