@@ -1,3 +1,4 @@
-[submodule "submodules/Foam-Yade"]
-	path = submodules/Foam-Yade
-	url = https://github.com/trymarz/Foam-Yade.git
+[submodule "submodules/yade-pgf"]
+	path = submodules/yade-pgf
+	url = https://github.com/trymarz/yade-pgf.git
+	branch = pgf-main
