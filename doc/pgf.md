@@ -33,7 +33,7 @@ Settings say which OpenFOAM and yade to use, where builds, scratch and case copi
 
 # use the OpenFOAM installation whose etc/bashrc you name,
 # instead of the one pgf setup finds by itself
-./pgf setup --foam-bashrc /opt/OpenFOAM/OpenFOAM-v2406/etc/bashrc
+./pgf setup --foam-bashrc ~/OpenFOAM/OpenFOAM-v2606/etc/bashrc
 ```
 
 To make the `pgf` command run another worktree's pgf, run `./pgf setup --link-only --force` in that worktree. It only repoints the `~/.local/bin/pgf` link, and `--force` replaces a link to another checkout.
@@ -59,24 +59,24 @@ pgf doctor          # check everything; DEM problems are only warnings
 pgf doctor --yade   # you need DEM: its problems are failures
 ```
 
-It checks, in groups: OpenFOAM, the builds of the checkout pgf runs from, yade and the DEM coupling, MPI, and whether `pgf` is on your `PATH`. Each check is one `OK`, `WARN` or `FAIL` line, and under each problem a `fix:` line says what to run. A verdict closes the output. For example, with a yade built from the wrong Foam-Yade commit (shortened and wrapped):
+It checks, in groups: OpenFOAM, the builds of the checkout pgf runs from, yade and the DEM coupling, MPI, and whether `pgf` is on your `PATH`. Each check is one `OK`, `WARN` or `FAIL` line, and under each problem a `fix:` line says what to run. A verdict closes the output. For example, with a yade built from the wrong yade-pgf commit (shortened and wrapped):
 
 ```text
 yade and DEM
   OK   yade ~/.local/bin/yade (Yade version: …), with MPI
-  WARN yade … was built from Foam-Yade d5c33e0, 6 commits older than the
-       pin 287187f703; DEM results may differ from the dem baselines
-       fix: build yade at Foam-Yade 287187f703 (doc/build.md, …),
+  WARN yade … was built from yade-pgf d5c33e0, 6 commits older than the
+       pin 475bb35558; DEM results may differ from the dem baselines
+       fix: build yade at yade-pgf 475bb35558 (doc/build.md, …),
        then pgf config set YADE_BIN=<that yade>
 
-verdict: ready for non-DEM runs; DEM needs: a yade built from the Foam-Yade pin
+verdict: ready for non-DEM runs; DEM needs: a yade built from the yade-pgf pin
 ```
 
 It exits 1 if any check fails, so scripts can use it too. Every check: `pgf help doctor`.
 
 ## Builds
 
-A build is a compiled solver with its libraries, in a directory of its own under `$PGF_BUILD_ROOT` (by default `~/OpenFOAM/<user>-v2406/pgf-builds`). Its key comes from the sources, the variant (with or without DEM), OpenFOAM and the compiler, so each checkout state gets its own build, reused while the key matches and never overwritten. [build.md](build.md) covers building.
+A build is a compiled solver with its libraries, in a directory of its own under `$PGF_BUILD_ROOT` (by default `~/OpenFOAM/<user>-v2606/pgf-builds`). Its key comes from the sources, the variant (with or without DEM), OpenFOAM and the compiler, so each checkout state gets its own build, reused while the key matches and never overwritten. [build.md](build.md) covers building.
 
 ```bash
 pgf build                  # build the checkout pgf runs from; reused if unchanged
@@ -91,7 +91,7 @@ By default every command uses the build of the checkout pgf runs from. To use an
 
 A run is a case run with a build, in a clean environment. It leaves things in three places:
 
-- **Your cases:** `$PGF_CASE_ROOT/<branch>/<case>`, by default OpenFOAM's run dir, `~/OpenFOAM/<user>-v2406/run`.
+- **Your cases:** `$PGF_CASE_ROOT/<branch>/<case>`, by default OpenFOAM's run dir, `~/OpenFOAM/<user>-v2606/run`.
 - **Scratch:** `$PGF_RUN_ROOT`, by default `${TMPDIR:-/tmp}/pgf-runs`, for test runs and temporary files. Under `/tmp` it usually does not survive a reboot.
 - **Records:** `~/.local/state/pgf/runs`, a line per run and the last result of each test tier.
 

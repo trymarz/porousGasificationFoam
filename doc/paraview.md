@@ -5,8 +5,8 @@
 ## Use it
 
 ```bash
-pgf copy solidAdvection && pgf run ~/OpenFOAM/$USER-v2406/run/main/solidAdvection   # a copy with results
-case=~/OpenFOAM/$USER-v2406/run/main/solidAdvection
+pgf copy solidAdvection && pgf run ~/OpenFOAM/$USER-v2606/run/main/solidAdvection   # a copy with results
+case=~/OpenFOAM/$USER-v2606/run/main/solidAdvection
 pgf view $case                                      # GUI, one layout tab per view
 pgf view $case --png $case/png                      # headless: $case/png/<view>.png
 pgf view $case --png $case/png --time 0.5 --size 1600x1200
@@ -20,11 +20,11 @@ Both the GUI and `--png` show the last written time unless `--time T` is given. 
 ## Compare two cases
 
 ```bash
-pgf copy canonical/pyrolysis && pgf run ~/OpenFOAM/$USER-v2406/run/main/canonical/pyrolysis
-pgf copy canonical/pyrolysisE && pgf run ~/OpenFOAM/$USER-v2406/run/main/canonical/pyrolysisE
-a=~/OpenFOAM/$USER-v2406/run/main/canonical/pyrolysis
+pgf copy canonical/pyrolysis && pgf run ~/OpenFOAM/$USER-v2606/run/main/canonical/pyrolysis
+pgf copy canonical/pyrolysisE && pgf run ~/OpenFOAM/$USER-v2606/run/main/canonical/pyrolysisE
+a=~/OpenFOAM/$USER-v2606/run/main/canonical/pyrolysis
 pgf view $a --compare $a/reference --png $a/cmp             # run against its reference/
-pgf view $a --compare ~/OpenFOAM/$USER-v2406/run/main/canonical/pyrolysisE   # GUI, panes side by side
+pgf view $a --compare ~/OpenFOAM/$USER-v2606/run/main/canonical/pyrolysisE   # GUI, panes side by side
 ```
 
 `--compare <other>` shows the first case's views for both cases. `<other>` is a second case or run copy, or a `postProcessing`-only directory such as `<case>/reference`.

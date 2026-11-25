@@ -62,7 +62,7 @@ Each run goes to `$PGF_RUN_ROOT/pgf-test-<tier>-<time>-<pid>/` (`build.log`, `dr
 
 ### Baselines on another toolchain
 
-Baselines are captured with one compiler and OpenFOAM build, and nothing guarantees another toolchain reproduces them within `rtol`. `container/pgf-toolchain.def` pins one: ESI's `opencfd/openfoam-dev:2406` image (Ubuntu 24.04, gcc 13) by digest, plus `python3`. PGF is not built into the image; `pgf test` builds whatever tree it is given. `container/compareToolchains.sh` runs the same commit natively and in the image and prints each case's outcome on both sides:
+Baselines are captured with one compiler and OpenFOAM build, and nothing guarantees another toolchain reproduces them within `rtol`. `container/pgf-toolchain.def` pins one: ESI's `opencfd/openfoam-run:2606` image (Ubuntu 26.04, system gcc and Open MPI) by digest, plus `openfoam2606-dev` from ESI's apt repository (pinned by version) and `python3`; ESI publishes no `openfoam-dev:2606` image. PGF is not built into the image; `pgf test` builds whatever tree it is given. `container/compareToolchains.sh` runs the same commit natively and in the image and prints each case's outcome on both sides:
 
 ```bash
 apptainer build --fakeroot /scratch/pgf-toolchain.sif container/pgf-toolchain.def
@@ -81,11 +81,11 @@ Each side gets its own `git archive` copy of `HEAD` under the work dir (default 
 | nightly (02:17 UTC, default branch only) | `convergence` |
 | manual run (`workflow_dispatch`, "Run workflow" on the Actions tab) | `convergence` or `fast`, chosen in the form |
 
-- **Image.** The `From:` line of `container/pgf-toolchain.def` is the only place the image is pinned. A first job reads it and the test job runs in it, so changing that line changes both the local container and CI. The job fails unless the line is a digest-pinned `opencfd/openfoam-dev` image.
+- **Image.** The `From:` line of `container/pgf-toolchain.def` is the only place the image is pinned. A first job reads it and the test job runs in it, so changing that line changes both the local container and CI. The job fails unless the line is a digest-pinned `opencfd/openfoam-run` image.
 - **Build cache.** The job computes the build key (`utilities/pgf/build.sh --print-key`), restores `pgf-builds/<key>` from the Actions cache, builds with `build.sh --isolated` (a no-op on a hit) and saves the prefix on a miss. A change to any source under the build targets, the OpenFOAM version or the compiler gives a new key; a change to cases, baselines or scripts reuses the prefix.
 - **Artifacts** (`regression-<tier>-<run id>-<attempt>`, kept 14 days): `ci-build.log`, the run's `build.log` and `driver.log`, the record `state/pgf/runs/last/<tier>.json` (CI sets `XDG_STATE_HOME` under the run root), the whole `state/` dir (`result.json` and every case's logs and `compare.log`), and for each failed case the `postProcessing/` and `log.*` files of its kept copy. Only regular files are collected, because the copies symlink back into the source tree.
 - **Jobs.** `--jobs` comes from `applications/test/tiers.conf`, as locally. A hosted `ubuntu-24.04` runner has 4 cores for a public repository and 2 for a private one.
-- **Not covered.** The `dem` tier is local-only: the image has no Yade, so run `./pgf test dem` before DEM-touching merges. It needs a yade built at the Foam-Yade pin and refuses another before building (`PGF_YADE_OFF_PIN=1` overrides; see [build → YADE DEM coupling](build.md)). Parallel decomposition is not covered either, since no case in `cases.list` decomposes.
+- **Not covered.** The `dem` tier is local-only: the image has no Yade, so run `./pgf test dem` before DEM-touching merges. It needs a yade built at the yade-pgf pin and refuses another before building (`PGF_YADE_OFF_PIN=1` overrides; see [build → YADE DEM coupling](build.md)). Parallel decomposition is not covered either, since no case in `cases.list` decomposes.
 - **Baselines.** CI only compares against the committed `reference/`; it never captures one.
 
 ## Add a case
@@ -181,7 +181,7 @@ tools/runDEMCase.sh tutorials/experimental/simple_line_case [--timeout S] [--run
 ```
 
 - Needs a Yade-enabled build (`pgf build --yade`), Yade and `mpirun`. Cases are listed in `cases_yade.list`.
-- **One coupler.** The DEM cases run the `pgf` coupler (`pgfYadeCoupler` ↔ `PgfCoupling`, no drag). Their baselines come from the v2406 `-pgf` copies of #331; the legacy `foamYade` cases and baselines stay on `maint/of2406`.
+- **One coupler.** The DEM cases run the `pgf` coupler (`pgfYadeCoupler` ↔ `PgfCoupling`, no drag). Their baselines come from the `-pgf` copies of #331, captured on v2406.
 - Each case runs from a copy under the run root (`--run-root`, default `$PGF_RUN_ROOT/yade-<time>-<pid>`), as in the serial suite. Passed copies are deleted, failed ones kept; `--keep-runs` keeps all, `--in-place` runs in the source tree.
 - **Run length comes from the solver's `controlDict`.** Each case's Yade script derives its step count from it (`tutorials/cases/DEM_common/yadeEndpoint.py`; see [case setup → run length](case-setup.md#constantlambdadict-required-by-with_yade-builds-running-a-dem-case)), so both sides stop on the same exchange. A run whose log has no `[yadeEndpoint]` line, or where the helper refuses (`adjustTimeStep yes`, `stopAt` other than `endTime`), is an `ERROR`, not a 300 s `TIMEOUT`. `YADE_NSTEPS` is ignored, and `runDEMCase.sh --nsteps` is gone.
 - `--short` sets each copy's `endTime` to `YADE_SHORT_STEPS` solver steps (default 50, about 5 min per fixture on a loaded machine) and its `writeInterval` to half that, and skips the baseline comparison, whose rows are full-length. Yade follows the shortened `controlDict` by itself. A green `--short` run shows that the coupling handshake works, that both sides exit cleanly and that output and invariants hold. It is not a numerical or physical result. `YADE_TIMEOUT` defaults to 900 s under `--short`.
