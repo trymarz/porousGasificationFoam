@@ -17,8 +17,8 @@ FoamFile
 
 dimensions      [0 1 -1 0 0 0 0];
 
-// DEM-derived bed descent field: FoamCoupling maps sphere velocities onto
-// solid cells each coupling step (isGaussianInterp, see MPI_lambda.py).
+// DEM-derived bed descent field: PGF maps the sphere velocities onto solid
+// cells each coupling step (lambdaDotModel, constant/lambdaDict).
 // Spheres start at rest under gravity -- uniform zero is the correct IC.
 internalField   uniform (0 0 0);
 

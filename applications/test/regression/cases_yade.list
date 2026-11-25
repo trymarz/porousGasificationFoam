@@ -14,9 +14,8 @@
 # checkFieldSign.py in its own Allrun. ...Off leaves every coefficient at its
 # 0.0 default.
 #
-# They also exercise the reverse YADE->PGF lambda channel, which needs
-# Foam-Yade and PGF built from matching revisions: the buffer stride is a
-# compile-time constant with no MPI negotiation.
+# They also exercise the reverse YADE->PGF lambda channel. Both sides hard-code
+# wire protocol v1; the startup handshake stops by name on a mismatch.
 #
 # ...Chemistry/...Both use dlambdaOverDYmi 2.5e-6, tuned for fixture-scale
 # visibility rather than physical accuracy. A realistic ~1e-3 (see README)
@@ -42,17 +41,6 @@ tutorials/cases/MicroTGA-DEM_lambdaDotApparentVolume
 # ...ApparentVolume's bed as char gasifying in pure CO2 at 1273 K (#207). Direction
 # invariant: r <= 1, max(lambda) <= 1 and max(lambda-1) <= -1e-6 (regressionInvariants).
 tutorials/cases/MicroTGA-DEM_charCO2
-
-# The seven cases above, run with `coupler pgf;` (pgfYadeCoupler, #271). Each
-# links its original but constant/yadeProperties, and has its own reference/:
-# pgf has no drag, so the temperature-driven lambda rates differ by ~3e-4 (#273, #330).
-tutorials/cases/MicroTGA-DEM_lambdaDotOff-pgf
-tutorials/cases/MicroTGA-DEM_lambdaDotTemperature-pgf
-tutorials/cases/MicroTGA-DEM_lambdaDotChemistry-pgf
-tutorials/cases/MicroTGA-DEM_lambdaDotBoth-pgf
-tutorials/cases/MicroTGA-DEM_lambdaDotAltInterp-pgf
-tutorials/cases/MicroTGA-DEM_lambdaDotApparentVolume-pgf
-tutorials/cases/MicroTGA-DEM_charCO2-pgf
 
 # tutorials/experimental/simple_line_case is NOT listed yet. It builds, meshes
 # and reaches the coupled loop, but its Allrun does not exit 0 under

@@ -36,7 +36,6 @@ if mp.rank == 0:
 
 
 
-parallelYade=True 
 numProcOF=2
 
 #Lambda=1
@@ -289,14 +288,9 @@ def apply_spring_forces():
 #----------
 
 
-# The engine must match 'coupler' in constant/yadeProperties (#271): the
-# solver's handshake stops by name on a mismatch. Default foamYade.
-import re
-with open("constant/yadeProperties") as f:
-    _coupler = re.search(r"^\s*coupler\s+(\w+)\s*;", re.sub(r"//.*", "", f.read()), re.M)
-_coupler = _coupler.group(1) if _coupler else "foamYade"
-fluidCoupling = PgfCoupling() if _coupler == "pgf" else FoamCoupling()
-fluidCoupling.couplingModeParallel = parallelYade
+# PgfCoupling is the Yade half of PGF's pgfYadeCoupler (#271); the solver's
+# handshake stops by name if the DEM script runs another engine.
+fluidCoupling = PgfCoupling()
 
 
 sphereIDs = [b.id for b in O.bodies if type(b.shape) == Sphere]
@@ -309,7 +303,6 @@ fluidCoupling.SetOpenFoamSolver("porousGasificationFoam", numProcOF)
 
 # tell the coupling engine which IDs to couple
 fluidCoupling.setIdList(sphereIDs)
-fluidCoupling.setNumParticles(len(sphereIDs))
 
 
 

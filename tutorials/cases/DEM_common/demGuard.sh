@@ -13,6 +13,6 @@ fi
 if ! command -v yade >/dev/null 2>&1; then
     pgf_dem_guard_fail "yade is not on PATH"
 fi
-if ! ldd "$(command -v porousGasificationFoam)" 2>/dev/null | grep -q 'libYadeFoam'; then
+if ! ldd "$(command -v porousGasificationFoam)" 2>/dev/null | grep -q 'liblambdaDotModel'; then
     pgf_dem_guard_fail "porousGasificationFoam is not the --yade build (no DEM coupling)"
 fi
