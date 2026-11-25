@@ -5,11 +5,11 @@
 
 PGF_PACK_BASE_DEF="container/pgf-toolchain.def"
 
-# Build dependencies of a headless yade on the toolchain image (Ubuntu 24.04).
+# Build dependencies of a headless yade on the toolchain image (Ubuntu 26.04).
 PGF_PACK_YADE_DEPS="cmake git g++ python3-dev python3-numpy python3-mpi4py python3-mpmath \
 python3-matplotlib python3-ipython python3-pygraphviz python3-xlib python3-sphinx python3-tk libboost-all-dev libeigen3-dev libgts-dev libcgal-dev \
 libvtk9-dev libsqlite3-dev libbz2-dev zlib1g-dev libopenblas-dev libsuitesparse-dev \
-libmetis-dev coinor-libclp-dev libmpfr-dev libmpfrc++-dev libmpc-dev libloki-dev"
+libmetis-dev coinor-libclp-dev libmpfr-dev libmpfrc++-dev libmpc-dev"
 
 pgf_pack_usage() {
   cat <<'EOF'
@@ -25,6 +25,12 @@ EOF
 # pgf_pack_from — the base image line of the toolchain definition.
 pgf_pack_from() {
   grep -m1 '^From:' "$PGF_ROOT/$PGF_PACK_BASE_DEF" | sed 's/^From:[[:space:]]*//'
+}
+
+# pgf_pack_foam_dev — openfoam2606-dev=VERSION, as pinned in the toolchain definition.
+pgf_pack_foam_dev() {
+  sed -n 's/^[[:space:]]*FOAM_DEV_VERSION=//p' "$PGF_ROOT/$PGF_PACK_BASE_DEF" | head -1 |
+    sed 's/^/openfoam2606-dev=/'
 }
 
 # pgf_pack_def COMMIT VARIANT PIN API YADE_VERSION — the image definition.
@@ -46,7 +52,7 @@ EOF
     set -eu
     export DEBIAN_FRONTEND=noninteractive
     apt-get update -q
-    apt-get install -y --no-install-recommends python3$( [ "$variant" = yade1 ] && echo " $PGF_PACK_YADE_DEPS")
+    apt-get install -y --no-install-recommends --allow-downgrades python3 "$(pgf_pack_foam_dev)"$( [ "$variant" = yade1 ] && echo " $PGF_PACK_YADE_DEPS")
     mkdir -p /opt/pgf/src && tar -xf /opt/pgf/pgf-src.tar -C /opt/pgf/src && rm /opt/pgf/pgf-src.tar
 EOF
   if [ "$variant" = yade1 ]; then

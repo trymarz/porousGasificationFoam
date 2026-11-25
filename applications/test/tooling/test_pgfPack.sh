@@ -31,6 +31,8 @@ check "the context holds the PGF commit" bash -c 'tar -tf "$1/pgf-src.tar" | gre
 check "and the pinned yade-pgf" bash -c 'tar -tf "$1/yade-pgf.tar" | grep -q PgfCoupling.hpp' _ "$TEST_TMP/ctx"
 check "the definition uses the toolchain base image" \
     grep -qF "$(grep -m1 '^From:' "$PGF_ROOT/container/pgf-toolchain.def")" "$TEST_TMP/def"
+check "the image installs the toolchain's pinned openfoam2606-dev" \
+    grep -qF "\"openfoam2606-dev=$(sed -n 's/^[[:space:]]*FOAM_DEV_VERSION=//p' "$PGF_ROOT/container/pgf-toolchain.def")\"" "$TEST_TMP/def"
 check "yade is built with the pin in its version" grep -q "YADE_VERSION=.*-git-${pin:0:7}" "$TEST_TMP/def"
 check "the manifest records the commit and pin" \
     bash -c 'grep -q "\"pgf_commit\": \"$2\"" "$1" && grep -q "\"foam_yade_pin\": \"$3\"" "$1"' _ "$TEST_TMP/def" "$head" "$pin"
