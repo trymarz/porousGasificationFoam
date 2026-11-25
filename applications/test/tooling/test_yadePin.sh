@@ -1,5 +1,5 @@
 #!/bin/bash
-# The yade binary against the Foam-Yade pin (#264 PR 4): built from the pin, or
+# The yade binary against the yade-pgf pin (#264 PR 4): built from the pin, or
 # carrying the pin's mpy.py, is OK; another commit with the same coupling API, or
 # no commit, warns (fails for pgf test dem); another API fails everywhere.
 
@@ -23,7 +23,7 @@ g checkout -q "$pin"
 # A scratch PGF tree whose index pins $pin.
 tree="$TEST_TMP/pgf"
 mkdir -p "$tree" && git -C "$tree" init -q &&
-    git -C "$tree" update-index --add --cacheinfo "160000,$pin,submodules/Foam-Yade" || die "cannot pin"
+    git -C "$tree" update-index --add --cacheinfo "160000,$pin,submodules/yade-pgf" || die "cannot pin"
 
 # fake_yade COMMIT — a yade whose -v names COMMIT (none if empty).
 fake_yade() {
@@ -37,7 +37,7 @@ msg() { PGF_ROOT="$tree" pgf_yade_check "$1" "$TEST_TMP/fy"; }
 check "built from the pin: OK" [ "$(level "$pin")" = OK ]
 check "an older commit, same API: WARN" [ "$(level "$old")" = WARN ]
 check "  naming both commits and how far apart" \
-    bash -c 'grep -q "^WARN yade .* built from Foam-Yade ${2:0:7}, 1 commit older than the pin ${3:0:10}.*fix: build yade at Foam-Yade ${3:0:10}.*pgf config set YADE_BIN=" <<<"$1"' \
+    bash -c 'grep -q "^WARN yade .* built from yade-pgf ${2:0:7}, 1 commit older than the pin ${3:0:10}.*fix: build yade at yade-pgf ${3:0:10}.*pgf config set YADE_BIN=" <<<"$1"' \
     _ "$(msg "$(fake_yade "$old")")" "$old" "$pin"
 check "another commit, same API: WARN" [ "$(level "$same")" = WARN ]
 check "another API: FAIL" [ "$(level "$other")" = FAIL ]
@@ -68,7 +68,7 @@ installed() { # installed NAME VERSION-COMMIT MPY-TEXT — prefix/bin/yade-NAME 
 }
 out="$(msg "$(installed a "$old" "# mpy pin")")"
 check "the pin's mpy.py under an older version string: OK, saying so" \
-    grep -q "^OK   yade .* has the mpy.py of the pinned Foam-Yade ${pin:0:10}; its version names ${old:0:7}" <<<"$out"
+    grep -q "^OK   yade .* has the mpy.py of the pinned yade-pgf ${pin:0:10}; its version names ${old:0:7}" <<<"$out"
 check "the pin's mpy.py and no version: OK" [ "$(msg "$(installed b "" "# mpy pin")" | cut -c1-2)" = OK ]
 out="$(msg "$(installed c "$pin" "# mpy old")")"
 check "the pin's version but another mpy.py: WARN" grep -q "^WARN yade .* says it is the pinned .*mpy.py differs" <<<"$out"
@@ -98,7 +98,7 @@ check "pgf exec --yade runs with a warning on a commit-only difference" \
 # pgf status shows the yade DEM runs would use, off the pin as a WARN.
 YADE_TRUNK="$TEST_TMP/fy" YADE_BIN="$(fake_yade deadbeefdeadbeef)" PGF_COLOR=never "$PGF" status >"$TEST_TMP/status.out" 2>&1
 check "pgf status warns about a yade off the pin, with the fix" \
-    bash -c 'grep -q "^  WARN yade .* not the pin" "$1" && grep -q "fix: build yade at Foam-Yade" "$1"' _ "$TEST_TMP/status.out"
+    bash -c 'grep -q "^  WARN yade .* not the pin" "$1" && grep -q "fix: build yade at yade-pgf" "$1"' _ "$TEST_TMP/status.out"
 
 # pgf test dem refuses a yade off the pin before it builds anything.
 export PGF_TIERS_CONF="$TEST_TMP/tiers.conf" XDG_STATE_HOME="$TEST_TMP/state"
@@ -106,8 +106,8 @@ echo 'pgf_tier dem Allrun.yade yade1 1 - "--yade --mpi loopback" - "-"' >"$PGF_T
 YADE_BIN="$(fake_yade deadbeefdeadbeef)" PGF_COLOR=never "$PGF" test dem --run-root "$TEST_TMP/demrun" >"$TEST_TMP/dem.out" 2>&1
 rc=$?
 check "pgf test dem exits 2 on a yade off the pin (rc=$rc)" [ "$rc" -eq 2 ]
-check "  with one FAIL line naming both commits" grep -q "^  FAIL yade .* built from Foam-Yade deadbee, not the pin $(pgf_coupling_pin | cut -c1-10)" "$TEST_TMP/dem.out"
-check "  the fix" grep -q "fix: build yade at Foam-Yade .*pgf config set YADE_BIN=" "$TEST_TMP/dem.out"
+check "  with one FAIL line naming both commits" grep -q "^  FAIL yade .* built from yade-pgf deadbee, not the pin $(pgf_coupling_pin | cut -c1-10)" "$TEST_TMP/dem.out"
+check "  the fix" grep -q "fix: build yade at yade-pgf .*pgf config set YADE_BIN=" "$TEST_TMP/dem.out"
 check "  and the escape hatch" grep -q "PGF_YADE_OFF_PIN=1 pgf test dem" "$TEST_TMP/dem.out"
 check "  having built and recorded nothing" bash -c '[ ! -e "$1" ] && [ ! -e "$2" ]' _ "$TEST_TMP/demrun" "$TEST_TMP/state/pgf/runs/last/dem.json"
 
@@ -126,15 +126,15 @@ check "a trunk from the environment warns and says how to find the export" \
     bash -c 'grep -q "^WARN YADE_TRUNK=.* comes from the environment.*grep -n YADE_TRUNK" <<<"$1"' \
     _ "$(PGF_ROOT="$tree" pgf_doctor_trunk_source "$TEST_TMP/fy")"
 PGF_CONF_SRC[YADE_TRUNK]=checkout
-mkdir -p "$tree/submodules" && git -c advice.detachedHead=false clone -q "$TEST_TMP/fy" "$tree/submodules/Foam-Yade" &&
-    git -C "$tree/submodules/Foam-Yade" -c advice.detachedHead=false checkout -q "$other" || die "cannot clone the submodule"
+mkdir -p "$tree/submodules" && git -c advice.detachedHead=false clone -q "$TEST_TMP/fy" "$tree/submodules/yade-pgf" &&
+    git -C "$tree/submodules/yade-pgf" -c advice.detachedHead=false checkout -q "$other" || die "cannot clone the submodule"
 g checkout -q "$pin"
 check "the checkout's own submodule off its pin warns, with the fix" \
-    bash -c 'grep -q "^WARN submodules/Foam-Yade is at ${2:0:10}, off its pin.*git submodule update" <<<"$1"' \
+    bash -c 'grep -q "^WARN submodules/yade-pgf is at ${2:0:10}, off its pin.*git submodule update" <<<"$1"' \
     _ "$(PGF_ROOT="$tree" pgf_doctor_trunk_source "$TEST_TMP/fy")" "$other"
 check "  also when it is the trunk itself" \
-    bash -c 'grep -q "^WARN submodules/Foam-Yade is at" <<<"$1"' \
-    _ "$(PGF_ROOT="$tree" pgf_trunk_pin_check "$tree/submodules/Foam-Yade")"
+    bash -c 'grep -q "^WARN submodules/yade-pgf is at" <<<"$1"' \
+    _ "$(PGF_ROOT="$tree" pgf_trunk_pin_check "$tree/submodules/yade-pgf")"
 
 [ "$TEST_FAILURES" -eq 0 ] || { echo "--- last stderr"; cat "$TEST_TMP/err" "$TEST_TMP/dem.out"; }
 finish

@@ -1,6 +1,6 @@
 #!/bin/bash
 # pgf pack --dry-run (#264 PR 6): the build context and definition for a
-# commit and its Foam-Yade pin, refusals, and the manifest pin inside an image.
+# commit and its yade-pgf pin, refusals, and the manifest pin inside an image.
 # No image is built.
 
 . "$(dirname "${BASH_SOURCE[0]}")/toolingLib.sh"
@@ -15,9 +15,9 @@ g "$fy" add -A && g "$fy" commit -qm pin
 pin="$(g "$fy" rev-parse HEAD)"
 
 tree="$TEST_TMP/pgf"
-mkdir -p "$tree/submodules/Foam-Yade" && cp -r "$PGF_ROOT/pgf" "$PGF_ROOT/utilities" "$PGF_ROOT/container" "$tree/"
+mkdir -p "$tree/submodules/yade-pgf" && cp -r "$PGF_ROOT/pgf" "$PGF_ROOT/utilities" "$PGF_ROOT/container" "$tree/"
 g "$tree" init -q && g "$tree" add pgf utilities container &&
-    g "$tree" update-index --add --cacheinfo "160000,$pin,submodules/Foam-Yade" &&
+    g "$tree" update-index --add --cacheinfo "160000,$pin,submodules/yade-pgf" &&
     g "$tree" commit -qm scratch || die "cannot make the scratch commit"
 head="$(g "$tree" rev-parse HEAD)"
 
@@ -28,7 +28,7 @@ rc=$?
 cp "$TEST_TMP/ctx/pgf-pack.def" "$TEST_TMP/def" 2>/dev/null
 check "pack --dry-run exits 0 (rc=$rc)" [ "$rc" -eq 0 ]
 check "the context holds the PGF commit" bash -c 'tar -tf "$1/pgf-src.tar" | grep -qx pgf' _ "$TEST_TMP/ctx"
-check "and the pinned Foam-Yade" bash -c 'tar -tf "$1/foam-yade.tar" | grep -q PgfCoupling.hpp' _ "$TEST_TMP/ctx"
+check "and the pinned yade-pgf" bash -c 'tar -tf "$1/yade-pgf.tar" | grep -q PgfCoupling.hpp' _ "$TEST_TMP/ctx"
 check "the definition uses the toolchain base image" \
     grep -qF "$(grep -m1 '^From:' "$PGF_ROOT/container/pgf-toolchain.def")" "$TEST_TMP/def"
 check "yade is built with the pin in its version" grep -q "YADE_VERSION=.*-git-${pin:0:7}" "$TEST_TMP/def"
@@ -43,7 +43,7 @@ check "the dry run prints no definition, only where it is" \
     bash -c '[ ! -s "$1" ] && grep -q "OK   wrote the image definition" "$2"' _ "$TEST_TMP/out" "$TEST_TMP/err"
 check "  says the context stays, and next: the real build with its time" \
     bash -c 'grep -q "stays until you remove it" "$1" && grep -q "^next:" "$1" && grep -q "30-60 min" "$1"' _ "$TEST_TMP/err"
-check "yade1 names the Foam-Yade pin" grep -q "compiles Foam-Yade ${pin:0:10}" "$TEST_TMP/err"
+check "yade1 names the yade-pgf pin" grep -q "compiles yade-pgf ${pin:0:10}" "$TEST_TMP/err"
 # The runscript passes the current pgf commands through, not the pre-#287 names.
 rs="$(sed -n '/^%runscript/,/^%/p' "$TEST_TMP/def" | grep -m1 'status |')"
 for c in status doctor config builds copy shell run view test tools help; do
@@ -59,8 +59,8 @@ check "a relative --output is resolved against the caller's directory" grep -qF 
 rm -rf "$TEST_TMP/ctx"
 pack --no-yade --dry-run >/dev/null 2>"$TEST_TMP/err0"
 cp "$TEST_TMP/ctx/pgf-pack.def" "$TEST_TMP/def0"
-check "--no-yade names no Foam-Yade pin" bash -c '! grep -q Foam-Yade "$1"' _ "$TEST_TMP/err0"
-check "--no-yade: no yade in the image" bash -c '! grep -q "foam-yade.tar\|cmake\|YADE_BIN" "$1"' _ "$TEST_TMP/def0"
+check "--no-yade names no yade-pgf pin" bash -c '! grep -q yade-pgf "$1"' _ "$TEST_TMP/err0"
+check "--no-yade: no yade in the image" bash -c '! grep -q "yade-pgf.tar\|cmake\|YADE_BIN" "$1"' _ "$TEST_TMP/def0"
 
 echo "// edit" >>"$tree/pgf"
 pack --dry-run >/dev/null 2>"$TEST_TMP/err"

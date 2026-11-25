@@ -1,7 +1,7 @@
 #!/bin/bash
 # pack.sh — pgf pack: a self-contained Apptainer image of one PGF commit (#264
 # PR 6). Source-only; needs PGF_ROOT and coupling.sh. The image compiles the
-# pinned Foam-Yade and PGF itself, so nothing from the host build is copied.
+# pinned yade-pgf and PGF itself, so nothing from the host build is copied.
 
 PGF_PACK_BASE_DEF="container/pgf-toolchain.def"
 
@@ -39,7 +39,7 @@ From: $(pgf_pack_from)
 %files
     pgf-src.tar /opt/pgf/pgf-src.tar
 EOF
-  [ "$variant" = yade1 ] && echo "    foam-yade.tar /opt/pgf/foam-yade.tar"
+  [ "$variant" = yade1 ] && echo "    yade-pgf.tar /opt/pgf/yade-pgf.tar"
   cat <<EOF
 
 %post
@@ -51,13 +51,13 @@ EOF
 EOF
   if [ "$variant" = yade1 ]; then
     cat <<EOF
-    mkdir -p /opt/pgf/foam-yade /tmp/yade-build && tar -xf /opt/pgf/foam-yade.tar -C /opt/pgf/foam-yade && rm /opt/pgf/foam-yade.tar
+    mkdir -p /opt/pgf/yade-pgf /tmp/yade-build && tar -xf /opt/pgf/yade-pgf.tar -C /opt/pgf/yade-pgf && rm /opt/pgf/yade-pgf.tar
     cd /tmp/yade-build
-    cmake /opt/pgf/foam-yade -DCMAKE_INSTALL_PREFIX=/opt/yade -DENABLE_GUI=OFF -DNOSUFFIX=ON \\
+    cmake /opt/pgf/yade-pgf -DCMAKE_INSTALL_PREFIX=/opt/yade -DENABLE_GUI=OFF -DNOSUFFIX=ON \\
         -DYADE_VERSION=$yver -DCMAKE_BUILD_TYPE=Release
     make -j"\$(nproc)" install
     cd / && rm -rf /tmp/yade-build
-    export YADE_BIN=/opt/yade/bin/yade YADE_TRUNK=/opt/pgf/foam-yade
+    export YADE_BIN=/opt/yade/bin/yade YADE_TRUNK=/opt/pgf/yade-pgf
 EOF
   fi
   cat <<EOF
@@ -89,7 +89,7 @@ PY
     export PGF_BUILD_ROOT=/opt/pgf/builds PGF_IMAGE_MANIFEST=/opt/pgf/manifest.json
     export PATH="/opt/pgf/src:\$PATH"
 EOF
-  [ "$variant" = yade1 ] && echo '    export YADE_BIN=/opt/yade/bin/yade YADE_TRUNK=/opt/pgf/foam-yade PGF_YADE=1'
+  [ "$variant" = yade1 ] && echo '    export YADE_BIN=/opt/yade/bin/yade YADE_TRUNK=/opt/pgf/yade-pgf PGF_YADE=1'
   cat <<'EOF'
 
 %runscript
@@ -144,21 +144,21 @@ print(m.get("git_head") or "-", m.get("variant") or "-", int(bool((m.get("checko
   [[ "$out" == /* ]] || out="$PWD/$out" # apptainer build runs in $ctx
   mkdir -p "$ctx" || return 2
   git -C "$PGF_ROOT" archive --format=tar -o "$ctx/pgf-src.tar" "$commit" || return 2
-  pin="$(git -C "$PGF_ROOT" ls-tree "$commit" submodules/Foam-Yade | awk '$2 == "commit" {print $3}')"
+  pin="$(git -C "$PGF_ROOT" ls-tree "$commit" submodules/yade-pgf | awk '$2 == "commit" {print $3}')"
   if [ "$variant" = yade1 ]; then
-    [ -n "$pin" ] || { pgf_pack_fail "$commit pins no Foam-Yade submodule"; return; }
-    for trunk in "${YADE_TRUNK:-}" "$PGF_ROOT/submodules/Foam-Yade"; do
+    [ -n "$pin" ] || { pgf_pack_fail "$commit pins no yade-pgf submodule"; return; }
+    for trunk in "${YADE_TRUNK:-}" "$PGF_ROOT/submodules/yade-pgf"; do
       [ -n "$trunk" ] && git -C "$trunk" cat-file -e "$pin^{commit}" 2>/dev/null && break
       trunk=""
     done
-    [ -n "$trunk" ] || { pgf_pack_fail "the Foam-Yade pin $pin is in neither YADE_TRUNK nor the submodule"; return; }
-    git -C "$trunk" archive --format=tar -o "$ctx/foam-yade.tar" "$pin" || return 2
+    [ -n "$trunk" ] || { pgf_pack_fail "the yade-pgf pin $pin is in neither YADE_TRUNK nor the submodule"; return; }
+    git -C "$trunk" archive --format=tar -o "$ctx/yade-pgf.tar" "$pin" || return 2
     api="$(pgf_coupling_api_hash_at "$trunk" "$pin")"
     yver="$(git -C "$trunk" show -s --format=%cd --date=format:%Y.%m.%d "$pin")-git-${pin:0:7}"
   fi
   pgf_pack_def "$commit" "$variant" "$pin" "$api" "$yver" >"$ctx/pgf-pack.def" || return 2
   {
-    st INFO "commit ${commit:0:12}, $variant$([ "$variant" = yade1 ] && echo " (compiles Foam-Yade ${pin:0:10} in the image)")"
+    st INFO "commit ${commit:0:12}, $variant$([ "$variant" = yade1 ] && echo " (compiles yade-pgf ${pin:0:10} in the image)")"
     st INFO "image $(pgf_tilde "$out")"
     st INFO "build context $(pgf_tilde "$ctx")"
   } >&2
@@ -198,5 +198,5 @@ print(m.get("git_head") or "-", m.get("variant") or "-", int(bool((m.get("checko
 
 # pgf_pack_eta VARIANT — how long a build takes, roughly.
 pgf_pack_eta() {
-  if [ "$1" = yade1 ]; then echo "about 30-60 min, Foam-Yade is compiled"; else echo "a few minutes"; fi
+  if [ "$1" = yade1 ]; then echo "about 30-60 min, yade-pgf is compiled"; else echo "a few minutes"; fi
 }

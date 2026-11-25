@@ -360,7 +360,7 @@ write_build_metadata() {
   for t in "${ALL_TARGETS[@]}"; do
     [ "${BUILD_TARGETS[$t]:-0}" -eq 1 ] && targets+=("$t")
   done
-  local trunk="${YADE_TRUNK:-$PGF_ROOT/submodules/Foam-Yade}" dirty=""
+  local trunk="${YADE_TRUNK:-$PGF_ROOT/submodules/yade-pgf}" dirty=""
   if git -C "$PGF_ROOT" rev-parse --git-dir >/dev/null 2>&1; then
     dirty=0
     [ -z "$(git -C "$PGF_ROOT" status --porcelain --untracked-files=no 2>/dev/null)" ] || dirty=1

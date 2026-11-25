@@ -68,7 +68,7 @@ It looks for OpenFOAM at \$WM_PROJECT_DIR/etc/bashrc, ~/OpenFOAM/*/etc/bashrc,
 /opt/openfoam* and /usr/lib/openfoam/* (v2406 first), and for yade or a
 suffixed yade-* on your PATH. Values given with --foam-bashrc, --yade-bin,
 --yade-trunk or --set win, and keys already in the file are kept. --checkout
-also records submodules/Foam-Yade as YADE_TRUNK when it is checked out.
+also records submodules/yade-pgf as YADE_TRUNK when it is checked out.
 
 The link step refuses to replace a link to another checkout without --force.
 With several worktrees the link picks one; call the others by path.
@@ -82,7 +82,7 @@ pgf_cmd_opt setup --force "replace a link that points at another checkout"
 pgf_cmd_opt setup --no-completion "do not install bash completion"
 pgf_cmd_opt setup "--foam-bashrc FILE" "this OpenFOAM etc/bashrc instead of a detected one"
 pgf_cmd_opt setup "--yade-bin FILE" "this yade binary instead of a detected one"
-pgf_cmd_opt setup "--yade-trunk DIR" "this Foam-Yade source tree"
+pgf_cmd_opt setup "--yade-trunk DIR" "this yade-pgf source tree"
 pgf_cmd_opt setup "--set KEY=VALUE" "save any setting (keys: pgf help config)"
 pgf_cmd_ex setup "./pgf setup" "ask, then save and link"
 pgf_cmd_ex setup "./pgf setup --yes" "take the detected choices"
@@ -173,7 +173,7 @@ applications/test/tiers.conf: fast, convergence, dem. Exit 0 PASS, 1 FAIL,
 2 ERROR, 124 TIMEOUT.
 
 dem first checks yade (YADE_BIN, or yade on PATH) and refuses, before the
-build, one not built at the Foam-Yade pin or that does not say which commit
+build, one not built at the yade-pgf pin or that does not say which commit
 built it: its baselines were made with the pin. PGF_YADE_OFF_PIN=1 runs it
 anyway with a WARN naming both commits."
 pgf_cmd_opt test --rebuild "delete the tier's build first, then build it again"
@@ -193,7 +193,7 @@ pgf_cmd status "what pgf uses and where: files, the build, your case copies" "pg
 pgf_cmd_desc status "One screen: the checkout pgf runs from and its branch, the settings files, the
 build store, the run records, scratch and the case root, the build pgf would
 use now and what chose it, that checkout's two builds (non-DEM, DEM), the yade
-DEM runs would use against the Foam-Yade pin (when one is set or on PATH), and your
+DEM runs would use against the yade-pgf pin (when one is set or on PATH), and your
 case copies (pgf copy) per branch. With PATH, asks that checkout instead. Every setting
 with its layer: pgf config. pgf with no command runs status. Old name: where."
 pgf_cmd_opt status --json "every setting with its layer, and the builds, as JSON"
@@ -208,7 +208,7 @@ or FAIL, the detail and the command that fixes it. It ends with a one-line
 verdict and exits 1 when a check fails. The settings themselves: pgf config.
 
 It checks the OpenFOAM bashrc and version, the build of the checkout pgf runs
-from, yade (the binary, its version against the Foam-Yade pin, MPI among its
+from, yade (the binary, its version against the yade-pgf pin, MPI among its
 features), the coupling stamp, the MPI decision and the interfaces it saw, whether
 the ParaView on your PATH has Python for pgf view, and whether pgf is on PATH."
 pgf_cmd_opt doctor @env
@@ -308,9 +308,9 @@ pgf_cmd_ex shell "pgf shell --yade -- yade -v"
 pgf_cmd pack "an Apptainer image of a commit" "pgf pack [BUILD] [--no-yade] [--output FILE] [--dry-run]" \
   "--yade --no-yade --output --dry-run" build
 pgf_cmd_desc pack "Builds a self-contained Apptainer image of one commit: the image compiles the
-pinned Foam-Yade and PGF itself. BUILD (a key, commit or worktree) names the
+pinned yade-pgf and PGF itself. BUILD (a key, commit or worktree) names the
 commit; the default is HEAD of the checkout pgf runs from, which must be clean.
-A yade1 image takes about 30-60 min (Foam-Yade is compiled), yade0 a few
+A yade1 image takes about 30-60 min (yade-pgf is compiled), yade0 a few
 minutes. In the image, apptainer run IMAGE COMMAND runs a pgf command
 (status, run, copy ...); anything else is a script of the case in the current
 directory: apptainer run IMAGE ./Allrun."
@@ -413,7 +413,7 @@ After the script ends, pgf run writes <case>/.pgf-run.json, also after Ctrl-C:
   build                    key, prefix, variant, git_head (the commit) and
                            source: the layer that selected it
   yade                     DEM runs only: the yade binary, its commit and the
-                           Foam-Yade pin; null otherwise
+                           yade-pgf pin; null otherwise
 
 ## The log
 The same record is appended as one line to
@@ -455,7 +455,7 @@ printed. While it runs, pgf shell or pgf run holds a shared flock on
 --bare uses no build: OpenFOAM only; pgf build runs the build engine in it.
 
 ## Yade (--yade)
---yade adds YADE_TRUNK (default submodules/Foam-Yade), a yade on PATH (from
+--yade adds YADE_TRUNK (default submodules/yade-pgf), a yade on PATH (from
 YADE_BIN or the caller's PATH, linked as plain yade) and PYTHONPATH
 (YADE_PYTHONPATH, or found beside the yade install). It checks the coupling
 stamp and yade's version against the pin. If /tmp is read-only, it also

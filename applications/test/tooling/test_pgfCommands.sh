@@ -79,7 +79,7 @@ check "setup steps: OpenFOAM is not v2406, with the fix under it" \
         grep -A1 "looking for OpenFOAM" "$1" | grep -q "^       fix: pgf config set PGF_FOAM_BASHRC="' _ "$TEST_TMP/out"
 check "  the yade it found, and why its pin cannot be checked" \
     bash -c 'grep -q "^  → looking for yade … WARN $2/yade-2026.1$" "$1" &&
-        grep -q "^       does not say which Foam-Yade commit built it" "$1"' _ "$TEST_TMP/out" "$yadedir"
+        grep -q "^       does not say which yade-pgf commit built it" "$1"' _ "$TEST_TMP/out" "$yadedir"
 check "  the file it wrote" grep -q "^  → saving settings … OK wrote .*\.pgf\.conf (checkout layer)$" "$TEST_TMP/out"
 check "  that --no-link left pgf unlinked" grep -q "^  → linking pgf … skipped (--no-link)" "$TEST_TMP/out"
 check "  then what was saved where, one key a line" \

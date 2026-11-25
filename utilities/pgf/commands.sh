@@ -80,12 +80,12 @@ pgf_init() {
     [ -n "$v" ] && out[YADE_BIN]="$v"
   fi
   if [ "$layer" = "checkout" ] && [ -z "${out[YADE_TRUNK]+x}" ] &&
-    [ -d "$PGF_ROOT/submodules/Foam-Yade/pkg/openfoam" ]; then
-    out[YADE_TRUNK]="$PGF_ROOT/submodules/Foam-Yade"
+    [ -d "$PGF_ROOT/submodules/yade-pgf/pkg/openfoam" ]; then
+    out[YADE_TRUNK]="$PGF_ROOT/submodules/yade-pgf"
   fi
   for k in "${!PGF_CONF_CLI[@]}"; do out[$k]="${PGF_CONF_CLI[$k]}"; done
   pgf_setup_step_foam "${out[PGF_FOAM_BASHRC]:-}"
-  pgf_setup_step_yade "${out[YADE_BIN]:-}" "${PGF_CONF_CLI[YADE_TRUNK]:-${YADE_TRUNK:-${out[YADE_TRUNK]:-$PGF_ROOT/submodules/Foam-Yade}}}"
+  pgf_setup_step_yade "${out[YADE_BIN]:-}" "${PGF_CONF_CLI[YADE_TRUNK]:-${YADE_TRUNK:-${out[YADE_TRUNK]:-$PGF_ROOT/submodules/yade-pgf}}}"
 
   # Remember old and new values for the outcome block; leave an unchanged file alone.
   PGF_SETUP_LAYER="$layer" PGF_SETUP_FILE="$file" PGF_SETUP_WROTE=0
@@ -153,7 +153,7 @@ pgf_setup_step_yade() {
   line="$(pgf_yade_check "$1" "$2" | head -1)"
   lvl="${line%% *}" msg="$(sed -E 's/^[A-Z]+ +//; s/^yade [^ ]+ //' <<<"$line")"
   if [ "$lvl" = OK ]; then
-    st_step "looking for yade" OK "$(pgf_tilde "$1"), built from the pinned Foam-Yade"
+    st_step "looking for yade" OK "$(pgf_tilde "$1"), built from the pinned yade-pgf"
   else
     st_step "looking for yade" WARN "$(pgf_tilde "$1")"
     st_check WARN "$msg" | sed '1s/^  WARN /       /'
@@ -339,7 +339,7 @@ pgf_install_link() {
 # pgf_doctor_trunk_source TRUNK — warn (via _r) when YADE_TRUNK comes from the
 #   environment, and when the checkout's own submodule is off its pin.
 pgf_doctor_trunk_source() {
-  local own="$PGF_ROOT/submodules/Foam-Yade" line
+  local own="$PGF_ROOT/submodules/yade-pgf" line
   if [ "${PGF_CONF_SRC[YADE_TRUNK]:-}" = env ]; then
     _r WARN "YADE_TRUNK=$1 comes from the environment and overrides the checkout's submodule; find the export: grep -n YADE_TRUNK ~/.bashrc ~/.profile, or unset it"
   fi
@@ -440,19 +440,19 @@ pgf_doctor() {
       _dem "a yade built with MPI"
     fi
     while IFS= read -r line; do
-      [ "${line%% *}" = OK ] || _dem "a yade built from the Foam-Yade pin"
+      [ "${line%% *}" = OK ] || _dem "a yade built from the yade-pgf pin"
       _r "$(sed 's/^FAIL/WARN/; s/ .*//' <<<"$line")" "$(sed -E 's/^[A-Z]+ +//' <<<"$line")"
-    done < <(pgf_yade_check "$yb" "${YADE_TRUNK:-$PGF_ROOT/submodules/Foam-Yade}")
+    done < <(pgf_yade_check "$yb" "${YADE_TRUNK:-$PGF_ROOT/submodules/yade-pgf}")
   fi
-  trunk="${YADE_TRUNK:-$PGF_ROOT/submodules/Foam-Yade}"
+  trunk="${YADE_TRUNK:-$PGF_ROOT/submodules/yade-pgf}"
   if [ -n "$yb" ] || [ "${PGF_YADE:-0}" = 1 ]; then
     if pgf_coupling_api_hash "$trunk" >/dev/null; then
       _r OK "PgfCoupling sources in $(pgf_tilde "$trunk")"
       while IFS= read -r line; do _r "${line%% *}" "${line#* }"; done < <(pgf_trunk_pin_check "$trunk")
       pgf_doctor_trunk_source "$trunk"
     else
-      _r "$([ "${PGF_YADE:-0}" = 1 ] && echo FAIL || echo WARN)" "no PgfCoupling sources under $(pgf_tilde "$trunk"); fix: git submodule update --init submodules/Foam-Yade, or set YADE_TRUNK"
-      _dem "the Foam-Yade submodule"
+      _r "$([ "${PGF_YADE:-0}" = 1 ] && echo FAIL || echo WARN)" "no PgfCoupling sources under $(pgf_tilde "$trunk"); fix: git submodule update --init submodules/yade-pgf, or set YADE_TRUNK"
+      _dem "the yade-pgf submodule"
     fi
   fi
   grp=""
@@ -657,7 +657,7 @@ pgf_status() {
     st_head "yade for DEM runs:"
     while IFS= read -r line; do
       st_check "$(sed 's/^FAIL/WARN/; s/ .*//' <<<"$line")" "$(sed -E 's/^[A-Z]+ +//' <<<"$line")"
-    done < <(pgf_yade_check "$yb" "${YADE_TRUNK:-$PGF_ROOT/submodules/Foam-Yade}")
+    done < <(pgf_yade_check "$yb" "${YADE_TRUNK:-$PGF_ROOT/submodules/yade-pgf}")
   fi
   echo
   st_head "case copies (pgf copy), per branch:"

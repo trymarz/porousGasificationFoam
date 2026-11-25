@@ -394,7 +394,7 @@ export TMPDIR="$PGF_RUN_ROOT/tmp"
 # -- 6. Yade and MPI -----------------------------------------------------------
 
 if [ "$yade" -eq 1 ]; then
-  export YADE_TRUNK="${YADE_TRUNK:-$PGF_ROOT/submodules/Foam-Yade}"
+  export YADE_TRUNK="${YADE_TRUNK:-$PGF_ROOT/submodules/yade-pgf}"
   yade_bin="${YADE_BIN:-$(PATH="$PGF_ENV_CALLER_PATH" command -v yade)}"
 fi
 # Building (--bare) needs neither the trunk nor the yade binary.
