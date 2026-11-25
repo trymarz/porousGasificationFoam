@@ -167,8 +167,8 @@ jobs:
           retention-days: 14
 
   # Compile-only check of the DEM variant: build.sh --isolated --yade. The
-  # pgfYadeCoupler needs only OpenFOAM and MPI, so Yade itself is not built
-  # and no DEM case runs.
+  # pgfYadeCoupler needs only OpenFOAM and MPI, so Yade itself is not built,
+  # the yade-pgf submodule is not checked out, and no DEM case runs.
   build-yade:
     needs: image
     if: github.event_name != 'schedule'
@@ -197,7 +197,6 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           path: pgf
-          submodules: true
 
       - name: Set work dirs
         run: |
@@ -251,7 +250,7 @@ jobs:
           grep -q "liblambdaDotModel\.so => $prefix/lib/" "$PGF_RUN_ROOT/ldd.txt" ||
             { echo "::error::porousGasificationFoam does not link liblambdaDotModel from the prefix"; exit 1; }
           ! grep -E 'lib(YadeFoam|MeshTree|YadeComm)\.so' "$PGF_RUN_ROOT/ldd.txt" ||
-            { echo "::error::porousGasificationFoam still links a Foam-Yade coupling lib"; exit 1; }
+            { echo "::error::porousGasificationFoam still links a legacy FoamYade coupling lib (dropped in #326)"; exit 1; }
 
       - name: Save prefix
         if: steps.cache.outputs.cache-hit != 'true'

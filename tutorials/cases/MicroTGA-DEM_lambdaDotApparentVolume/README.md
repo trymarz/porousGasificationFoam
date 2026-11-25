@@ -4,8 +4,9 @@ This is the case to start from when you build your own DEM-spring case
 (#207). It is also a regression fixture (`applications/test/regression/cases_yade.list`),
 so leave the original as it is and work on a copy.
 
-Facts below were checked against PGF at `8a0217d` and Foam-Yade at the pinned
-submodule commit `42126e8`. If you change either, check the facts again.
+Facts below were checked against PGF at `8a0217d` and Foam-Yade `42126e8`, the
+submodule before #326 replaced it with yade-pgf. If you change either, check the
+facts again.
 
 ## Why this fixture
 
