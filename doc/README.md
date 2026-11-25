@@ -1,6 +1,6 @@
 # Documentation
 
-New to PGF? Start with the [README](../README.md) quick start, then [build your own case](case-setup.md#your-first-case).
+New to PGF? [Install it](install.md), run the [README](../README.md) quick start, then [build your own case](case-setup.md#your-first-case).
 
 ## Using PGF
 
@@ -8,8 +8,9 @@ New to PGF? Start with the [README](../README.md) quick start, then [build your 
 - [Setting up your own case](case-setup.md): required fields, input files, tutorial cases, tips.
 - [Viewing a case in ParaView](paraview.md): the case's views, comparing two cases, rendering to PNG.
 
-## Building and deploying
+## Installing, building and deploying
 
+- [Installing](install.md): OpenFOAM v2606, PGF, YADE from yade-pgf for DEM, or an Apptainer image, on a clean machine.
 - [Building](build.md): `pgf build`, where builds land, the DEM coupling, switching variants, cleaning.
 - [Apptainer images](containers.md): `pgf pack`, an image of one PGF commit to run on a server.
 

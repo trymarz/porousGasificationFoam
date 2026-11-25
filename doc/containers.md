@@ -8,11 +8,11 @@
 ./pgf pack --dry-run          # write the build context and the definition; build nothing
 ```
 
-`pgf pack` writes `pgf-<commit12>-yade<0|1>.sif`, a self-contained image. It starts from the base image of `container/pgf-toolchain.def` (OpenFOAM v2406, gcc 13). Inside the image it compiles:
+`pgf pack` writes `pgf-<commit12>-yade<0|1>.sif`, a self-contained image. It starts from the base image of `container/pgf-toolchain.def` (ESI's `opencfd/openfoam-run:2606`, Ubuntu 26.04 with its system gcc and Open MPI) and installs the same `openfoam2606-dev` package as that definition. Inside the image it compiles:
 - the yade-pgf commit that this PGF commit pins as `submodules/yade-pgf`, headless and with the pin in its version;
 - PGF itself, with `pgf build`.
 
-Nothing from the host build is copied. The tree must be committed and clean, because the image is built from the commit, not the working tree. The pin is taken from `YADE_TRUNK` or the submodule, whichever has it. `/opt/pgf/manifest.json` records the PGF commit, build key, Foam-Yade pin and coupling API hash, the base image, gcc and the OS.
+Nothing from the host build is copied. The tree must be committed and clean, because the image is built from the commit, not the working tree. The pin is taken from `YADE_TRUNK` or the submodule, whichever has it. `/opt/pgf/manifest.json` records the PGF commit, build key, yade-pgf pin and coupling API hash (keys `foam_yade_pin`, `foam_yade_api_hash`), the base image, gcc and the OS.
 
 The image is named by commit, not by build key: the key depends on the compiler, and the image's gcc differs from the host's. The image's own key is in the manifest.
 
@@ -23,7 +23,7 @@ apptainer run pgf-<commit12>-yade1.sif ./Allrun     # run the case in the curren
 apptainer run pgf-<commit12>-yade1.sif status       # pgf status inside the image
 ```
 
-Inside the image `pgf` reads the Foam-Yade pin from the manifest, so the yade check from [Checking that the coupling is in](build.md#checking-that-the-coupling-is-in) works there as well. Building an image needs `apptainer build --fakeroot` (unprivileged user namespaces) and, for the DEM variant, a long yade compile.
+Inside the image `pgf` reads the yade-pgf pin from the manifest, so the yade check from [Checking that the coupling is in](build.md#checking-that-the-coupling-is-in) works there as well. Building an image needs `apptainer build --fakeroot` (unprivileged user namespaces) and, for the DEM variant, a long yade compile.
 
 ## Related pages
 

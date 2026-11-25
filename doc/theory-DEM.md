@@ -7,7 +7,7 @@ PGF can run coupled to YADE, a discrete-element (DEM) code that moves individual
 - PGF sends back only how `λ` should change: a rate `λ̇`, or, under `apparentVolume`, a factor `r`. PGF's `lambda` field is a cell average written for output, and no PGF equation reads it.
 - PGF builds the solid velocity `U_s` from the particle velocities.
 
-**Code.** PGF side: `porousGasificationMedia/DEM/pgfYadeCoupler/` and `DEM/lambdaDotModel.C`. YADE side: the `PgfCoupling` engine (`pkg/openfoam/PgfCoupling.cpp` in the Yade fork, `submodules/yade-pgf`). Neither side includes the other's headers, so the wire format is written down in both files' banners and checked at startup. The legacy `FoamYade`/`FoamCoupling` path with Stokes drag stays on `maint/of2406` (OpenFOAM v2406); a `yadeProperties` with `coupler` other than `pgf` stops the solver.
+**Code.** PGF side: `porousGasificationMedia/DEM/pgfYadeCoupler/` and `DEM/lambdaDotModel.C`. YADE side: the `PgfCoupling` engine (`pkg/openfoam/PgfCoupling.cpp` in trymarz/yade-pgf, the submodule `submodules/yade-pgf`). Neither side includes the other's headers, so the wire format is written down in both files' banners and checked at startup. A `yadeProperties` with a `coupler` entry other than `pgf` stops the solver (`porousGasificationFoam/createDEMFields.H`).
 
 ## Exchanged fields
 
@@ -70,7 +70,7 @@ The step must be fixed on both sides: `adjustTimeStep no` and a fixed `O.dt` (`t
 
 ## Spring model and engine order (#231)
 
-The springs are not part of YADE or Foam-Yade. They are Python in the DEM fixtures' shared script `tutorials/cases/MicroTGA-DEM_lambdaDot_common/MPI_lambda.py`, the only place λ has a mechanical effect (#206).
+The springs are not part of YADE or yade-pgf. They are Python in the DEM fixtures' shared script `tutorials/cases/MicroTGA-DEM_lambdaDot_common/MPI_lambda.py`, the only place λ has a mechanical effect (#206).
 
 - **Topology.** Each sphere is joined to its 6 nearest neighbours (`cKDTree`). `L₀` is their initial distance.
 - **Rest length.** `L_target = L₀ · λ̄`, with `λ̄` the mean of the two endpoints' `state.lambda_`. "lambda is read, not integrated, here".
