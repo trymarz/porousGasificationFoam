@@ -84,6 +84,7 @@ yade-pgf is the submodule `submodules/yade-pgf` (`.gitmodules`). The pinned comm
 
 ```bash
 git submodule update --init submodules/yade-pgf
+git -C submodules/yade-pgf submodule update --init extra/PgfDemBridge
 git ls-tree HEAD submodules/yade-pgf     # the pinned commit
 git submodule status submodules/yade-pgf # a leading '+' means the checkout differs from the pin
 ```

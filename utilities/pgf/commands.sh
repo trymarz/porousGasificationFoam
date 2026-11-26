@@ -487,7 +487,7 @@ pgf_doctor() {
       while IFS= read -r line; do _r "${line%% *}" "${line#* }"; done < <(pgf_trunk_pin_check "$trunk")
       pgf_doctor_trunk_source "$trunk"
     else
-      _r "$([ "${PGF_YADE:-0}" = 1 ] && echo FAIL || echo WARN)" "no PgfCoupling sources under $(pgf_tilde "$trunk"); fix: git submodule update --init submodules/yade-pgf, or set YADE_TRUNK"
+      _r "$([ "${PGF_YADE:-0}" = 1 ] && echo FAIL || echo WARN)" "no PgfCoupling sources under $(pgf_tilde "$trunk"); fix: git submodule update --init submodules/yade-pgf && git -C submodules/yade-pgf submodule update --init extra/PgfDemBridge, or set YADE_TRUNK"
       _dem "the yade-pgf submodule"
     fi
   fi
