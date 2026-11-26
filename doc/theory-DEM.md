@@ -18,7 +18,7 @@ The DEM particles are an analog, chosen by the user to move the solid in a physi
 
 ### DEM → PGF: the solid velocity
 
-The particle velocities, averaged per cell and smoothed over the solid cells that hold no particles, give `U_s`. `U_s` gives the solid flux `φ_s`. `φ_s` moves `Ym`, and the new `Ym` gives the new porosity. The gas sees the particles only through that porosity, via the Darcy–Forchheimer resistance. Particle positions decide only which cells anchor `U_s`. Neither the positions nor λ enters any PGF equation.
+The particle velocities, averaged per cell and smoothed over solid cells without particles, give `U_s`, which moves the solid mass `Ym` and through it the porosity the gas sees. Particle positions only decide which cells anchor `U_s`; neither they nor λ enters any PGF equation.
 
 ### PGF → DEM: the particle length scale λ
 
