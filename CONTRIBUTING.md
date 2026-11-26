@@ -80,7 +80,7 @@ Each group answers one question. Inside a group, pages run from overview to deta
 | Running cases | How do I set up and run a case? | [case setup](doc/case-setup.md), [ParaView](doc/paraview.md) |
 | The pgf tool | What can pgf do, and how does it work? | [pgf](doc/pgf.md) |
 | The model | What physics does it solve? | [theory](doc/theory.md), [DEM coupling](doc/theory-DEM.md) |
-| How the code implements it | Where does each piece live, and in what order does it run? | [solid step](doc/solid-step.md) |
+| How the code implements it | Where does each piece live, and in what order does it run? | [solid step](doc/solid-step.md), [DEM exchange](doc/dem-exchange.md) |
 | Developing PGF | How do I change it safely? | this page, [regression testing](doc/regression-testing.md), [regression ledger](doc/regression-ledger.md) |
 
 Task pages hold workflow and advice; exact flags and keys point to `pgf help` and the code. Model pages give the physics, its assumptions and what is left out, with short-form equations and physics before code names. Code pages are mostly maps with pointers into the source.
