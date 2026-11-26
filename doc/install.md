@@ -55,10 +55,11 @@ sudo apt-get install cmake git g++ python3-dev python3-numpy python3-mpi4py pyth
 
 On Debian 13, `libvtk9-dev` cannot be installed beside `python3-paraview` ([Pitfalls](#pitfalls)).
 
-**yade-pgf at the pin.** The pin is the submodule `submodules/yade-pgf`. It carries the coupling core as its own submodule (`extra/PgfDemBridge`), and PGF's DEM build needs `submodules/PgfDemBridge`, so check out both, recursively:
+**yade-pgf at the pin.** The pin is the submodule `submodules/yade-pgf`. It carries the coupling core as its own submodule (`extra/PgfDemBridge`), and PGF's DEM build needs `submodules/PgfDemBridge`, so check out both, then the nested bridge (not `--recursive`: yade-pgf's `data` submodule is private):
 
 ```bash
-git submodule update --init --recursive submodules/yade-pgf submodules/PgfDemBridge
+git submodule update --init submodules/yade-pgf submodules/PgfDemBridge
+git -C submodules/yade-pgf submodule update --init extra/PgfDemBridge
 ```
 
 To build from a yade-pgf clone of your own instead, check out the pinned commit (`git ls-tree HEAD submodules/yade-pgf` prints it) and pass `--yade-trunk DIR` to `pgf setup` below.
