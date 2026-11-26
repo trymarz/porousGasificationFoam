@@ -88,6 +88,8 @@ git submodule status submodules/yade-pgf # a leading '+' means the checkout diff
 
 When the pin moves, rebuild YADE. PGF's `--yade` build does not depend on the pin, so its key ignores it.
 
+`submodules/PgfDemBridge` holds the core of coupling v2 ([#328](https://github.com/trymarz/porousGasificationFoam/issues/328), [PgfDemBridge](https://github.com/trymarz/PgfDemBridge), GPL-3.0-or-later). Nothing builds it yet; the v2 adapters in PGF and yade-pgf will. yade-pgf carries the same repository as `extra/PgfDemBridge`, and both pins must match.
+
 ### Building YADE
 
 1. **YADE** — a CMake build of the yade-pgf checkout at the pin; [install.md](install.md#3-dem-coupling-optional) has the package list and the CMake line, both taken from `pgf pack` (`utilities/pgf/pack.sh`). The coupling needs `ENABLE_MPI` (on by default), Python 3 and `mpi4py`; without them CMake prints `MPI NOT FOUND, YADE-OpenFOAM coupling disabled`. The YADE side of the coupling, the `PgfCoupling` engine, is `pkg/openfoam/PgfCoupling.cpp`, built into `libpkg_openfoam.so`.
