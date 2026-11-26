@@ -30,11 +30,11 @@ class CheckInvariantsTests(unittest.TestCase):
         path.write_text(contents)
         return path
 
-    def run_cli(self, invariants: str) -> subprocess.CompletedProcess:
+    def run_cli(self, invariants: str, *extra: str) -> subprocess.CompletedProcess:
         path = self.write("system/regressionInvariants", invariants)
         return subprocess.run(
             [sys.executable, str(TOOLS_DIR / "checkInvariants.py"),
-             "--invariants", str(path), "--postprocessing", str(self.post)],
+             "--invariants", str(path), "--postprocessing", str(self.post), *extra],
             capture_output=True, text=True,
         )
 
@@ -72,6 +72,27 @@ class CheckInvariantsTests(unittest.TestCase):
         self.assertIn("FAIL  fo max(a) <= 1", result.stdout)
         self.assertIn("OK    fo min(a) >= 0", result.stdout)
         self.assertIn("1/2 invariants hold", result.stdout)
+
+    def test_short_keeps_only_the_sign_of_nonzero_bounds(self) -> None:
+        cases = [((">=", [1e-8]), (">", [0.0])), (("<=", [-1e-9]), ("<", [0.0])),
+                 ((">=", [0.0]), (">=", [0.0])), (("<=", [1.0]), ("<=", [1.0])),
+                 (("<=", [1.0, 1e-12]), ("<=", [1.0, 1e-12])), (("zero", [1e-9]), ("zero", [1e-9]))]
+        for declared, expected in cases:
+            with self.subTest(declared=declared):
+                self.assertEqual(checkInvariants.shorten(*declared), expected)
+        self.assertTrue(checkInvariants.violations([1e-9, 0.0], ">", [0.0]))
+        self.assertTrue(checkInvariants.violations([-1e-9, 0.0], "<", [0.0]))
+
+    def test_cli_short_relaxes_magnitude_but_not_direction(self) -> None:
+        self.write("postProcessing/fo/0/volFieldValue.dat",
+                   "# Time\tup\tdown\n0.1\t3e-9\t-2e-10\n0.2\t6e-9\t-3e-10\n")
+        invariants = "fo up >= 1e-8\nfo down <= -1e-9\n"
+        self.assertEqual(self.run_cli(invariants).returncode, 1)
+        result = self.run_cli(invariants, "--short")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("OK    fo up > 0  (short run; declared >= 1e-08)", result.stdout)
+        self.write("postProcessing/fo/0/volFieldValue.dat", "# Time\tup\tdown\n0.1\t-1e-9\t-1e-10\n")
+        self.assertEqual(self.run_cli(invariants, "--short").returncode, 1)
 
     def test_cli_passes_when_all_hold(self) -> None:
         self.write("postProcessing/fo/0/volFieldValue.dat", "# Time\tx\n0.1\t0\n0.2\t0\n")

@@ -17,6 +17,11 @@ Invariant file (a case's system/regressionInvariants), one per line, `#` comment
 <column> is the name in the .dat header, e.g. volIntegrate(Ycharm). Every
 .dat under postProcessing/<functionObject>/ (all start times) is checked.
 
+--short (a run shortened by --short-steps): bounds are calibrated for the
+full-length run, so a `>=` bound above 0 becomes a strict `> 0` and a `<=`
+bound below 0 becomes a strict `< 0`. The sign (e.g. the direction of lambda)
+is still checked; the full-run magnitude is not. Other checks are unchanged.
+
 Exit codes:
     0  every invariant holds.
     1  at least one invariant is broken (each failure printed).
@@ -90,6 +95,15 @@ def column_values(post: Path, fo: str, column: str) -> list[float]:
     return values
 
 
+def shorten(check: str, args: list[float]) -> tuple[str, list[float]]:
+    """The check a short run can meet: a nonzero one-sided bound keeps only its sign."""
+    if check == ">=" and args[0] > 0:
+        return ">", [0.0]
+    if check == "<=" and args[0] < 0:
+        return "<", [0.0]
+    return check, args
+
+
 def violations(values: list[float], check: str, args: list[float]) -> list[str]:
     """Describe each way `values` break the check; empty when it holds."""
     if check == "constant":
@@ -102,6 +116,10 @@ def violations(values: list[float], check: str, args: list[float]) -> list[str]:
         bad = [(i, x) for i, x in enumerate(values) if not x <= args[0] + (args[1] if len(args) > 1 else 0.0)]
     elif check == ">=":
         bad = [(i, x) for i, x in enumerate(values) if not x >= args[0] - (args[1] if len(args) > 1 else 0.0)]
+    elif check == ">":
+        bad = [(i, x) for i, x in enumerate(values) if not x > args[0]]
+    elif check == "<":
+        bad = [(i, x) for i, x in enumerate(values) if not x < args[0]]
     else:
         bad = [(i, x) for i, x in enumerate(values) if not abs(x - args[0]) <= args[1]]
     return [f"row {i}: {x:.10e}" for i, x in bad]
@@ -111,14 +129,18 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--invariants", required=True, type=Path, help="the case's system/regressionInvariants")
     ap.add_argument("--postprocessing", required=True, type=Path, help="the run's postProcessing/ directory")
+    ap.add_argument("--short", action="store_true", help="the run was shortened: nonzero one-sided bounds keep only their sign")
     a = ap.parse_args()
 
     failed = 0
     try:
         invariants = parse_invariants(a.invariants)
-        for n, fo, column, check, args in invariants:
+        for n, fo, column, declared, declared_args in invariants:
+            check, args = shorten(declared, declared_args) if a.short else (declared, declared_args)
             bad = violations(column_values(a.postprocessing, fo, column), check, args)
             spec = f"{fo} {column} {check} {' '.join(f'{x:g}' for x in args)}"
+            if check != declared:
+                spec += f"  (short run; declared {declared} {' '.join(f'{x:g}' for x in declared_args)})"
             print(f"{'FAIL' if bad else 'OK  '}  {spec}")
             for b in bad[:5]:
                 print(f"        {b}")
