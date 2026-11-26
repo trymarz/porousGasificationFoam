@@ -43,6 +43,17 @@ pgf_detect_yade() {
   done | awk '!seen[$0]++'
 }
 
+# pgf_dangling_yade — yade links on the caller's PATH whose target is gone.
+pgf_dangling_yade() {
+  local d f
+  local IFS=:
+  for d in ${PGF_ENV_CALLER_PATH:-}; do
+    for f in "$d"/yade "$d"/yade-* "$d"/yade[0-9]*; do
+      [ -L "$f" ] && [ ! -e "$f" ] && echo "$f"
+    done
+  done | awk '!seen[$0]++'
+}
+
 # pgf_pick KEY CANDIDATES... — first candidate, or ask when interactive.
 pgf_pick() {
   local key="$1" ans
@@ -148,25 +159,37 @@ pgf_setup_step_foam() {
 }
 
 # pgf_setup_step_yade BIN TRUNK — the "looking for yade" step line; any pin
-#   problem is a WARN (only DEM runs need yade), as in pgf doctor.
+#   or trunk problem is a WARN that says only DEM runs need yade, as in pgf doctor.
 pgf_setup_step_yade() {
-  local line lvl msg
+  local line lvl msg dem="only DEM runs need it"
   if [ -z "$1" ]; then
     st_step "looking for yade" none "(only DEM runs need it; the CFD solver does not)"
     return 0
   fi
   if [ ! -x "$1" ]; then
-    st_step "looking for yade" WARN "$(pgf_tilde "$1") is not executable"
+    st_step "looking for yade" WARN "$(pgf_tilde "$1") is not executable; $dem"
     st_more "fix: pgf config set YADE_BIN=<yade binary>"
     return 0
   fi
   line="$(pgf_yade_check "$1" "$2" | head -1)"
   lvl="${line%% *}" msg="$(sed -E 's/^[A-Z]+ +//; s/^yade [^ ]+ //' <<<"$line")"
+  pgf_coupling_api_hash "$2" >/dev/null || lvl=WARN
   if [ "$lvl" = OK ]; then
     st_step "looking for yade" OK "$(pgf_tilde "$1"), built from the pinned yade-pgf"
+    return 0
+  fi
+  st_step "looking for yade" WARN "$(pgf_tilde "$1"); $dem"
+  [ "${line%% *}" = OK ] || st_check WARN "$msg" | sed '1s/^  WARN /       /'
+  pgf_coupling_api_hash "$2" >/dev/null ||
+    st_check WARN "no yade-pgf sources in $(pgf_tilde "$2"); fix: $(pgf_trunk_fix "$2")" | sed '1s/^  WARN /       /'
+}
+
+# pgf_trunk_fix TRUNK — how to get yade-pgf sources into TRUNK.
+pgf_trunk_fix() {
+  if [ "$(cd "$1" 2>/dev/null && pwd -P)" = "$(cd "$PGF_ROOT/submodules/yade-pgf" 2>/dev/null && pwd -P)" ]; then
+    echo "git submodule update --init submodules/yade-pgf"
   else
-    st_step "looking for yade" WARN "$(pgf_tilde "$1")"
-    st_check WARN "$msg" | sed '1s/^  WARN /       /'
+    echo "git submodule update --init submodules/yade-pgf, or set YADE_TRUNK"
   fi
 }
 
@@ -433,6 +456,9 @@ pgf_doctor() {
 
   echo
   st_head "yade and DEM"
+  while IFS= read -r f; do
+    st_check WARN "$(pgf_tilde "$f") on PATH is a dangling link to $(readlink "$f"); fix: remove it, or point it at a yade"
+  done < <(pgf_dangling_yade)
   [ "${PGF_YADE:-0}" = 1 ] || grp=dem
   if [ -z "$yb" ] && [ "${PGF_YADE:-0}" != 1 ]; then
     st SKIP "no yade configured; only DEM runs need it"

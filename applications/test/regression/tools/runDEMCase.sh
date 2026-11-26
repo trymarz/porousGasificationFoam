@@ -252,6 +252,7 @@ fi
 RESULT_FIELDS+=(
     --artifact "case_dir=$CASE_DIR"
     --artifact "run_log=$WORK_DIR/run.log"
+    --artifact "yade_log=$WORK_DIR/log.yade"
 )
 
 cd "$WORK_DIR" || { echo "ERROR: cannot cd into $WORK_DIR" >&2; finish 2 "cannot cd into $WORK_DIR"; }
@@ -320,14 +321,15 @@ fi
 
 reg_phase assert
 
-grep -q "RUN FINISH" run.log \
-    || { echo "ERROR: simulation did not complete — check run.log"; finish 1 "simulation did not complete (no RUN FINISH in run.log)"; }
-grep -aqF "PgfCoupling: OpenFOAM ran its last step" run.log \
-    || { echo "ERROR: Yade was not ended by the solver's last step (no 'PgfCoupling: OpenFOAM ran its last step' in run.log)"; finish 1 "Yade was not ended by the solver's last step"; }
-grep -q "DEM coupling: active" run.log \
+# The Allrun keeps the coupled run's output in log.yade (runYade), the rest in run.log.
+grep -qs "RUN FINISH" run.log log.yade \
+    || { echo "ERROR: simulation did not complete — check log.yade"; finish 1 "simulation did not complete (no RUN FINISH in log.yade)"; }
+grep -saqF "PgfCoupling: OpenFOAM ran its last step" run.log log.yade \
+    || { echo "ERROR: Yade was not ended by the solver's last step (no 'PgfCoupling: OpenFOAM ran its last step' in log.yade)"; finish 1 "Yade was not ended by the solver's last step"; }
+grep -qs "DEM coupling: active" run.log log.yade \
     || { echo "ERROR: DEM coupling not active — solver built without -DWITH_YADE=1?"; finish 1 "DEM coupling not active — solver built without -DWITH_YADE=1?"; }
-grep -aqE '^(\[[0-9]+\] )?End$' run.log \
-    || { echo "ERROR: the solver did not reach its endTime (no End in run.log)"; finish 1 "solver did not print End"; }
+grep -saqE '^(\[[0-9]+\] )?End$' run.log log.yade \
+    || { echo "ERROR: the solver did not reach its endTime (no End in log.yade)"; finish 1 "solver did not print End"; }
 ls springs/springs_*.vtp > /dev/null 2>&1 || { echo "ERROR: no spring VTK files written"; finish 1 "no spring VTK files written"; }
 # Sphere frame <iter> is the state at iter*deltaT (pgfView's rule). Every solver
 # write, the start and end included, needs a frame, and every frame a write
