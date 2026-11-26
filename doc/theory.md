@@ -6,7 +6,11 @@ In the paper the solid stays in place, and its porosity changes through a chemis
 
 ## Model overview
 
-Each cell holds gas and solid in proportions set by the porosity `ε` (`porosityF`): `ε = 1` is pure gas, `ε = 0` pure solid, and anything in between is a porous medium. The solid chemistry passes mass and energy between solid and gas. Momentum goes one way only: the solid slows the gas through the Darcy–Forchheimer resistance, while the gas does not push the solid, whose velocity `Us` is given in `0/Us` or comes from DEM ([the idea behind the DEM coupling](theory-DEM.md#the-idea)). Gas released by the solid brings no momentum with it.
+Each cell holds gas and solid in proportions set by the porosity `ε` (`porosityF`): `ε = 1` is pure gas, `ε = 0` pure solid, and anything in between is a porous medium.
+
+Gas and solid exchange mass and energy. The solid reactions can consume and produce both solid and gas species, and release or absorb heat; the two phases also exchange heat by convection, and radiation reaches both.
+
+Momentum goes one way only. The solid slows the gas through the Darcy–Forchheimer resistance, but the gas does not push the solid, and gas released by the solid brings no momentum with it. The solid's velocity `U_s` is given in `0/Us` or comes from DEM ([the idea behind the DEM coupling](theory-DEM.md#the-idea)).
 
 ## Notation
 
