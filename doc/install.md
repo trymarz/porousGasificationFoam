@@ -28,7 +28,7 @@ source /usr/lib/openfoam/openfoam2606/etc/bashrc && foamVersion   # OpenFOAM-v26
 git clone https://github.com/trymarz/porousGasificationFoam.git
 cd porousGasificationFoam
 ./pgf setup --yes      # finds OpenFOAM, links pgf into ~/.local/bin
-pgf build              # libraries and solver, about 1.5 min
+pgf build              # libraries and solver
 ```
 
 If `pgf setup` warns that `~/.local/bin is not on your PATH` (a new account: Debian and Ubuntu add it only at the next login once it exists), run `export PATH="$HOME/.local/bin:$PATH"` first.

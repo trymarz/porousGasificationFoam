@@ -13,20 +13,30 @@ Local thermal non-equilibrium · Compressible species transport · Generalized s
 
 [Quick start](#quick-start) · [Documentation](doc/README.md) · [Tutorials](doc/tutorials.md) · [Citation](#citation)
 
-```text
-Gas phase  (ε porosity, U superficial velocity)
-  ∂(ε ρ)/∂t    + ∇·(ρ U)                      = S_ρ
-  ∂(ρ U)/∂t    + ∇·(ρ U U)  − ∇·τ_eff         = −∇p + ρ g − C·U
-  ∂(ε ρ Yᵢ)/∂t + ∇·(ρ U Yᵢ) − ∇·(μ_eff ∇Yᵢ)  = ε Rᵢ + S_ρ,ᵢ
-  ∂(ε ρ h)/∂t  + ∇·(ρ U h)  − ∇·(α_eff ∇h)   = ε ∂p/∂t + S_h
-
-Solid phase  (Ymₖ mass of solid component k per volume, Uₛ solid velocity)
-  ∂Ymₖ/∂t      + ∇·(Uₛ Ymₖ)                   = Rₖ
-  ∂Hₛ/∂t       + ∇·(Uₛ Hₛ)  − ∇·(kₛ ∇Tₛ)      = S_h,s
-  1 − ε = Σₖ Ymₖ/ρₖ
-```
-
 </div>
+
+**Gas phase** ($\varepsilon$ porosity, $U_g$ superficial velocity)
+
+$$
+\begin{aligned}
+{\color{blue}\frac{\partial(\varepsilon\rho_g)}{\partial t}} &+ {\color{orange}\nabla\cdot(\rho_g U_g)} &&= {\color{red}S_\rho} \\
+{\color{blue}\frac{\partial(\rho_g U_g)}{\partial t}} &+ {\color{orange}\nabla\cdot(\rho_g U_g U_g)} - {\color{green}\nabla\cdot\tau_{\mathrm{eff}}} &&= {\color{purple}-\nabla p + \rho_g g} - {\color{red}C\cdot U_g} \\
+{\color{blue}\frac{\partial(\varepsilon\rho_g Y_{g,i})}{\partial t}} &+ {\color{orange}\nabla\cdot(\rho_g U_g Y_{g,i})} - {\color{green}\nabla\cdot(\mu_{\mathrm{eff}}\nabla Y_{g,i})} &&= {\color{purple}\varepsilon R_i} + {\color{red}S_{\rho,i}} \\
+{\color{blue}\frac{\partial(\varepsilon\rho_g h_g)}{\partial t}} &+ {\color{orange}\nabla\cdot(\rho_g U_g h_g)} - {\color{green}\nabla\cdot(\alpha_{\mathrm{eff}}\nabla h_g)} &&= {\color{purple}\varepsilon\frac{\partial p}{\partial t}} + {\color{red}S_h}
+\end{aligned}
+$$
+
+**Solid phase** ($\mathrm{Ym}_k$ mass of solid component $k$ per volume, $U_s$ solid velocity)
+
+$$
+\begin{aligned}
+{\color{blue}\frac{\partial\,\mathrm{Ym}_k}{\partial t}} &+ {\color{orange}\nabla\cdot(U_s\,\mathrm{Ym}_k)} &&= {\color{red}R_k} \\
+{\color{blue}\frac{\partial H_s}{\partial t}} &+ {\color{orange}\nabla\cdot(U_s H_s)} - {\color{green}\nabla\cdot(k_s\nabla T_s)} &&= {\color{red}S_{h,s}} \\
+1-\varepsilon &&&= \sum_k \mathrm{Ym}_k/\rho_k
+\end{aligned}
+$$
+
+Colours mark the kind of term: ${\color{blue}\text{storage}}$, ${\color{orange}\text{advection}}$, ${\color{green}\text{diffusion}}$, ${\color{red}\text{gas–solid exchange}}$, ${\color{purple}\text{other sources}}$. Short form; the equations as solved are in [Theory](doc/theory.md#equations).
 
 *porousGasificationFoam* (PGF) is an OpenFOAM solver for **thermochemical conversion in porous media**. A solid phase, represented as a porosity field, is coupled to a gas flowing through the void space. The phases exchange mass through reactions, momentum through drag, and energy through interphase heat transfer; the porosity sets each phase's share of a cell. All chemistry — gas-phase, heterogeneous (gas–solid), and solid decomposition — is defined per case. With no reactions defined, both phases stay inert. The solid can be stationary or move under gravity and other external forces, shrink, or disappear entirely as conversion proceeds.
 
@@ -95,14 +105,7 @@ pgf view .
 
 ## Documentation
 
-[doc/README.md](doc/README.md) lists every page, in six groups:
-
-- **Installing and building:** [installing](doc/install.md), [building](doc/build.md), [Apptainer images](doc/containers.md)
-- **Running cases:** [case guide](doc/case-guide.md), [tutorials](doc/tutorials.md), [case reference](doc/case-reference.md), [ParaView](doc/paraview.md)
-- **The pgf tool:** [guide](doc/pgf.md), [reference](doc/pgf-reference.md)
-- **The model:** [theory](doc/theory.md), [DEM coupling](doc/theory-DEM.md)
-- **How the code implements it:** [code map](doc/code-map.md), [solid step](doc/solid-step.md), [DEM exchange](doc/dem-exchange.md)
-- **Developing PGF:** [contributing](CONTRIBUTING.md), [regression testing](doc/regression-testing.md), [regression ledger](doc/regression-ledger.md), [developer tools](doc/dev-tools.md)
+The [table of contents](doc/README.md) lists every page and its sections, from installing PGF to developing it.
 
 ## Repository layout
 
