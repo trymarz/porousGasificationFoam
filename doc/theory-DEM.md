@@ -6,6 +6,8 @@ PGF can run coupled to YADE, a discrete-element (DEM) code that moves individual
 
 DEM supplies only how the solid moves; PGF supplies how the particles change size. Mass, porosity and chemistry stay on the mesh. This is not the usual CFD–DEM picture, where particles set the porosity and the gas drags them.
 
+![FVM–DEM coupling scheme](images/FVM-DEM-coupling.svg)
+
 ### What the particles are
 
 The DEM particles are an analog, chosen by the user to move the solid in a physically plausible way. They are not the solid that PGF models: that solid lives on the mesh as the mass per cell `Ym`, and porosity follows from it (`1 − ε = Σ Ym/ρ`). The particles carry no mass, and none of their shape or size reaches PGF. The closer they mimic the real material, the more physical the solid velocity is likely to be, but nothing enforces this. Examples:
