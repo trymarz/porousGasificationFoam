@@ -8,11 +8,11 @@ This file may lag the codebase. Before acting on any specific claim below, sanit
 
 Also flag if the *Last verified* date below predates significant recent commits in the affected area; in that case, propose a refresh rather than acting on stale guidance.
 
-*Last verified: 2026-10-14*
+*Last verified: 2026-11-26*
 
 ## Documentation split
 
-- **`README.md`** (short front page), **`doc/*.md`** and **`CONTRIBUTING.md`** — human-facing. Quick start and doc index in the README; build, case setup, tutorials, theory and regression testing in `doc/`; contribution workflow in `CONTRIBUTING.md`.
+- **`README.md`** (short front page), **`doc/*.md`** and **`CONTRIBUTING.md`** — human-facing. Quick start in the README; every page in `doc/README.md`, in the six page groups of `CONTRIBUTING.md` → Documentation → Page groups; contribution workflow in `CONTRIBUTING.md`.
 - **`AGENTS.md`** (this file) — agent-operating instructions only.
 
 **Rule for new content**: if a fact is useful to *either* a human contributor *or* an agent, it goes in `README.md` or `doc/` (whichever fits; the README stays short and links out). Only put content in `AGENTS.md` when it is 100% agent-targeted and would be noise for a human reader (e.g. "pass git identity per-invocation rather than touching global config", "verify before claiming"). When in doubt, choose `README.md` — false positives there are cheap; missing facts are not.
@@ -28,8 +28,8 @@ The rules are in `CONTRIBUTING.md` → Documentation: the code wins, each fact h
 - **Docs and code disagree → the code wins.** Act on the code, and fix the doc if it is in scope; otherwise tell the user which page is wrong. Never "correct" code to match a doc.
 - **Answering a physics or behaviour question:** quote the source comment or the code, then the doc page that explains the idea. Do not re-derive from the docs alone.
 - **"Document the physics"** means: the model idea and assumptions on the matching model page; the equation as implemented in the source comment. Ask if it is unclear which one the user wants.
-- **A comment is at most 3 lines.** If a comment wants to be longer, that is evidence of a non-modular implementation, not of a documentation need — extract a named function or collaborator instead of writing more prose. Applies to `//-` briefs and to narrative inside function bodies. A file-banner `Description` block is exempt — it is the one-time algorithm/design spec for the whole file — but is not a licence to restate what the briefs below it already say; if it does, trim the restated parts rather than counting lines.
-- **Figures** are SVG in `doc/img/`; keep the colour-coded equations when editing math.
+- **A comment wants more than 3 lines** (`CONTRIBUTING.md` → Source comments): extract a named function or collaborator instead of writing more prose. Do not trim a banner `Description` by counting lines; trim only what restates the briefs below it.
+- **Editing math or figures:** keep the colour-coded equations and SVG figures as `CONTRIBUTING.md` → Rendering describes.
 
 ## Git / VCS rules
 
@@ -90,13 +90,13 @@ macros and non-C++ files. Serena cannot see these, nor code under `#ifdef WITH_Y
 Name paths: a method defined in a `.C` is `Class::method`; a leading `/Foam/...` separates a class from its
 constructors; `get_symbols_overview` on a `.C` needs `depth=3`. Hook lines starting `gen-compile-commands:`
 (session start, after edits) report the database and `lnInclude/`; act on a WARNING before trusting results.
-After adding, renaming or deleting sources with Bash (`git mv`, `del`), run `utilities/gen-compile-commands.py --if-stale`.
+After adding, renaming or deleting sources with Bash (`git mv`, `git rm`), run `utilities/gen-compile-commands.py --if-stale`.
 
 ## Verification habits
 
 - **Before claiming a file, symbol, or flag exists, verify it.** Grep or read the file. Memory and prior conversation context are not authoritative; the current tree is.
 - **Before suggesting a change in behaviour, locate the code that implements it.** A correction based on what you *think* the code does will be wrong often enough that the cost of checking pays for itself.
-- **Before modifying a tutorial case, check whether it is listed in `applications/test/regression/cases.list`.** Numerical changes will invalidate the committed baseline. Surface this to the user before proceeding so the baseline can be regenerated intentionally.
+- **Before modifying a tutorial case, check whether it is listed in `applications/test/regression/cases.list` or `cases_yade.list` (the Tested column of `doc/tutorials.md` shows the tier).** Numerical changes will invalidate the committed baseline. Surface this to the user before proceeding so the baseline can be regenerated intentionally.
 
 ## Plans and interactive testing
 
