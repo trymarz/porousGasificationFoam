@@ -127,7 +127,8 @@ classify() {
 write_record() {
   local tier="$1" key="$2" rc="$3" start="$4" end="$5" run="$6"
   mkdir -p "$LAST_DIR" || return 1
-  python3 - "$LAST_DIR/$tier.json" "$tier" "$key" "$("$BUILD_SH" --fingerprint)" \
+  # shellcheck disable=SC2046
+  python3 - "$LAST_DIR/$tier.json" "$tier" "$key" "$("$BUILD_SH" $(variant_flag "$tier") --fingerprint)" \
     "${T_VARIANT[$tier]}" "$(git -C "$PGF_ROOT" rev-parse HEAD 2>/dev/null)" "$PGF_ROOT" \
     "$start" "$end" "$rc" "$(classify "$rc")" "$run" <<'PY'
 import datetime, json, os, sys
