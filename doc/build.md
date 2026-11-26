@@ -73,7 +73,7 @@ Building needs no YADE. Running a DEM case needs a YADE built with MPI from yade
 
 - **OpenFOAM v2606**, the solver's only target.
 - **YADE from yade-pgf** ([trymarz/yade-pgf](https://github.com/trymarz/yade-pgf), branch `pgf-main`), a YADE fork, at the commit this repository pins. Upstream YADE does not work: the per-particle `lambda_`/`lambdaDot` state, and the `PgfCoupling` engine exist only in the fork. Built as in [install.md](install.md#3-dem-coupling-optional), its version string carries the commit, e.g. `yade -v` prints `Yade version: 2026.11.25-git-475bb35`; without `-DYADE_VERSION` it is the bare `2026.1.0` of the fork's `RELEASE` file.
-- **One MPI for both.** `pgfDemRun` starts YADE and the solver in one `mpirun` (coupling v2, [#328](https://github.com/trymarz/porousGasificationFoam/issues/328)), so YADE, `mpi4py` and OpenFOAM must use the same MPI installation (Open MPI here).
+- **One MPI for both.** `pgf dem run` starts YADE and the solver in one `mpirun` (coupling v2, [#328](https://github.com/trymarz/porousGasificationFoam/issues/328)), so YADE, `mpi4py` and OpenFOAM must use the same MPI installation (Open MPI here).
 - **Same protocol on both sides.** PGF links nothing from YADE and includes none of its headers. `pgfDemCoupler` and `PgfCoupling` both build the same `PgfDemBridge` (protocol v2); the startup handshake compares the version and `lambdaMode`, and stops both sides by name on a mismatch ([theory-DEM.md](theory-DEM.md#exchanged-fields)). This run-time check replaces any build-time check of the buffer layout.
 
 ### The submodule and its pin
@@ -113,7 +113,7 @@ When the pin moves, rebuild YADE. PGF's `--yade` build does not depend on the pi
 
   It must resolve to a path; `not found` means the directory holding them is not on `LD_LIBRARY_PATH`. For a prefix build, `.pgf-build.json` in the prefix records `"variant": "yade1"`.
 - **YADE side.** `yade --help` ends its description with the compiled features; the list must contain `MPI`.
-- **At run time.** A `WITH_YADE` solver prints `DEM coupling: active` (or `inactive (yadeProperties absent or active=false)`) at startup, from `createDEMFields.H`; a normal build prints no such line. `pgfDemRun` prints `pgfDemRun: N Yade + M OpenFOAM rank(s)` before its `mpirun`. The solver always runs with `-parallel`, so the case must be decomposed (into one `processor0` for one OpenFOAM rank).
+- **At run time.** A `WITH_YADE` solver prints `DEM coupling: active` (or `inactive (yadeProperties absent or active=false)`) at startup, from `createDEMFields.H`; a normal build prints no such line. `pgf dem run` prints `pgf dem run: N Yade + M OpenFOAM rank(s)` before its `mpirun`. The solver always runs with `-parallel`, so the case must be decomposed (into one `processor0` for one OpenFOAM rank).
 - **Handshake.** Once both sides agree, the solver prints `pgfDemCoupler: handshake ok, protocol v2, lambdaMode …, N DEM rank(s)` and YADE prints `PgfCoupling: handshake ok, protocol v2, lambdaMode …, M OpenFOAM rank(s)`; a tutorial's `Allrun` keeps both in `log.yade`. A mismatch stops the run with a message naming both versions. A DEM script without `PgfCoupling` leaves the solver waiting in the handshake; `runDEMCase.sh`'s timeout ends such a run.
 - **End.** OpenFOAM's last step ends YADE: it prints `PgfCoupling: OpenFOAM ran its last step; the DEM run ends at iter N`. A YADE run that ends first stops OpenFOAM.
 

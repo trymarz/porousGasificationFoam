@@ -2,11 +2,11 @@
 # are #!/bin/sh, which has no pipefail.
 #
 # runYade CMD [ARGS ...]
-#   Runs CMD (the coupled `pgfDemRun ... <script>.py`) with its output shown
+#   Runs CMD (the coupled `pgf dem run ... <script>.py`) with its output shown
 #   and written to log.yade, and returns CMD's exit status, not tee's. A run
 #   that exits 0 but logged "FOAM FATAL" (a solver that aborted under an
 #   mpirun that still reported success) returns 1. Use as
-#       runYade "$DEM_COMMON/pgfDemRun" -ndem 2 MPI_lambda.py || exit
+#       runYade "${PGF_ROOT:-../../..}/pgf" dem run -ndem 2 MPI_lambda.py || exit
 #   so the Allrun stops, with that status, before its post-run checks.
 
 runYade() {

@@ -107,7 +107,7 @@ check "pgf help has Usage, Description, the Settings/Build/Run/Other groups, Hel
 check "  and pgf --help is the same page" cmp -s "$TEST_TMP/help" <(penv --help 2>&1)
 check "  the commands grouped as doc/pgf.md groups them" \
     [ "$(sed -n '/Commands:$/,/^$/s/^  \([a-z]*\) .*/\1/p' "$TEST_TMP/help" | tr '\n' ' ')" = \
-        "setup config doctor build builds use gc copy run view shell test status pack tools help " ]
+        "setup config doctor build builds use gc copy run dem view shell test status pack tools help " ]
 check "  then the old names, without completion and the old names as rows" \
     bash -c 'grep -q "Old names still work: where (status), ls (builds), exec (shell --)" "$1" &&
         ! grep -qE "^  (completion|where|ls|exec) " "$1"' _ "$TEST_TMP/help"

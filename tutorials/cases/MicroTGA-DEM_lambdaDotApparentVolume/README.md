@@ -51,7 +51,7 @@ There are six `MicroTGA-DEM_lambdaDot*` fixtures. They differ only in
 You need a solver built with `pgf build --yade` and a Yade built from the
 pinned fork, which carries the `PgfCoupling` engine. The startup handshake
 stops both sides by name on a protocol mismatch. `Allrun` launches
-`pgfDemRun -ndem 2 MPI_lambda.py` (`../DEM_common/pgfDemRun`): one `mpirun` of
+`pgf dem run -ndem 2 MPI_lambda.py`: one `mpirun` of
 **4 MPI processes**, 2 Yade and the 2 OpenFOAM ranks of the decomposed case.
 
 ## Copying it
@@ -200,7 +200,7 @@ sent at step n is the one from step n−1.
 There are two separate counts:
 
 - **OpenFOAM ranks** = `numberOfSubdomains` in `system/decomposeParDict`,
-  which `pgfDemRun` reads. The product of the `simple` `n` entries must
+  which `pgf dem run` reads. The product of the `simple` `n` entries must
   equal that number. Change both, then run `decomposePar`. One rank still
   needs `decomposePar` (one `processor0`): the solver always runs `-parallel`.
 - **Yade processes** = `-ndem` in `Allrun`. One Yade process is the
