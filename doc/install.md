@@ -31,6 +31,14 @@ cd porousGasificationFoam
 pgf build              # libraries and solver
 ```
 
+This builds `main`, the latest sources. To build a tested release instead, check out its tag right after `cd porousGasificationFoam`, before `pgf build`; the tags and their notes are on the [Releases page](https://github.com/trymarz/porousGasificationFoam/releases):
+
+```bash
+git checkout v2606-testing-1   # a release tag; git checkout main goes back to the latest
+```
+
+`pgf copy` files a tutorial copy under the checkout's branch, `run/main/…`; on a tag it uses the commit, `run/<commit>/…`. It prints the copy's path and the `pgf run` line for it.
+
 If `pgf setup` warns that `~/.local/bin is not on your PATH` (a new account: Debian and Ubuntu add it only at the next login once it exists), run `export PATH="$HOME/.local/bin:$PATH"` first.
 
 No submodule is needed without DEM. `pgf doctor` checks the whole setup ([`pgf help doctor`](pgf-reference.md#pgf-help-doctor)); then copy and run a first tutorial, steps 3 and 4 of the [README quick start](../README.md#quick-start). What setup saves and where: [the pgf tool → Settings](pgf.md#settings).
@@ -81,7 +89,7 @@ pgf doctor --yade      # yade at the pin, with MPI; DEM problems are failures he
 
 ```bash
 pgf copy MicroTGA-DEM_lambdaDotOff
-pgf run ~/OpenFOAM/$USER-v2606/run/main/MicroTGA-DEM_lambdaDotOff
+pgf run ~/OpenFOAM/$USER-v2606/run/main/MicroTGA-DEM_lambdaDotOff   # on main; pgf copy prints the path
 ```
 
 The run's output, kept in the case's `log.yade`, shows the solver's `DEM coupling: active` and the handshake on both sides, `pgfDemCoupler: handshake ok, protocol v2` and `PgfCoupling: handshake ok, protocol v2`; [Checking that the coupling is in](#checking-that-the-coupling-is-in) lists the other checks.
