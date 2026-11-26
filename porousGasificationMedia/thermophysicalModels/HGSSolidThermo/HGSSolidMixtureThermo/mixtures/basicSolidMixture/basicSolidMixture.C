@@ -37,6 +37,8 @@ Foam::basicSolidMixture::basicSolidMixture
     components_(solidNames),
     Y_(components_.size())
 {
+    // Every solid component needs its own 0/Y<name>: Ydefault is for gas only (#311).
+    wordList missing;
     forAll(components_, i)
     {
         IOobject header
@@ -47,58 +49,39 @@ Foam::basicSolidMixture::basicSolidMixture
             IOobject::NO_READ
         );
 
-        // check if field exists and can be read
-        if (header.typeHeaderOk<volScalarField>(true))
+        if (!header.typeHeaderOk<volScalarField>(true))
         {
-            Y_.set
-            (
-                i,
-                new volScalarField
-                (
-                    IOobject
-                    (
-                        "Y" + components_[i],
-                        mesh.time().timeName(),
-                        mesh,
-                        IOobject::MUST_READ,
-                        IOobject::AUTO_WRITE
-                    ),
-                    mesh
-                )
-            );
+            missing.append(header.name());
         }
-        else
-        {
-            volScalarField Ydefault
+    }
+
+    if (missing.size())
+    {
+        FatalErrorInFunction
+            << "missing solid component field(s) in "
+            << mesh.time().timePath() << ": " << missing
+            << " (one per solidComponents entry; Ydefault does not apply)"
+            << exit(FatalError);
+    }
+
+    forAll(components_, i)
+    {
+        Y_.set
+        (
+            i,
+            new volScalarField
             (
                 IOobject
                 (
-                    "Ydefault",
+                    "Y" + components_[i],
                     mesh.time().timeName(),
                     mesh,
                     IOobject::MUST_READ,
-                    IOobject::NO_WRITE
+                    IOobject::AUTO_WRITE
                 ),
                 mesh
-            );
-
-            Y_.set
-            (
-                i,
-                new volScalarField
-                (
-                    IOobject
-                    (
-                        "Y" + components_[i],
-                        mesh.time().timeName(),
-                        mesh,
-                        IOobject::NO_READ,
-                        IOobject::AUTO_WRITE
-                    ),
-                    Ydefault
-                )
-            );
-        }
+            )
+        );
     }
 }
 

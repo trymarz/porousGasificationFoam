@@ -37,6 +37,10 @@ tutorials/cases/charOnlyMoveCases/solidBoundaryPolicy/unnormalisedYi       fast 
 tutorials/cases/charOnlyMoveCases/solidBoundaryPolicy/badPolicy            fast  expectFail  solidBoundaryPolicy maybe is not one of error, warn, ignore
 tutorials/cases/charOnlyMoveCases/solidBoundaryPolicy/wallOutflow          fast  expectFail  Solid leaves through wall outlet
 tutorials/cases/charOnlyMoveCases/solidBoundaryPolicy/wallInflow           fast  expectFail  Solid enters through wall inlet
+
+# Start-up case checks (#311): solidInlet_ash with one piece of setup broken
+tutorials/cases/charOnlyMoveCases/startupChecks/missingSolidY  fast  expectFail  missing solid component field.*Yash
+
 tutorials/cases/charOnlyMoveCases/serial_m2    convergence
 tutorials/cases/charOnlyMoveCases/serial_m4    convergence
 
