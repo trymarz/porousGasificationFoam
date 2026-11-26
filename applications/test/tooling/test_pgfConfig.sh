@@ -58,7 +58,7 @@ penv -- config >"$TEST_TMP/status"
 check "config names the user layer and line, with ~" grep -qE "^  PGF_FOAM_BASHRC +$B +\[user ~/.config/pgf/env.conf:1\]" "$TEST_TMP/status"
 check "  and shows the default directories, not [unset] (S4-21)" \
     bash -c 'grep -qE "^  PGF_BUILD_ROOT +~/fake-user/pgf-builds +\[default\]$" "$1" && grep -qE "^  PGF_CASE_ROOT +~/fake-user/run +\[default\]$" "$1" &&
-        grep -qE "^  PGF_RUN_ROOT +$2/pgf-runs +\[default\]$" "$1"' _ "$TEST_TMP/status" "$TEST_TMP"
+        grep -qE "^  PGF_RUN_ROOT +$2/pgf-runs-$3 +\[default\]$" "$1"' _ "$TEST_TMP/status" "$TEST_TMP" "$(id -un)"
 
 printf '# checkout\n\nPGF_FOAM_BASHRC="%s"\nPGF_MPI=loopback\n' "$C" >"$tree/.pgf.conf"
 check "checkout file overrides the user file" [ "$(version --)" = C ]

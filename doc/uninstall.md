@@ -27,7 +27,7 @@ pgf build                   # add --yade for the DEM variant
 | Run records and last test outcomes | `~/.local/state/pgf/` | `pgf run`, `pgf test` |
 | Cached yade commit lookups | `~/.cache/pgf/` | `pgf doctor`, `pgf test dem` |
 | Builds | `$WM_PROJECT_USER_DIR/pgf-builds` (`PGF_BUILD_ROOT`) | `pgf build` |
-| Test runs and scratch | `$TMPDIR/pgf-runs` (`PGF_RUN_ROOT`) | `pgf test` |
+| Test runs and scratch | `$TMPDIR/pgf-runs-$USER` (`PGF_RUN_ROOT`) | `pgf test` |
 | Case copies | `$WM_PROJECT_USER_DIR/run/<branch>/` (`PGF_CASE_ROOT`) | `pgf copy` |
 
 `$WM_PROJECT_USER_DIR` is OpenFOAM's per-user directory, for v2606 usually `~/OpenFOAM/$USER-v2606`. The `XDG_*_HOME` variables move the `~/.config`, `~/.local/state`, `~/.local/share` and `~/.cache` entries.
@@ -37,7 +37,7 @@ To remove PGF, delete what you no longer need from the table, then the checkout 
 ```bash
 rm -f ~/.local/bin/pgf ~/.local/share/bash-completion/completions/pgf
 rm -rf ~/.config/pgf ~/.local/state/pgf ~/.cache/pgf
-rm -rf "${TMPDIR:-/tmp}/pgf-runs"
+rm -rf "${TMPDIR:-/tmp}/pgf-runs-$USER"
 rm -rf ~/OpenFOAM/$USER-v2606/pgf-builds
 rm -rf <checkout>           # the git clone, with its submodules
 ```

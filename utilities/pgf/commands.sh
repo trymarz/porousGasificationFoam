@@ -406,7 +406,7 @@ pgf_paraview_check() {
 #   WARN or FAIL, then a verdict; returns 1 when any FAIL. OpenFOAM is sourced
 #   in children only.
 pgf_doctor() {
-  local fails=0 need_build=0 dem_ok=1 grp="" bashrc ver yb out trunk why p f v key line libdir
+  local fails=0 need_build=0 dem_ok=1 grp="" bashrc ver yb out trunk why p f v key line libdir py ypy
   local -a dem=()
   _r() {
     st_check "$1" "$2"
@@ -431,6 +431,15 @@ pgf_doctor() {
     fi
   else
     _r FAIL "no readable OpenFOAM bashrc (${bashrc:-none set}); fix: ./pgf setup, or pgf config set PGF_FOAM_BASHRC=FILE"
+  fi
+
+  echo
+  st_head "Python"
+  py="${PGF_PYTHON:-/usr/bin/python3}"
+  if [[ "$py" == /* ]] && v="$("$py" -c 'import sys; print("%d.%d.%d" % sys.version_info[:3])' 2>/dev/null)"; then
+    _r OK "python3 is $py ($v)${PGF_PYTHON:+, set by PGF_PYTHON}"
+  else
+    _r FAIL "python3 $py does not run; fix: sudo apt-get install python3, or set PGF_PYTHON to an absolute python3"
   fi
 
   yb="${YADE_BIN:-$(PATH="$PGF_ENV_CALLER_PATH" command -v yade)}"
@@ -474,6 +483,14 @@ pgf_doctor() {
     else
       _r WARN "yade $(pgf_tilde "$yb") does not list MPI among its features; the coupling needs a yade built with ENABLE_MPI"
       _dem "a yade built with MPI"
+    fi
+    # The yade launcher names the Python it was configured with on its #! line.
+    ypy="$(head -n1 "$yb" 2>/dev/null | sed -n 's/^#![[:space:]]*\([^[:space:]]*\).*/\1/p')"
+    if [ -n "$ypy" ] && [ "$(readlink -f "$ypy")" = "$(readlink -f "$py")" ]; then
+      _r OK "yade runs on $ypy, pgf's python3"
+    elif [ -n "$ypy" ]; then
+      _r WARN "yade runs on $ypy, not pgf's python3 $py, so the two may see other modules; fix: rebuild yade with -DPYTHON_EXECUTABLE=$py (doc/install.md, 3. DEM coupling)"
+      _dem "a yade built with pgf's python3"
     fi
     while IFS= read -r line; do
       [ "${line%% *}" = OK ] || _dem "a yade built from the yade-pgf pin"
@@ -673,7 +690,7 @@ pgf_status() {
   printf 'settings  %s\n          %s\n' "${files[0]}" "${files[1]}"
   printf 'builds    %s [%s]\n' "$(pgf_tilde "${PGF_INFO_ROOT:-unknown}")" "$(pgf_layer PGF_BUILD_ROOT)"
   printf 'records   %s\n' "$(pgf_tilde "$(pgf_records_dir)")"
-  printf 'scratch   %s [%s]\n' "$(pgf_tilde "${PGF_RUN_ROOT:-${TMPDIR:-/tmp}/pgf-runs}")" "$(pgf_layer PGF_RUN_ROOT)"
+  printf 'scratch   %s [%s]\n' "$(pgf_tilde "${PGF_RUN_ROOT:-${TMPDIR:-/tmp}/pgf-runs-$(id -un)}")" "$(pgf_layer PGF_RUN_ROOT)"
   printf 'cases     %s [%s]\n' "$(pgf_tilde "${PGF_INFO_CASES:-unknown}")" \
     "$([ -n "${PGF_CONF_SRC[PGF_CASE_ROOT]:-}" ] && pgf_layer PGF_CASE_ROOT || echo 'default: $WM_PROJECT_USER_DIR/run')"
   printf 'build     %s [%s; %s] %s\n' "$key" "$variant" "$src" "$state"

@@ -562,8 +562,9 @@ source_fingerprint() {
       \( -name '*.C' -o -name '*.H' -o -name 'files' -o -name 'options' \) \
       -type f -print0)
   done
-  # liblambdaDotModel compiles the PgfDemBridge core in place (pgfDemCoupler/PgfDemBridge.C).
-  [ -d "$PGF_ROOT/submodules/PgfDemBridge/src" ] &&
+  # liblambdaDotModel compiles the PgfDemBridge core in place (pgfDemCoupler/PgfDemBridge.C);
+  # only a build of the DEM target hashes it, so checking out the submodule keeps the plain key.
+  [ "${BUILD_TARGETS[DEM]}" -eq 1 ] && [ -d "$PGF_ROOT/submodules/PgfDemBridge/src" ] &&
     (cd "$PGF_ROOT" && find submodules/PgfDemBridge/src -type f \( -name '*.cpp' -o -name '*.hpp' \) -print0)
   } | LC_ALL=C sort -z | (cd "$PGF_ROOT" && xargs -0 sha1sum 2>/dev/null) | sha1sum | cut -d' ' -f1
 }

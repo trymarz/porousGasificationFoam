@@ -12,7 +12,7 @@ declare -gA PGF_CONF_DESC=(
   [YADE_BIN]="yade binary for DEM (--yade) runs"
   [YADE_PYTHONPATH]="yade's Python modules; default: found beside YADE_BIN"
   [PGF_BUILD_ROOT]="the build store; default: \$WM_PROJECT_USER_DIR/pgf-builds"
-  [PGF_RUN_ROOT]="scratch: test runs and temporary files; default: \$TMPDIR/pgf-runs"
+  [PGF_RUN_ROOT]="scratch: test runs and temporary files; default: \$TMPDIR/pgf-runs-\$USER"
   [PGF_CASE_ROOT]="where pgf copy puts cases, as <branch>/<case>; default: \$WM_PROJECT_USER_DIR/run"
   [PGF_YADE]="1: use the DEM (--yade) variant by default"
   [PGF_MPI]="Open MPI networking: auto, loopback (lo only) or default"
@@ -133,7 +133,7 @@ pgf_conf_set_cli() {
 #   build store and case root need OpenFOAM's user dir (pgf_build_info).
 pgf_conf_defaults() {
   local -n _d="$1"
-  _d[PGF_RUN_ROOT]="${TMPDIR:-/tmp}/pgf-runs"
+  _d[PGF_RUN_ROOT]="${TMPDIR:-/tmp}/pgf-runs-$(id -un)"
   [ -n "${PGF_CONF_VAL[PGF_BUILD_ROOT]+x}" ] && [ -n "${PGF_CONF_VAL[PGF_CASE_ROOT]+x}" ] && return 0
   declare -F pgf_build_info >/dev/null || return 0
   pgf_build_info

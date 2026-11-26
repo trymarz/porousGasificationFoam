@@ -57,7 +57,7 @@ Usage: $0 [options]
                   baseline comparison. Checks the coupling handshake, a clean
                   exit on both sides and the output, not a result.
   --run-root <d>  Run each case from a copy under <d>/<case path with / as __>/
-                  (default: \${PGF_RUN_ROOT:-\${TMPDIR:-/tmp}/pgf-runs}/yade-<time>-<pid>).
+                  (default: \${PGF_RUN_ROOT:-\${TMPDIR:-/tmp}/pgf-runs-\$USER}/yade-<time>-<pid>).
   --in-place      Run in the source tree instead of a copy (not with --short).
   --keep-runs     Keep the copies of passed cases too (failed ones are always kept).
   --jobs <n>      Number of DEM CASES to run concurrently (default 1). This is
@@ -196,7 +196,7 @@ fi
 [ -n "$SCHED_DIR" ] && CASES_ROOT="$SCHED_DIR/cases"
 
 if [ "$IN_PLACE" = false ]; then
-    [ -n "$RUN_ROOT" ] || RUN_ROOT="${PGF_RUN_ROOT:-${TMPDIR:-/tmp}/pgf-runs}/yade-$(date +%Y%m%d-%H%M%S)-$$"
+    [ -n "$RUN_ROOT" ] || RUN_ROOT="${PGF_RUN_ROOT:-${TMPDIR:-/tmp}/pgf-runs-$(id -un)}/yade-$(date +%Y%m%d-%H%M%S)-$$"
     if ! mkdir -p "$RUN_ROOT"; then
         clog ERROR "cannot create run root: $RUN_ROOT"
         exit 2

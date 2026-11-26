@@ -7,7 +7,7 @@
 #                                  [--work DIR] [--skip-native] [--skip-image]
 #
 # Each side gets its own git-archive copy of HEAD under DIR (default
-# ${PGF_RUN_ROOT:-${TMPDIR:-/tmp}/pgf-runs}/toolchains-<time>-<pid>), so their
+# ${PGF_RUN_ROOT:-${TMPDIR:-/tmp}/pgf-runs-$USER}/toolchains-<time>-<pid>), so their
 # in-tree objects never meet. Native: pgf test with the caller's PGF_BUILD_ROOT
 # (a cache hit when HEAD is already built). Image: pgf test inside the image with
 # its build and run roots under DIR. The report lists each case with both
@@ -53,7 +53,7 @@ if [ "$DO_NATIVE" = 1 ] && [ -z "${PGF_FOAM_BASHRC:-}${WM_PROJECT_DIR:-}" ]; the
   die "native side: set PGF_FOAM_BASHRC or WM_PROJECT_DIR"
 fi
 
-WORK="${WORK:-${PGF_RUN_ROOT:-${TMPDIR:-/tmp}/pgf-runs}/toolchains-$(date +%Y%m%d-%H%M%S)-$$}"
+WORK="${WORK:-${PGF_RUN_ROOT:-${TMPDIR:-/tmp}/pgf-runs-$(id -un)}/toolchains-$(date +%Y%m%d-%H%M%S)-$$}"
 mkdir -p "$WORK" || die "cannot create $WORK"
 WORK="$(cd -- "$WORK" && pwd -P)"
 HEAD="$(git -C "$PGF_ROOT" rev-parse HEAD)" || die "$PGF_ROOT is not a git checkout"

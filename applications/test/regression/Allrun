@@ -60,7 +60,7 @@ Options:
   --tag  <tag>    Run only cases with this tag (default: fast).
                   Use 'all' to run every case regardless of tag.
   --run-root <d>  Run each case from a copy under <d>/<case path with / as __>/
-                  (default: \${PGF_RUN_ROOT:-\${TMPDIR:-/tmp}/pgf-runs}/regression-<time>-<pid>).
+                  (default: \${PGF_RUN_ROOT:-\${TMPDIR:-/tmp}/pgf-runs-\$USER}/regression-<time>-<pid>).
   --keep-runs     Keep the copies of passed cases too (failed ones are always kept).
   --in-place      Run in the source tree instead of a copy (the pre-#120 behaviour).
   --rtol <val>    Relative tolerance for compareScalars.py (default 1e-4).
@@ -247,7 +247,7 @@ fi
 [ -n "$SCHED_DIR" ] && CASES_ROOT="$SCHED_DIR/cases"
 
 if [ "$IN_PLACE" = false ]; then
-    [ -n "$RUN_ROOT" ] || RUN_ROOT="${PGF_RUN_ROOT:-${TMPDIR:-/tmp}/pgf-runs}/regression-$(date +%Y%m%d-%H%M%S)-$$"
+    [ -n "$RUN_ROOT" ] || RUN_ROOT="${PGF_RUN_ROOT:-${TMPDIR:-/tmp}/pgf-runs-$(id -un)}/regression-$(date +%Y%m%d-%H%M%S)-$$"
     if ! mkdir -p "$RUN_ROOT"; then
         clog ERROR "cannot create run root: $RUN_ROOT"
         exit 2
