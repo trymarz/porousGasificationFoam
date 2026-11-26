@@ -6,7 +6,11 @@ In the paper the solid stays in place, and its porosity changes through a chemis
 
 ## Model overview
 
-Each cell holds gas and solid in proportions set by the porosity `ε` (`porosityF`): `ε = 1` is pure gas, `ε = 0` pure solid, and anything in between is a porous medium. The solid chemistry passes mass and energy between solid and gas. Momentum goes one way only: the solid slows the gas through the Darcy–Forchheimer resistance, while the gas does not push the solid, whose velocity `Us` is given in `0/Us` or comes from DEM. Gas released by the solid brings no momentum with it.
+Each cell holds gas and solid in proportions set by the porosity `ε` (`porosityF`): `ε = 1` is pure gas, `ε = 0` pure solid, and anything in between is a porous medium.
+
+Gas and solid exchange mass and energy. The solid reactions can consume and produce both solid and gas species, and release or absorb heat; the two phases also exchange heat by convection, and radiation reaches both.
+
+Momentum goes one way only. The solid slows the gas through the Darcy–Forchheimer resistance, but the gas does not push the solid, and gas released by the solid brings no momentum with it. The solid's velocity `U_s` is given in `0/Us` or comes from DEM ([the idea behind the DEM coupling](theory-DEM.md#the-idea)).
 
 ## Notation
 
@@ -25,8 +29,7 @@ Each cell holds gas and solid in proportions set by the porosity `ε` (`porosity
 | `U_s` | `Us` | solid velocity |
 | `φ_s` | `phiSolid` | limited solid volume flux |
 
-- **Densities.** Skeletal is the material without its pores; apparent is a particle's mass over its envelope volume, pores included. Both are per-specie entries in `solidThermophysicalProperties`; `rhoApparent` is optional and only `lambdaMode apparentVolume` reads it. The bulk density is `ρ_s (1 − ε)`.
-- **Solid velocity.** `U_s` is prescribed in `0/Us` (fixed in time) or, with DEM, interpolated from `UsDEM`, the raw cell mean of the particle velocities (`interpolationMode` in `constant/lambdaDict`). No equation solves for it. The solid actually moves with `φ_s`: the volume flux of `U_s`, scaled down so no cell gives more solid than it holds or takes more than it has room for.
+- **Densities.** Skeletal is the material without its pores; apparent is a particle's mass over its envelope volume, pores included. Both are per-specie entries in `solidThermophysicalProperties`; `rhoApparent` is optional and only `lambdaMode apparentVolume` reads it. The mixture's skeletal density is `1/ρ_s = Σₖ Ysₖ/ρ_s,k`, and its bulk density `ρ_s (1 − ε)`.
 
 ## Models at a glance
 
@@ -75,7 +78,7 @@ for each time step:
 ```
 
 1. **Time step** — the gas Courant and solid diffusion limits set Δt (`setMultiRegionDeltaT.H`); with local time stepping (LTS) `setRDeltaT.H` sets a local Δt instead. With `adjustTimeStep` and `solidChemistryTimeStepControl` both on, `updateChemistryTimeStep.H` also caps Δt by about the time a specie's mass fraction took to reach 0 or 1 in the last chemistry solve.
-2. **DEM exchange** — particle data from YADE rebuild `Us` and `lambda`; `lambdaDot` goes back to YADE (`DEM/lambdaDotModel.C`, [DEM coupling](theory-DEM.md)).
+2. **DEM exchange** — DEM body data from YADE rebuild `Us` and `lambda`; the rate `λ̇`, or the factor `r` under `apparentVolume`, goes back to YADE (`DEM/lambdaDotModel.C`, [DEM exchange](dem-exchange.md)).
 3. **Radiation** — updates the solid radiative source (`radiation.H`).
 4. **Solid step** — `pyrolysisZone.evolve()` (`volPyrolysis::evolveRegion()`) runs the stages in the order shown. Each stage, with the fields it reads and writes and its checks: [solid-step.md](solid-step.md).
 5. **Gas continuity** — `rhoEqn.H`.
@@ -196,42 +199,42 @@ By Hess's law the direct route from O₂ at `T_g` to CO at `T_s` gives the same 
 
 ### Solid
 
+**Motion.** No equation solves for `U_s`. It is prescribed in `0/Us` (fixed in time) or, with DEM, interpolated from `UsDEM`, the raw cell mean of the DEM body velocities (`interpolationMode` in `constant/lambdaDict`; [DEM coupling](theory-DEM.md#the-idea)). The solid actually moves with the limited volume flux
+
+$$
+\varphi_s = L_f\,(\mathbf{U}_s\cdot\mathbf{S}_f), \qquad 0 \le L_f \le 1
+$$
+
+where `S_f` is the face area vector and `L_f` the factor from `solidFluxLimiter`, chosen so no cell gives more solid than it holds or takes more than it has room for. This keeps `Ym` non-negative.
+
 **Species** (`SolidSpeciesTransport::solve`; paper Eq. 3a plus solid advection, which the paper does not have). `Ym_k` is the mass of solid species `k` per m³ of cell. It changes through the solid reactions (`R_k`) and, when the solid moves, through the solid flux `φ_s`:
 
 $$
 {\color{blue}\frac{\partial\,\mathrm{Ym}_k}{\partial t}} + {\color{orange}\nabla\cdot(\varphi_s\,\mathrm{Ym}_k)} = {\color{red}R_k}
 $$
 
-`φ_s` is limited (`solidFluxLimiter`) so that no cell gives away more solid than it holds, which keeps `Ym` non-negative.
-
-**Porosity** (`PorosityRecovery::updatePorosity`). Not transported; derived from the solid mass each step. Nearly empty (flipped) cells are cleared only with `bedCollapse`, which moves the column onto them, or with `emptyFlippedCells`, which destroys their mass; both are off by default, and then their solid stays ([solid-step.md](solid-step.md), stages 9–10).
+**Porosity** (`PorosityRecovery::updatePorosity`). Not transported; derived from the solid mass each step, so both chemistry and solid motion change it. Handling of nearly empty cells: [solid-step.md](solid-step.md), stages 9–10.
 
 $$
-\frac{1}{\rho_s} = \sum_k \frac{\mathrm{Ys}_k}{\rho_{s,k}}, \qquad 1-\varepsilon = \sum_k \frac{\mathrm{Ym}_k}{\rho_{s,k}}
+1-\varepsilon = \sum_k \frac{\mathrm{Ym}_k}{\rho_{s,k}}
 $$
 
-**Energy** (`SolidEnergy::solve`, after the species step; paper 3c). The stored variable is `H = Σₖ Ym_k c_p,k T_s` (`solidH`), but the equation is solved for `T_s`:
+**Energy** (`SolidEnergy::solve`, after the species step; paper 3c). The solid enthalpy `H = Σₖ Ym_k c_p,k T_s` (`solidH`) is stored, advected with the solid and conducted through it:
 
 $$
-\begin{aligned}
-&{\color{blue}\frac{\partial(\rho c_p^* T_s)}{\partial t} + \frac{\rho c_p^* T_s^0 - H^0}{\Delta t}} + {\color{orange}\nabla\cdot\Bigl(\sum_k \varphi_{\mathrm{Ym},k}\,c_{p,k}T_s\Bigr)} - {\color{green}\nabla\cdot\bigl((1-\varepsilon)K_s A\,\nabla T_s\bigr)} \\
-&\quad = {\color{purple}S_{\mathrm{chem}}} {\color{red}\;-\;Q_{\mathrm{conv}} - Q_{\mathrm{reac},s} + S_{\mathrm{rad},s}}
-\end{aligned}
+{\color{blue}\frac{\partial H}{\partial t}} + {\color{orange}\nabla\cdot\Bigl(\sum_k \varphi_{\mathrm{Ym},k}\,c_{p,k}T_s\Bigr)} - {\color{green}\nabla\cdot\bigl((1-\varepsilon)K_s A\,\nabla T_s\bigr)} = {\color{purple}S_{\mathrm{chem}}} {\color{red}\;-\;Q_{\mathrm{conv}} - Q_{\mathrm{reac},s} + S_{\mathrm{rad},s}}
 $$
 
-$$
-\rho c_p^* = \sum_k c_{p,k}\,(\mathrm{Ym}_k - \Delta t\,R_k)
-$$
-
-`ρc_p*` (`rhoCpCarrier`) is the heat capacity of the solid before this step's reaction, so the storage terms take the sensible heat of the composition change implicitly. `A` is the optional `anisotropyK` tensor; `S_chem` is the solid reaction heat (`chemistrySh`), with all participants at `T_s`. `H` is then stored on the mass that remains. How each term is discretised: [solid-step.md](solid-step.md), stage 7. Exchange terms and reference temperatures: [Gas–solid exchange](#gassolid-exchange).
+`A` is the optional `anisotropyK` tensor; `S_chem` is the solid reaction heat (`chemistrySh`), with all participants at `T_s`. The equation is solved for `T_s`; how the storage term handles this step's composition change: [solid-step.md](solid-step.md), stage 7. Exchange terms and reference temperatures: [Gas–solid exchange](#gassolid-exchange).
 
 ## DEM coupling
 
-Only in a `WITH_YADE` build with `constant/yadeProperties` `active true`. What the two sides exchange, the λ modes and the particle-size update: [theory-DEM.md](theory-DEM.md).
+Only in a `WITH_YADE` build with `constant/yadeProperties` `active true`. DEM replaces the prescribed `U_s` and nothing else in the equations above. In return PGF sends each DEM body how its length scale λ changes, from the solid chemistry. The idea and the body size models: [theory-DEM.md](theory-DEM.md); the exchange step: [dem-exchange.md](dem-exchange.md).
 
 ## Related pages
 
 - [Solid step](solid-step.md): the solid step, stage by stage.
 - [DEM coupling](theory-DEM.md): the YADE coupling.
+- [DEM exchange](dem-exchange.md): step 2 of the flow, the exchange with YADE.
 - [Setting up your own case](case-setup.md): required fields, input files, tutorial cases, tips.
 - [All documentation](README.md)
