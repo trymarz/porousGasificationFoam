@@ -114,7 +114,7 @@ The maintainer keeps work not meant for publication (e.g. third-party gasifier c
 
 - Private branches and issues live on `private`. Its `main` is public `main` plus private-only commits, synced by merging `origin/main` into it.
 - To publish, branch from `origin/main`, cherry-pick (or `git checkout <commit> -- <paths>`) only the wanted changes, push to `origin` and open a public PR.
-- `utilities/githooks/pre-push` refuses a push to the public repo when an outgoing commit touches a path listed in `utilities/githooks/private-paths` (top-level `private/`, `tutorials/cases/LEIgasifier*`, `LEIgeometry.local`); deleting such a path is allowed. It needs `core.hooksPath` set as in [doc/build.md](doc/build.md).
+- `utilities/githooks/pre-push` refuses a push to the public repo when an outgoing commit touches a path listed in `utilities/githooks/private-paths`; deleting such a path is allowed. It needs `core.hooksPath` set as in [doc/build.md](doc/build.md).
 
 ## Related pages
 
