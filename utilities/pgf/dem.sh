@@ -3,12 +3,13 @@
 # what:    pgf dem run starts both sides in one mpirun, from the case directory
 # why:     one launcher inside the pgf CLI instead of the loose pgfDemRun script
 #
-#   pgf dem run [-ndem N] [-nfoam M] [-solver NAME] SCRIPT.py [yade args ...]
+#   pgf dem run [-ndem N] [-nfoam M] [-solver NAME] [--stall-timeout S] SCRIPT.py [yade args ...]
 #
 # One mpirun of N+M copies of this script; ranks below N exec `yade SCRIPT.py`,
 # the others `SOLVER -parallel -mpi-split-by-appnum -mpi-threads`. One app, not
 # `A : B`: Open MPI 5.0.7 segfaults on that (#328). The help page is in cli.sh.
-# Exit 2 on a usage or case error; otherwise mpirun's status.
+# mpirun runs under demWatchdog.py, which stops a run silent for S seconds
+# (exit 124). Exit 2 on a usage or case error; otherwise mpirun's status.
 
 self="$(readlink -f -- "${BASH_SOURCE[0]}")"
 PGF_ROOT="${PGF_ROOT:-$(cd "$(dirname "$self")/../.." && pwd)}"
@@ -36,12 +37,15 @@ run) shift ;;
 *) echo "pgf: unknown dem command '$1' (see pgf help dem)" >&2; exit 2 ;;
 esac
 
-ndem=2 nfoam="" solver=porousGasificationFoam
+ndem=2 nfoam="" solver=porousGasificationFoam stall="${PGF_DEM_STALL_TIMEOUT:-600}"
 while [ $# -gt 0 ]; do
   case "$1" in
-  -ndem) ndem="${2:?-ndem needs a number}"; shift 2 ;;
-  -nfoam) nfoam="${2:?-nfoam needs a number}"; shift 2 ;;
-  -solver) solver="${2:?-solver needs a name}"; shift 2 ;;
+  -ndem | -nfoam | -solver | --stall-timeout)
+    [ -n "${2:-}" ] || dem_die "$1 needs a value"
+    case "$1" in -ndem) ndem="$2" ;; -nfoam) nfoam="$2" ;; -solver) solver="$2" ;; *) stall="$2" ;; esac
+    shift 2
+    ;;
+  --stall-timeout=*) stall="${1#*=}"; shift ;;
   -h | -help | --help) dem_help ;;
   -*) dem_die "unknown option $1 (see pgf help dem)" ;;
   *) break ;;
@@ -55,6 +59,7 @@ if [ -z "$nfoam" ]; then
   nfoam="$(foamDictionary -entry numberOfSubdomains -value system/decomposeParDict 2>/dev/null)" ||
     dem_die "cannot read numberOfSubdomains from system/decomposeParDict"
 fi
+case "$stall" in "" | *[!0-9]*) dem_die "--stall-timeout takes whole seconds, 0 for none (got '$stall')" ;; esac
 case "$ndem$nfoam" in *[!0-9]*) dem_die "-ndem and -nfoam must be whole numbers (got $ndem, $nfoam)" ;; esac
 [ "$ndem" -ge 1 ] && [ "$nfoam" -ge 1 ] || dem_die "-ndem and -nfoam must be at least 1"
 # The solver always runs -parallel, so even one OpenFOAM rank reads processor0 (#328 D4).
@@ -67,6 +72,9 @@ if mpirun --version 2>&1 | grep -q "Open MPI\|OpenRTE"; then
   [ "$(id -u)" = 0 ] && flags="$flags --allow-run-as-root"
 fi
 np=$((ndem + nfoam))
-echo "pgf dem run: $ndem Yade + $nfoam OpenFOAM rank(s): mpirun -np $np $flags ${PGF_MPIRUN_FLAGS:-}"
+watch=()
+[ "$stall" -eq 0 ] || watch=(python3 "${self%/*}/demWatchdog.py" "$stall" "${PGF_DEM_KILL_GRACE:-10}")
+echo "pgf dem run: $ndem Yade + $nfoam OpenFOAM rank(s): mpirun -np $np $flags ${PGF_MPIRUN_FLAGS:-}" \
+  "(stall timeout: $([ "$stall" -eq 0 ] && echo off || echo "$stall s"))"
 # shellcheck disable=SC2086 # the flags are words
-exec mpirun $flags ${PGF_MPIRUN_FLAGS:-} -np "$np" "$self" --role "$ndem" "$solver" yade "$@"
+exec "${watch[@]}" mpirun $flags ${PGF_MPIRUN_FLAGS:-} -np "$np" "$self" --role "$ndem" "$solver" yade "$@"

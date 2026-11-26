@@ -27,7 +27,7 @@ declare -gA PGF_OPT_VALUE=([--use]=build [--prefix]=dir [--mpi]=mpi [--set]=sett
   [--foam-bashrc]=file [--yade-bin]=file [--yade-trunk]=dir [--output]=file [--run-root]=dir
   [--keep]=none [--keep-runs]=none [--keep-prefixes]=none [--if-stale]=none [-c]=none
   [--png]=dir [--time]=none [--size]=none [--compare]=dir [--palette]=none
-  [-ndem]=none [-nfoam]=none [-solver]=none)
+  [-ndem]=none [-nfoam]=none [-solver]=none [--stall-timeout]=none)
 
 # The environment options of shell, run, status and doctor.
 PGF_ENV_ROWS="--use SEL	the build: key or key prefix, commit, worktree, prefix path or auto	auto
@@ -149,18 +149,25 @@ pgf_cmd_ex run "pgf run ~/OpenFOAM/\$USER-v2606/run/main/solidAdvection" "the co
 pgf_cmd_ex run "pgf run ~/OpenFOAM/\$USER-v2606/run/main/solidAdvection Allclean"
 
 pgf_cmd dem "coupled Yade + solver runs (DEM cases)" \
-  "pgf dem run [-ndem N] [-nfoam M] [-solver NAME] SCRIPT.py [yade args ...]" \
-  "-ndem -nfoam -solver" dem
+  "pgf dem run [-ndem N] [-nfoam M] [-solver NAME] [--stall-timeout S] SCRIPT.py [yade args ...]" \
+  "-ndem -nfoam -solver --stall-timeout" dem
 pgf_cmd_desc dem "pgf dem run starts a coupled DEM run from the case directory: Yade and the
 solver in one mpirun of N+M ranks, joined by PgfDemBridge. The DEM tutorials'
 Allrun call it; run those through pgf run, whose environment it keeps. The case
 must be decomposed into M processor* directories (processor0 when M is 1).
 Open MPI gets --oversubscribe; PGF_MPIRUN_FLAGS adds mpirun options. Exit 2 on
 a usage or case error, otherwise mpirun's status.
+
+A stall watchdog runs mpirun in its own process group. When the run prints
+nothing for S seconds, it TERMs that group, KILLs it 10 s later
+(PGF_DEM_KILL_GRACE), prints the last output line and exits 124, the TIMEOUT
+of pgf test. A run that keeps printing is never stopped. stdout and stderr
+are merged. INT, TERM and HUP are passed on to the group.
 tutorials/cases/DEM_common/pgfDemRun is its old name."
 pgf_cmd_opt dem "-ndem N" "Yade ranks, mpy's master included" 2
 pgf_cmd_opt dem "-nfoam M" "OpenFOAM ranks" "numberOfSubdomains"
 pgf_cmd_opt dem "-solver NAME" "the solver" porousGasificationFoam
+pgf_cmd_opt dem "--stall-timeout S" "stop a run silent for S seconds; 0: never" "PGF_DEM_STALL_TIMEOUT, 600"
 pgf_cmd_ex dem "pgf dem run -ndem 2 MPI_lambda.py" "in an Allrun, from the case directory"
 
 pgf_cmd view "look at a case's results in ParaView (pgfView)" \
