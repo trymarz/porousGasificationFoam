@@ -23,7 +23,7 @@
 #                    record points at) and prefixes (keep M, default 5); never the
 #                    prefixes of this tree, nor one whose lock is held
 #
-# PGF_RUN_ROOT defaults to ${TMPDIR:-/tmp}/pgf-runs. pgf needs PGF_FOAM_BASHRC
+# PGF_RUN_ROOT defaults to ${TMPDIR:-/tmp}/pgf-runs-$USER. pgf needs PGF_FOAM_BASHRC
 # or WM_PROJECT_DIR. Exit codes: the driver's (0 PASS, 1 FAIL, 2 ERROR,
 # 124 TIMEOUT, 128+N CRASH); for 'all', the first non-zero one.
 
@@ -34,7 +34,7 @@ PGF="$PGF_ROOT/pgf"
 BUILD_SH="$PGF_ROOT/utilities/pgf/build.sh"
 REG_DIR="$PGF_ROOT/applications/test/regression"
 TIERS_CONF="${PGF_TIERS_CONF:-$PGF_ROOT/applications/test/tiers.conf}"
-export PGF_RUN_ROOT="${PGF_RUN_ROOT:-${TMPDIR:-/tmp}/pgf-runs}"
+export PGF_RUN_ROOT="${PGF_RUN_ROOT:-${TMPDIR:-/tmp}/pgf-runs-$(id -un)}"
 LAST_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/pgf/runs/last"
 . "$PGF_ROOT/utilities/pgf/ui.sh"
 

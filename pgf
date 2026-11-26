@@ -378,7 +378,7 @@ strip_default() {
 PATH="$(strip_default "$PATH")"
 LD_LIBRARY_PATH="$(strip_default "${LD_LIBRARY_PATH:-}")"
 
-export PGF_RUN_ROOT="${PGF_RUN_ROOT:-${TMPDIR:-/tmp}/pgf-runs}"
+export PGF_RUN_ROOT="${PGF_RUN_ROOT:-${TMPDIR:-/tmp}/pgf-runs-$(id -un)}"
 export FOAM_RUN="$PGF_RUN_ROOT"
 if [ "$mode" = "bare" ]; then
   unset FOAM_USER_APPBIN FOAM_USER_LIBBIN

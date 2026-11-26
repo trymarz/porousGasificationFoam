@@ -473,7 +473,7 @@ refuses to install into the build while WM_PROJECT_USER_DIR, FOAM_USER_APPBIN
 and FOAM_USER_LIBBIN point at it (edit, then pgf build); a case's dynamicCode/
 passes. With --bare, wmake is OpenFOAM's own. It also sets UCX_VFS_ENABLE=n
 UCX_LOG_LEVEL=fatal, FOAM_RUN=\$PGF_RUN_ROOT and TMPDIR=\$PGF_RUN_ROOT/tmp
-(PGF_RUN_ROOT default: \$TMPDIR/pgf-runs; pgf run of a DEM case gets its own
+(PGF_RUN_ROOT default: \$TMPDIR/pgf-runs-\$USER; pgf run of a DEM case gets its own
 TMPDIR below it, removed afterwards), and exports PGF_ROOT, so a copied
 case finds the checkout's shared data. It checks that porousGasificationFoam
 resolves into the build.

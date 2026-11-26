@@ -33,6 +33,8 @@ fi
 TEST_NAME="$(basename "$0" .sh)"
 TEST_TMP="$(mktemp -d "${TMPDIR:-/tmp}/pgf-$TEST_NAME-XXXXXX")" || exit 2
 TEST_FAILURES=0
+# pgf's scratch (pgf-bin, TMPDIR, test runs) stays in the test's own dir, not the user's (#362).
+export PGF_RUN_ROOT="$TEST_TMP/runs"
 trap 'rm -rf "$TEST_TMP"' EXIT
 
 pass() { echo "  PASS  $*"; }

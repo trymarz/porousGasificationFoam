@@ -182,7 +182,7 @@ Settings:
   YADE_BIN         yade binary for DEM (--yade) runs
   YADE_PYTHONPATH  yade's Python modules; default: found beside YADE_BIN
   PGF_BUILD_ROOT   the build store; default: $WM_PROJECT_USER_DIR/pgf-builds
-  PGF_RUN_ROOT     scratch: test runs and temporary files; default: $TMPDIR/pgf-runs
+  PGF_RUN_ROOT     scratch: test runs and temporary files; default: $TMPDIR/pgf-runs-$USER
   PGF_CASE_ROOT    where pgf copy puts cases, as <branch>/<case>; default: $WM_PROJECT_USER_DIR/run
   PGF_YADE         1: use the DEM (--yade) variant by default
   PGF_MPI          Open MPI networking: auto, loopback (lo only) or default
@@ -794,7 +794,7 @@ What is set:
   and FOAM_USER_LIBBIN point at it (edit, then pgf build); a case's dynamicCode/
   passes. With --bare, wmake is OpenFOAM's own. It also sets UCX_VFS_ENABLE=n
   UCX_LOG_LEVEL=fatal, FOAM_RUN=$PGF_RUN_ROOT and TMPDIR=$PGF_RUN_ROOT/tmp
-  (PGF_RUN_ROOT default: $TMPDIR/pgf-runs; pgf run of a DEM case gets its own
+  (PGF_RUN_ROOT default: $TMPDIR/pgf-runs-$USER; pgf run of a DEM case gets its own
   TMPDIR below it, removed afterwards), and exports PGF_ROOT, so a copied
   case finds the checkout's shared data. It checks that porousGasificationFoam
   resolves into the build.

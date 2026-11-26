@@ -78,7 +78,7 @@ By default every command uses the build of the checkout pgf runs from. To use an
 A run is a case run with a build, in a clean environment. It leaves things in three places (each setting and its default: [`pgf help config`](pgf-reference.md#pgf-help-config)):
 
 - **Your cases:** `$PGF_CASE_ROOT/<branch>/<case>`, by default OpenFOAM's run dir, `~/OpenFOAM/<user>-v2606/run`.
-- **Scratch:** `$PGF_RUN_ROOT`, by default `${TMPDIR:-/tmp}/pgf-runs`, for test runs and temporary files. Under `/tmp` it usually does not survive a reboot.
+- **Scratch:** `$PGF_RUN_ROOT`, by default `${TMPDIR:-/tmp}/pgf-runs-$USER`, for test runs and temporary files. Under `/tmp` it usually does not survive a reboot.
 - **Records:** `~/.local/state/pgf/runs`, a line per run and the last result of each test tier.
 
 ```bash
