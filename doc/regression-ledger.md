@@ -9,7 +9,7 @@ Built from the committed `reference/` files on `main` at 5cec447, each case's `s
 | Status | Meaning |
 |---|---|
 | live | Varies in the baseline and follows the behaviour the case is about. |
-| invariant | Flat by design: a conserved total, a bound, a prescribed value. The baseline is the expected value; step 4 decides whether it becomes an explicit check. |
+| invariant | Flat by design: a conserved total, a bound, a prescribed value. The baseline is the expected value; where the case declares it in `system/regressionInvariants`, it is also checked explicitly ([invariants](regression-testing.md#invariants)). |
 | diluted | Varies, but most of the domain holds no solid and sets the value. |
 | dead | Cannot move for any change in the behaviour it claims to watch. |
 | question | Moves, or stays flat, in a way the case does not explain. Needs a run before the baseline is trusted. |

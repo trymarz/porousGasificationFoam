@@ -1,6 +1,6 @@
 # The build system
 
-For changing PGF's code. There is one way to build: `pgf build` (or `./Allwmake`, which runs it) compiles PGF into a prefix of its own. Installing PGF and YADE on a machine is [install.md](install.md); the tool around the build (settings, choosing a build, running cases) is [pgf.md](pgf.md). This page covers what a build is, editing and rebuilding, the DEM variant, and cleaning.
+For changing PGF's code. There is one way to build: `pgf build` (or `./Allwmake`, which runs it) compiles PGF into a prefix of its own. Installing PGF and YADE on a machine: [Installing](install.md); the tool around the build (settings, choosing a build, running cases): [the pgf tool](pgf.md). This page covers what a build is, editing and rebuilding, the DEM variant, and cleaning.
 
 ## How a build works
 
@@ -8,7 +8,7 @@ pgf decides *what* to build and *where* it goes; OpenFOAM's own `wmake` does the
 
 ![pgf build reuses a build it has, or has wmake compile one into the build folder; pgf run runs cases with that folder](img/build-flow.svg)
 
-1. **pgf build** (or `./Allwmake`) names the build from your sources, the variant (normal or DEM), the OpenFOAM version and the compiler, in a clean shell that loads OpenFOAM.
+1. **pgf build** names the build from your sources, the variant (normal or DEM), the OpenFOAM version and the compiler, in a clean shell that loads OpenFOAM.
 2. **Built before?** Then it is reused at once: nothing compiles, the checkout is not touched.
 3. **Variant switched** between normal and DEM since the last build? pgf cleans the 2 parts that differ (pyrolysis library, solver) so they recompile; you never clean by hand.
 4. **wmake** (OpenFOAM's own tool) compiles each part. It keeps compiled pieces next to the source (the **worktree cache**, which makes the next build quick) and puts the solver and libraries in the **build folder**, `pgf-builds/<key>/`.
@@ -31,7 +31,7 @@ The build key, the build store `PGF_BUILD_ROOT` and how a command picks its buil
 
 ## Editing and rebuilding
 
-After editing the sources, run `pgf build` (or `./Allwmake`) again. The new sources have a new key, so the build goes into a new prefix and recompiles only what wmake finds changed; an unchanged tree is a cache hit and returns at once. The previous prefix stays as it was for whatever still uses it; `pgf gc` removes old ones.
+After editing the sources, run `pgf build` again. The new sources have a new key, so the build goes into a new prefix and recompiles only what wmake finds changed; an unchanged tree is a cache hit and returns at once. The previous prefix stays as it was for whatever still uses it; `pgf gc` removes old ones.
 
 Do not run `wmake` yourself inside `pgf shell`: there the user output directories point at the active build's prefix, so a `wmake` would overwrite a build that its key says came from other sources. `pgf shell` refuses it with `pgf: refusing wmake: it would install into the cached build <key>.` and a pointer to `pgf build`. (OpenFOAM's own `wmake` for coded functions, under a case's `dynamicCode/`, is not affected.)
 
@@ -81,7 +81,7 @@ When the pin moves, rebuild YADE. PGF's `--yade` build does not depend on the pi
 
 ## Cleaning
 
-`./Allwclean` (`pgf build clean --all`) cleans this checkout's in-tree cache: `lnInclude/` and `Make/<WM_OPTIONS>/` of every target, through `wclean`. Built prefixes are not touched; `pgf gc` removes those. Switching variants does not need it.
+`./Allwclean` cleans this checkout's in-tree cache: `lnInclude/` and `Make/<WM_OPTIONS>/` of every target, through `wclean`. Built prefixes are not touched; `pgf gc` removes those. Switching variants does not need it.
 
 `wmake` does not prune a symlink in `lnInclude/` whose source you deleted or renamed. It dangles, so an include of it fails loudly instead of picking up stale content. Run `./Allwclean` after renaming or deleting headers.
 
@@ -92,7 +92,7 @@ When the pin moves, rebuild YADE. PGF's `--yade` build does not depend on the pi
 ```bash
 pgf build --apps-only                          # apps on, libs off
 pgf build clean --reset-all --radiationModels  # all off, then radiationModels on: clean only that
-pgf build --all --no-DEM                       # everything except DEM (this is ./Allwmake)
+pgf build --all --no-DEM                       # everything except DEM
 ```
 
 `./Allwmake` is `pgf build --all --no-DEM` and `./Allwclean` is `pgf build clean --all` (which cleans DEM too); both forward extra arguments.

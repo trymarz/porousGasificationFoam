@@ -2,7 +2,7 @@
 
 *New contributors: start here.*
 
-## Branch Naming
+## Branch naming
 
 Branches use a short prefix that signals intent, followed by a kebab-case descriptive name. Five prefixes cover everything:
 
@@ -18,17 +18,17 @@ Examples: `feature/UsInterp-laplace-smoothing`, `fix/regression-allrun-set-u`, `
 
 A single branch may bundle multiple low-risk meta concerns (e.g. formatter, docs, and dev-workflow changes can ride on one `chore/...` branch). Anything that can affect numerical results stays on its own branch.
 
-## Issue Tracking
+## Issue tracking
 
 Planning work has a matching GitHub Issue (public, like this repo) tracked on a project board named "PGF development" — that's the place to check current status (Backlog/Ready/In progress/In review/Done). Deeper working detail (files to touch, approach, step-by-step log) goes in the PRs that resolve the issue and in its comments. The board itself is currently private to the maintainer, so external contributors should rely on the issue's own labels/state rather than the board view. Start the branch that resolves an issue from that issue's own **Development** panel ("Create a branch") so GitHub links the two automatically, and include `Closes #<issue>` in the PR body so merging the PR closes the issue and moves its board card to `Done` on its own.
 
-## Merge Strategy
+## Merge strategy
 
 The repository uses **squash merge** — each PR becomes one commit on `main`, whose message is the PR title followed by the PR body. This keeps `main` linear and easy to scan with `git log --oneline`, while preserving the *why* and verification context inside `git log` / `git show`.
 
 Because the squash commit is permanent and per-branch commits are not, the convention below applies to **PR titles and bodies**, not to individual commits on your working branch. Commit however you like locally; the squash collapses it.
 
-## PR Titles
+## PR titles
 
 ```
 <type>[(<scope>)]: <imperative subject>
@@ -47,7 +47,7 @@ docs(README): clarify default chemistry
 chore: apply clang-format across solver
 ```
 
-## PR Body
+## PR body
 
 Opening a PR auto-populates the description from `.github/pull_request_template.md`. Three sections:
 
@@ -106,7 +106,7 @@ The maintainer keeps work not meant for publication (e.g. third-party gasifier c
 
 - Private branches and issues live on `private`. Its `main` is public `main` plus private-only commits, synced by merging `origin/main` into it.
 - To publish, branch from `origin/main`, cherry-pick (or `git checkout <commit> -- <paths>`) only the wanted changes, push to `origin` and open a public PR.
-- `utilities/githooks/pre-push` refuses a push to the public repo when an outgoing commit touches a path listed in `utilities/githooks/private-paths`; deleting such a path is allowed. It needs `core.hooksPath` set as in [doc/dev-tools.md](doc/dev-tools.md#editor-navigation-clangd).
+- `utilities/githooks/pre-push` refuses a push to the public repo when an outgoing commit touches a path listed in `utilities/githooks/private-paths`; deleting such a path is allowed. It needs the hooks enabled: [developer tools → Git hooks](doc/dev-tools.md#git-hooks).
 
 ## Related pages
 
