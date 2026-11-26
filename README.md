@@ -95,13 +95,14 @@ pgf view .
 
 ## Documentation
 
-[doc/README.md](doc/README.md) lists every page. In short:
+[doc/README.md](doc/README.md) lists every page, in six groups:
 
-- **Using PGF:** [the pgf tool](doc/pgf.md), [your own case](doc/case-guide.md), [ParaView](doc/paraview.md)
-- **Installing, building and deploying:** [installing](doc/install.md), [building](doc/build.md), [Apptainer images](doc/containers.md)
-- **Reference:** `pgf help` (every command and setting), [API reference (Doxygen)](doc/dev-tools.md#api-reference-doxygen)
-- **The model:** [theory](doc/theory.md), [solid step](doc/solid-step.md)
-- **Developing PGF:** [contributing](CONTRIBUTING.md), [regression testing](doc/regression-testing.md), [regression metric ledger](doc/regression-ledger.md)
+- **Installing and building:** [installing](doc/install.md), [building](doc/build.md), [Apptainer images](doc/containers.md)
+- **Running cases:** [case guide](doc/case-guide.md), [tutorials](doc/tutorials.md), [case reference](doc/case-reference.md), [ParaView](doc/paraview.md)
+- **The pgf tool:** [guide](doc/pgf.md), [reference](doc/pgf-reference.md)
+- **The model:** [theory](doc/theory.md), [DEM coupling](doc/theory-DEM.md)
+- **How the code implements it:** [code map](doc/code-map.md), [solid step](doc/solid-step.md), [DEM exchange](doc/dem-exchange.md)
+- **Developing PGF:** [contributing](CONTRIBUTING.md), [regression testing](doc/regression-testing.md), [regression ledger](doc/regression-ledger.md), [developer tools](doc/dev-tools.md)
 
 ## Repository layout
 
