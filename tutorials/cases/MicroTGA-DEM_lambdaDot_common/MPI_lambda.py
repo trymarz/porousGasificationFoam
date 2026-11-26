@@ -493,10 +493,11 @@ O.engines = [
         # non-permanent, so a force added after Newton is reset unused (#231).
         PyRunner(command='apply_spring_forces()', iterPeriod=1),
         PyRunner(command='spring_force_at_newton()', iterPeriod=1),
+        # Before Newton, iter k holds positions at k*O.dt, so frame names are write iters.
+        VTKRecorder(fileName='spheres/vtk-', recorders=['spheres'], parallelMode=True, iterPeriod=timeRatio, initRun=True, label='vtkRec'),
         NewtonIntegrator(damping=0.99, label='newton', gravity=(0, 0.0, 0)),
 
         PyRunner(command="export_springs()", iterPeriod=timeRatio, firstIterRun=1),
-        VTKRecorder(fileName='spheres/vtk-', recorders=['spheres'], parallelMode=True, iterPeriod=timeRatio, initRun=True),
 
 
         PyRunner(iterPeriod=timeRatio, command='logLambdaUs()'),
@@ -517,6 +518,7 @@ mp.REALLOC_FREQUENCY = 12
 mp.fluidBodies = sphereIDs
 mp.DOMAIN_DECOMPOSITION = True
 mp.mpirun(foamTime.UNTIL_SOLVER_ENDS)   # np: the Yade ranks pgfDemRun started
+vtkRec()  # end frame: the coupling's last pass is iter endTime/O.dt - 1
 mp.mprint("RUN FINISH")      
 
 if mp.rank == 0:
