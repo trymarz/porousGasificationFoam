@@ -55,6 +55,19 @@ for each time step:
 6. **PIMPLE loop** — `UEqn.H`, `YEqn.H`, `EEqn.H`, then `pEqn.H`, or `pcEqn.H` when `consistent` is on.
 7. **Turbulence** — `turbulence->correct()`, gated by `pimple.turbCorr()`.
 
+## Gas–solid energy terms
+
+The terms of [Gas–solid exchange → Energy](theory.md#gassolid-exchange) and where the code computes them. `GasSolidHeatExchange` and `SolidEnergy` are in `volPyrolysis/gasSolidHeatExchange/` and `volPyrolysis/solidEnergy/`; their file `Description` blocks give the formulas as implemented.
+
+| Term | Code |
+|---|---|
+| `Q_conv`, with or without `subintegrateHeatTransfer` | `GasSolidHeatExchange::heatTransfer()` |
+| Donor choice by the sign of `S_ρ,i` | `GasSolidHeatExchange::updateInterfaceEnthalpy` |
+| `Q_prod`, `Q_reac` (gas `EEqn.H`) | fields `gasProductEnthalpyAtTs`, `gasReactantEnthalpyAtTg` |
+| `Q_reac,s` (solid energy) | field `heatUpGasReactantsToTs` |
+| The solid's half of a gas product | `SolidEnergy::carrierHeatCapacity`, `SolidEnergy::storeH`, in `SolidEnergy::solveEnthalpyBalance` |
+| `S_chem` | `chemistrySh`, from the solid chemistry's `Sh()` (`volPyrolysis.C`); `solidReactionEnergyFromEnthalpy` is read in `ODESolidHeterogeneousChemistryModel` |
+
 ## Related pages
 
 - [Theory](theory.md): the model these files implement.

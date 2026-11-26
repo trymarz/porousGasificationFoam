@@ -122,5 +122,7 @@ These are recorded in [#249](https://github.com/trymarz/porousGasificationFoam/p
 
 ## Related pages
 
-- [Theory](theory.md): the model, its equations and where they live in the source.
+- [Code map](code-map.md): where each model lives, and the per-time-step flow this is step 4 of.
+- [Theory](theory.md): the model and its equations.
+- [DEM exchange](dem-exchange.md): step 2, the exchange with YADE.
 - [All documentation](README.md)

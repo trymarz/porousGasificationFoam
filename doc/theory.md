@@ -86,7 +86,7 @@ The solid chemistry reports this per cell as three rates, each in kg per m³ of 
 
 All three come from one chemistry ODE per cell, integrated over the time step at the start of the solid step; they are the mean rates over that step. The gas and solid equations then use the same values, so both sides see one consistent exchange. For more detail, such as what each rate is normalised by, how it is split among species and which quantities stay fixed while the ODE is integrated, see the `Description` at the top of `ODESolidHeterogeneousChemistryModel.H` (#209; paper Eq. 4–6, 10, 12).
 
-**Energy.** Gas and solid each have their own temperature, `T_g` and `T_s`. Energy passes between them by convection, with the mass that crosses the interface, and as radiation. `GasSolidHeatExchange` computes the convection and interface terms once per step, from the step-start temperatures, in cells whose solid is connected at the start of the step (its `Description` has the details). Gas and solid read the same stored values, so what one phase loses the other gains in the same step:
+**Energy.** Gas and solid each have their own temperature, `T_g` and `T_s`. Energy passes between them by convection, with the mass that crosses the interface, and as radiation. The convection and interface terms are computed once per step, from the step-start temperatures, in cells whose solid is connected at the start of the step. Gas and solid read the same stored values, so what one phase loses the other gains in the same step. Which code computes each term: [code map](code-map.md#gassolid-energy-terms).
 
 | Route | Gas | Solid |
 |---|---|---|
@@ -96,9 +96,9 @@ All three come from one chemistry ODE per cell, integrated over the time step at
 
 With `frozenTemperature` (formerly `equilibrium`, in `pyrolysisCoeffs`) no energy equation is solved at all: both temperatures stay at their initial values, each phase its own, and all exchange terms are zero.
 
-*Convection.* $Q_{\mathrm{conv}} = h_v\,(T_s - T_g)$ (`heatTransfer()`), where `h_v` [W/m³/K] is the volumetric heat transfer coefficient from the model chosen in `heatTransferProperties`; it is zero where there is no solid. With `subintegrateHeatTransfer` the code uses the exact two-temperature relaxation over the step instead, which stays stable for large `h_v`.
+*Convection.* $Q_{\mathrm{conv}} = h_v\,(T_s - T_g)$, where `h_v` [W/m³/K] is the volumetric heat transfer coefficient from the model chosen in `heatTransferProperties`; it is zero where there is no solid. With `subintegrateHeatTransfer` the code uses the exact two-temperature relaxation over the step instead, which stays stable for large `h_v`.
 
-*Mass crossing the interface.* Gas that crosses carries its sensible enthalpy `h_i` at the temperature of the phase it leaves, the donor. The sign of `S_ρ,i` picks the donor (`updateInterfaceEnthalpy`):
+*Mass crossing the interface.* Gas that crosses carries its sensible enthalpy `h_i` at the temperature of the phase it leaves, the donor. The sign of `S_ρ,i` picks the donor:
 
 - A gas product (`S_ρ,i > 0`) is born in the solid and enters the gas at `T_s`.
 - A gas reactant (`S_ρ,i < 0`) leaves the gas at `T_g`. The solid then warms it to `T_s`, where it reacts.
@@ -112,12 +112,12 @@ $$
 Q_{\mathrm{reac},s} = \sum_{S_{\rho,i}<0} |S_{\rho,i}|\,\bigl(h_i(T_s) - h_i(T_g)\bigr)
 $$
 
-- `Q_prod` (`gasProductEnthalpyAtTs`) and `Q_reac` (`gasReactantEnthalpyAtTg`) go into the gas energy equation. Both are `h` even when the gas solves for `e`: entering mass brings its flow work.
-- `Q_reac,s` (`heatUpGasReactantsToTs`) is taken from the solid energy equation.
+- `Q_prod` and `Q_reac` go into the gas energy equation. Both are `h` even when the gas solves for `e`: entering mass brings its flow work.
+- `Q_reac,s` is taken from the solid energy equation.
 
-*The solid's half of a gas product.* The solid has no explicit product term. Its storage terms use the pre-reaction mass (`carrierHeatCapacity`), and `H` is then stored on the mass that remains (`storeH`). Together they equal $\frac{dH}{dt} - \sum_k R_k c_{p,k} T_s$, so the converted solid leaves with its sensible heat at `T_s` (`SolidEnergy::solveEnthalpyBalance`). An explicit term would count it twice.
+*The solid's half of a gas product.* The solid has no explicit product term. Its storage terms use the pre-reaction mass, and `H` is then stored on the mass that remains. Together they equal $\frac{dH}{dt} - \sum_k R_k c_{p,k} T_s$, so the converted solid leaves with its sensible heat at `T_s`. An explicit term would count it twice.
 
-*Reaction heat.* It is booked once, in the solid, as `S_chem` (`chemistrySh`), with every participant at `T_s`. `solidReactionEnergyFromEnthalpy` in `chemistryProperties` (default `true`) picks how it is computed:
+*Reaction heat.* It is booked once, in the solid, as `S_chem`, with every participant at `T_s`. `solidReactionEnergyFromEnthalpy` in `chemistryProperties` (default `true`) picks how it is computed:
 
 - `false`: `S_chem` is each reaction's `heatReact` times its rate. `heatReact` must then be the heat of reaction with all participants at `T_s`; `Q_reac,s` is what brings the gas reactants there.
 - `true`: $S_{\mathrm{chem}} = -\sum_k R_k\,h_k(T_s) - \sum_i S_{\rho,i}\,h_{a,i}(T_s)$, with `h_a,i` the gas absolute enthalpy (formation plus sensible). Then $S_{\mathrm{chem}} - Q_{\mathrm{reac},s}$ is the solid's open-system balance, with gas reactants in at `T_g` and products out at `T_s`; `Q_reac,s` only splits it into two terms.
