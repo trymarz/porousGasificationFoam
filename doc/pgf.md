@@ -8,7 +8,7 @@
 |---|---|---|
 | [Settings](#settings) | which OpenFOAM, yade and directories to use | `setup`, `config`, `doctor` |
 | [Builds](#builds) | a build of its own for each checkout | `build`, `builds`, `use`, `gc` |
-| [Runs](#runs) | cases and tests, run with a well defined build | `copy`, `run`, `shell`, `view`, `test` |
+| [Runs](#runs) | cases and tests, run with a well defined build | `copy`, `run`, `dem`, `shell`, `view`, `test` |
 
 `pgf status` summarizes currently active pgf state.
 
@@ -99,6 +99,7 @@ A run is a case run with a build, in a clean environment. It leaves things in th
 pgf copy --list                       # the tutorials
 pgf copy charOnlyMoveCases/serial     # copy one to $PGF_CASE_ROOT/<branch>/charOnlyMoveCases/serial
 pgf run <case>                        # run its Allrun; or name Allclean or another script
+pgf dem run -ndem 2 MPI_lambda.py     # in a DEM Allrun: Yade and the solver in one mpirun
 pgf shell                             # an interactive shell in the same environment
 pgf view <case>                       # open the results in ParaView
 pgf test <tier>                       # run a regression tier
@@ -106,6 +107,7 @@ pgf test <tier>                       # run a regression tier
 
 - **`copy`** copies the whole tutorial and records the checkout and commit it came from, so `pgf run` uses that checkout's build. An existing copy is kept unless `--force`. Run copies, not the tutorials in the checkout.
 - **`run`** works from any directory. It runs the script in the case directory and writes `<case>/.pgf-run.json`: the command, its exit status and the build it used. Details: `pgf help run-record`.
+- **`dem run`** starts a coupled DEM run from the case directory: Yade and the solver in one `mpirun`. The DEM tutorials' `Allrun` call it, so run them with `pgf run`. A stall watchdog stops a run that prints nothing for `--stall-timeout` seconds (`PGF_DEM_STALL_TIMEOUT`, default 600, `0` turns it off) and exits 124, as a timed-out test does. `tutorials/cases/DEM_common/pgfDemRun` is its old name, kept for one release. Details: `pgf help dem`.
 - **`shell`** gives you OpenFOAM and the build on `PATH`, and little else from your own environment. `pgf shell -- <command>` runs one command there. Details: `pgf help environment`.
 - **`view`** opens the case in ParaView ([viewing a case](paraview.md)). **`test`** runs a regression tier ([regression testing](regression-testing.md)).
 

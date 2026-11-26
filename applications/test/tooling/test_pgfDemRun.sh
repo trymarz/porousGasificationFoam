@@ -1,7 +1,8 @@
 #!/bin/bash
 # pgf dem run and its stall watchdog (#340), with a stub mpirun and no OpenFOAM
 # or Yade: usage errors exit 2, a silent run is stopped with 124, a chatty one
-# is not, --stall-timeout 0 turns the watchdog off, only the run's group is hit.
+# is not, --stall-timeout 0 turns the watchdog off, only the run's group is hit;
+# the pgfDemRun shim forwards to it.
 
 FAKE="$(mktemp -d "${TMPDIR:-/tmp}/pgf-fakefoam-XXXXXX")" || exit 2
 : "${PGF_FOAM_BASHRC:=$FAKE/etc/bashrc}"
@@ -56,6 +57,11 @@ check "  and so is pgf dem run -h" cmp -s <(cd "$case" && "$PGF" dem run -nfoam 
 out="$(STUB_MODE=args PGF_MPIRUN_FLAGS="--foo bar" dem -ndem 3 -nfoam 1 -solver mySolver x.py a "b c" 2>&1)"
 check "mpirun gets the flags, -np N+M, the role switch and the yade args" \
     grep -qF "<--foo><bar><-np><4><$PGF_ROOT/utilities/pgf/dem.sh><--role><3><mySolver><yade><x.py><a><b c>" <<<"$out"
+shim="$PGF_ROOT/tutorials/cases/DEM_common/pgfDemRun"
+out="$(cd "$case" && env -u PGF_ROOT PATH="$bin:$PATH" STUB_MODE=args "$shim" -nfoam 1 x.py "b c" 2>"$TEST_TMP/err")"
+check "the pgfDemRun shim forwards its arguments to pgf dem run" \
+    grep -qF "<-np><3><$PGF_ROOT/utilities/pgf/dem.sh><--role><2><porousGasificationFoam><yade><x.py><b c>" <<<"$out"
+check "  and says it is deprecated" grep -q "^pgfDemRun: deprecated; use: pgf dem run" "$TEST_TMP/err"
 printf '#!/bin/sh\necho "yade $*"\n' >"$bin/yade"
 printf '#!/bin/sh\necho "solver $*"\n' >"$bin/mySolver"
 chmod +x "$bin/yade" "$bin/mySolver"

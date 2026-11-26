@@ -1,6 +1,6 @@
 # DEM coupling
 
-PGF can run coupled to YADE, a discrete-element (DEM) code that moves individual particles. This needs a `WITH_YADE` build ([build.md](build.md#yade-dem-coupling)) and `active true` in `constant/yadeProperties`. `pgfDemRun` (`tutorials/cases/DEM_common/`) starts YADE and `porousGasificationFoam` in one `mpirun`, the solver always with `-parallel` (coupling v2, [#328](https://github.com/trymarz/porousGasificationFoam/issues/328)). The two exchange data once per PGF time step, in step 2 of the [per-time-step flow](theory.md#per-time-step-flow).
+PGF can run coupled to YADE, a discrete-element (DEM) code that moves individual particles. This needs a `WITH_YADE` build ([build.md](build.md#yade-dem-coupling)) and `active true` in `constant/yadeProperties`. `pgf dem run` starts YADE and `porousGasificationFoam` in one `mpirun`, the solver always with `-parallel` (coupling v2, [#328](https://github.com/trymarz/porousGasificationFoam/issues/328)). The two exchange data once per PGF time step, in step 2 of the [per-time-step flow](theory.md#per-time-step-flow).
 
 **Who owns what.**
 - YADE moves the particles and owns each particle's length scale `λ` (default 1).

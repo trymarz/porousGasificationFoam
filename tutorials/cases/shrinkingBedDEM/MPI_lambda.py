@@ -16,7 +16,7 @@ the run starts at rest. Only spheres in the reactive layer see r < 1; the
 inert bed's cells have no chemical volume change, so r = 1 there.
 
 Usage (2 Yade ranks and the 2 OpenFOAM ranks in one mpirun, from Allrun):
-    pgfDemRun -ndem 2 MPI_lambda.py
+    pgf dem run -ndem 2 MPI_lambda.py
 """
 import math
 import os
@@ -220,7 +220,7 @@ mp.USE_CPP_INTERS       = False
 mp.ERASE_REMOTE_MASTER  = True
 mp.REALLOC_FREQUENCY    = 12
 mp.fluidBodies          = sphereIDs
-mp.mpirun(foamTime.UNTIL_SOLVER_ENDS)   # np: the Yade ranks pgfDemRun started
+mp.mpirun(foamTime.UNTIL_SOLVER_ENDS)   # np: the Yade ranks pgf dem run started
 mp.mprint("shrinkingBedDEM run finished")
 
 exit()

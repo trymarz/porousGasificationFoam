@@ -15,9 +15,9 @@
 # STEPS (what this script runs)
 #       cp -r 0.orig 0 && blockMesh && setFields && decomposePar
 #       yade -n -x relax.py
-#       pgfDemRun -ndem 2 MPI_lambda.py
+#       pgf dem run -ndem 2 MPI_lambda.py
 #
-#   pgfDemRun (DEM_common) starts two Yade ranks and the two OpenFOAM ranks
+#   pgf dem run starts two Yade ranks and the two OpenFOAM ranks
 #   of the decomposed case with one mpirun.
 #
 # OUTPUT
@@ -27,7 +27,6 @@
 
 cd "${0%/*}" || exit
 . "${PGF_ROOT:-../../..}/tutorials/cases/DEM_common/demGuard.sh"   # stop early outside a --yade env (#257)
-DEM_COMMON="${PGF_ROOT:-../../..}/tutorials/cases/DEM_common"
 set -e
 
 # 1. Mesh and initial fields.
@@ -42,4 +41,4 @@ yade -n -x relax.py
 
 # 3. Coupled Yade + OpenFOAM run. system/controlDict sets its time; Yade
 #    follows it and ends on the solver's last step (#328).
-"$DEM_COMMON/pgfDemRun" -ndem 2 MPI_lambda.py
+"${PGF_ROOT:-../../..}/pgf" dem run -ndem 2 MPI_lambda.py
