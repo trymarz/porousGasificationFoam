@@ -21,12 +21,12 @@ How do I get PGF onto a machine?
 
 How do I set up and run a case?
 
+- [Tutorials](tutorials.md)
+  - [Case families](tutorials.md#case-families)
 - [Case guide](case-guide.md)
   - [Your first case](case-guide.md#your-first-case)
-  - [Running a case](case-guide.md#running-a-case)
   - [Setting up a DEM case](case-guide.md#setting-up-a-dem-case)
   - [Tips for preparing new simulations](case-guide.md#tips-for-preparing-new-simulations)
-- [Tutorials](tutorials.md)
 - [Case reference](case-reference.md)
   - [Required initial fields](case-reference.md#required-initial-fields)
   - [Solid boundary conditions](case-reference.md#solid-boundary-conditions)
@@ -39,9 +39,7 @@ How do I set up and run a case?
   - [`constant/specieTransferProperties`](case-reference.md#constantspecietransferproperties)
   - [`constant/porosityProperties` (optional)](case-reference.md#constantporosityproperties-optional)
   - [`constant/radiationProperties`](case-reference.md#constantradiationproperties)
-  - [`system/fvSolution`: key settings](case-reference.md#systemfvsolution-key-settings)
-  - [`system/fvSchemes`: key settings](case-reference.md#systemfvschemes-key-settings)
-  - [`system/controlDict`: key settings](case-reference.md#systemcontroldict-key-settings)
+  - [`system/` files: key settings](case-reference.md#system-files-key-settings)
 - [Viewing a case in ParaView](paraview.md)
   - [Use it](paraview.md#use-it)
   - [Compare two cases](paraview.md#compare-two-cases)

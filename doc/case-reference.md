@@ -102,7 +102,7 @@ solidReactions
 | `n1, n2, ...` | Reaction order for each LHS species in order | — |
 
 - Rates are per kg of solid substrate, and every coefficient is a mass per kg of solid substrate. What that means for a coefficient on a lone solid, for gas substrates and under `diffusionLimitedReactions`: [theory → solid reaction rates](theory.md#solid-reaction-rates).
-- `heatOfReaction` is taken with all participants at `Ts` and is not corrected with temperature: give the value at reaction temperature ([theory → reaction heat](theory.md#energy)).
+- `heatOfReaction`: which value to give, [case guide → heat of reaction](case-guide.md#heat-of-reaction-at-reaction-temperature).
 - `solidReactionEnergyFromEnthalpy` picks how the reaction heat is computed (default `true` in the code; the tutorials mostly set `false`): [theory → reaction heat](theory.md#energy).
 
 ## `constant/solidThermophysicalProperties`
@@ -281,9 +281,10 @@ heterogeneousConstantAbsorptionEmissionCoeffs
 
 What the gas receives under `heterogeneousP1`, and the role of `E`: [theory → radiation](theory.md#energy). Leave `E` at 0 unless you mean to remove heat. Sourcing the coefficients: [case guide](case-guide.md#radiation-parameters-are-the-hardest-to-source).
 
-## `system/fvSolution`: key settings
+## `system/` files: key settings
 
 ```cpp
+// system/fvSolution
 solvers
 {
     Ts    { solver PCG; preconditioner DIC; tolerance 1e-10; } // tight tolerance!
@@ -297,26 +298,20 @@ PIMPLE
     nCorrectors         2;
     nNonOrthogonalCorrectors 0;
 }
-```
 
-The `Ts` (solid temperature) solver needs a tight tolerance (1e-10) for stability.
+// system/fvSchemes
+divSchemes { div(phiSolid) Gauss upwind; }
 
-## `system/fvSchemes`: key settings
-
-```cpp
-div(phiSolid)     Gauss upwind;
-```
-
-## `system/controlDict`: key settings
-
-```cpp
+// system/controlDict
 application     porousGasificationFoam;
 adjustTimeStep  yes;
 maxCo           5;          // Courant number limit (fluid)
 maxDi           5000;       // Diffusion number limit (solid)
 ```
 
-How these set Δt: [code map → per-time-step flow](code-map.md#per-time-step-flow), step 1.
+- `fvSolution`: the `Ts` (solid temperature) solver needs a tight tolerance (1e-10) for stability.
+- `fvSchemes`: `div(phiSolid)` is the scheme of the solid's own transport (`pyrolysisModels/pyrolysisModel/volPyrolysis/porosityRecovery/porosityRecovery.C`); most tutorials use `upwind`, a few `limitedLinear` or `SuperBee`.
+- `controlDict`: how `maxCo` and `maxDi` set Δt: [code map → per-time-step flow](code-map.md#per-time-step-flow), step 1.
 
 ## Related pages
 

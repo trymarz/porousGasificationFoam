@@ -6,37 +6,26 @@ A PGF case is a normal OpenFOAM case plus extra files for the solid and its chem
 
 Start from `tutorials/cases/canonical/pyrolysis`: one solid (`wood`), one reaction (`wood = targas`), a 1-D mesh, about a second to run.
 
-1. **Copy it:** `pgf copy canonical/pyrolysis myCase` puts it in `$PGF_CASE_ROOT/<branch>/myCase` (by default `~/OpenFOAM/<user>-v2606/run/<branch>/myCase`) and prints the path; it copies the files the case links from its family too. Its `Allrun` restores `0/` from `0.orig/`, runs `blockMesh`, then the solver. `reference/` and `system/regressionFunctions` are for the regression tests and can go. If the source was run in place, the copy carries its output along; `./Allclean` it first, since `runApplication` skips every step whose `log.*` exists.
+1. **Copy it:** `pgf copy canonical/pyrolysis myCase` puts it in `$PGF_CASE_ROOT/<branch>/myCase` (by default `~/OpenFOAM/<user>-v2606/run/<branch>/myCase`) and prints the path; it copies the files the case links from its family too. Its `Allrun` restores `0/` from `0.orig/`, runs `blockMesh`, then the solver. `reference/` and `system/regressionFunctions` are for the regression tests and can go. If the source was run in place, the copy carries its output along; `./Allclean` it first, since `runApplication` skips every step whose `log.*` exists. `pgf copy --list` lists the tutorials; every option: [`pgf help copy`](pgf-reference.md#pgf-help-copy).
 2. **Mesh and fields:** edit `system/blockMeshDict` and `0.orig/` ([required fields](case-reference.md#required-initial-fields)). Values here are uniform; for a partial bed use `setFields` ([how](#biomass-distribution-initial-porosityf)).
 3. **Solid:** list components in `constant/solidThermophysicalProperties`, with skeletal (not bulk) density ([why](#solid-thermophysical-properties-skeletal-density-not-bulk)). Each needs a `Y<name>` field.
 4. **Chemistry:** set gas `species` and `solidReactions` in `constant/chemistryProperties` ([reference](case-reference.md#constantchemistryproperties)). No reactions means both phases stay inert.
 5. **Gas species:** each needs a field in `0.orig/` and an entry in `constant/thermo.compressibleGas` ([no JANAF data?](#gas-species-without-janaf-data)).
-6. **Run:** `pgf run <the copy>`, then check `log.porousGasificationFoam`, or look at it with `pgf view <the copy>`. If it is slow, see [time-step coupling](#time-step-coupling-between-gas-and-solid-chemistry).
+6. **Run:** `pgf run <the copy>`, then check `log.porousGasificationFoam`, or look at it with `pgf view <the copy>` ([ParaView](paraview.md)). If it is slow, see [time-step coupling](#time-step-coupling-between-gas-and-solid-chemistry). Every option: [`pgf help run`](pgf-reference.md#pgf-help-run); how pgf picks the build and records the run: [the pgf tool → Runs](pgf.md#runs).
 
-## Running a case
-
-```bash
-pgf copy --list              # the tutorials
-pgf copy <case> [name]       # copy one out of the checkout; prints its path
-pgf run <the copy>           # run its Allrun with the checkout's build; or name another script
-pgf view <the copy>          # look at the results in ParaView
-```
-
-Every option: [`pgf help copy`](pgf-reference.md#pgf-help-copy), [`pgf help run`](pgf-reference.md#pgf-help-run). How pgf picks the build and records the run: [the pgf tool → Runs](pgf.md#runs). A copy of a DEM tutorial (an active `constant/yadeProperties`) gets `--yade` from `pgf run` without asking.
-
-Every tutorial `Allrun` / `Allclean` changes into its own directory first, so `/path/to/case/Allrun` works from any directory in a shell that already has the environment (`pgf shell`, or a manually sourced OpenFOAM). The DEM tutorials stop with exit 2 and `run this via: pgf run <case>` when the shell has no `--yade` solver or no `yade`.
+Every tutorial `Allrun` / `Allclean` changes into its own directory first, so `/path/to/case/Allrun` also works from any directory in a shell that already has the environment (`pgf shell`, or a manually sourced OpenFOAM).
 
 ## Setting up a DEM case
 
 A DEM case couples the solid to YADE bodies: YADE moves them, and PGF sends back how each body's size changes ([the idea](theory-DEM.md#the-idea)).
 
-1. **Build.** You need a solver built with `pgf build --yade` and a YADE built from yade-pgf ([install](install.md), [build](build.md)). `pgf doctor --yade` checks both.
+1. **Build.** You need a solver built with `pgf build --yade` and a YADE built from yade-pgf ([install](install.md#3-dem-coupling-optional)). `pgf doctor --yade` checks both.
 2. **Start from the template.** Copy `MicroTGA-DEM_lambdaDotApparentVolume`; its [README](../tutorials/cases/MicroTGA-DEM_lambdaDotApparentVolume/README.md) explains every file, what to change and what to keep. `MicroTGA-DEM_charCO2` shows how one variant differs from it.
 3. **Turn the coupling on.** `constant/yadeProperties` with `active true` ([reference](case-reference.md#constantyadeproperties)).
 4. **Choose how λ changes.** `lambdaMode` in `constant/lambdaDict` ([keys](case-reference.md#constantlambdadict), [models](theory-DEM.md)). `apparentVolume` needs `rhoApparent` for every solid specie. For `exactDifferential`, a physically defensible starting `dlambdaOverDYmi` is nearer `1e-3` [m⁴/kg], the order of magnitude for a particle losing roughly a third of its length over full conversion of ~140 kg/m³ of solid. The fixtures use values ~400× smaller, tuned to keep both terms visible at their short-run scale: do not copy them into a real case.
 5. **Set the connected threshold.** `solidRegimes/connectedAboveSolidFraction` in `pyrolysisProperties` decides where the solid counts as connected, which also gates `lambdaDot` ([solid regimes](theory.md#solid-regimes)).
 6. **Match the time steps.** `system/controlDict` sets the run's time; the DEM script keeps pace with it. Each `lambdaMode` needs its own ratio between YADE's `O.dt` and `deltaT`: [DEM exchange → Keeping time](dem-exchange.md#keeping-time).
-7. **Decompose and run.** The case must be decomposed into as many `processor*` directories as OpenFOAM ranks. The template's `Allrun` does this and calls `pgf dem run`; run the copy with `pgf run` ([`pgf help dem`](pgf-reference.md#pgf-help-dem), [start and stop](dem-exchange.md#start-and-stop)).
+7. **Decompose and run.** The case must be decomposed into as many `processor*` directories as OpenFOAM ranks. The template's `Allrun` does this and calls `pgf dem run`; run the copy with `pgf run`, which picks the `--yade` build by itself for a case with an active `constant/yadeProperties` ([`pgf help dem`](pgf-reference.md#pgf-help-dem), [start and stop](dem-exchange.md#start-and-stop)). Run straight from a shell without a `--yade` solver or without `yade`, a DEM `Allrun` stops with exit 2 and `run this via: pgf run <case>`.
 
 ## Tips for preparing new simulations
 
@@ -84,11 +73,6 @@ Gas-phase reactions are typically orders of magnitude faster than heterogeneous 
 | Porosity above 1 or below 0 | Bed collapse too aggressive | Reduce `deltaT`, or adjust `solidRegimes/connectedAboveSolidFraction` in `pyrolysisProperties` |
 | Gas mass fractions do not sum to 1 | Missing `Ydefault` field, or a gas species without its `0/` file | Check that every gas species has a `0/` file, and that `0/Ydefault` exists |
 | Slow pressure convergence | Tight PIMPLE settings | Increase `nCorrectors`, or relax the `p` tolerance |
-
-### Mesh and parallel execution
-
-- `paraView -builtin` can visualise the decomposed processor directories directly without reconstruction, which helps with very large cases.
-- Re-running a regression baseline must use the same `numberOfSubdomains` as the original: results are sensitive to the decomposition at floating-point level ([regression testing](regression-testing.md)).
 
 ## Related pages
 
