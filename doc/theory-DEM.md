@@ -22,8 +22,7 @@ See [Limitations](#limitations).
 
 **Who owns what.**
 - YADE moves the particles and owns each particle's length scale `λ` (default 1).
-- PGF sends back only how `λ` should change: a rate `λ̇`, or, under `apparentVolume`, a factor `r`. PGF's `lambda` field is a cell average written for output, and no PGF equation reads it.
-- PGF builds the solid velocity `U_s` from the particle velocities.
+- PGF's `lambda` field is a cell average written for output.
 
 **Code.** PGF side: `porousGasificationMedia/DEM/pgfDemCoupler/` and `DEM/lambdaDotModel.C`. YADE side: the `PgfCoupling` engine (`pkg/openfoam/PgfCoupling.cpp` in trymarz/yade-pgf, the submodule `submodules/yade-pgf`). Both build the same protocol core, [PgfDemBridge](https://github.com/trymarz/PgfDemBridge) (`submodules/PgfDemBridge`, its banner in `src/PgfDemBridge.hpp`), and neither includes the other's headers. A `yadeProperties` with a `coupler` entry other than `pgf` stops the solver (`porousGasificationFoam/createDEMFields.H`).
 
@@ -38,7 +37,6 @@ See [Limitations](#limitations).
 | control | `Bcast` from the first OpenFOAM rank | – | `deltaT`, and whether this was the solver's last step |
 
 - **On the mesh.** Each OpenFOAM rank locates the bodies in its cells. It fills `nParticles`, the cell means `UsDEM` and `lambdaDEM`, and then `Us` and `lambda` from those, smoothed by the `interpolationMode` / `lambdaInterpolationMode` models of `constant/lambdaDict` ([case-setup.md](case-setup.md#constantlambdadict-required-by-with_yade-builds-running-a-dem-case)).
-- **No drag or torque.** The particles only supply `U_s`, so no force, torque, radius or angular velocity crosses.
 - **Stops by name** on a version, stride, thread-level or `lambdaMode` mismatch, on OpenFOAM ranks disagreeing on `lambdaMode`, and on `PgfCoupling.expectLambdaMode` ≠ the case's mode. A DEM script without `PgfCoupling` leaves the solver waiting in the handshake.
 - **End.** The solver's last step ends YADE (`PgfCoupling: OpenFOAM ran its last step; the DEM run ends at iter N`); a YADE run that ends first stops the solver. An MPI error on either side aborts both.
 - **Erased bodies.** YADE applies `λ̇` or `r` once per exchange, looking each body up by id with `BodyContainer::exists`. A body erased with `mp.bodyErase` is skipped, so a stale list cannot be dereferenced.
