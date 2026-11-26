@@ -7,10 +7,9 @@
 # live here rather than in the tutorial Allrun scripts, so a tutorial stays a
 # tutorial and this script stays the authority on what a DEM case must produce.
 #
-# Run length: the solver's controlDict sets it. The case's Yade script derives
-# its own step count from it (tutorials/cases/DEM_common/yadeEndpoint.py), so
-# both sides stop on the same coupling exchange; a run that does not print the
-# helper's line is an ERROR.
+# Run length: the solver's controlDict sets it. The Yade script follows it
+# (tutorials/cases/DEM_common/foamTime.py) and the coupling ends Yade on the
+# solver's last step (#328); a run without PgfCoupling's line saying so FAILs.
 #
 # Usage:
 #   runDEMCase.sh <caseDir> [--timeout SECONDS] [--run-dir DIR]
@@ -52,12 +51,11 @@
 #   0      - PASS  (ran to completion, all output asserts satisfied, and any
 #                   postProcessing comparison was within tolerance)
 #   1      - FAIL  (ran, but an output assert failed: no RUN FINISH / solver
-#                   End / fewer than two VTK or solver write times / dt; a
-#                   declared invariant broke; or postProcessing diverged from
-#                   the reference baseline)
-#   2      - ERROR (infrastructure: missing case dir, failed clean or copy;
-#                   the Yade script did not derive its step count from
-#                   controlDict, or refused to: adjustTimeStep yes, ...)
+#                   End / Yade not ended by the solver's last step / fewer
+#                   than two VTK or solver write times / dt; a declared
+#                   invariant broke; or postProcessing diverged from the
+#                   reference baseline)
+#   2      - ERROR (infrastructure: missing case dir, failed clean or copy)
 #   124    - TIMEOUT (the run exceeded the timeout and its process group was
 #                     terminated)
 #   128+N  - CRASH (the run process group died on signal N)
@@ -258,10 +256,6 @@ RESULT_FIELDS+=(
 
 cd "$WORK_DIR" || { echo "ERROR: cannot cd into $WORK_DIR" >&2; finish 2 "cannot cd into $WORK_DIR"; }
 
-if [ -n "${YADE_NSTEPS:-}" ]; then
-    echo "  WARNING: YADE_NSTEPS=$YADE_NSTEPS is ignored: the step count follows controlDict"
-fi
-
 reg_event case_started \
     --field "case_id=$CASE_ID" \
     --field "suite_id=$SUITE_ID" \
@@ -301,7 +295,7 @@ echo "  running DEM simulation (timeout=${TIMEOUT}s)..."
 # mpirun given that pid (PID namespaces reuse them) fails with PMIX_ERR_EXISTS.
 RUN_TMPDIR="$(mktemp -d "${TMPDIR:-/tmp}/pgf-dem-XXXXXX")" || finish 2 "cannot create the run's TMPDIR"
 # Run the case in its own session/process group (setsid) under timeout, so a
-# hung run and its whole tree (mpirun -> yade -> MPI_Comm_spawn'd solver) are
+# hung run and its whole tree (mpirun -> yade and solver ranks) are
 # terminated by signalling THAT group only. This replaces a host-wide
 # `pkill -f porousGasificationFoam`, which would kill unrelated solver runs
 # elsewhere on the machine. No `|| true`: the run's exit status is classified.
@@ -311,21 +305,6 @@ TMPDIR="$RUN_TMPDIR" PYTHONDONTWRITEBYTECODE=1 \
 setsid -w timeout --kill-after="$KILL_GRACE" "$TIMEOUT" bash ./Allrun > run.log 2>&1
 rc=$?
 
-# The Yade script's endpoint line comes first: a missing or refused endpoint
-# explains a hang or abort better than the timeout or exit status would.
-ENDPOINT_TAG="[yadeEndpoint]"
-if line="$(grep -aF -m1 "$ENDPOINT_TAG ERROR:" run.log)"; then
-    echo "ERROR: ${line#*"$ENDPOINT_TAG "}"
-    finish 2 "Yade endpoint refused: ${line#*"$ENDPOINT_TAG ERROR: "}"
-fi
-if line="$(grep -aF -m1 "$ENDPOINT_TAG solverSteps=" run.log)"; then
-    echo "  endpoint: ${line#*"$ENDPOINT_TAG "}"
-elif [ "$rc" -eq 0 ]; then
-    echo "ERROR: the Yade script did not derive its step count from controlDict (no $ENDPOINT_TAG line; see DEM_common/yadeEndpoint.py)"
-    finish 2 "Yade script does not use yadeEndpoint: its step count is not tied to the solver's"
-else
-    echo "  no $ENDPOINT_TAG line in run.log: the run stopped before Yade set its step count, or the script does not use DEM_common/yadeEndpoint.py"
-fi
 if [ "$rc" -eq 124 ]; then
     echo "ERROR: DEM run exceeded ${TIMEOUT}s — process group terminated (TIMEOUT)"
     finish 124 "DEM run exceeded ${TIMEOUT}s — process group terminated"
@@ -343,6 +322,8 @@ reg_phase assert
 
 grep -q "RUN FINISH" run.log \
     || { echo "ERROR: simulation did not complete — check run.log"; finish 1 "simulation did not complete (no RUN FINISH in run.log)"; }
+grep -aqF "PgfCoupling: OpenFOAM ran its last step" run.log \
+    || { echo "ERROR: Yade was not ended by the solver's last step (no 'PgfCoupling: OpenFOAM ran its last step' in run.log)"; finish 1 "Yade was not ended by the solver's last step"; }
 grep -q "DEM coupling: active" run.log \
     || { echo "ERROR: DEM coupling not active — solver built without -DWITH_YADE=1?"; finish 1 "DEM coupling not active — solver built without -DWITH_YADE=1?"; }
 grep -aqE '^(\[[0-9]+\] )?End$' run.log \

@@ -84,14 +84,14 @@ pgf build --yade
 pgf doctor --yade      # yade at the pin, with MPI; DEM problems are failures here
 ```
 
-**Run a DEM tutorial.** `pgf run` gives a copy with an active `constant/yadeProperties` the DEM build by itself. YADE starts the solver on 2 MPI ranks; the run takes a few minutes:
+**Run a DEM tutorial.** `pgf run` gives a copy with an active `constant/yadeProperties` the DEM build by itself. Its `Allrun` starts 2 YADE and 2 solver ranks in one `mpirun` (`pgfDemRun`); the run takes a few minutes:
 
 ```bash
 pgf copy MicroTGA-DEM_lambdaDotOff
 pgf run ~/OpenFOAM/$USER-v2606/run/main/MicroTGA-DEM_lambdaDotOff
 ```
 
-The run's output, kept in the case's `log.yade`, shows the solver's `DEM coupling: active` and the handshake on both sides, `pgfYadeCoupler: handshake ok, protocol v1` and `PgfCoupling: handshake ok, protocol v1`; [build.md → Checking that the coupling is in](build.md#checking-that-the-coupling-is-in) lists the other checks.
+The run's output, kept in the case's `log.yade`, shows the solver's `DEM coupling: active` and the handshake on both sides, `pgfDemCoupler: handshake ok, protocol v2` and `PgfCoupling: handshake ok, protocol v2`; [build.md → Checking that the coupling is in](build.md#checking-that-the-coupling-is-in) lists the other checks.
 
 ## Container (no build on the server)
 
@@ -107,10 +107,9 @@ cd <a pgf copy> && apptainer run pgf-<commit12>-yade1.sif ./Allrun
 
 ## Pitfalls
 
-- **One MPI.** YADE spawns the solver with `MPI_Comm_spawn`, so YADE, `mpi4py` and OpenFOAM must use the same Open MPI. Build YADE against the system Open MPI that `openfoam2606-dev` uses, not a ThirdParty or conda one.
+- **One MPI.** YADE and the solver run in one `mpirun`, so YADE, `mpi4py` and OpenFOAM must use the same Open MPI. Build YADE against the system Open MPI that `openfoam2606-dev` uses, not a ThirdParty or conda one.
 - **ParaView and `libvtk9-dev` (Debian 13).** `python3-paraview`, which `pgf view` needs, conflicts with `python3-vtk9`, which `libvtk9-dev` pulls in. Build YADE with `libvtk9-dev`, then swap back to `python3-paraview`; keep the runtime `libvtk9.3` with `sudo apt-mark manual libvtk9.3`. Details: [build.md → ParaView and Yade's VTK](build.md#paraview-and-yades-vtk).
 - **Memory for the YADE build.** Each `make` job needs roughly 3–4 GB; pick `-j` from the free memory, not the core count, or `cc1plus` is killed. Rerunning `make` resumes.
-- **A DEM run that does not exit.** After the solver's `End`, Open MPI can print `writev failed: Broken pipe` while one `yade` rank keeps a core busy and `mpirun` never returns. The results are complete; end it with Ctrl-C. It is a shutdown race of the spawn-based coupling, seen with Open MPI 4.1 (Ubuntu 24.04); [#328](https://github.com/trymarz/porousGasificationFoam/issues/328) replaces that launch.
 - **YADE off the pin.** After a `git pull` that moves `submodules/yade-pgf`, run `git submodule update` and rebuild YADE; `pgf doctor --yade` names the commits when they differ.
 - **Single-interface hosts.** On a host whose only network is `lo`, or with docker or libvirt bridges, Open MPI can hang the coupled run; `pgf` then restricts it to loopback by itself (`PGF_MPI=auto`; `pgf help`, section MPI).
 

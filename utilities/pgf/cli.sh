@@ -462,11 +462,11 @@ stamp and yade's version against the pin. If /tmp is read-only, it also
 preloads a small shim that moves yade's /tmp/yade-XXXXXX into \$TMPDIR.
 
 ## MPI (--mpi, PGF_MPI)
-loopback restricts Open MPI to self,vader,tcp on lo. The DEM coupling connects
-yade's MPI job to the solver it spawns over TCP, and Open MPI leaves lo out by
-default, so on a host or sandbox whose only interface is lo the run hangs with
-help-mca-bml-r2.txt / unreachable proc; on a host with docker or libvirt
-bridges it can hang probing them. The default, auto, applies loopback when a
+loopback restricts Open MPI to self,vader,tcp on lo. A DEM run starts Yade and
+the solver in one mpirun (pgfDemRun), so its ranks reach each other over shared
+memory; loopback keeps Open MPI's TCP off docker or libvirt bridges, which it
+can hang probing, and lets a host or sandbox whose only interface is lo run
+at all. The default, auto, applies loopback when a
 docker*, virbr*, br-* or veth* interface is up or when not exactly one other
 interface is up, and says so in the banner (MPI: local only (lo), because ...).
 default leaves Open MPI alone. Runs are single-host; auto does not handle

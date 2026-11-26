@@ -556,12 +556,16 @@ fmt_seconds() {
 # the same key; Make/<WM_OPTIONS>/ is pruned (wmake generates `options` there).
 source_fingerprint() {
   local dir
-  for dir in "${TARGET_DIRS[@]}"; do
+  { for dir in "${TARGET_DIRS[@]}"; do
     [ -d "$dir" ] || continue
     (cd "$PGF_ROOT" && find "${dir#"$PGF_ROOT"/}" -path '*/Make/*/*' -prune -o \
       \( -name '*.C' -o -name '*.H' -o -name 'files' -o -name 'options' \) \
       -type f -print0)
-  done | LC_ALL=C sort -z | (cd "$PGF_ROOT" && xargs -0 sha1sum 2>/dev/null) | sha1sum | cut -d' ' -f1
+  done
+  # liblambdaDotModel compiles the PgfDemBridge core in place (pgfDemCoupler/PgfDemBridge.C).
+  [ -d "$PGF_ROOT/submodules/PgfDemBridge/src" ] &&
+    (cd "$PGF_ROOT" && find submodules/PgfDemBridge/src -type f \( -name '*.cpp' -o -name '*.hpp' \) -print0)
+  } | LC_ALL=C sort -z | (cd "$PGF_ROOT" && xargs -0 sha1sum 2>/dev/null) | sha1sum | cut -d' ' -f1
 }
 
 # Record which sources produced the prefix's binaries; runCase.sh refuses to

@@ -15,28 +15,23 @@ comm = mp.comm_slave
 
 
 
-writeInterval = 0.1   # seconds — Yade VTK write interval (separate from OF writeInterval)
-
-
 spring_frame_number = 0
 
-#timeRatio = 5000  # itterations to write vtk files
-
-yadeDtFixed = 1e-6  # rate modes need deltaT/yadeDt to be an integer (#230)
+# controlDict sets the run's time (#328): O.dt = deltaT / DEM_SUBSTEPS, outputs
+# every solver writeInterval, and the coupling ends Yade on the solver's last step.
+# PGF_ROOT (set by pgf) also finds DEM_common from a copy outside the checkout.
+sys.path.insert(0, os.path.join(os.environ['PGF_ROOT'], 'tutorials', 'cases', 'DEM_common')
+                if os.environ.get('PGF_ROOT') else os.path.join(os.getcwd(), '..', 'DEM_common'))
+import foamTime
+foam = foamTime.read()
+DEM_SUBSTEPS = 1  # rate modes need deltaT/O.dt to be an integer (#230)
 O.dynDt = False
-O.dt    = yadeDtFixed
-
-
-timeRatio = int(round(writeInterval / yadeDtFixed))
-timeRatio = max(1, timeRatio)
-
+O.dt    = foam.deltaT / DEM_SUBSTEPS
+writeInterval = foam.writeInterval                    # s, the solver's
+timeRatio = foamTime.FoamTime.iterations(writeInterval, O.dt)  # Yade iterations per write
 
 if mp.rank == 0:
-    print("[EXPORT TIMEs] yadeDtFixed=", yadeDtFixed, " writeInterval=", writeInterval, " iterPeriod=", timeRatio)
-
-
-
-numProcOF=2
+    print("[EXPORT TIMEs] O.dt=", O.dt, " writeInterval=", writeInterval, " iterPeriod=", timeRatio)
 
 #Lambda=1
 
@@ -45,18 +40,6 @@ O.periodic = False # if true, define O.cell.setBox
 numspheres = 100
 young = 25e6 #5e6
 density = 1200
-# Yade's step count follows the solver's controlDict (one exchange per solver
-# step, see DEM_common/yadeEndpoint.py); a mismatch leaves one side hanging.
-# PGF_ROOT (set by pgf) also finds it from a copy outside the checkout.
-sys.path.insert(0, os.path.join(os.environ['PGF_ROOT'], 'tutorials', 'cases', 'DEM_common')
-                if os.environ.get('PGF_ROOT') else os.path.join(os.getcwd(), '..', 'DEM_common'))
-import yadeEndpoint
-NSTEPS = yadeEndpoint.yadeSteps(O.dt, dynDt=O.dynDt)
-
-# VTKRecorder cadence for spheres: timeRatio (writeInterval-derived) never
-# fires within this fixture's short NSTEPS, so pick a period scaled to the
-# actual run length instead.
-vtkSphereIterPeriod = max(1, NSTEPS // 10)
 
 O.materials.append(FrictMat(young=young, poisson=0.5, frictionAngle=radians(15), density=density, label='spheremat'))
 O.materials.append(FrictMat(young=young * 100, poisson=0.5, frictionAngle=0, density=0, label='wallmat'))
@@ -288,7 +271,7 @@ def apply_spring_forces():
 #----------
 
 
-# PgfCoupling is the Yade half of PGF's pgfYadeCoupler (#271); the solver's
+# PgfCoupling is the Yade half of PGF's pgfDemCoupler (#328); the solver's
 # handshake stops by name if the DEM script runs another engine.
 fluidCoupling = PgfCoupling()
 
@@ -296,7 +279,6 @@ fluidCoupling = PgfCoupling()
 sphereIDs = [b.id for b in O.bodies if type(b.shape) == Sphere]
 
 
-fluidCoupling.SetOpenFoamSolver("porousGasificationFoam", numProcOF)
 
 
 
@@ -480,7 +462,7 @@ def spring_force_at_newton():
     global spring_force_window_max
     it, added = spring_force_added
     spring_force_window_max = max(spring_force_window_max, added if it == O.iter else 0.0)
-    if O.iter == 0 or O.iter % vtkSphereIterPeriod != 0:
+    if O.iter == 0 or O.iter % timeRatio != 0:
         return
     total = mp.comm.reduce(spring_force_window_max, op=MPI.SUM, root=0)
     spring_force_window_max = 0.0
@@ -505,7 +487,7 @@ O.engines = [
                 [Ig2_Sphere_Sphere_ScGeom(), Ig2_Box_Sphere_ScGeom()], [Ip2_FrictMat_FrictMat_FrictPhys()], [Law2_ScGeom_FrictPhys_CundallStrack()],
                 label='InteractionLoop'
         ),
-        #GlobalStiffnessTimeStepper(timestepSafetyCoefficient=0.7, defaultDt=yadeDtFixed, timeStepUpdateInterval=20, parallelMode=True, label="ts"),
+        #GlobalStiffnessTimeStepper(timestepSafetyCoefficient=0.7, defaultDt=O.dt, timeStepUpdateInterval=20, parallelMode=True, label="ts"),
         fluidCoupling,  #to be called after timestepper
         # Springs every step, between ForceResetter and NewtonIntegrator: addF is
         # non-permanent, so a force added after Newton is reset unused (#231).
@@ -514,12 +496,10 @@ O.engines = [
         NewtonIntegrator(damping=0.99, label='newton', gravity=(0, 0.0, 0)),
 
         PyRunner(command="export_springs()", iterPeriod=timeRatio, firstIterRun=1),
-        VTKRecorder(fileName='spheres/vtk-', recorders=['spheres'], parallelMode=True, iterPeriod=vtkSphereIterPeriod),
+        VTKRecorder(fileName='spheres/vtk-', recorders=['spheres'], parallelMode=True, iterPeriod=timeRatio, initRun=True),
 
 
-        # Cadence scaled to this fixture's NSTEPS (see vtkSphereIterPeriod above) --
-        # timeRatio never fires within a short fixture's step count.
-        PyRunner(iterPeriod=vtkSphereIterPeriod, command='logLambdaUs()'),
+        PyRunner(iterPeriod=timeRatio, command='logLambdaUs()'),
 
         PyRunner(command="printAndSaveDtInfo()", iterPeriod=timeRatio, firstIterRun=1)
 
@@ -536,7 +516,7 @@ mp.ERASE_REMOTE_MASTER = True
 mp.REALLOC_FREQUENCY = 12
 mp.fluidBodies = sphereIDs
 mp.DOMAIN_DECOMPOSITION = True
-mp.mpirun(NSTEPS,np=numProcOF)
+mp.mpirun(foamTime.UNTIL_SOLVER_ENDS)   # np: the Yade ranks pgfDemRun started
 mp.mprint("RUN FINISH")      
 
 if mp.rank == 0:

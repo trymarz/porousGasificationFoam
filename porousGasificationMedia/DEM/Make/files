@@ -8,6 +8,7 @@ lambdaDotModels/exactDifferentialLambdaDot/exactDifferentialLambdaDot.C
 lambdaDotModels/apparentVolumeLambdaDot/apparentVolumeLambdaDot.C
 
 lambdaDotModel.C
-pgfYadeCoupler/pgfYadeCoupler.C
+pgfDemCoupler/pgfDemCoupler.C
+pgfDemCoupler/PgfDemBridge.C
 
 LIB = $(FOAM_USER_LIBBIN)/liblambdaDotModel

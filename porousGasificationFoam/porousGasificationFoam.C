@@ -47,7 +47,7 @@ Description
 
 #ifdef WITH_YADE 
     #include "lambdaDotModel.H"
-    #include "pgfYadeCoupler.H"
+    #include "pgfDemCoupler.H"
 #endif // WITH_YADE 
 
 
@@ -113,9 +113,22 @@ int main(int argc, char *argv[])
         #ifdef WITH_YADE
         if (DEM)
         {
+            // Last step: run() will be false after it (Time::run()).
+            const bool lastStep =
+                runTime.value()
+             >= runTime.endTime().value() - 0.5*runTime.deltaTValue();
+
             lambdaDotUpdater->updateLambdaDot();
-            pgfCoupling->exchange(runTime.deltaT().value());
-            lambdaDotUpdater->updateParticleFields();
+            if (pgfCoupling->exchange(runTime.deltaTValue(), lastStep))
+            {
+                lambdaDotUpdater->updateParticleFields();
+            }
+            else
+            {
+                // Writes now and again at the step's end, with this step's fields.
+                Info<< "DEM side stopped: ending the run after this step" << endl;
+                runTime.writeAndEnd();
+            }
         }
         #endif
 
@@ -174,6 +187,13 @@ int main(int argc, char *argv[])
             << "  ClockTime = " << runTime.elapsedClockTime() << " s"
             << nl << endl;
     }
+
+    #ifdef WITH_YADE
+    if (DEM)
+    {
+        pgfCoupling->close();
+    }
+    #endif
 
     Info<< "End\n" << endl;
 

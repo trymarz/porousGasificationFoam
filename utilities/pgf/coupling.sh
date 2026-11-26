@@ -1,7 +1,7 @@
 #!/bin/bash
 # coupling.sh — Yade pin and coupling-API checks (#257). Source-only;
 # shared by build.sh, pgf and pack.sh. Needs PGF_ROOT. PGF links nothing from
-# Yade; the API is PgfCoupling's side of wire protocol v1 (pgfYadeCoupler.H).
+# Yade; the API is PgfCoupling's side of coupling protocol v2 (PgfDemBridge).
 
 PGF_COUPLING_HEADERS=(PgfCoupling.hpp PgfCoupling.cpp)
 

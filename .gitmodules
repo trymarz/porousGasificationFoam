@@ -2,3 +2,6 @@
 	path = submodules/yade-pgf
 	url = https://github.com/trymarz/yade-pgf.git
 	branch = pgf-main
+[submodule "submodules/PgfDemBridge"]
+	path = submodules/PgfDemBridge
+	url = https://github.com/trymarz/PgfDemBridge.git

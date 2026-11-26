@@ -11,9 +11,9 @@ runApplication topoSet
 runApplication setFields
 runApplication decomposePar
 mkdir -p spheres springs
-# Solver runs inside Yade via the MPI coupling script — not a standard runParallel,
-# so it is launched directly here (runYade captures output to log.yade).
-runYade mpirun --allow-run-as-root -n 2 yade MPI_lambda.py || exit
+# One mpirun starts 2 Yade ranks and the decomposed solver (DEM_common/pgfDemRun);
+# runYade captures the output to log.yade.
+runYade "${PGF_ROOT:-../../..}/tutorials/cases/DEM_common/pgfDemRun" -ndem 2 MPI_lambda.py || exit
 
 # Case-specific assertion, beyond runDEMCase.sh's shared DEM checks:
 # dimensions of lambdaDot/lambda and the sign of lambdaDot over solid cells

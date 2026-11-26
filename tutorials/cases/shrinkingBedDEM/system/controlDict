@@ -23,10 +23,9 @@ startTime       0;
 
 stopAt          endTime;
 
-// Fixed deltaT (issue #104): Yade must run exactly endTime/yadeDt substeps;
-// Allrun derives YADE_NSTEPS from this endTime (yadeDt = dem_dt in
-// demGeometry.py). At k = 0.1 1/s the reactive layer's spheres halve in
-// radius by ~21 s and fall below the 0.1 mm erase radius after ~110 s.
+// Yade follows deltaT, writeInterval and endTime (#328). At k = 0.1 1/s the
+// reactive layer's spheres halve in radius by ~21 s and fall below the
+// 0.1 mm erase radius after ~110 s.
 endTime         120;
 
 deltaT          4e-3;

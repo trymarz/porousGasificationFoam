@@ -24,7 +24,7 @@ targetUnbal   = 0.01     # unbalanced force / mean contact force
 targetVel     = 1e-3     # m/s, fastest sphere
 
 O.dynDt = False
-O.dt    = geom.dem_dt    # same DEM step as MPI_lambda.py
+O.dt    = geom.dem_dt    # DEM only; MPI_lambda.py follows deltaT
 
 geom.add_materials()
 geom.add_walls()

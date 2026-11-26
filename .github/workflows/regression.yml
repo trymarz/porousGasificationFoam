@@ -167,8 +167,8 @@ jobs:
           retention-days: 14
 
   # Compile-only check of the DEM variant: build.sh --isolated --yade. The
-  # pgfYadeCoupler needs only OpenFOAM and MPI, so Yade itself is not built,
-  # the yade-pgf submodule is not checked out, and no DEM case runs.
+  # pgfDemCoupler needs only OpenFOAM, MPI and PgfDemBridge, so Yade itself is
+  # not built, the yade-pgf submodule is not checked out, and no DEM case runs.
   build-yade:
     needs: image
     if: github.event_name != 'schedule'
@@ -197,6 +197,14 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           path: pgf
+
+      # liblambdaDotModel compiles the PgfDemBridge core; yade-pgf stays out.
+      - name: Check out the PgfDemBridge submodule
+        run: |
+          set -eu
+          git config --global --add safe.directory "$GITHUB_WORKSPACE/pgf"
+          git -C pgf submodule update --init --depth 1 submodules/PgfDemBridge
+          test -f pgf/submodules/PgfDemBridge/src/PgfDemBridge.hpp
 
       - name: Set work dirs
         run: |

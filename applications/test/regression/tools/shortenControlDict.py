@@ -6,8 +6,8 @@ run still writes two solver times. Edits through foamDictionary, so the
 OpenFOAM environment must be loaded. Only for a run copy: runDEMCase.sh calls
 it with --short-steps, after staging the case under --run-dir.
 
-The Yade side follows on its own: the case's Yade script derives its step count
-from the edited controlDict (tutorials/cases/DEM_common/yadeEndpoint.py).
+The Yade side follows on its own: the case's Yade script reads the edited
+controlDict (tutorials/cases/DEM_common/foamTime.py).
 
 Usage: shortenControlDict.py <controlDict> <N>
 Prints one summary line; exits 1 with a message on stderr when it cannot.

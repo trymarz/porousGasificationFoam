@@ -22,7 +22,7 @@ sphere_radius = 0.004   # initial radius (m) -- 4 mm biomass pellets
 half_depth    = 0.008   # mesh slab half-thickness in y (blockMeshDict)
 bed_top       = 0.36    # m, top of the FVM bed (setFieldsDict)
 blocked_dofs  = "yXZ"   # keep the bed in the xz-plane
-dem_dt        = 5e-5    # DEM step (s); Allrun reads it for YADE_NSTEPS
+dem_dt        = 5e-5    # largest DEM step (s); the coupled run splits deltaT to fit
 damping       = 0.7     # NewtonIntegrator: quasi-static rearrangement
 sphere_young  = 5e5     # Pa; dem_dt = 0.27 p-wave step, overlap under bed < 5% r
 
