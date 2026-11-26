@@ -393,9 +393,11 @@ then finish 1 "dtInfo.txt assertion failed — no positive PGF time step receive
 INVARIANTS="$CASE_DIR/system/regressionInvariants"
 if [ -f "$INVARIANTS" ]; then
     reg_phase invariants
+    # A short run checks the sign of nonzero bounds, not their full-run magnitude.
     python3 "$SCRIPT_DIR/checkInvariants.py" \
         --invariants "$INVARIANTS" \
-        --postprocessing "$WORK_DIR/postProcessing"
+        --postprocessing "$WORK_DIR/postProcessing" \
+        ${SHORT_STEPS:+--short}
     rc=$?
     case "$rc" in
         0) echo "  invariant check passed" ;;
