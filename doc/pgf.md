@@ -65,8 +65,8 @@ It checks, in groups: OpenFOAM, the builds of the checkout pgf runs from, yade a
 yade and DEM
   OK   yade ~/.local/bin/yade (Yade version: …), with MPI
   WARN yade … was built from yade-pgf d5c33e0, 6 commits older than the
-       pin 475bb35558; DEM results may differ from the dem baselines
-       fix: build yade at yade-pgf 475bb35558 (doc/build.md, …),
+       pin 72ad504d0f; DEM results may differ from the dem baselines
+       fix: build yade at yade-pgf 72ad504d0f (doc/build.md, …),
        then pgf config set YADE_BIN=<that yade>
 
 verdict: ready for non-DEM runs; DEM needs: a yade built from the yade-pgf pin
