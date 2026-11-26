@@ -4,11 +4,15 @@ PGF can run coupled to YADE, a discrete-element (DEM) code that moves individual
 
 ## The idea
 
-The usual CFD–DEM picture, where particles set the porosity and the gas drags the particles, does not apply here.
+DEM supplies only how the solid moves; PGF supplies how the particles change size. Mass, porosity and chemistry stay on the mesh. This is not the usual CFD–DEM picture, where particles set the porosity and the gas drags them.
 
 ### What the particles are
 
-The DEM particles are an analog chosen by the user to move the solid in a physically plausible way. They can be bead-spring chains, spheres or rough grains. They are not the solid that PGF models. That solid lives on the mesh as the mass per cell `Ym`, and porosity follows from it (`1 − ε = Σ Ym/ρ`). The particles carry no mass, and none of their shape or size reaches PGF. The closer they mimic the real material, the more physical the solid velocity is likely to be, but nothing enforces this. For example, a single pellet spanning several cells is modelled as bead-spring chains. A gasifier bed is modelled as loosely packed spheres, because spheres flow smoothly under compaction, not because the real bed is made of spheres. To study bridging you would pick rougher particles that clog more easily.
+The DEM particles are an analog, chosen by the user to move the solid in a physically plausible way. They are not the solid that PGF models: that solid lives on the mesh as the mass per cell `Ym`, and porosity follows from it (`1 − ε = Σ Ym/ρ`). The particles carry no mass, and none of their shape or size reaches PGF. The closer they mimic the real material, the more physical the solid velocity is likely to be, but nothing enforces this. Examples:
+
+- a single pellet spanning several cells: bead-spring chains;
+- a gasifier bed: loosely packed spheres, because spheres flow smoothly under compaction, not because the real bed is made of spheres;
+- bridging in a bed: rougher grains that clog more easily.
 
 ### DEM → PGF: the solid velocity
 
