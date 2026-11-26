@@ -99,7 +99,7 @@ pgf view .
 
 - **Using PGF:** [the pgf tool](doc/pgf.md), [your own case](doc/case-guide.md), [ParaView](doc/paraview.md)
 - **Installing, building and deploying:** [installing](doc/install.md), [building](doc/build.md), [Apptainer images](doc/containers.md)
-- **Reference:** `pgf help` (every command and setting), [API reference (Doxygen)](doc/build.md#doxygen-documentation)
+- **Reference:** `pgf help` (every command and setting), [API reference (Doxygen)](doc/dev-tools.md#api-reference-doxygen)
 - **The model:** [theory](doc/theory.md), [solid step](doc/solid-step.md)
 - **Developing PGF:** [contributing](CONTRIBUTING.md), [regression testing](doc/regression-testing.md), [regression metric ledger](doc/regression-ledger.md)
 

@@ -8,6 +8,8 @@
 ./pgf pack --dry-run          # write the build context and the definition; build nothing
 ```
 
+Every option: [`pgf help pack`](pgf-reference.md#pgf-help-pack).
+
 `pgf pack` writes `pgf-<commit12>-yade<0|1>.sif`, a self-contained image. It starts from the base image of `container/pgf-toolchain.def` (ESI's `opencfd/openfoam-run:2606`, Ubuntu 26.04 with its system gcc and Open MPI) and installs the same `openfoam2606-dev` package as that definition. Inside the image it compiles:
 - the yade-pgf commit that this PGF commit pins as `submodules/yade-pgf`, headless and with the pin in its version;
 - PGF itself, with `pgf build`.
@@ -29,4 +31,5 @@ Inside the image `pgf` reads the yade-pgf pin from the manifest, so the yade che
 
 - [Building](build.md): the build store, the DEM coupling, cleaning.
 - [The pgf tool](pgf.md): settings, builds and runs.
+- [Installing](install.md): a machine that builds PGF itself.
 - [All documentation](README.md)

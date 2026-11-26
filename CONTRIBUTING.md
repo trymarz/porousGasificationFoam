@@ -81,7 +81,7 @@ Each group answers one question. Inside a group, pages run from overview to deta
 | The pgf tool | What can pgf do, and how does it work? | [pgf](doc/pgf.md), [pgf reference](doc/pgf-reference.md) |
 | The model | What physics does it solve? | [theory](doc/theory.md), [DEM coupling](doc/theory-DEM.md) |
 | How the code implements it | Where does each piece live, and in what order does it run? | [code map](doc/code-map.md), [solid step](doc/solid-step.md), [DEM exchange](doc/dem-exchange.md) |
-| Developing PGF | How do I change it safely? | this page, [regression testing](doc/regression-testing.md), [regression ledger](doc/regression-ledger.md) |
+| Developing PGF | How do I change it safely? | this page, [regression testing](doc/regression-testing.md), [regression ledger](doc/regression-ledger.md), [developer tools](doc/dev-tools.md) |
 
 Task pages hold workflow and advice; exact flags and keys point to `pgf help` and the code. Model pages give the physics, its assumptions and what is left out, with short-form equations and physics before code names. Code pages are mostly maps with pointers into the source.
 
@@ -114,7 +114,7 @@ The maintainer keeps work not meant for publication (e.g. third-party gasifier c
 
 - Private branches and issues live on `private`. Its `main` is public `main` plus private-only commits, synced by merging `origin/main` into it.
 - To publish, branch from `origin/main`, cherry-pick (or `git checkout <commit> -- <paths>`) only the wanted changes, push to `origin` and open a public PR.
-- `utilities/githooks/pre-push` refuses a push to the public repo when an outgoing commit touches a path listed in `utilities/githooks/private-paths`; deleting such a path is allowed. It needs `core.hooksPath` set as in [doc/build.md](doc/build.md).
+- `utilities/githooks/pre-push` refuses a push to the public repo when an outgoing commit touches a path listed in `utilities/githooks/private-paths`; deleting such a path is allowed. It needs `core.hooksPath` set as in [doc/dev-tools.md](doc/dev-tools.md#editor-navigation-clangd).
 
 ## Related pages
 
