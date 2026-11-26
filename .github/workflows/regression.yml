@@ -167,8 +167,8 @@ jobs:
           retention-days: 14
 
   # Compile-only check of the DEM variant: build.sh --isolated --yade. The
-  # pgfYadeCoupler needs only OpenFOAM and MPI, so Yade itself is not built,
-  # the yade-pgf submodule is not checked out, and no DEM case runs.
+  # pgfDemCoupler needs only OpenFOAM, MPI and PgfDemBridge, so Yade itself is
+  # not built, the yade-pgf submodule is not checked out, and no DEM case runs.
   build-yade:
     needs: image
     if: github.event_name != 'schedule'

@@ -18,6 +18,7 @@ inert bed's cells have no chemical volume change, so r = 1 there.
 Usage (2 Yade ranks and the 2 OpenFOAM ranks in one mpirun, from Allrun):
     pgfDemRun -ndem 2 MPI_lambda.py
 """
+import math
 import os
 import sys
 
@@ -35,17 +36,22 @@ comm = mp.comm_slave   # communicator for worker ranks
 # Configuration
 # ---------------------------------------------------------------------------
 
-writeInterval      = 0.25       # VTK write interval (virtual seconds)
+# controlDict sets the run's time (#328): O.dt is the largest deltaT/K at or
+# below dem_dt, Yade writes every solver writeInterval, and the coupling ends
+# Yade on the solver's last step.
+sys.path.insert(0, os.path.join(os.environ['PGF_ROOT'], 'tutorials', 'cases', 'DEM_common')
+                if os.environ.get('PGF_ROOT') else os.path.join(os.getcwd(), '..', 'DEM_common'))
+import foamTime
+foam = foamTime.read()
+DEM_SUBSTEPS       = max(1, math.ceil(foam.deltaT / geom.dem_dt - 1e-9))
 radiusInterval     = 0.01       # changeRadius() period (virtual seconds)
-yadeDtFixed        = geom.dem_dt
 O.dynDt            = False
-O.dt               = yadeDtFixed
-
-timeRatio = max(1, int(round(writeInterval / yadeDtFixed)))
-NSTEPS    = int(os.environ.get('YADE_NSTEPS', 2000000))
+O.dt               = foam.deltaT / DEM_SUBSTEPS
+writeInterval      = foam.writeInterval
+timeRatio          = foamTime.FoamTime.iterations(writeInterval, O.dt)
 
 if mp.rank == 0:
-    print(f"[EXPORT] yadeDt={yadeDtFixed}  writeInterval={writeInterval}  iterPeriod={timeRatio}")
+    print(f"[EXPORT] O.dt={O.dt}  writeInterval={writeInterval}  iterPeriod={timeRatio}")
 
 sphere_radius = geom.sphere_radius   # initial radius (m)
 
@@ -189,7 +195,7 @@ O.engines = [
     ),
     GlobalStiffnessTimeStepper(
         timestepSafetyCoefficient=0.7,
-        defaultDt=yadeDtFixed,
+        defaultDt=O.dt,
         timeStepUpdateInterval=50,
         parallelMode=True,
         label="ts",
@@ -214,7 +220,7 @@ mp.USE_CPP_INTERS       = False
 mp.ERASE_REMOTE_MASTER  = True
 mp.REALLOC_FREQUENCY    = 12
 mp.fluidBodies          = sphereIDs
-mp.mpirun(NSTEPS)   # np: the Yade ranks pgfDemRun started
+mp.mpirun(foamTime.UNTIL_SOLVER_ENDS)   # np: the Yade ranks pgfDemRun started
 mp.mprint("shrinkingBedDEM run finished")
 
 exit()

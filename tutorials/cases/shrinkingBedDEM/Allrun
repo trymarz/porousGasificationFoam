@@ -15,7 +15,7 @@
 # STEPS (what this script runs)
 #       cp -r 0.orig 0 && blockMesh && setFields && decomposePar
 #       yade -n -x relax.py
-#       YADE_NSTEPS=<endTime/dem_dt> pgfDemRun -ndem 2 MPI_lambda.py
+#       pgfDemRun -ndem 2 MPI_lambda.py
 #
 #   pgfDemRun (DEM_common) starts two Yade ranks and the two OpenFOAM ranks
 #   of the decomposed case with one mpirun.
@@ -40,11 +40,6 @@ decomposePar
 #    relaxedSpheres.txt, so the coupled run starts at rest.
 yade -n -x relax.py
 
-# 3. Coupled Yade + OpenFOAM run. Whichever side ends first stops the other
-#    (#328); YADE_NSTEPS = endTime/yadeDt makes both end together. YADE_DT
-#    is dem_dt from demGeometry.py, the step both DEM scripts use.
-YADE_DT=$(sed -n 's/^dem_dt *= *\([0-9.eE+-]*\).*/\1/p' demGeometry.py)
-END_TIME=$(foamDictionary -entry endTime -value system/controlDict)
-export YADE_NSTEPS=$(awk -v t="$END_TIME" -v dt="$YADE_DT" 'BEGIN { printf "%d", t / dt + 0.5 }')
-echo "YADE_NSTEPS = $YADE_NSTEPS (endTime $END_TIME / yadeDt $YADE_DT)"
+# 3. Coupled Yade + OpenFOAM run. system/controlDict sets its time; Yade
+#    follows it and ends on the solver's last step (#328).
 "$DEM_COMMON/pgfDemRun" -ndem 2 MPI_lambda.py

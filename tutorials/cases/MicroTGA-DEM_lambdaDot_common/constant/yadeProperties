@@ -14,7 +14,7 @@ FoamFile
 
 active          true;
 
-// The pgf coupler (pgfYadeCoupler, #271) is the only one; no drag, so the
+// The pgf coupler (pgfDemCoupler, #328) is the only one; no drag, so the
 // particles only supply Us (#326, decision 9).
 
 // ************************************************************************* //

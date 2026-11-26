@@ -57,7 +57,7 @@ stops both sides by name on a protocol mismatch. `Allrun` launches
 ## Copying it
 
 Most files here are symlinks into `../MicroTGA-DEM_lambdaDot_common/`.
-`MPI_lambda.py` also imports `../DEM_common/yadeEndpoint.py`, and `Allrun`
+`MPI_lambda.py` also imports `../DEM_common/foamTime.py`, and `Allrun`
 calls `../../../applications/test/regression/tools/checkFieldSign.py`. So:
 
 ```sh
@@ -77,11 +77,11 @@ Line numbers refer to `MPI_lambda.py`.
 
 | Name | Value | Meaning |
 |---|---|---|
-| `yadeDtFixed`, `O.dt` | `1e-6` s | DEM time step. Must match the coupling rules (see *Changing the time step*). |
-| `O.dynDt` | `False` | Fixed `O.dt`. `yadeEndpoint.yadeSteps` refuses to work with `dynDt`. |
-| `writeInterval` | `0.1` s | Spring VTK and `dtInfo.txt` cadence, as `timeRatio = writeInterval/O.dt` steps. This is longer than the 2000-step run, so both write only at iteration 1 (`firstIterRun=1`). |
-| `vtkSphereIterPeriod` | `NSTEPS // 10` | Cadence for sphere VTK, `logLambdaUs()` and `springForceAtNewton`. |
-| `NSTEPS` | from `controlDict` | `yadeEndpoint.yadeSteps(O.dt)` = solver steps × `k`. See *Changing the time step*. |
+| `foam` | from `controlDict` | `foamTime.read()`: the solver's `deltaT`, `writeInterval` and `endTime`, the one place that sets the run's time. |
+| `DEM_SUBSTEPS` | `1` | DEM steps per solver step; `O.dt = deltaT / DEM_SUBSTEPS` = `1e-6` s. See *Changing the time step*. |
+| `O.dynDt` | `False` | Fixed `O.dt`. |
+| `writeInterval`, `timeRatio` | from `controlDict` | The solver's `writeInterval` (2e-4 s), as `timeRatio` = 200 Yade steps: the cadence of sphere and spring VTK, `dtInfo.txt`, `logLambdaUs()` and `springForceAtNewton`. Sphere VTK also writes the initial state. |
+| `mp.mpirun(foamTime.UNTIL_SOLVER_ENDS)` | – | No step count of its own: the solver's last step ends Yade. |
 
 ### Ranks and coupling
 
@@ -176,7 +176,7 @@ Each step Yade runs `O.engines` from top to bottom:
 
 On the OpenFOAM side, each solver step runs before `pyrolysisZone.evolve()`:
 `lambdaDotModel::updateLambdaDot()`, then the exchange
-(`pgfYadeCoupler::exchange`), then `updateParticleFields()`. That last
+(`pgfDemCoupler::exchange`), then `updateParticleFields()`. That last
 call averages the particle velocities and λ into each cell and smooths them
 into `Us` and `lambda`. The chemistry computes r later in the step, so the r
 sent at step n is the one from step n−1.
@@ -211,8 +211,8 @@ Total MPI processes = Yade processes + OpenFOAM ranks.
 
 ## Changing the time step
 
-- `deltaT` in `controlDict` sets the OpenFOAM step and `O.dt` sets the DEM
-  step. Yade exchanges every `k` DEM steps:
+- `deltaT` in `controlDict` sets the OpenFOAM step, and `O.dt = deltaT /
+  DEM_SUBSTEPS` the DEM step. Yade exchanges every `k` DEM steps:
   - in `apparentVolume` mode, `k = int(deltaT/O.dt)`, or 1 when
     `O.dt ≥ deltaT`;
   - in the rate modes (`constant`, `exactDifferential`), `PgfCoupling` aborts
@@ -220,10 +220,8 @@ Total MPI processes = Yade processes + OpenFOAM ranks.
 
   Keep `deltaT/O.dt` an integer in every mode, otherwise Yade's time drifts
   from the solver's.
-- `NSTEPS` follows from `controlDict` through `yadeEndpoint.yadeSteps`, which
-  needs `adjustTimeStep no`, `stopAt endTime`, `startFrom startTime` and a
-  fixed `O.dt`. Never set `NSTEPS` by hand: a mismatch leaves one side
-  waiting forever.
+- To refine the DEM step, raise `DEM_SUBSTEPS`; `O.dt` follows `deltaT`, so
+  the ratio stays a whole number.
 - DEM stability: `O.dt` must stay below the contact time scale. The P-wave
   estimate R·√(ρ/E) is 5.2e-6 s here, so `O.dt = 1e-6` is about 0.2 of it.
   If you change `young`, `density` or `rMean`, check it again

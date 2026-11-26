@@ -14,8 +14,8 @@
 # checkFieldSign.py in its own Allrun. ...Off leaves every coefficient at its
 # 0.0 default.
 #
-# They also exercise the reverse YADE->PGF lambda channel. Both sides hard-code
-# wire protocol v1; the startup handshake stops by name on a mismatch.
+# They also exercise the reverse YADE->PGF lambda channel. Both sides speak
+# coupling protocol v2 (PgfDemBridge); the handshake stops by name on a mismatch.
 #
 # ...Chemistry/...Both use dlambdaOverDYmi 2.5e-6, tuned for fixture-scale
 # visibility rather than physical accuracy. A realistic ~1e-3 (see README)

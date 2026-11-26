@@ -63,7 +63,7 @@ Usage: $0 [options]
   --jobs <n>      Number of DEM CASES to run concurrently (default 1). This is
                   suite concurrency only: it never changes a case's own MPI
                   layout. Concurrent DEM execution is NOT verified — each case
-                  spawns its own mpirun/Yade tree, so raise this only
+                  starts its own mpirun of Yade and solver ranks, so raise this only
                   deliberately, on a machine with the cores to spare.
   --list          List the selected cases and exit without touching them.
   --json          With --list, emit the machine-readable case manifest.
@@ -242,8 +242,8 @@ fi
 [ "$STATE_ACTIVE" = true ] && clog INFO "state:   $SCHED_DIR"
 if [ "$JOBS" -gt 1 ]; then
     clog INFO "jobs:   $JOBS cases at a time"
-    clog WARNING "concurrent DEM execution is unverified — each case spawns its"
-    clog WARNING "own mpirun/Yade tree, so oversubscription is on you"
+    clog WARNING "concurrent DEM execution is unverified — each case starts its"
+    clog WARNING "own mpirun of Yade and solver ranks, so oversubscription is on you"
 fi
 
 for id in "${SEL_IDS[@]}"; do

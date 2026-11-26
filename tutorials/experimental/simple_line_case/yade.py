@@ -20,27 +20,24 @@ for a in dir(mp):
  """
 #print("YADE: current working directory:", os.getcwd())
 
-writeInterval = 0.1   # seconds ( = OpenFOAM writeInterval controlDict )
-
-
 spring_frame_number = 0
 sphere_frame_number = 0
 
-#timeRatio = 5000  # itterations to write vtk files
-
-yadeDtFixed = 5e-6 #5e-6
+# controlDict sets the run's time (#328): O.dt = deltaT / DEM_SUBSTEPS, outputs
+# every solver writeInterval, and the coupling ends Yade on the solver's last step.
+# PGF_ROOT (set by pgf) also finds DEM_common from a copy outside the checkout.
+sys.path.insert(0, os.path.join(os.environ['PGF_ROOT'], 'tutorials', 'cases', 'DEM_common')
+                if os.environ.get('PGF_ROOT') else os.path.join(os.getcwd(), '..', '..', 'cases', 'DEM_common'))
+import foamTime
+foam = foamTime.read()
+DEM_SUBSTEPS = 1000  # O.dt = 5e-6 s for deltaT 5e-3
 O.dynDt = False
-O.dt    = yadeDtFixed
-
-
-timeRatio = int(round(writeInterval / yadeDtFixed))
-timeRatio = max(1, timeRatio)
-
+O.dt    = foam.deltaT / DEM_SUBSTEPS
+writeInterval = foam.writeInterval                    # s, the solver's
+timeRatio = foamTime.FoamTime.iterations(writeInterval, O.dt)  # Yade iterations per write
 
 if mp.rank == 0:
-    print("[EXPORT TIMEs] yadeDtFixed=", yadeDtFixed, " writeInterval=", writeInterval, " iterPeriod=", timeRatio)
-
-
+    print("[EXPORT TIMEs] O.dt=", O.dt, " writeInterval=", writeInterval, " iterPeriod=", timeRatio)
 
 
 #Lambda=1
@@ -50,13 +47,6 @@ O.periodic = False # if true, define O.cell.setBox
 #numspheres = 100
 young = 25e6 #5e6
 density = 1200
-# Yade's step count follows the solver's controlDict (one exchange per solver
-# step, see DEM_common/yadeEndpoint.py); a mismatch leaves one side hanging.
-# PGF_ROOT (set by pgf) also finds it from a copy outside the checkout.
-sys.path.insert(0, os.path.join(os.environ['PGF_ROOT'], 'tutorials', 'cases', 'DEM_common')
-                if os.environ.get('PGF_ROOT') else os.path.join(os.getcwd(), '..', '..', 'cases', 'DEM_common'))
-import yadeEndpoint
-NSTEPS = yadeEndpoint.yadeSteps(O.dt, dynDt=O.dynDt)
 #fixed_seed = 12345 # to keep random arrangment of spheres repertable. if changing this value, the arrangment will be different.
 
 
@@ -732,7 +722,7 @@ O.engines = [
         InteractionLoop([Ig2_Box_Sphere_ScGeom()], [Ip2_FrictMat_FrictMat_FrictPhys()], [Law2_ScGeom_FrictPhys_CundallStrack()],
                 label='InteractionLoop'),
 
-        #GlobalStiffnessTimeStepper(timestepSafetyCoefficient=0.7, defaultDt=yadeDtFixed, timeStepUpdateInterval=20, parallelMode=True, label="ts"),
+        #GlobalStiffnessTimeStepper(timestepSafetyCoefficient=0.7, defaultDt=O.dt, timeStepUpdateInterval=20, parallelMode=True, label="ts"),
         fluidCoupling,  #to be called after timestepper
         NewtonIntegrator(damping=0.99, label='newton', gravity=(0, 0.0, 0)),
         
@@ -762,7 +752,7 @@ mp.ERASE_REMOTE_MASTER = True
 mp.REALLOC_FREQUENCY = 12
 mp.fluidBodies = sphereIDs
 mp.DOMAIN_DECOMPOSITION = True
-mp.mpirun(NSTEPS)   # np: the Yade ranks pgfDemRun started
+mp.mpirun(foamTime.UNTIL_SOLVER_ENDS)   # np: the Yade ranks pgfDemRun started
 mp.mprint("RUN FINISH")      
 
         
