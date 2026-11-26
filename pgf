@@ -74,10 +74,16 @@ esac
 [ "${1:-}" = dem ] && { shift; exec "$PGF_LIB/dem.sh" "$@"; }
 [ -n "${1:-}" ] && wants_help "$@" && pgf_help "$1"
 
-# pgf test keeps the caller's environment; it calls pgf shell itself. pgf view
-# runs the caller's ParaView.
-[ "${1:-}" = test ] && { shift; exec "$PGF_LIB/test.sh" "$@"; }
+# pgf view runs the caller's ParaView, in the caller's environment.
 [ "${1:-}" = view ] && { shift; exec "$PGF_ROOT/applications/utilities/paraview/pgfView" "$@"; }
+
+# Every other stage runs pgf's python3 (utilities/pgf/python/python3: PGF_PYTHON,
+# default /usr/bin/python3), whatever else the caller's PATH holds (#362).
+case ":$PATH:" in *":$PGF_LIB/python:"*) ;; *) PATH="$PGF_LIB/python:$PATH" ;; esac
+export PATH
+
+# pgf test keeps the caller's environment; it calls pgf shell itself.
+[ "${1:-}" = test ] && { shift; exec "$PGF_LIB/test.sh" "$@"; }
 
 # -- 1. drop the caller's environment ------------------------------------------
 
@@ -309,7 +315,7 @@ bashrc="${PGF_FOAM_BASHRC:-${WM_PROJECT_DIR:+$WM_PROJECT_DIR/etc/bashrc}}"
 [ -n "$bashrc" ] || die "set PGF_FOAM_BASHRC (or WM_PROJECT_DIR) to locate OpenFOAM's etc/bashrc"
 [ -r "$bashrc" ] || die "cannot read $bashrc"
 
-PATH="/usr/local/bin:/usr/bin:/bin"
+PATH="$PGF_LIB/python:/usr/local/bin:/usr/bin:/bin"
 # bashrc parses positional arguments as settings, and fails under -u / -e.
 set +eu
 set --

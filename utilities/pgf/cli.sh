@@ -456,6 +456,14 @@ variable. Nested pgf calls inside it skip that step. pgf test keeps the
 caller's environment (it calls pgf shell itself), and pgf view runs your own
 ParaView.
 
+## Python
+Every pgf command except view puts utilities/pgf/python/ first on PATH. Its
+python3 runs \$PGF_PYTHON, an absolute path (default /usr/bin/python3, the
+distro's), so pgf, the cases it runs and a yade built with
+-DPYTHON_EXECUTABLE=/usr/bin/python3 share one Python, whatever else PATH holds
+(conda, a venv, pyenv, /usr/local/bin). pgf doctor shows the Python and checks
+that yade runs on it.
+
 ## What is set
 pgf sources \$PGF_FOAM_BASHRC (default \$WM_PROJECT_DIR/etc/bashrc) with set +eu.
 Then it points WM_PROJECT_USER_DIR, FOAM_USER_APPBIN and FOAM_USER_LIBBIN at

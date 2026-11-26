@@ -71,11 +71,11 @@ src="$PWD/submodules/yade-pgf"
 ver="$(git -C "$src" show -s --format=%cd --date=format:%Y.%m.%d HEAD)-git-$(git -C "$src" rev-parse --short=7 HEAD)"
 mkdir -p ~/build/yade-pgf && cd ~/build/yade-pgf
 cmake "$src" -DCMAKE_INSTALL_PREFIX=$HOME/opt/yade-pgf -DENABLE_GUI=OFF -DNOSUFFIX=ON \
-    -DYADE_VERSION="$ver" -DCMAKE_BUILD_TYPE=Release
+    -DYADE_VERSION="$ver" -DCMAKE_BUILD_TYPE=Release -DPYTHON_EXECUTABLE=/usr/bin/python3
 make -j"$(nproc)" install      # 30-60 min
 ```
 
-With less than about 4 GB of memory per core, lower `-j` ([Pitfalls](#pitfalls)). Run it in a plain shell, not one that has sourced OpenFOAM: YADE and OpenFOAM must use the same MPI, the system Open MPI. CMake must not print `MPI NOT FOUND, YADE-OpenFOAM coupling disabled`. `$HOME/opt/yade-pgf/bin/yade -v` then prints `Yade version: <date>-git-<commit>`.
+With less than about 4 GB of memory per core, lower `-j` ([Pitfalls](#pitfalls)). Run it in a plain shell, not one that has sourced OpenFOAM: YADE and OpenFOAM must use the same MPI, the system Open MPI. `-DPYTHON_EXECUTABLE` ties YADE to the system Python, whose `apt` packages it uses ([One Python](#pitfalls)). CMake must not print `MPI NOT FOUND, YADE-OpenFOAM coupling disabled`. `$HOME/opt/yade-pgf/bin/yade -v` then prints `Yade version: <date>-git-<commit>`.
 
 **Build and check the DEM variant of PGF.** Back in the PGF checkout:
 
@@ -130,6 +130,7 @@ Neither YADE's Python modules nor PGF's DEM scripts import the `vtk` Python modu
 ## Pitfalls
 
 - **One MPI.** YADE and the solver run in one `mpirun`, so YADE, `mpi4py` and OpenFOAM must use the same Open MPI. Build YADE against the system Open MPI that `openfoam2606-dev` uses, not a ThirdParty or conda one.
+- **One Python.** YADE uses the `apt` packages of the system Python (Boost.Python, numpy, mpi4py), so it is built with `/usr/bin/python3` even when conda, a venv or pyenv comes first on `PATH`; otherwise CMake can stop with `NOT FOUND:libboost-python`. pgf runs on the same Python ([`pgf help environment`](pgf-reference.md#pgf-help-environment)), and `pgf doctor --yade` checks that yade does.
 - **Memory for the YADE build.** Each `make` job needs roughly 3–4 GB; pick `-j` from the free memory, not the core count, or `cc1plus` is killed. Rerunning `make` resumes.
 - **YADE off the pin.** After a `git pull` that moves `submodules/yade-pgf`, rerun the two `git submodule update` lines above (without `--init`) and rebuild YADE; `pgf doctor --yade` names the commits when they differ.
 - **Single-interface hosts.** On a host whose only network is `lo`, or with docker or libvirt bridges, Open MPI can hang the coupled run; `pgf` then restricts it to loopback by itself (`PGF_MPI=auto`; [`pgf help config`](pgf-reference.md#pgf-help-config)).

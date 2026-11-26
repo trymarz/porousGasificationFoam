@@ -1,0 +1,9 @@
+#!/bin/sh
+# pgf's python3 (#362): first on PATH in every pgf stage, so pgf, the cases it
+# runs and a yade built with -DPYTHON_EXECUTABLE=/usr/bin/python3 share one
+# Python, whatever else PATH holds (conda, pyenv, /usr/local/bin).
+case "${PGF_PYTHON:-}" in
+'') exec /usr/bin/python3 "$@" ;;
+/*) exec "$PGF_PYTHON" "$@" ;;
+*) echo "pgf: PGF_PYTHON must be an absolute path, not '$PGF_PYTHON'" >&2; exit 2 ;;
+esac

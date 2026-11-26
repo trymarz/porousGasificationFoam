@@ -60,7 +60,7 @@ EOF
     mkdir -p /opt/pgf/yade-pgf /tmp/yade-build && tar -xf /opt/pgf/yade-pgf.tar -C /opt/pgf/yade-pgf && rm /opt/pgf/yade-pgf.tar
     cd /tmp/yade-build
     cmake /opt/pgf/yade-pgf -DCMAKE_INSTALL_PREFIX=/opt/yade -DENABLE_GUI=OFF -DNOSUFFIX=ON \\
-        -DYADE_VERSION=$yver -DCMAKE_BUILD_TYPE=Release
+        -DYADE_VERSION=$yver -DCMAKE_BUILD_TYPE=Release -DPYTHON_EXECUTABLE=/usr/bin/python3
     make -j"\$(nproc)" install
     cd / && rm -rf /tmp/yade-build
     export YADE_BIN=/opt/yade/bin/yade YADE_TRUNK=/opt/pgf/yade-pgf
