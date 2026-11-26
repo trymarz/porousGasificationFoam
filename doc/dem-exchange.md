@@ -1,12 +1,6 @@
 # DEM exchange
 
-Once per PGF time step, YADE sends PGF where its DEM bodies are and how fast they move, and PGF sends back how each body's λ changes. This page follows that exchange, step 2 of the [per-time-step flow](code-map.md#per-time-step-flow). Why the coupling works this way: [DEM coupling](theory-DEM.md). **If this page and the code differ, the code wins.**
-
-## Running a coupled case
-
-A coupled case needs a `WITH_YADE` build ([install.md](install.md#3-dem-coupling-optional)) and `active true` in `constant/yadeProperties`. `pgf dem run` starts YADE and the solver together in one `mpirun`; the solver always runs with `-parallel`.
-
-The solver's `system/controlDict` alone sets the run's time. The YADE script reads `deltaT` and `writeInterval` from it through `tutorials/cases/DEM_common/foamTime.py` and sets no step count of its own: the solver's last step ends YADE.
+Once per PGF time step, YADE sends PGF where its DEM bodies are and how fast they move, and PGF sends back how each body's λ changes. This page follows that exchange, step 2 of the [per-time-step flow](code-map.md#per-time-step-flow). Why the coupling works this way: [DEM coupling](theory-DEM.md); setting up and running a coupled case: [case guide → Setting up a DEM case](case-guide.md#setting-up-a-dem-case). **If this page and the code differ, the code wins.**
 
 ## One exchange, step by step
 
@@ -18,9 +12,11 @@ The solver's `system/controlDict` alone sets the run's time. The YADE script rea
 
 ## Keeping time
 
+The solver's `system/controlDict` alone sets the run's time. The YADE script reads `deltaT` and `writeInterval` from it through `tutorials/cases/DEM_common/foamTime.py` and sets no step count of its own: the solver's last step ends YADE.
+
 YADE runs several DEM steps per PGF step, set by `O.dt = deltaT / DEM_SUBSTEPS` with a whole number of substeps.
 
-- **Rate modes** (`constant`, `exactDifferential`). YADE integrates `λ̇` every DEM step, so λ advances by `λ̇ · deltaT` per exchange only when the DEM steps fill the PGF step exactly. The run stops unless YADE's `dt` divides `deltaT` to within 10⁻⁶. Before this check, the fixtures ran with a DEM step 5 times the PGF step, so λ advanced 5 times too fast ([#230](https://github.com/trymarz/porousGasificationFoam/issues/230)).
+- **Rate modes** (`constant`, `exactDifferential`). YADE integrates `λ̇` every DEM step, so λ advances by `λ̇ · deltaT` per exchange only when the DEM steps fill the PGF step exactly. The run stops unless YADE's `dt` divides `deltaT` to within 10⁻⁶ ([#230](https://github.com/trymarz/porousGasificationFoam/issues/230)).
 - **`apparentVolume`.** `r` is applied once per exchange, so the ratio of the steps does not change λ, and no exact ratio is needed: YADE exchanges every `int(deltaT / dt)` DEM steps, or every step when `dt ≥ deltaT`.
 
 Both rules are in `PgfCoupling::setExchangeInterval` (yade-pgf `pkg/openfoam/PgfCoupling.cpp`).
@@ -55,7 +51,6 @@ Both sides build the same protocol core, and neither includes the other's header
 ## Limitations
 
 - **Cross-rank springs.** Each YADE rank computes every spring whose two bodies it can see, and remote copies of bodies carry a stale λ. With 2 or more YADE workers, a spring across ranks is counted 0, 1 or 2 times ([#231](https://github.com/trymarz/porousGasificationFoam/issues/231)). The fixtures run one YADE worker, so it does not occur there.
-- **Always decomposed.** Even one OpenFOAM rank needs a one-piece `processor0`; the fixtures use 2.
 - Limitations of the coupling itself: [DEM coupling → Limitations](theory-DEM.md#limitations).
 
 ## Related pages

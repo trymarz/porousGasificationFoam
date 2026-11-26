@@ -12,6 +12,12 @@ The reads and writes come from the "Field access" list in each module's header; 
 | State update | recomputes the derived solid state |
 | Diagnostics | reads only; reports, warns or aborts |
 
+Four exceptions to these rules are recorded in [#249](https://github.com/trymarz/porousGasificationFoam/pull/249):
+- volPyrolysis refreshes the `Ym` patches before the limiter (stage 5), because the bed motion writes `Ym` after the species stage.
+- `BedCollapse` also writes `porosityF0`, `rho` and the `solidPresent` patches.
+- `PorosityRecovery` is both a state update (stages 9 and 12) and a constraint (stage 10).
+- `SolidEnergy` keeps a writable solid thermo for `correct()`.
+
 volPyrolysis owns the solid fields: `Ym` (solid mass per cell volume, one per specie), `Ys` (mass fractions), `solidH`, `Ts` and `porosity`. "SolidState masks" are `solidPresent`, `solidRegime` and the gate `connectedAtStepStart`, all owned by `SolidState`.
 
 ## The stages
@@ -111,14 +117,6 @@ Each stage reads what the stages above it left, so the order sets the results.
 - Reads: `clippedMass`, `flippedMass`, `collapsedMass`, `chemistrySh`, `Ys`.
 - Writes: only the run totals.
 - Checks: none; it prints the mass budget (transported solid mass against the booked losses), the range of each derived mass fraction, and `volPyrolysis::info()`.
-
-## Exceptions to the table
-
-These are recorded in [#249](https://github.com/trymarz/porousGasificationFoam/pull/249):
-- volPyrolysis refreshes the `Ym` patches before the limiter (stage 5), because the bed motion writes `Ym` after the species stage.
-- `BedCollapse` also writes `porosityF0`, `rho` and the `solidPresent` patches.
-- `PorosityRecovery` is both a state update (stages 9 and 12) and a constraint (stage 10).
-- `SolidEnergy` keeps a writable solid thermo for `correct()`.
 
 ## Related pages
 

@@ -32,14 +32,17 @@ for each time step:
                            # optionally capped by the solid chemistry
     exchange with DEM      # WITH_YADE builds only
     update radiation
-    solid step:
-        chemistry and gas–solid heat exchange, from the step-start state
-        limit the solid flux
-        transport the solid species
-        solve the solid energy for T_s
-        classify cells: connected / dispersed / trace
-        DEM λ temperature term
-        porosity from the solid mass; collapse or empty the bed
+    solid step:                                     # solid-step.md stage
+        chemistry and gas–solid heat exchange,      # 1–4
+            from the step-start state
+        limit the solid flux                        # 5
+        transport the solid species                 # 6
+        solve the solid energy for T_s              # 7
+        classify cells, then the T_s regime rules   # 7a–7b
+        DEM λ temperature term                      # 8
+        porosity from the solid mass;               # 9–12
+            collapse or empty the bed
+        report the mass budget                      # 13
     gas continuity
     PIMPLE loop:
         momentum, species, energy
