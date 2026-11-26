@@ -170,26 +170,10 @@ void lambdaDotModel::updateParticleFields()
     UsDEM_ = dimensionedVector("zero", UsDEM_.dimensions(), vector::zero);
     lambdaDEM_ = dimensionedScalar("zero", lambdaDEM_.dimensions(), 0.0);
 
-    movedFromCells_.clear();
-    movedToCells_.clear();
-
     for (const demParticle& p : particles_)
     {
         const label cellI = p.cell;
         if (cellI < 0) continue;
-
-        if (previousParticleCell_.found(p.id))
-        {
-            const label oldCellI = previousParticleCell_[p.id];
-
-            if (oldCellI >= 0 && oldCellI != cellI)
-            {
-                movedFromCells_.append(oldCellI);
-                movedToCells_.append(cellI);
-            }
-        }
-
-        previousParticleCell_.set(p.id, cellI);
 
         nParticles_[cellI] += 1.0;
 
@@ -260,18 +244,6 @@ void lambdaDotModel::updateParticleFields()
 
         lambda_.correctBoundaryConditions();
     }
-}
-
-
-const DynamicList<label>& lambdaDotModel::movedFromCells() const
-{
-    return movedFromCells_;
-}
-
-
-const DynamicList<label>& lambdaDotModel::movedToCells() const
-{
-    return movedToCells_;
 }
 
 } // namespace Foam

@@ -23,14 +23,14 @@ License
 
 \*---------------------------------------------------------------------------*/
 
-autoPtr<pgfYadeCoupler> pgfCoupling(nullptr);
+autoPtr<pgfDemCoupler> pgfCoupling(nullptr);
 autoPtr<lambdaDotModel> lambdaDotUpdater(nullptr);
 
 if (DEM)
 {
   // Tells Yade at startup how to apply what PGF sends per particle: a rate it
-  // integrates (0), or the apparentVolume factor it multiplies lambda by (1).
-  const int yadeLambdaMode =
+  // integrates, or the apparentVolume factor it multiplies lambda by.
+  const PgfDemBridge::LambdaMode yadeLambdaMode =
       IOdictionary
       (
           IOobject
@@ -39,19 +39,10 @@ if (DEM)
               IOobject::MUST_READ, IOobject::NO_WRITE, false
           )
       ).lookupOrDefault<word>("lambdaMode", "constant") == "apparentVolume"
-    ? 1 : 0;
+    ? PgfDemBridge::LambdaMode::apparentVolume
+    : PgfDemBridge::LambdaMode::rate;
 
-  pgfCoupling.reset
-  (
-      new pgfYadeCoupler
-      (
-          mesh, lambdaDot, yadeLambdaMode,
-          yadeCouplingProperties.lookupOrDefault<scalar>
-          (
-              "handshakeTimeout", 60
-          )
-      )
-  );
+  pgfCoupling.reset(new pgfDemCoupler(mesh, lambdaDot, yadeLambdaMode));
 
   lambdaDotUpdater.reset(new lambdaDotModel(mesh, lambdaDot, nParticles, UsDEM,
                                         Us, lambdaDEM, lambda, porosityF,

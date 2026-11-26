@@ -27,7 +27,6 @@ License
 #define lambdaDotModel_H
 
 #include "DynamicList.H"
-#include "Map.H"
 #include "autoPtr.H"
 #include "fvMesh.H"
 #include "demParticle.H"
@@ -64,11 +63,6 @@ private:
     scalar lambdaBackgroundValue_;
     autoPtr<InterpolationModel<scalar>> lambdaInterpolationModel_;
 
-    // Cell-to-cell particle moves since the last exchange.
-    Map<label> previousParticleCell_;
-    DynamicList<label> movedFromCells_;
-    DynamicList<label> movedToCells_;
-
 public:
     lambdaDotModel
     (
@@ -92,9 +86,6 @@ public:
     //- Average the located particles' state onto the mesh (count, UsDEM_,
     //  lambdaDEM_), then smooth each into its continuous field (Us_, lambda_).
     void updateParticleFields();
-
-    const DynamicList<label>& movedFromCells() const;
-    const DynamicList<label>& movedToCells() const;
 
 };
 

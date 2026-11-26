@@ -88,7 +88,7 @@ git submodule status submodules/yade-pgf # a leading '+' means the checkout diff
 
 When the pin moves, rebuild YADE. PGF's `--yade` build does not depend on the pin, so its key ignores it.
 
-`submodules/PgfDemBridge` holds the core of coupling v2 ([#328](https://github.com/trymarz/porousGasificationFoam/issues/328), [PgfDemBridge](https://github.com/trymarz/PgfDemBridge), GPL-3.0-or-later). Nothing builds it yet; the v2 adapters in PGF and yade-pgf will. yade-pgf carries the same repository as `extra/PgfDemBridge`, and both pins must match.
+`submodules/PgfDemBridge` holds the core of coupling v2 ([#328](https://github.com/trymarz/porousGasificationFoam/issues/328), [PgfDemBridge](https://github.com/trymarz/PgfDemBridge), GPL-3.0-or-later). `pgf build --yade` compiles it into `liblambdaDotModel` (`porousGasificationMedia/DEM/pgfDemCoupler/PgfDemBridge.C`), so the submodule must be checked out (`git submodule update --init submodules/PgfDemBridge`). yade-pgf carries the same repository as `extra/PgfDemBridge`, and both pins must match.
 
 ### Building YADE
 
