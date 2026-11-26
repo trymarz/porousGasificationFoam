@@ -12,7 +12,7 @@ Also flag if the *Last verified* date below predates significant recent commits 
 
 ## Documentation split
 
-- **`README.md`** (short front page), **`doc/*.md`** and **`CONTRIBUTING.md`** — human-facing. Quick start in the README; every page in `doc/README.md`, in the six page groups of `CONTRIBUTING.md` → Documentation → Page groups; contribution workflow in `CONTRIBUTING.md`.
+- **`README.md`** (short front page), **`doc/*.md`** and **`CONTRIBUTING.md`** — human-facing. Quick start in the README; every page and section in the table of contents, `doc/README.md`, by page group (`CONTRIBUTING.md` → Documentation → Page groups); contribution workflow in `CONTRIBUTING.md`.
 - **`AGENTS.md`** (this file) — agent-operating instructions only.
 
 **Rule for new content**: if a fact is useful to *either* a human contributor *or* an agent, it goes in `README.md` or `doc/` (whichever fits; the README stays short and links out). Only put content in `AGENTS.md` when it is 100% agent-targeted and would be noise for a human reader (e.g. "pass git identity per-invocation rather than touching global config", "verify before claiming"). When in doubt, choose `README.md` — false positives there are cheap; missing facts are not.

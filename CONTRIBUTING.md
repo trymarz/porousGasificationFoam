@@ -72,20 +72,11 @@ Other pages link to that home instead of repeating the fact. Where the home is d
 
 ### Page groups
 
-Each group answers one question. Inside a group, pages run from overview to detail. The [README](README.md) quick start comes before all groups; development and contribution come last.
+The pages fall into six groups. Each group answers one question, and inside a group pages run from overview to detail. The [README](README.md) quick start comes before all groups; development and contribution come last. The groups, their questions and their pages are in the table of contents, [doc/README.md](doc/README.md).
 
-| Group | Question | Pages, overview → detail |
-|---|---|---|
-| Installing and building | How do I get PGF onto a machine? | [install](doc/install.md), [build](doc/build.md), [containers](doc/containers.md) |
-| Running cases | How do I set up and run a case? | [case guide](doc/case-guide.md), [tutorials](doc/tutorials.md), [case reference](doc/case-reference.md), [ParaView](doc/paraview.md) |
-| The pgf tool | What can pgf do, and how does it work? | [pgf](doc/pgf.md), [pgf reference](doc/pgf-reference.md) |
-| The model | What physics does it solve? | [theory](doc/theory.md), [DEM coupling](doc/theory-DEM.md) |
-| How the code implements it | Where does each piece live, and in what order does it run? | [code map](doc/code-map.md), [solid step](doc/solid-step.md), [DEM exchange](doc/dem-exchange.md) |
-| Developing PGF | How do I change it safely? | this page, [regression testing](doc/regression-testing.md), [regression ledger](doc/regression-ledger.md), [developer tools](doc/dev-tools.md) |
+Task pages (installing, running cases, the pgf tool) hold workflow and advice; exact flags and keys point to `pgf help` and the code. Model pages give the physics, its assumptions and what is left out, with short-form equations and physics before code names. Code pages are mostly maps with pointers into the source.
 
-Task pages hold workflow and advice; exact flags and keys point to `pgf help` and the code. Model pages give the physics, its assumptions and what is left out, with short-form equations and physics before code names. Code pages are mostly maps with pointers into the source.
-
-A new page joins one group and the index in [doc/README.md](doc/README.md).
+A new page joins one group: add its line to `doc/README.md`, then run `utilities/gen-doc-toc.py`, which writes the section links under each page. A tooling test (`applications/test/tooling/test_docToc.sh`) fails while they are stale.
 
 ### Source comments
 
@@ -106,6 +97,7 @@ Short declarative sentences, one idea per paragraph, physics before code names.
 - **Equation change** → update the short-form equation in `doc/theory.md`.
 - **New `pgf` flag or dictionary key** → document it in `pgf help` or the reader's code first; a doc page links to it or restates it with a pointer. After any change to `pgf help`, run `utilities/gen-pgf-reference.sh` to regenerate `doc/pgf-reference.md`; a tooling test fails until you do.
 - **New insight** → if it is *what the code does*, write it in a code comment or `pgf help`. If it is *why*, *how to* or *how the pieces fit*, it belongs in `doc/` or the README.
+- **Heading added, renamed or removed** → run `utilities/gen-doc-toc.py` to refresh the table of contents.
 - **Duplicate found** → reduce it to one home plus links in the same PR. No need to wait for a cleanup branch.
 
 ## Private companion repository
