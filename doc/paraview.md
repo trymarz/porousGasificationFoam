@@ -87,5 +87,5 @@ foamcli's `render` and `gallery` make 2D matplotlib slices with no ParaView. `pg
 ## Related pages
 
 - [The pgf tool](pgf.md): settings, builds and runs.
-- [Setting up your own case](case-setup.md): required fields, input files, tutorial cases, tips.
+- [Case guide](case-guide.md): setting up and running your own case.
 - [All documentation](README.md)

@@ -76,7 +76,9 @@ Solved for internal energy `e`, the pressure work `− ε ∂p/∂t` becomes `�
 
 ### Gas–solid exchange
 
-**Mass.** Gas and solid exchange mass only through the solid reactions. A solid reaction may have solid and gas species on both sides: solid and gas reactants turn into solid and gas products. For example, in gasification, char reacts with a gasifying agent such as O₂ or CO₂ to give gases; in pyrolysis, wood gives char and volatiles. Each reaction must conserve mass; this is checked when it is read.
+#### Mass
+
+Gas and solid exchange mass only through the solid reactions. A solid reaction may have solid and gas species on both sides: solid and gas reactants turn into solid and gas products. For example, in gasification, char reacts with a gasifying agent such as O₂ or CO₂ to give gases; in pyrolysis, wood gives char and volatiles. Each reaction must conserve mass; this is checked when it is read.
 
 The solid chemistry reports this per cell as three rates, each in kg per m³ of cell per second:
 
@@ -86,7 +88,17 @@ The solid chemistry reports this per cell as three rates, each in kg per m³ of 
 
 All three come from one chemistry ODE per cell, integrated over the time step at the start of the solid step; they are the mean rates over that step. The gas and solid equations then use the same values, so both sides see one consistent exchange. For more detail, such as what each rate is normalised by, how it is split among species and which quantities stay fixed while the ODE is integrated, see the `Description` at the top of `ODESolidHeterogeneousChemistryModel.H` (#209; paper Eq. 4–6, 10, 12).
 
-**Energy.** Gas and solid each have their own temperature, `T_g` and `T_s`. Energy passes between them by convection, with the mass that crosses the interface, and as radiation. The convection and interface terms are computed once per step, from the step-start temperatures, in cells whose solid is connected at the start of the step. Gas and solid read the same stored values, so what one phase loses the other gains in the same step. Which code computes each term: [code map](code-map.md#gassolid-energy-terms).
+#### Solid reaction rates
+
+Each solid reaction's rate is defined per kg of its solid substrate (Żuk et al. 2022, Eq. 4–5), and every coefficient is a mass per kg of that substrate. In `hem = 0.6 CH4 + 0.4 char`, 1 kg of hem gives 0.4 kg of char. So:
+
+- **A lone solid substrate's coefficient has no effect.** `2 wood = 2 tar` behaves like `wood = tar`, and the solver warns about it at start-up. To split one solid among competing branches, give each branch its own reaction and put the branch fraction into its `A`.
+- **Gas substrates count per kg of solid too** (Eq. 6; #201). In `char + 1.33 O2 = 2.33 CO`, each kg of char consumed takes 1.33 kg of O₂ and gives 2.33 kg of CO, and `heatOfReaction` is per kg of char. Before #201, non-stoichiometric mode divided every coefficient by the sum of the reactant coefficients (Σ = 2.33 here); inputs written for that rule keep their kinetics with `A/Σ` and `heatOfReaction·Σ`, as the bundled tutorials now do.
+- **Diffusion limit.** With `diffusionLimitedReactions`, each gas reactant's resistance in Eq. 10, 1/Ω_diff, is multiplied by its mass coefficient (ξ_a/Σ, e.g. 1.33 for O₂ above). At the diffusion limit the reactant consumed then equals what Eq. 9 delivers. This departs from the literal Eq. 10, under which the consumption would be ξ_a/Σ times the delivery. Stoichiometric mode does the same with the gas reactant's mass coefficient in that mode, e.g. 16/12 = 1.33 kg of O₂ per kg of char in `char + 0.5 O2 = CO` (#209).
+
+#### Energy
+
+Gas and solid each have their own temperature, `T_g` and `T_s`. Energy passes between them by convection, with the mass that crosses the interface, and as radiation. The convection and interface terms are computed once per step, from the step-start temperatures, in cells whose solid is connected at the start of the step. Gas and solid read the same stored values, so what one phase loses the other gains in the same step. Which code computes each term: [code map](code-map.md#gassolid-energy-terms).
 
 | Route | Gas | Solid |
 |---|---|---|
@@ -119,7 +131,7 @@ $$
 
 *Reaction heat.* It is booked once, in the solid, as `S_chem`, with every participant at `T_s`. `solidReactionEnergyFromEnthalpy` in `chemistryProperties` (default `true`) picks how it is computed:
 
-- `false`: `S_chem` is each reaction's `heatReact` times its rate. `heatReact` must then be the heat of reaction with all participants at `T_s`; `Q_reac,s` is what brings the gas reactants there.
+- `false`: `S_chem` is each reaction's `heatReact` times its rate. `heatReact` must then be the heat of reaction with all participants at `T_s`; `Q_reac,s` is what brings the gas reactants there. It is a constant, not corrected with temperature, so give the value at reaction temperature (e.g. from a TGA/DSC fit), not a 298 K standard value (#212).
 - `true`: $S_{\mathrm{chem}} = -\sum_k R_k\,h_k(T_s) - \sum_i S_{\rho,i}\,h_{a,i}(T_s)$, with `h_a,i` the gas absolute enthalpy (formation plus sensible). Then $S_{\mathrm{chem}} - Q_{\mathrm{reac},s}$ is the solid's open-system balance, with gas reactants in at `T_g` and products out at `T_s`; `Q_reac,s` only splits it into two terms.
 
 For char oxidation, C + ½O₂ → CO, the steps are:
@@ -141,7 +153,7 @@ By Hess's law the direct route from O₂ at `T_g` to CO at `T_s` gives the same 
 
 *Reference temperatures.* The gas `h_i` counts from 298.15 K, the solid `H` from 0 K. The offset is absorbed in `heatReact` (it is defined at `T_s`) or, in enthalpy mode, in the `−c_p,k T_std` term of the solid `h_k(T)`; no temperature depends on it. It cancels exactly only for constant `c_p` (#173).
 
-*Radiation.* `S_rad` and `S_rad,s` are the gas and solid radiation sources (`radiation.H`).
+*Radiation.* `S_rad` and `S_rad,s` are the gas and solid radiation sources (`radiation.H`). With `heterogeneousP1` the gas receives `a·G − 4·a·σ·T⁴ − E`: it absorbs `a·G` and loses its own emission `4·a·σ·T⁴`, the same term that feeds the `G` equation, so a gas at `G = 4σT⁴` has no net source. `E` is an extra constant sink, not needed for that balance.
 
 ### Solid
 
@@ -173,6 +185,24 @@ $$
 
 `A` is the optional `anisotropyK` tensor; `S_chem` is the solid reaction heat (`chemistrySh`), with all participants at `T_s`. The equation is solved for `T_s`; how the storage term handles this step's composition change: [solid-step.md](solid-step.md), stage 7. Exchange terms and reference temperatures: [Gas–solid exchange](#gassolid-exchange).
 
+#### Solid regimes
+
+Every cell is in one of four solid regimes, ordered by its solid volume fraction α = 1 − ε. The thresholds (`solidRegimes` in `pyrolysisProperties`, [keys](case-reference.md#constantpyrolysisproperties)) are solid fractions, and each one ends the regime below it:
+
+| Regime | Solid fraction | What the solver does |
+|---|---|---|
+| empty | α = 0 | gas only |
+| trace | α ≤ `dispersedAboveSolidFraction` | too little solid to trust its own temperature: `T_s` is the gas temperature |
+| dispersed | α ≤ `connectedAboveSolidFraction` | the solid no longer forms a connected matrix: no solid source terms, and the cell may be emptied (`bedCollapse`, `emptyFlippedCells`) |
+| connected | α ≤ `maxSolidFraction` | the full model |
+
+The regimes hold at any scale: a cell may be a piece of one pellet, where α counts the pores inside it, or hold many pellets, where α counts the gaps between them too. Only the values are case-specific.
+
+- `dispersedAboveSolidFraction` changes results. Below it, `T_s = H/(ρ c_p)` is a ratio of two vanishing numbers whose errors do not shrink with them. `heterogeneousP1` uses the same threshold: only cells above it attenuate radiation as solid.
+- `connectedAboveSolidFraction` is also the threshold of the DEM coupling: where the solid is not connected, `lambdaDot` is off and the interpolation models treat the cell as outside the solid.
+- `maxSolidFraction` is the packing cap: the solid flux limiter refuses any flux that would carry a cell past it. It must stay below 1, since the gas equations divide by the gas volume.
+- `dispersedSolidTemperature gas` takes the gas temperature in dispersed cells too. The energy the solid loses that way is not charged anywhere.
+
 ## DEM coupling
 
 Only in a `WITH_YADE` build with `constant/yadeProperties` `active true`. DEM replaces the prescribed `U_s` and nothing else in the equations above. In return PGF sends each DEM body how its length scale λ changes, from the solid chemistry. The idea and the body size models: [theory-DEM.md](theory-DEM.md); the exchange step: [dem-exchange.md](dem-exchange.md).
@@ -183,5 +213,5 @@ Only in a `WITH_YADE` build with `constant/yadeProperties` `active true`. DEM re
 - [Solid step](solid-step.md): the solid step, stage by stage.
 - [DEM coupling](theory-DEM.md): the YADE coupling.
 - [DEM exchange](dem-exchange.md): the exchange with YADE.
-- [Setting up your own case](case-setup.md): required fields, input files, tutorial cases, tips.
+- [Case guide](case-guide.md) and [case reference](case-reference.md): setting up a case, and its keys.
 - [All documentation](README.md)

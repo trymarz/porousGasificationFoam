@@ -17,7 +17,7 @@ Where each part of the [model](theory.md) lives in the source, and the order in 
 | Radiation | `radiationProperties` | `radiationModels/heterogeneousRadiationModels/` |
 | DEM coupling | `lambdaDict`, `yadeProperties` | `DEM/`, `demCoupling/` |
 
-- **Paths.** Inputs are in `constant/` unless they start with `0/` or `system/`; their keys: [case-setup.md](case-setup.md#input-file-reference). The `*Eqn.H` files are in `porousGasificationFoam/`. Model folders are under `porousGasificationMedia/`; the solid-step ones (`solidSpeciesTransport/` to `demCoupling/` without a prefix above) are under its `pyrolysisModels/pyrolysisModel/volPyrolysis/`, where `volPyrolysis.C` runs the solid step.
+- **Paths.** Inputs are in `constant/` unless they start with `0/` or `system/`; their keys: [case reference](case-reference.md). The `*Eqn.H` files are in `porousGasificationFoam/`. Model folders are under `porousGasificationMedia/`; the solid-step ones (`solidSpeciesTransport/` to `demCoupling/` without a prefix above) are under its `pyrolysisModels/pyrolysisModel/volPyrolysis/`, where `volPyrolysis.C` runs the solid step.
 - **Optional inputs.** `porosityProperties` (default Darcy only), `0/anisotropyK` (default identity), and `specieTransferProperties`, which is read only when `diffusionLimitedReactions` is on in `chemistryProperties`.
 - **Solid transport.** `pyrolysisProperties` → `pyrolysisCoeffs` holds the limiter and bed switches. The `div(phiSolid)` entry is in `system/fvSchemes`.
 - **DEM coupling.** Needs a `WITH_YADE` build; see [DEM coupling](theory-DEM.md).

@@ -107,5 +107,5 @@ Status lines read `OK`, `WARN`, `FAIL`, `SKIP`, `INFO` (`PASS`/`FAIL` for tests)
 - [pgf reference](pgf-reference.md): every page of `pgf help`.
 - [Building](build.md): the build store, the DEM coupling, cleaning.
 - [Apptainer images](containers.md): `pgf pack`, an image of one commit for a server.
-- [Setting up your own case](case-setup.md): required fields, input files, tutorial cases, tips.
+- [Case guide](case-guide.md): setting up and running your own case.
 - [All documentation](README.md)

@@ -11,7 +11,7 @@
 Arbitrary chemistry · Dynamic porosity and permeability · Interphase heat and mass exchange<br>
 Local thermal non-equilibrium · Compressible species transport · Generalized source terms
 
-[Quick start](#quick-start) · [Documentation](doc/README.md) · [Tutorials](doc/case-setup.md#tutorial-cases) · [Citation](#citation)
+[Quick start](#quick-start) · [Documentation](doc/README.md) · [Tutorials](doc/tutorials.md) · [Citation](#citation)
 
 ```text
 Gas phase  (ε porosity, U superficial velocity)
@@ -88,16 +88,16 @@ pgf view .
 
 ### After the first case
 
-- **More tutorials:** [Tutorial cases](doc/case-setup.md#tutorial-cases) describes each one; `pgf copy --list` lists them.
+- **More tutorials:** [Tutorials](doc/tutorials.md) describes each one; `pgf copy --list` lists them.
 - **A full reactive-flow demo:** `pgf copy gasifier`, a fixed-bed gasifier. It runs for hours on 4 MPI ranks.
 - **DEM coupling to YADE:** build YADE from trymarz/yade-pgf at the pinned commit, then `pgf build --yade`, `pgf doctor --yade` and `pgf copy MicroTGA-DEM_lambdaDotOff`; [doc/install.md → DEM coupling](doc/install.md#3-dem-coupling-optional) has every step.
-- **Your own case:** start from [doc/case-setup.md](doc/case-setup.md).
+- **Your own case:** start from the [case guide](doc/case-guide.md).
 
 ## Documentation
 
 [doc/README.md](doc/README.md) lists every page. In short:
 
-- **Using PGF:** [the pgf tool](doc/pgf.md), [your own case](doc/case-setup.md), [ParaView](doc/paraview.md)
+- **Using PGF:** [the pgf tool](doc/pgf.md), [your own case](doc/case-guide.md), [ParaView](doc/paraview.md)
 - **Installing, building and deploying:** [installing](doc/install.md), [building](doc/build.md), [Apptainer images](doc/containers.md)
 - **Reference:** `pgf help` (every command and setting), [API reference (Doxygen)](doc/build.md#doxygen-documentation)
 - **The model:** [theory](doc/theory.md), [solid step](doc/solid-step.md)

@@ -44,7 +44,7 @@ def git(checkout, *args):
 def tutorials(checkout):
     """(path, what) per case under tutorials/cases: a dir with an executable
     Allrun and system/ (or a family: children with system/ or constant/);
-    `what` from doc/case-setup.md's Tutorial Cases."""
+    `what` from the table in doc/tutorials.md."""
     base = os.path.join(checkout, "tutorials", "cases")
     found = []
     for d, dirs, files in os.walk(base):
@@ -56,8 +56,8 @@ def tutorials(checkout):
             dirs[:] = []
     rows = []
     try:
-        doc = open(os.path.join(checkout, "doc", "case-setup.md")).read()
-        doc = doc.split("## Tutorial Cases", 1)[1].split("\n## ", 1)[0]
+        doc = open(os.path.join(checkout, "doc", "tutorials.md")).read()
+        doc = doc.split("\n## ", 1)[0]
         for line in doc.splitlines():
             cols = [c.strip() for c in line.strip().strip("|").split("|")]
             if len(cols) >= 2 and "`" in cols[0]:

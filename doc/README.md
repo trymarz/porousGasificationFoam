@@ -1,11 +1,13 @@
 # Documentation
 
-New to PGF? [Install it](install.md), run the [README](../README.md) quick start, then [build your own case](case-setup.md#your-first-case).
+New to PGF? [Install it](install.md), run the [README](../README.md) quick start, then [build your own case](case-guide.md#your-first-case).
 
 ## Using PGF
 
 - [The pgf tool](pgf.md): settings, builds and runs.
-- [Setting up your own case](case-setup.md): required fields, input files, tutorial cases, tips.
+- [Case guide](case-guide.md): your first case, running a case, a DEM case, tips.
+- [Tutorials](tutorials.md): every tutorial case, and which tests run it.
+- [Case reference](case-reference.md): required fields, solid boundary conditions, every input dictionary.
 - [Viewing a case in ParaView](paraview.md): the case's views, comparing two cases, rendering to PNG.
 
 ## Installing, building and deploying
