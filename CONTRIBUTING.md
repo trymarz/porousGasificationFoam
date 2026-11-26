@@ -72,14 +72,18 @@ Other pages link to that home instead of repeating the fact. Where the home is d
 
 ### Page groups
 
-The layout tells readers where to go: the introduction and quick start come first, development and contribution come last.
+Each group answers one question. Inside a group, pages run from overview to detail. The [README](README.md) quick start comes before all groups; development and contribution come last.
 
-| Group | Holds | Pages |
+| Group | Question | Pages, overview → detail |
 |---|---|---|
-| Using PGF | Workflow and advice. Exact flags and keys point to `pgf help` and the code. | [README](README.md) quick start, [install](doc/install.md), [build](doc/build.md), [pgf](doc/pgf.md), [containers](doc/containers.md), [case setup](doc/case-setup.md), [ParaView](doc/paraview.md) |
-| The model | Physics, assumptions and what is left out. Short-form equations, physics before code names. | [theory](doc/theory.md), [DEM coupling](doc/theory-DEM.md) |
-| How the code implements it | Step order, stages, exchanges. Mostly maps with pointers into the source. | [solid step](doc/solid-step.md) |
-| Developing PGF | How to change PGF and check the change. | this page, [regression testing](doc/regression-testing.md), [regression ledger](doc/regression-ledger.md) |
+| Installing and building | How do I get PGF onto a machine? | [install](doc/install.md), [build](doc/build.md), [containers](doc/containers.md) |
+| Running cases | How do I set up and run a case? | [case setup](doc/case-setup.md), [ParaView](doc/paraview.md) |
+| The pgf tool | What can pgf do, and how does it work? | [pgf](doc/pgf.md) |
+| The model | What physics does it solve? | [theory](doc/theory.md), [DEM coupling](doc/theory-DEM.md) |
+| How the code implements it | Where does each piece live, and in what order does it run? | [solid step](doc/solid-step.md) |
+| Developing PGF | How do I change it safely? | this page, [regression testing](doc/regression-testing.md), [regression ledger](doc/regression-ledger.md) |
+
+Task pages hold workflow and advice; exact flags and keys point to `pgf help` and the code. Model pages give the physics, its assumptions and what is left out, with short-form equations and physics before code names. Code pages are mostly maps with pointers into the source.
 
 A new page joins one group and the index in [doc/README.md](doc/README.md).
 
