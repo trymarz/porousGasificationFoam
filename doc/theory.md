@@ -25,7 +25,7 @@ Each cell holds gas and solid in proportions set by the porosity `ε` (`porosity
 | `U_s` | `Us` | solid velocity |
 | `φ_s` | `phiSolid` | limited solid volume flux |
 
-- **Densities.** Skeletal is the material without its pores; apparent is a particle's mass over its envelope volume, pores included. Both are per-specie entries in `solidThermophysicalProperties`; `rhoApparent` is optional and only `lambdaMode apparentVolume` reads it. The bulk density is `ρ_s (1 − ε)`.
+- **Densities.** Skeletal is the material without its pores; apparent is a particle's mass over its envelope volume, pores included. Both are per-specie entries in `solidThermophysicalProperties`; `rhoApparent` is optional and only `lambdaMode apparentVolume` reads it. The mixture's skeletal density is `1/ρ_s = Σₖ Ysₖ/ρ_s,k`, and its bulk density `ρ_s (1 − ε)`.
 
 ## Models at a glance
 
@@ -195,7 +195,13 @@ By Hess's law the direct route from O₂ at `T_g` to CO at `T_s` gives the same 
 
 ### Solid
 
-**Motion.** No equation solves for `U_s`. It is prescribed in `0/Us` (fixed in time) or, with DEM, interpolated from `UsDEM`, the raw cell mean of the particle velocities (`interpolationMode` in `constant/lambdaDict`; [DEM coupling](theory-DEM.md#the-idea)). The solid actually moves with `φ_s`: the volume flux of `U_s`, scaled down (`solidFluxLimiter`) so no cell gives more solid than it holds or takes more than it has room for.
+**Motion.** No equation solves for `U_s`. It is prescribed in `0/Us` (fixed in time) or, with DEM, interpolated from `UsDEM`, the raw cell mean of the particle velocities (`interpolationMode` in `constant/lambdaDict`; [DEM coupling](theory-DEM.md#the-idea)). The solid actually moves with the limited volume flux
+
+$$
+\varphi_s = L_f\,(\mathbf{U}_s\cdot\mathbf{S}_f), \qquad 0 \le L_f \le 1
+$$
+
+where `S_f` is the face area vector and `L_f` the factor from `solidFluxLimiter`, chosen so no cell gives more solid than it holds or takes more than it has room for. This keeps `Ym` non-negative.
 
 **Species** (`SolidSpeciesTransport::solve`; paper Eq. 3a plus solid advection, which the paper does not have). `Ym_k` is the mass of solid species `k` per m³ of cell. It changes through the solid reactions (`R_k`) and, when the solid moves, through the solid flux `φ_s`:
 
@@ -203,28 +209,19 @@ $$
 {\color{blue}\frac{\partial\,\mathrm{Ym}_k}{\partial t}} + {\color{orange}\nabla\cdot(\varphi_s\,\mathrm{Ym}_k)} = {\color{red}R_k}
 $$
 
-The limit on `φ_s` keeps `Ym` non-negative.
-
-**Porosity** (`PorosityRecovery::updatePorosity`). Not transported; derived from the solid mass each step. Nearly empty (flipped) cells are cleared only with `bedCollapse`, which moves the column onto them, or with `emptyFlippedCells`, which destroys their mass; both are off by default, and then their solid stays ([solid-step.md](solid-step.md), stages 9–10).
+**Porosity** (`PorosityRecovery::updatePorosity`). Not transported; derived from the solid mass each step, so both chemistry and solid motion change it. Handling of nearly empty cells: [solid-step.md](solid-step.md), stages 9–10.
 
 $$
-\frac{1}{\rho_s} = \sum_k \frac{\mathrm{Ys}_k}{\rho_{s,k}}, \qquad 1-\varepsilon = \sum_k \frac{\mathrm{Ym}_k}{\rho_{s,k}}
+1-\varepsilon = \sum_k \frac{\mathrm{Ym}_k}{\rho_{s,k}}
 $$
 
-**Energy** (`SolidEnergy::solve`, after the species step; paper 3c). The stored variable is `H = Σₖ Ym_k c_p,k T_s` (`solidH`), but the equation is solved for `T_s`:
+**Energy** (`SolidEnergy::solve`, after the species step; paper 3c). The solid enthalpy `H = Σₖ Ym_k c_p,k T_s` (`solidH`) is stored, advected with the solid and conducted through it:
 
 $$
-\begin{aligned}
-&{\color{blue}\frac{\partial(\rho c_p^* T_s)}{\partial t} + \frac{\rho c_p^* T_s^0 - H^0}{\Delta t}} + {\color{orange}\nabla\cdot\Bigl(\sum_k \varphi_{\mathrm{Ym},k}\,c_{p,k}T_s\Bigr)} - {\color{green}\nabla\cdot\bigl((1-\varepsilon)K_s A\,\nabla T_s\bigr)} \\
-&\quad = {\color{purple}S_{\mathrm{chem}}} {\color{red}\;-\;Q_{\mathrm{conv}} - Q_{\mathrm{reac},s} + S_{\mathrm{rad},s}}
-\end{aligned}
+{\color{blue}\frac{\partial H}{\partial t}} + {\color{orange}\nabla\cdot\Bigl(\sum_k \varphi_{\mathrm{Ym},k}\,c_{p,k}T_s\Bigr)} - {\color{green}\nabla\cdot\bigl((1-\varepsilon)K_s A\,\nabla T_s\bigr)} = {\color{purple}S_{\mathrm{chem}}} {\color{red}\;-\;Q_{\mathrm{conv}} - Q_{\mathrm{reac},s} + S_{\mathrm{rad},s}}
 $$
 
-$$
-\rho c_p^* = \sum_k c_{p,k}\,(\mathrm{Ym}_k - \Delta t\,R_k)
-$$
-
-`ρc_p*` (`rhoCpCarrier`) is the heat capacity of the solid before this step's reaction, so the storage terms take the sensible heat of the composition change implicitly. `A` is the optional `anisotropyK` tensor; `S_chem` is the solid reaction heat (`chemistrySh`), with all participants at `T_s`. `H` is then stored on the mass that remains. How each term is discretised: [solid-step.md](solid-step.md), stage 7. Exchange terms and reference temperatures: [Gas–solid exchange](#gassolid-exchange).
+`A` is the optional `anisotropyK` tensor; `S_chem` is the solid reaction heat (`chemistrySh`), with all participants at `T_s`. The equation is solved for `T_s`; how the storage term handles this step's composition change: [solid-step.md](solid-step.md), stage 7. Exchange terms and reference temperatures: [Gas–solid exchange](#gassolid-exchange).
 
 ## DEM coupling
 
