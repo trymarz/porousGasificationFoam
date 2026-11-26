@@ -71,6 +71,10 @@ check "after shell -- a command" has bash "$(comp "pgf shell -- bas")"
 check "copy completes the tutorials" has charOnlyMoveCases/serial "$(comp "pgf copy charOnly")"
 check "view completes dirs and its options" bash -c 'grep -qx -- --palette <<<"$1"' _ "$(comp "pgf view --pal")"
 check "completion completes bash" [ "$(comp "pgf completion ")" = bash ]
+touch "$TEST_TMP/cases/plain/MPI_lambda.py"
+check "dem completes run" [ "$(comp "pgf dem ")" = run ]
+check "  then its options" has --stall-timeout "$(comp "pgf dem run --st")"
+check "  and the Yade script" has "$TEST_TMP/cases/plain/MPI_lambda.py" "$(comp "pgf dem run -ndem 2 $TEST_TMP/cases/plain/MP")"
 
 # pgf setup offers it; --yes installs it, --no-completion does not
 tree="$TEST_TMP/tree"
