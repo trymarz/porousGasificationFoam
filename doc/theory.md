@@ -26,7 +26,6 @@ Each cell holds gas and solid in proportions set by the porosity `ε` (`porosity
 | `φ_s` | `phiSolid` | limited solid volume flux |
 
 - **Densities.** Skeletal is the material without its pores; apparent is a particle's mass over its envelope volume, pores included. Both are per-specie entries in `solidThermophysicalProperties`; `rhoApparent` is optional and only `lambdaMode apparentVolume` reads it. The bulk density is `ρ_s (1 − ε)`.
-- **Solid velocity.** `U_s` is prescribed in `0/Us` (fixed in time) or, with DEM, interpolated from `UsDEM`, the raw cell mean of the particle velocities (`interpolationMode` in `constant/lambdaDict`). No equation solves for it. The solid actually moves with `φ_s`: the volume flux of `U_s`, scaled down so no cell gives more solid than it holds or takes more than it has room for.
 
 ## Models at a glance
 
@@ -196,13 +195,15 @@ By Hess's law the direct route from O₂ at `T_g` to CO at `T_s` gives the same 
 
 ### Solid
 
+**Motion.** No equation solves for `U_s`. It is prescribed in `0/Us` (fixed in time) or, with DEM, interpolated from `UsDEM`, the raw cell mean of the particle velocities (`interpolationMode` in `constant/lambdaDict`; [DEM coupling](theory-DEM.md#the-idea)). The solid actually moves with `φ_s`: the volume flux of `U_s`, scaled down (`solidFluxLimiter`) so no cell gives more solid than it holds or takes more than it has room for.
+
 **Species** (`SolidSpeciesTransport::solve`; paper Eq. 3a plus solid advection, which the paper does not have). `Ym_k` is the mass of solid species `k` per m³ of cell. It changes through the solid reactions (`R_k`) and, when the solid moves, through the solid flux `φ_s`:
 
 $$
 {\color{blue}\frac{\partial\,\mathrm{Ym}_k}{\partial t}} + {\color{orange}\nabla\cdot(\varphi_s\,\mathrm{Ym}_k)} = {\color{red}R_k}
 $$
 
-`φ_s` is limited (`solidFluxLimiter`) so that no cell gives away more solid than it holds, which keeps `Ym` non-negative.
+The limit on `φ_s` keeps `Ym` non-negative.
 
 **Porosity** (`PorosityRecovery::updatePorosity`). Not transported; derived from the solid mass each step. Nearly empty (flipped) cells are cleared only with `bedCollapse`, which moves the column onto them, or with `emptyFlippedCells`, which destroys their mass; both are off by default, and then their solid stays ([solid-step.md](solid-step.md), stages 9–10).
 
@@ -227,7 +228,7 @@ $$
 
 ## DEM coupling
 
-Only in a `WITH_YADE` build with `constant/yadeProperties` `active true`. The DEM particles supply only `U_s`; the idea behind this, what the two sides exchange, the λ modes and the particle-size update: [theory-DEM.md](theory-DEM.md).
+Only in a `WITH_YADE` build with `constant/yadeProperties` `active true`. DEM replaces the prescribed `U_s` and nothing else in the equations above. In return PGF sends each particle how its length scale λ changes, from the solid chemistry. The idea, the λ modes and the exchange: [theory-DEM.md](theory-DEM.md).
 
 ## Related pages
 

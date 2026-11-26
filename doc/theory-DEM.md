@@ -6,11 +6,19 @@ PGF can run coupled to YADE, a discrete-element (DEM) code that moves individual
 
 The usual CFD–DEM picture, where particles set the porosity and the gas drags the particles, does not apply here.
 
-**What the particles are.** The DEM particles are an analog chosen by the user to move the solid in a physically plausible way. They can be bead-spring chains, spheres or rough grains. They are not the solid that PGF models. That solid lives on the mesh as the mass per cell `Ym`, and porosity follows from it (`1 − ε = Σ Ym/ρ`). The particles carry no mass, and none of their shape or size reaches PGF. The closer they mimic the real material, the more physical the solid velocity is likely to be, but nothing enforces this. For example, a single pellet spanning several cells is modelled as bead-spring chains. A gasifier bed is modelled as loosely packed spheres, because spheres flow smoothly under compaction, not because the real bed is made of spheres. To study bridging you would pick rougher particles that clog more easily.
+### What the particles are
 
-**DEM → PGF: the solid velocity only.** The particle velocities, averaged per cell and smoothed over the solid cells that hold no particles, give `U_s`. `U_s` gives the solid flux `φ_s`. `φ_s` moves `Ym`, and the new `Ym` gives the new porosity. The gas sees the particles only through that porosity, via the Darcy–Forchheimer resistance. Particle positions decide only which cells anchor `U_s`. Neither the positions nor λ enters any PGF equation.
+The DEM particles are an analog chosen by the user to move the solid in a physically plausible way. They can be bead-spring chains, spheres or rough grains. They are not the solid that PGF models. That solid lives on the mesh as the mass per cell `Ym`, and porosity follows from it (`1 − ε = Σ Ym/ρ`). The particles carry no mass, and none of their shape or size reaches PGF. The closer they mimic the real material, the more physical the solid velocity is likely to be, but nothing enforces this. For example, a single pellet spanning several cells is modelled as bead-spring chains. A gasifier bed is modelled as loosely packed spheres, because spheres flow smoothly under compaction, not because the real bed is made of spheres. To study bridging you would pick rougher particles that clog more easily.
 
-**PGF → DEM: how λ changes.** PGF sends each cell's λ̇, or under `apparentVolume` a factor `r`. In most cases this comes from the solid chemistry. `exactDifferential` can add a solid-temperature term, for example for thermal expansion, and `constant` sends a fixed rate. λ is a particle length scale, independent of porosity. In the tutorial fixtures, only the spring model uses it, as a stretch of the springs' rest length ([below](#spring-model-and-engine-order-231)).
+### DEM → PGF: the solid velocity
+
+The particle velocities, averaged per cell and smoothed over the solid cells that hold no particles, give `U_s`. `U_s` gives the solid flux `φ_s`. `φ_s` moves `Ym`, and the new `Ym` gives the new porosity. The gas sees the particles only through that porosity, via the Darcy–Forchheimer resistance. Particle positions decide only which cells anchor `U_s`. Neither the positions nor λ enters any PGF equation.
+
+### PGF → DEM: the particle length scale λ
+
+PGF sends each cell's λ̇, or under `apparentVolume` a factor `r`. In most cases this comes from the solid chemistry. `exactDifferential` can add a solid-temperature term, for example for thermal expansion, and `constant` sends a fixed rate. λ is a particle length scale, independent of porosity. In the tutorial fixtures, only the spring model uses it, as a stretch of the springs' rest length ([below](#spring-model-and-engine-order-231)).
+
+### Consistency
 
 **One-way, in cycles.** Each side takes the other's latest data as it is, updates its own state and sends its new fields back. PGF does not correct the particle velocities, and YADE does not correct λ̇ or `r`. The two descriptions are not tied together beyond this exchange, so their coherence is hoped for, not enforced.
 
@@ -20,29 +28,19 @@ The usual CFD–DEM picture, where particles set the porosity and the gas drags 
 
 See [Limitations](#limitations).
 
-**Who owns what.**
-- YADE moves the particles and owns each particle's length scale `λ` (default 1).
-- PGF's `lambda` field is a cell average written for output.
+## Particle size models
 
-**Code.** PGF side: `porousGasificationMedia/DEM/pgfDemCoupler/` and `DEM/lambdaDotModel.C`. YADE side: the `PgfCoupling` engine (`pkg/openfoam/PgfCoupling.cpp` in trymarz/yade-pgf, the submodule `submodules/yade-pgf`). Both build the same protocol core, [PgfDemBridge](https://github.com/trymarz/PgfDemBridge) (`submodules/PgfDemBridge`, its banner in `src/PgfDemBridge.hpp`), and neither includes the other's headers. A `yadeProperties` with a `coupler` entry other than `pgf` stops the solver (`porousGasificationFoam/createDEMFields.H`).
+`lambdaMode` in `constant/lambdaDict` selects the `LambdaDotCalculationModel` (`DEM/lambdaDotModels/`), and through it the integer the handshake sends YADE:
 
-## Exchanged fields
-
-| Stage | MPI call | Per body | Content |
+| `lambdaMode` | Sent down | YADE applies it | Source |
 |---|---|---|---|
-| open, once | `Allgather` on all ranks | – | magic, protocol version (2), side, thread level, `lambdaMode`, strides 7/1; each OpenFOAM rank's mesh bounding box |
-| step header | `Allreduce` | – | rebuild and stop flags; a rebuild makes a new neighbour graph from the DEM ranks' edges |
-| bodies up | `Neighbor_alltoallv`, each DEM rank → each OpenFOAM rank whose box holds the body's centre | 7 | position [m], velocity [m/s], `λ` [m] |
-| values down | `Neighbor_alltoallv`, back | 1 | `λ̇` [m/s] or `r` [–] in the same order, NaN where that rank did not find the body |
-| control | `Bcast` from the first OpenFOAM rank | – | `deltaT`, and whether this was the solver's last step |
+| `constant` (default) | rate `λ̇ = lambdaValue` [m/s] | `λ += λ̇·dt` every DEM step (`NewtonIntegrator`) | `constantLambdaDot` |
+| `exactDifferential` | rate `λ̇ = (∂λ/∂Tₛ) dTₛ/dt + Σᵢ (∂λ/∂Ymᵢ) Rᵢ` [m/s] | as above | `exactDifferentialLambdaDot.H` (Description) |
+| `apparentVolume` | factor `r = ∛(1 + ΔV_chem/V_old)` [–] | `λ ← r λ` once per exchange (`PgfCoupling::apply`) | `apparentVolumeLambdaDot.H`; [particle size](#particle-size-under-lambdamode-apparentvolume) |
 
-- **On the mesh.** Each OpenFOAM rank locates the bodies in its cells. It fills `nParticles`, the cell means `UsDEM` and `lambdaDEM`, and then `Us` and `lambda` from those, smoothed by the `interpolationMode` / `lambdaInterpolationMode` models of `constant/lambdaDict` ([case-setup.md](case-setup.md#constantlambdadict-required-by-with_yade-builds-running-a-dem-case)).
-- **Stops by name** on a version, stride, thread-level or `lambdaMode` mismatch, on OpenFOAM ranks disagreeing on `lambdaMode`, and on `PgfCoupling.expectLambdaMode` ≠ the case's mode. A DEM script without `PgfCoupling` leaves the solver waiting in the handshake.
-- **End.** The solver's last step ends YADE (`PgfCoupling: OpenFOAM ran its last step; the DEM run ends at iter N`); a YADE run that ends first stops the solver. An MPI error on either side aborts both.
-- **Erased bodies.** YADE applies `λ̇` or `r` once per exchange, looking each body up by id with `BodyContainer::exists`. A body erased with `mp.bodyErase` is skipped, so a stale list cannot be dereferenced.
-- **Units of λ.** `lambda`, `lambdaDEM` and `lambdaBackgroundValue` are declared in m, and `λ̇` in m/s. In the fixtures' spring model λ starts at 1 and multiplies a rest length, so it acts as a stretch ratio.
+Before the exchange, `lambdaDotModel::updateLambdaDot()` sets the neutral value (0 for a rate, 1 for `r`) wherever `porosityF ≥ connectedBelowPorosity`. The comment there: "the value gated and pushed to particles here is the previous step's", because the models assemble the value later in the step, inside the solid solve.
 
-## Particle size under `lambdaMode apparentVolume`
+### Particle size under `lambdaMode apparentVolume`
 
 (`DEM/lambdaDotModels/apparentVolumeLambdaDot/`). In this mode a particle grows or shrinks with the apparent volume of the solid in its cell. One kilogram of solid specie `k` fills `1/ρ_app,k` of particle volume, pores included (`rhoApparent` in `solidThermophysicalProperties`, required here). `V_old` is the volume the solid in a cell takes up before this step's reactions, and `ΔV_chem` is how much the reactions change it over the step:
 
@@ -60,23 +58,36 @@ $$
 - Every particle in a cell gets the same `r`.
 - `r = 1` in nearly empty cells (`V_old < minSolidVolume`). At full burnout the ratio is floored at `minVolumeRatio`, with a warning. Both keys are optional in `lambdaDict`.
 
-## λ modes
+## Exchange and implementation
 
-`lambdaMode` in `constant/lambdaDict` selects the `LambdaDotCalculationModel` (`DEM/lambdaDotModels/`), and through it the integer the handshake sends YADE:
+### Ownership and code
 
-| `lambdaMode` | Sent down | YADE applies it | Source |
+- YADE moves the particles and owns each particle's length scale `λ` (default 1).
+- PGF's `lambda` field is a cell average written for output.
+
+**Code.** PGF side: `porousGasificationMedia/DEM/pgfDemCoupler/` and `DEM/lambdaDotModel.C`. YADE side: the `PgfCoupling` engine (`pkg/openfoam/PgfCoupling.cpp` in trymarz/yade-pgf, the submodule `submodules/yade-pgf`). Both build the same protocol core, [PgfDemBridge](https://github.com/trymarz/PgfDemBridge) (`submodules/PgfDemBridge`, its banner in `src/PgfDemBridge.hpp`), and neither includes the other's headers. A `yadeProperties` with a `coupler` entry other than `pgf` stops the solver (`porousGasificationFoam/createDEMFields.H`).
+
+### Exchanged fields
+
+| Stage | MPI call | Per body | Content |
 |---|---|---|---|
-| `constant` (default) | rate `λ̇ = lambdaValue` [m/s] | `λ += λ̇·dt` every DEM step (`NewtonIntegrator`) | `constantLambdaDot` |
-| `exactDifferential` | rate `λ̇ = (∂λ/∂Tₛ) dTₛ/dt + Σᵢ (∂λ/∂Ymᵢ) Rᵢ` [m/s] | as above | `exactDifferentialLambdaDot.H` (Description) |
-| `apparentVolume` | factor `r = ∛(1 + ΔV_chem/V_old)` [–] | `λ ← r λ` once per exchange (`PgfCoupling::apply`) | `apparentVolumeLambdaDot.H`; [particle size](#particle-size-under-lambdamode-apparentvolume) |
+| open, once | `Allgather` on all ranks | – | magic, protocol version (2), side, thread level, `lambdaMode`, strides 7/1; each OpenFOAM rank's mesh bounding box |
+| step header | `Allreduce` | – | rebuild and stop flags; a rebuild makes a new neighbour graph from the DEM ranks' edges |
+| bodies up | `Neighbor_alltoallv`, each DEM rank → each OpenFOAM rank whose box holds the body's centre | 7 | position [m], velocity [m/s], `λ` [m] |
+| values down | `Neighbor_alltoallv`, back | 1 | `λ̇` [m/s] or `r` [–] in the same order, NaN where that rank did not find the body |
+| control | `Bcast` from the first OpenFOAM rank | – | `deltaT`, and whether this was the solver's last step |
 
-Before the exchange, `lambdaDotModel::updateLambdaDot()` sets the neutral value (0 for a rate, 1 for `r`) wherever `porosityF ≥ connectedBelowPorosity`. The comment there: "the value gated and pushed to particles here is the previous step's", because the models assemble the value later in the step, inside the solid solve.
+- **On the mesh.** Each OpenFOAM rank locates the bodies in its cells. It fills `nParticles`, the cell means `UsDEM` and `lambdaDEM`, and then `Us` and `lambda` from those, smoothed by the `interpolationMode` / `lambdaInterpolationMode` models of `constant/lambdaDict` ([case-setup.md](case-setup.md#constantlambdadict-required-by-with_yade-builds-running-a-dem-case)).
+- **Stops by name** on a version, stride, thread-level or `lambdaMode` mismatch, on OpenFOAM ranks disagreeing on `lambdaMode`, and on `PgfCoupling.expectLambdaMode` ≠ the case's mode. A DEM script without `PgfCoupling` leaves the solver waiting in the handshake.
+- **End.** The solver's last step ends YADE (`PgfCoupling: OpenFOAM ran its last step; the DEM run ends at iter N`); a YADE run that ends first stops the solver. An MPI error on either side aborts both.
+- **Erased bodies.** YADE applies `λ̇` or `r` once per exchange, looking each body up by id with `BodyContainer::exists`. A body erased with `mp.bodyErase` is skipped, so a stale list cannot be dereferenced.
+- **Units of λ.** `lambda`, `lambdaDEM` and `lambdaBackgroundValue` are declared in m, and `λ̇` in m/s. In the fixtures' spring model λ starts at 1 and multiplies a rest length, so it acts as a stretch ratio.
 
-## Which rank sets λ̇ (#229)
+### Which rank sets λ̇ (#229)
 
 A body near a rank boundary lies in the bounding box of several OpenFOAM ranks. YADE sends it to each of them; a rank that did not find the body in its cells returns NaN for it, and YADE takes the value of the lowest rank that found it. A body that no rank found keeps its previous `λ̇` (`PgfCoupling::apply`), and `PgfCoupling.nLost` counts it.
 
-## Time step (#230)
+### Time step (#230)
 
 YADE exchanges every `n` DEM steps (`dataExchangeInterval`, `PgfCoupling::setExchangeInterval`):
 
