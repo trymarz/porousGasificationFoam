@@ -400,7 +400,7 @@ pgf build compiles a checkout into the build store (PGF_BUILD_ROOT, default
 sources, the variant (yade0 non-DEM, yade1 DEM), the OpenFOAM version and the
 compiler, so a prefix with the same key is reused without compiling. Each
 checkout has two keys, non-DEM and DEM; pgf status shows them, pgf builds lists
-every build. More: doc/build.md, "Where things land".
+every build. More: doc/build.md, \"Where things land\".
 
 ## Choosing a build
 Each command uses one build. It comes from, later winning:
