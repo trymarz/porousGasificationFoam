@@ -78,7 +78,7 @@ for each time step:
 ```
 
 1. **Time step** — the gas Courant and solid diffusion limits set Δt (`setMultiRegionDeltaT.H`); with local time stepping (LTS) `setRDeltaT.H` sets a local Δt instead. With `adjustTimeStep` and `solidChemistryTimeStepControl` both on, `updateChemistryTimeStep.H` also caps Δt by about the time a specie's mass fraction took to reach 0 or 1 in the last chemistry solve.
-2. **DEM exchange** — particle data from YADE rebuild `Us` and `lambda`; `lambdaDot` goes back to YADE (`DEM/lambdaDotModel.C`, [DEM coupling](theory-DEM.md)).
+2. **DEM exchange** — DEM body data from YADE rebuild `Us` and `lambda`; `lambdaDot` goes back to YADE (`DEM/lambdaDotModel.C`, [DEM coupling](theory-DEM.md)).
 3. **Radiation** — updates the solid radiative source (`radiation.H`).
 4. **Solid step** — `pyrolysisZone.evolve()` (`volPyrolysis::evolveRegion()`) runs the stages in the order shown. Each stage, with the fields it reads and writes and its checks: [solid-step.md](solid-step.md).
 5. **Gas continuity** — `rhoEqn.H`.
@@ -199,7 +199,7 @@ By Hess's law the direct route from O₂ at `T_g` to CO at `T_s` gives the same 
 
 ### Solid
 
-**Motion.** No equation solves for `U_s`. It is prescribed in `0/Us` (fixed in time) or, with DEM, interpolated from `UsDEM`, the raw cell mean of the particle velocities (`interpolationMode` in `constant/lambdaDict`; [DEM coupling](theory-DEM.md#the-idea)). The solid actually moves with the limited volume flux
+**Motion.** No equation solves for `U_s`. It is prescribed in `0/Us` (fixed in time) or, with DEM, interpolated from `UsDEM`, the raw cell mean of the DEM body velocities (`interpolationMode` in `constant/lambdaDict`; [DEM coupling](theory-DEM.md#the-idea)). The solid actually moves with the limited volume flux
 
 $$
 \varphi_s = L_f\,(\mathbf{U}_s\cdot\mathbf{S}_f), \qquad 0 \le L_f \le 1
@@ -229,7 +229,7 @@ $$
 
 ## DEM coupling
 
-Only in a `WITH_YADE` build with `constant/yadeProperties` `active true`. DEM replaces the prescribed `U_s` and nothing else in the equations above. In return PGF sends each particle how its length scale λ changes, from the solid chemistry. The idea, the λ modes and the exchange: [theory-DEM.md](theory-DEM.md).
+Only in a `WITH_YADE` build with `constant/yadeProperties` `active true`. DEM replaces the prescribed `U_s` and nothing else in the equations above. In return PGF sends each DEM body how its length scale λ changes, from the solid chemistry. The idea, the λ modes and the exchange: [theory-DEM.md](theory-DEM.md).
 
 ## Related pages
 

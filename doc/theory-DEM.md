@@ -1,16 +1,16 @@
 # DEM coupling
 
-PGF can run coupled to YADE, a discrete-element (DEM) code that moves individual particles. The particles tell PGF how the solid moves; PGF tells the particles how their solid changes. The two sides take turns, exchanging data once per PGF time step.
+PGF can run coupled to YADE, a discrete-element (DEM) code that moves individual bodies. The DEM bodies tell PGF how the solid moves; PGF tells the bodies how their solid changes. The two sides take turns, exchanging data once per PGF time step.
 
 ## The idea
 
-DEM supplies only how the solid moves; PGF supplies how the particles change size. Mass, porosity and chemistry stay on the mesh. This is not the usual CFD–DEM picture, where particles set the porosity and the gas drags them.
+DEM supplies only how the solid moves; PGF supplies how the DEM bodies change size. Mass, porosity and chemistry stay on the mesh. This is not the usual CFD–DEM picture, where particles set the porosity and the gas drags them.
 
 ![FVM–DEM coupling scheme](images/FVM-DEM-coupling.svg)
 
-### What the particles are
+### What the DEM bodies are
 
-The DEM particles are an analog, chosen by the user to move the solid in a physically plausible way. They are not the solid that PGF models: that solid lives on the mesh as the mass per cell `Ym`, and porosity follows from it (`1 − ε = Σ Ym/ρ`). The particles carry no mass, and none of their shape or size reaches PGF. The closer they mimic the real material, the more physical the solid velocity is likely to be, but nothing enforces this. Examples:
+The DEM bodies (YADE `Body` objects) are an analog, chosen by the user to move the solid in a physically plausible way. They are not the solid that PGF models: that solid lives on the mesh as the mass per cell `Ym`, and porosity follows from it (`1 − ε = Σ Ym/ρ`). The bodies carry no mass, and none of their shape or size reaches PGF. The closer they mimic the real material, the more physical the solid velocity is likely to be, but nothing enforces this. Examples:
 
 - a single pellet spanning several cells: bead-spring chains;
 - a gasifier bed: loosely packed spheres, because spheres flow smoothly under compaction, not because the real bed is made of spheres;
@@ -18,55 +18,51 @@ The DEM particles are an analog, chosen by the user to move the solid in a physi
 
 ### DEM → PGF: the solid velocity
 
-The particle velocities, averaged per cell and smoothed over solid cells without particles, give `U_s`, which moves the solid mass `Ym` and through it the porosity the gas sees. Particle positions only decide which cells anchor `U_s`; neither they nor λ enters any PGF equation.
+The body velocities, averaged per cell and smoothed over solid cells without bodies, give `U_s`, which moves the solid mass `Ym` and through it the porosity the gas sees. Body positions only decide which cells anchor `U_s`; neither they nor λ enters any PGF equation.
 
-### PGF → DEM: the particle length scale λ
+### PGF → DEM: the body length scale λ
 
-The solid changes as it reacts: it shrinks as it burns out, or swells as it heats. That chemistry lives on the mesh, so only PGF knows it. The particles learn it through one number each, a length scale λ (`State::lambda_` in YADE, starting at 1).
+The solid changes as it reacts: it shrinks as it burns out, or swells as it heats. That chemistry lives on the mesh, so only PGF knows it. The bodies learn it through one number each, a length scale λ (`State::lambda_` in YADE, starting at 1).
 
-PGF tells each particle how its λ changes, in one of two ways. In the rate modes (`constant`, `exactDifferential`) it sends a rate λ̇, which YADE integrates every DEM step. Under `apparentVolume` it sends a factor `r`, which YADE applies to λ once per exchange. λ is not related to the FVM porosity field: `ε` is derived solely from `Ym`. The DEM side uses λ to evolve the shape of its particles. That shape change drives their motion, which comes back to PGF as `UsDEM` for the advection step of the solid transport equation.
+PGF tells each body how its λ changes, in one of two ways. In the rate modes (`constant`, `exactDifferential`) it sends a rate λ̇, which YADE integrates every DEM step. Under `apparentVolume` it sends a factor `r`, which YADE applies to λ once per exchange. λ is not related to the FVM porosity field: `ε` is derived solely from `Ym`. The DEM side uses λ to evolve the shape of its bodies. That shape change drives their motion, which comes back to PGF as `UsDEM` for the advection step of the solid transport equation.
 
-What a particle does with λ is up to the DEM script. YADE only stores and updates it; in the tutorial fixtures the spring model stretches its rest length by it ([below](#spring-model-and-engine-order-231)).
+What a body does with λ is up to the DEM script. YADE only stores and updates it; in the tutorial fixtures the spring model stretches its rest length by it ([below](#spring-model-and-engine-order-231)).
 
 ### Consistency
 
-**One-way, in cycles.** Each side takes the other's latest data as it is, updates its own state and sends its new fields back. PGF does not correct the particle velocities, and YADE does not correct λ̇ or `r`. The two descriptions are not tied together beyond this exchange, so their coherence is hoped for, not enforced.
+**One-way, in cycles.** Each side takes the other's latest data as it is, updates its own state and sends its new fields back. PGF does not correct the body velocities, and YADE does not correct λ̇ or `r`. The two descriptions are not tied together beyond this exchange, so their coherence is hoped for, not enforced.
 
 **Left out on purpose:**
-- no drag or torque on the particles;
-- particle radius, mass and inertia do not follow λ.
+- no drag or torque on the bodies;
+- body radius, mass and inertia do not follow λ.
 
 See [Limitations](#limitations).
 
-## Particle size models
+## Body size models
 
-`lambdaMode` in `constant/lambdaDict` selects the `LambdaDotCalculationModel` (`DEM/lambdaDotModels/`), and through it the integer the handshake sends YADE:
+`lambdaMode` in `constant/lambdaDict` chooses what a body's λ follows:
 
-| `lambdaMode` | Sent down | YADE applies it | Source |
-|---|---|---|---|
-| `constant` (default) | rate `λ̇ = lambdaValue` [m/s] | `λ += λ̇·dt` every DEM step (`NewtonIntegrator`) | `constantLambdaDot` |
-| `exactDifferential` | rate `λ̇ = (∂λ/∂Tₛ) dTₛ/dt + Σᵢ (∂λ/∂Ymᵢ) Rᵢ` [m/s] | as above | `exactDifferentialLambdaDot.H` (Description) |
-| `apparentVolume` | factor `r = ∛(1 + ΔV_chem/V_old)` [–] | `λ ← r λ` once per exchange (`PgfCoupling::apply`) | `apparentVolumeLambdaDot.H`; [particle size](#particle-size-under-lambdamode-apparentvolume) |
+| `lambdaMode` | λ follows | Use |
+|---|---|---|
+| `constant` (default) | a fixed rate `λ̇ = lambdaValue` | testing, or a prescribed swelling or shrinking |
+| `exactDifferential` | `T_s` and the solid composition, through `λ̇ = (∂λ/∂Tₛ) dTₛ/dt + Σᵢ (∂λ/∂Ymᵢ) Rᵢ` | a closed-form law for how size depends on thermal expansion and mass change |
+| `apparentVolume` | the apparent volume of the solid in the body's cell | bodies that shrink or swell with what the chemistry leaves |
 
-Before the exchange, `lambdaDotModel::updateLambdaDot()` sets the neutral value (0 for a rate, 1 for `r`) wherever `porosityF ≥ connectedBelowPorosity`. The comment there: "the value gated and pushed to particles here is the previous step's", because the models assemble the value later in the step, inside the solid solve.
+### Body size under `lambdaMode apparentVolume`
 
-### Particle size under `lambdaMode apparentVolume`
-
-(`DEM/lambdaDotModels/apparentVolumeLambdaDot/`). In this mode a particle grows or shrinks with the apparent volume of the solid in its cell. One kilogram of solid specie `k` fills `1/ρ_app,k` of particle volume, pores included (`rhoApparent` in `solidThermophysicalProperties`, required here). `V_old` is the volume the solid in a cell takes up before this step's reactions, and `ΔV_chem` is how much the reactions change it over the step:
+A body is meant to grow or shrink with the solid it stands for. As the chemistry converts one solid specie into another, or into gas, the envelope volume of the solid in a cell changes, and so does each body in it. One kilogram of solid specie `k` fills `1/ρ_app,k` of envelope volume, pores included (`rhoApparent` in `solidThermophysicalProperties`). Before this step's reactions the solid in a cell takes up `V_old`; the reactions change it by `ΔV_chem`:
 
 $$
 V_{\mathrm{old}} = \sum_k \frac{\mathrm{Ym}_k}{\rho_{\mathrm{app},k}}, \qquad \Delta V_{\mathrm{chem}} = \Delta t \sum_k \frac{R_k}{\rho_{\mathrm{app},k}}
 $$
 
-A particle's volume scales with `λ³`, so PGF sends YADE the cube root of the volume ratio, and YADE scales `λ` by it once per exchange:
+A body's volume scales with `λ³`, so λ scales with the cube root of the volume ratio:
 
 $$
 r = \sqrt[3]{1 + \Delta V_{\mathrm{chem}}/V_{\mathrm{old}}}, \qquad \lambda \leftarrow r\,\lambda
 $$
 
-- Only chemistry changes the size. Solid transport moves particles without resizing them.
-- Every particle in a cell gets the same `r`.
-- `r = 1` in nearly empty cells (`V_old < minSolidVolume`). At full burnout the ratio is floored at `minVolumeRatio`, with a warning. Both keys are optional in `lambdaDict`.
+Only chemistry changes the size: solid transport moves bodies without resizing them. Every body in a cell gets the same `r`.
 
 ## Exchange and implementation
 
@@ -74,10 +70,24 @@ Running it needs a `WITH_YADE` build ([build.md](build.md#yade-dem-coupling)) an
 
 ### Ownership and code
 
-- YADE moves the particles and owns each particle's length scale `λ` (default 1).
+- YADE moves the bodies and owns each body's length scale `λ` (default 1).
 - PGF's `lambda` field is a cell average written for output.
 
 **Code.** PGF side: `porousGasificationMedia/DEM/pgfDemCoupler/` and `DEM/lambdaDotModel.C`. YADE side: the `PgfCoupling` engine (`pkg/openfoam/PgfCoupling.cpp` in trymarz/yade-pgf, the submodule `submodules/yade-pgf`). Both build the same protocol core, [PgfDemBridge](https://github.com/trymarz/PgfDemBridge) (`submodules/PgfDemBridge`, its banner in `src/PgfDemBridge.hpp`), and neither includes the other's headers. A `yadeProperties` with a `coupler` entry other than `pgf` stops the solver (`porousGasificationFoam/createDEMFields.H`).
+
+### λ modes in the exchange
+
+The mode also sets the integer the handshake sends YADE:
+
+| `lambdaMode` | Sent down | YADE applies it | Source |
+|---|---|---|---|
+| `constant` (default) | rate `λ̇ = lambdaValue` [m/s] | `λ += λ̇·dt` every DEM step (`NewtonIntegrator`) | `constantLambdaDot` |
+| `exactDifferential` | rate `λ̇ = (∂λ/∂Tₛ) dTₛ/dt + Σᵢ (∂λ/∂Ymᵢ) Rᵢ` [m/s] | as above | `exactDifferentialLambdaDot.H` (Description) |
+| `apparentVolume` | factor `r = ∛(1 + ΔV_chem/V_old)` [–] | `λ ← r λ` once per exchange (`PgfCoupling::apply`) | `apparentVolumeLambdaDot.H`; [body size](#body-size-under-lambdamode-apparentvolume) |
+
+Before the exchange, `lambdaDotModel::updateLambdaDot()` sets the neutral value (0 for a rate, 1 for `r`) wherever `porosityF ≥ connectedBelowPorosity`. The comment there: "the value gated and pushed to particles here is the previous step's", because the models assemble the value later in the step, inside the solid solve.
+
+Under `apparentVolume` (`DEM/lambdaDotModels/apparentVolumeLambdaDot/`), `rhoApparent` is required. `r = 1` in nearly empty cells (`V_old < minSolidVolume`); at full burnout the ratio is floored at `minVolumeRatio`, with a warning. Both keys are optional in `lambdaDict`.
 
 ### Exchanged fields
 
@@ -123,7 +133,7 @@ The springs are not part of YADE or yade-pgf. They are Python in the DEM fixture
 - **The YADE radius, mass and inertia do not follow λ** (#206). Nothing in YADE reads `lambda_` except the fixtures' springs.
 - **Cross-rank springs** (#231, B4). Every YADE rank computes every spring whose two bodies it can see, and remote copies carry a stale `lambda_`. With 2 or more YADE workers, a spring across ranks is counted 0, 1 or 2 times. The fixtures run `-n 2` (an empty master plus one worker), so it does not occur there.
 - **Always decomposed.** The solver always runs with `-parallel`, so even one OpenFOAM rank needs a one-piece `processor0`; the fixtures use 2.
-- **One `r` per cell.** Every particle in a cell gets the cell's `λ̇` or `r`, whatever its own composition.
+- **One `r` per cell.** Every body in a cell gets the cell's `λ̇` or `r`, whatever its own composition.
 
 ## Related pages
 
