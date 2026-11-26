@@ -16,7 +16,7 @@ New to PGF? [Install it](install.md), run the [README](../README.md) quick start
 
 ## Reference
 
-- `pgf help`: every command, every setting, and topics on how a build is chosen, the run record and the clean environment; `pgf help --all` shows it all.
+- [pgf reference](pgf-reference.md): every page of `pgf help`, generated: every command, every setting, and the topics on build selection, the run record and the clean environment.
 - [API reference (Doxygen)](build.md#doxygen-documentation): generated from the source comments.
 
 ## The model

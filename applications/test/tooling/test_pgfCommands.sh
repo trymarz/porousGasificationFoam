@@ -157,6 +157,8 @@ check "pgf help lists the topics: build-selection, run-record, environment" \
 for t in $topics; do
     check "pgf help $t is its page" bash -c '"$1" help "$2" | head -1 | grep -q "^pgf help $2: "' _ "$tree/pgf" "$t"
 done
+check "doc/pgf-reference.md matches pgf help (utilities/gen-pgf-reference.sh regenerates it, #352)" \
+    "$PGF_ROOT/utilities/gen-pgf-reference.sh" --check
 keep="$(sed -n 's/^ *for v in \(HOME .*\); do$/\1/p' "$tree/pgf")"
 check "the environment topic names every variable pgf keeps ($keep)" \
     bash -c 'page="$("$1" help environment | tr "\n" " ")"; for v in $2 "PGF_\*" "YADE_\*"; do

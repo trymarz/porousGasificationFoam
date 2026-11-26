@@ -78,7 +78,7 @@ Each group answers one question. Inside a group, pages run from overview to deta
 |---|---|---|
 | Installing and building | How do I get PGF onto a machine? | [install](doc/install.md), [build](doc/build.md), [containers](doc/containers.md) |
 | Running cases | How do I set up and run a case? | [case setup](doc/case-setup.md), [ParaView](doc/paraview.md) |
-| The pgf tool | What can pgf do, and how does it work? | [pgf](doc/pgf.md) |
+| The pgf tool | What can pgf do, and how does it work? | [pgf](doc/pgf.md), [pgf reference](doc/pgf-reference.md) |
 | The model | What physics does it solve? | [theory](doc/theory.md), [DEM coupling](doc/theory-DEM.md) |
 | How the code implements it | Where does each piece live, and in what order does it run? | [code map](doc/code-map.md), [solid step](doc/solid-step.md), [DEM exchange](doc/dem-exchange.md) |
 | Developing PGF | How do I change it safely? | this page, [regression testing](doc/regression-testing.md), [regression ledger](doc/regression-ledger.md) |
