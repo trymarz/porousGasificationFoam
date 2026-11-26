@@ -4,7 +4,7 @@ PGF can run coupled to YADE, a discrete-element (DEM) code that moves individual
 
 ## The idea
 
-DEM supplies only how the solid moves; PGF supplies how the DEM bodies change size. Mass, porosity and chemistry stay on the mesh. This is not the usual CFD–DEM picture, where particles set the porosity and the gas drags them.
+Mass, porosity and chemistry stay on the mesh. This is not the usual CFD–DEM picture, where particles set the porosity and the gas drags them.
 
 ![FVM–DEM coupling scheme](img/FVM-DEM-coupling.svg)
 
@@ -18,13 +18,13 @@ The DEM bodies (YADE `Body` objects) are an analog, chosen by the user to move t
 
 ### DEM → PGF: the solid velocity
 
-The body velocities, averaged per cell and smoothed over solid cells without bodies, give `U_s`, which moves the solid mass `Ym` and through it the porosity the gas sees. Body positions only decide which cells anchor `U_s`; neither they nor λ enters any PGF equation.
+The body velocities, averaged per cell and smoothed over solid cells without bodies, give `U_s`, which moves the solid mass `Ym` and through it the porosity the gas sees. Body positions only decide which cells anchor `U_s`; they enter no PGF equation.
 
 ### PGF → DEM: the body length scale λ
 
 The solid changes as it reacts: it shrinks as it burns out, or swells as it heats. That chemistry lives on the mesh, so only PGF knows it. The bodies learn it through one number each, a length scale λ (`State::lambda_` in YADE, starting at 1).
 
-PGF tells each body how its λ changes, in one of two ways. In the rate modes (`constant`, `exactDifferential`) it sends a rate λ̇, which YADE integrates every DEM step. Under `apparentVolume` it sends a factor `r`, which YADE applies to λ once per exchange. λ is not related to the FVM porosity field: `ε` is derived solely from `Ym`. The DEM side uses λ to evolve the shape of its bodies. That shape change drives their motion, which comes back to PGF as `UsDEM` for the advection step of the solid transport equation.
+PGF tells each body how its λ changes, in one of two ways. In the rate modes (`constant`, `exactDifferential`) it sends a rate λ̇, which YADE integrates every DEM step. Under `apparentVolume` it sends a factor `r`, which YADE applies to λ once per exchange. The DEM side uses λ to evolve the shape of its bodies. That shape change drives their motion, which comes back to PGF as `UsDEM` for the advection step of the solid transport equation.
 
 What a body does with λ is up to the DEM script. YADE only stores and updates it; in the tutorial fixtures the spring model stretches its rest length by it ([DEM exchange](dem-exchange.md#the-fixtures-spring-model)).
 
@@ -32,11 +32,7 @@ What a body does with λ is up to the DEM script. YADE only stores and updates i
 
 **One-way, in cycles.** Each side takes the other's latest data as it is, updates its own state and sends its new fields back. PGF does not correct the body velocities, and YADE does not correct λ̇ or `r`. The two descriptions are not tied together beyond this exchange, so their coherence is hoped for, not enforced.
 
-**Left out on purpose:**
-- no drag or torque on the bodies;
-- body radius, mass and inertia do not follow λ.
-
-See [Limitations](#limitations).
+**Left out on purpose:** drag and torque on the bodies; what λ does not change in YADE: [Limitations](#limitations).
 
 ## Body size models
 
@@ -66,8 +62,8 @@ Only chemistry changes the size: solid transport moves bodies without resizing t
 
 ## Limitations
 
-- **The YADE radius, mass and inertia do not follow λ** (#206). Nothing in YADE reads `lambda_` except the fixtures' springs.
-- **One `r` per cell.** Every body in a cell gets the cell's `λ̇` or `r`, whatever its own composition.
+- **The YADE radius, mass and inertia do not follow λ** (#206), and λ enters no PGF equation. Nothing in YADE reads `lambda_` except the fixtures' springs.
+- **One value per cell.** Every body in a cell gets the cell's `λ̇` or `r`, whatever its own composition.
 - **Units of λ.** `lambda`, `lambdaDEM` and `lambdaBackgroundValue` are declared in m, and `λ̇` in m/s. In the fixtures' spring model λ starts at 1 and multiplies a rest length, so it acts as a stretch ratio.
 
 ## Related pages

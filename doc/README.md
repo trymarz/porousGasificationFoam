@@ -67,7 +67,6 @@ What physics does it solve?
   - [Model overview](theory.md#model-overview)
   - [Notation](theory.md#notation)
   - [Equations](theory.md#equations)
-  - [DEM coupling](theory.md#dem-coupling)
 - [DEM coupling](theory-DEM.md)
   - [The idea](theory-DEM.md#the-idea)
   - [Body size models](theory-DEM.md#body-size-models)

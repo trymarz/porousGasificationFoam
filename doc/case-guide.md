@@ -54,6 +54,10 @@ Pyrolysis pseudo-species (e.g. lumped `tar`, `targas`) generally have no JANAF c
 
 `heatOfReaction` is taken with all participants at `Ts` and is not corrected with temperature. Give the value measured at reaction temperature (e.g. from a TGA/DSC fit), not a 298 K standard value ([theory → energy](theory.md#energy)).
 
+### Reaction inputs from before #201
+
+Before #201, non-stoichiometric mode divided every coefficient of a solid reaction by the sum of its reactant coefficients, Σ (2.33 in `char + 1.33 O2 = 2.33 CO`). Inputs written for that rule keep their kinetics with `A/Σ` and `heatOfReaction·Σ`, as the bundled tutorials now do. The rule now: [theory → solid reaction rates](theory.md#solid-reaction-rates).
+
 ### Radiation parameters are the hardest to source
 
 The heterogeneous radiation coefficients (`a`, `as`, `borderAs`, `borderL`, `E`) rarely appear in literature with the right meaning. A workable approach is to tune them on a small TGA-like case so that the simulated heating rate matches an experiment, then reuse the tuned values across geometries that share the same surface chemistry and pellet morphology.
