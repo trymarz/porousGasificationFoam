@@ -59,18 +59,50 @@ Aim for terse and specific. The body becomes part of `main`'s history once squas
 
 ## Documentation
 
-Source code is the source of truth for physics, equations, units, and algorithm choices. Comments live next to the implementation they describe — OpenFOAM-style file banner with a `Description` block, `//-` briefs above function declarations, and `// ...` narrative inside function bodies for non-obvious steps.
+### The code wins
 
-[doc/theory.md](doc/theory.md) summarises the model: per-step flow, a model → input → source table, and short-form equations. It does **not** restate implementation detail, which belongs in the source file where it cannot drift unnoticed during refactors. If theory.md and the code differ, the code wins.
+When a doc page and the code disagree, the code is right and the page gets fixed. This holds for every page, practical ones included. The code changes faster than the docs, and the docs must not mislead.
 
-When you submit a PR:
+### Each fact has one home
 
-- **Behaviour change** → update the relevant code-comment block in the same commit.
-- **Loop structure or step ordering change** → update the per-step flow in `doc/theory.md` too.
-- **Equation change** → update the short-form equation in `doc/theory.md` too.
-- **New documentation insight** → if it's about *what the code does*, write it as a code comment. If it's about *how to use* the solver or *how to navigate* the codebase, it belongs in the README or `doc/`.
+Other pages link to that home instead of repeating the fact. Where the home is depends on the kind of fact:
 
-If you catch a theory.md claim (beyond a short-form equation) that's already in the code as a comment, replace it with a pointer in the same PR. The migration is opportunistic — no need to wait for a dedicated cleanup branch.
+- **What the code does exactly**: an equation term, a dictionary key and its default, a `pgf` flag, a build path, the order of stages. Its home is the code: source comments, `pgf help`, the dictionary readers. A doc page may restate such a fact only with a pointer to its source (a file, or `pgf help <topic>`), so a reader can check it. Restate less, point more.
+- **What the code does not say**: why the model is built this way, its assumptions and what it leaves out on purpose, how to approach a task (set up a case, choose a model, debug a run), and how the pieces fit together. The docs own this.
+
+### Page groups
+
+The layout tells readers where to go: the introduction and quick start come first, development and contribution come last.
+
+| Group | Holds | Pages |
+|---|---|---|
+| Using PGF | Workflow and advice. Exact flags and keys point to `pgf help` and the code. | [README](README.md) quick start, [install](doc/install.md), [build](doc/build.md), [pgf](doc/pgf.md), [containers](doc/containers.md), [case setup](doc/case-setup.md), [ParaView](doc/paraview.md) |
+| The model | Physics, assumptions and what is left out. Short-form equations, physics before code names. | [theory](doc/theory.md), [DEM coupling](doc/theory-DEM.md) |
+| How the code implements it | Step order, stages, exchanges. Mostly maps with pointers into the source. | [solid step](doc/solid-step.md) |
+| Developing PGF | How to change PGF and check the change. | this page, [regression testing](doc/regression-testing.md), [regression ledger](doc/regression-ledger.md) |
+
+A new page joins one group and the index in [doc/README.md](doc/README.md).
+
+### Source comments
+
+Comments follow OpenFOAM style: a `Description` block in the file banner, `//-` briefs above declarations, `// ...` narrative inside function bodies for non-obvious steps. A comment is at most 3 lines; a longer one signals code that wants a named function, not more prose. The banner `Description` is exempt, as the one-time design spec of the file, but it should not restate the briefs below it.
+
+### Rendering
+
+GitHub is the target. Use what it renders well: colour-coded equations (`\color{...}` in `$$` math, one colour per kind of term), SVG figures in `doc/img/`, mermaid diagrams. Links between pages are relative. Portability to a docs-site generator is not a goal.
+
+### Voice
+
+Short declarative sentences, one idea per paragraph, physics before code names.
+
+### When you submit a PR
+
+- **Behaviour change** → update the code comment in the same commit, and any doc restatement that points to it.
+- **Loop structure or step ordering change** → update the per-step flow in `doc/theory.md`.
+- **Equation change** → update the short-form equation in `doc/theory.md`.
+- **New `pgf` flag or dictionary key** → document it in `pgf help` or the reader's code first; a doc page links to it or restates it with a pointer.
+- **New insight** → if it is *what the code does*, write it in a code comment or `pgf help`. If it is *why*, *how to* or *how the pieces fit*, it belongs in `doc/` or the README.
+- **Duplicate found** → reduce it to one home plus links in the same PR. No need to wait for a cleanup branch.
 
 ## Private companion repository
 

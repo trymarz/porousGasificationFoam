@@ -21,17 +21,15 @@ For the current state of work in the repository — what's in flight, what's sta
 
 ## Documentation source of truth
 
-Physics, equations, units, and algorithm choices belong in source-code comments — OpenFOAM-style `Description` block in the file banner, `//-` briefs above function declarations, `// ...` narrative inside the implementing function. `doc/theory.md` holds short-form summaries of the model equations and points into the code; the source stays authoritative, and if the two differ the code wins.
+The rules are in `CONTRIBUTING.md` → Documentation: the code wins, each fact has one home, page groups, rendering, voice. This section only adds how an agent applies them.
 
-In practice this means:
-
-- When a user asks to "document the physics" of a piece of code, write the comment in the source file (or expand an existing block). Update `doc/theory.md` only if the high-level flow or a summarised equation changes.
-- When reading code to answer a physics question, quote the relevant comment block rather than re-deriving from the README. The code (and its comments) is authoritative.
-- If `doc/theory.md` restates implementation detail beyond a short-form equation that the code already comments on, replace it with a pointer to the source location — don't keep the duplication "just in case".
-- The migration from README-as-source-of-truth to code-as-source-of-truth is opportunistic: add comments to files as you touch them on other work, not in dedicated cleanup PRs.
-- **A comment is at most 3 lines.** If a comment wants to be longer, that is evidence of a non-modular implementation, not of a documentation need — extract a named function or collaborator instead of writing more prose. Long banner-and-brief walls defeat their own purpose: readers skim past them. Applies to `//-` briefs and to narrative inside function bodies. A file-banner `Description` block is exempt from the 3-line cap — it is the one-time algorithm/design spec for the whole file — but is not a licence to restate what the briefs below it already say; if it does, trim the restated parts rather than counting lines.
-
-The full human-facing version of this rule is in `CONTRIBUTING.md` → Documentation.
+- **Classify the fact before writing it.** What the code does exactly (an equation term, a key and its default, a `pgf` flag, a stage order) goes in a source comment or `pgf help`; a doc page restates it only with a pointer to that source. Why, assumptions, how-to and how the pieces fit go in `doc/` or the README.
+- **Find the existing home first.** Grep `doc/`, `README.md` and the source for the fact before adding it; link to the home instead of writing a second copy.
+- **Docs and code disagree → the code wins.** Act on the code, and fix the doc if it is in scope; otherwise tell the user which page is wrong. Never "correct" code to match a doc.
+- **Answering a physics or behaviour question:** quote the source comment or the code, then the doc page that explains the idea. Do not re-derive from the docs alone.
+- **"Document the physics"** means: the model idea and assumptions on the matching model page; the equation as implemented in the source comment. Ask if it is unclear which one the user wants.
+- **A comment is at most 3 lines.** If a comment wants to be longer, that is evidence of a non-modular implementation, not of a documentation need — extract a named function or collaborator instead of writing more prose. Applies to `//-` briefs and to narrative inside function bodies. A file-banner `Description` block is exempt — it is the one-time algorithm/design spec for the whole file — but is not a licence to restate what the briefs below it already say; if it does, trim the restated parts rather than counting lines.
+- **Figures** are SVG in `doc/img/`; keep the colour-coded equations when editing math.
 
 ## Git / VCS rules
 
