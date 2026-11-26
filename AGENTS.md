@@ -126,7 +126,8 @@ When you need a load-bearing fact, go to `README.md` and `doc/` rather than re-d
 | Practical pitfalls (true vs bulk density, JANAF substitution, radiation calibration, time-step coupling, numerics symptoms) | `doc/case-guide.md` → "Tips for preparing new simulations" |
 | Tutorial cases, and which test tier runs each | `doc/tutorials.md` (also parsed by `pgf copy --list`) |
 | Every `pgf` command, flag and setting | `pgf help`, or the generated `doc/pgf-reference.md` |
-| Build targets and dependencies | `doc/build.md` |
+| Installing OpenFOAM, PGF and YADE; checking the DEM coupling | `doc/install.md` |
+| Build store, variants, targets and dependencies, yade-pgf pin | `doc/build.md` |
 | clangd, Serena, Doxygen | `doc/dev-tools.md` |
 | Regression framework — hook a case, capture a baseline, run comparisons | `doc/regression-testing.md` |
 | GitHub Issues workflow — plan issues, checkbox ticks, reconciliation, branch/PR linkage | "GitHub Issues Workflow" (this file) |

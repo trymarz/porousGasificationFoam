@@ -40,7 +40,7 @@ The time is the last one both cases have, unless `--time` is given (as above, a 
 ## Requirements
 
 - ParaView with Python: on Debian `apt install paraview python3-paraview` (5.13 is what this was written against; it uses `paraview.simple` only). `paraview` alone has no Python: without `python3-paraview` there is no `pvpython`, and `pgfView` fails with `ModuleNotFoundError: paraview`. `pgf doctor` checks this under "ParaView".
-- On Debian, `python3-paraview` conflicts with `python3-vtk9`, which `libvtk9-dev` depends on, so installing it removes the VTK headers that building Yade needs. Running Yade does not need them; see [Building → ParaView and Yade's VTK](build.md#paraview-and-yades-vtk).
+- On Debian, `python3-paraview` conflicts with `python3-vtk9`, which `libvtk9-dev` depends on, so installing it removes the VTK headers that building Yade needs. Running Yade does not need them; see [Installing → ParaView and Yade's VTK](install.md#paraview-and-yades-vtk).
 - `pgfView` runs the `paraview`, `pvbatch` and `xvfb-run` it finds on your `PATH` (not pgf's clean environment). To use another ParaView, such as a Kitware binary, put its `bin/` first on `PATH`.
 - Headless `--png`: Debian's ParaView renders through X only (no EGL or OSMesa), so without a display `pgfView` runs `pvbatch` under `xvfb-run` (`apt install xvfb`). Pass `--xvfb` to force that when `DISPLAY` is set but unusable (for example in a sandbox or over SSH).
 

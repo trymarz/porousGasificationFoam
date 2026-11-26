@@ -1,6 +1,6 @@
 #!/bin/sh
 # Keeps compile_commands.json current after checkout, merge and rebase, and warns
-# when lnInclude/ is behind (doc/build.md, "Editor and agent navigation").
+# when lnInclude/ is behind (doc/dev-tools.md).
 # Enable once per clone: git config core.hooksPath utilities/githooks
 root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
 [ -f "$root/utilities/gen-compile-commands.py" ] || exit 0

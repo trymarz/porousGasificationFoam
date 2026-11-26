@@ -61,7 +61,7 @@ It checks OpenFOAM, the checkout's builds, yade and the DEM coupling, MPI, and w
 
 ## Builds
 
-A build is a compiled solver with its libraries, in a directory of its own under `$PGF_BUILD_ROOT` (by default `~/OpenFOAM/<user>-v2606/pgf-builds`). Its key comes from the sources, the variant (with or without DEM), OpenFOAM and the compiler, so each checkout state gets its own build, reused while the key matches and never overwritten. [build.md](build.md) covers building.
+A build is a compiled solver with its libraries, in a directory of its own under `$PGF_BUILD_ROOT` (by default `~/OpenFOAM/<user>-v2606/pgf-builds`). Its key comes from the sources, the variant (with or without DEM), OpenFOAM and the compiler, so each checkout state gets its own build, reused while the key matches and never overwritten. [Installing](install.md) covers a first build; [the build system](build.md) how builds work.
 
 ```bash
 pgf build                  # build the checkout pgf runs from; reused if unchanged
@@ -105,7 +105,8 @@ Status lines read `OK`, `WARN`, `FAIL`, `SKIP`, `INFO` (`PASS`/`FAIL` for tests)
 ## Related pages
 
 - [pgf reference](pgf-reference.md): every page of `pgf help`.
-- [Building](build.md): the build store, the DEM coupling, cleaning.
+- [Installing](install.md): OpenFOAM, PGF and YADE on a clean machine.
+- [The build system](build.md): the build store, the DEM variant, cleaning.
 - [Apptainer images](containers.md): `pgf pack`, an image of one commit for a server.
 - [Case guide](case-guide.md): setting up and running your own case.
 - [All documentation](README.md)

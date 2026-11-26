@@ -4,7 +4,7 @@ The table of contents of PGF's documentation. New to PGF? Start with the [README
 
 Each group answers one question; inside a group, pages run from overview to detail. Where a page and the source disagree, the source wins. The section links below are **generated** by `utilities/gen-doc-toc.py` from each page's headings; edit only the page lines.
 
-## Installing and building
+## Installing
 
 How do I get PGF onto a machine?
 
@@ -12,17 +12,9 @@ How do I get PGF onto a machine?
   - [1. OpenFOAM v2606](install.md#1-openfoam-v2606)
   - [2. PGF](install.md#2-pgf)
   - [3. DEM coupling (optional)](install.md#3-dem-coupling-optional)
-  - [Container (no build on the server)](install.md#container-no-build-on-the-server)
+  - [Checking that the coupling is in](install.md#checking-that-the-coupling-is-in)
+  - [ParaView and Yade's VTK](install.md#paraview-and-yades-vtk)
   - [Pitfalls](install.md#pitfalls)
-- [Building](build.md)
-  - [From a fresh checkout to a run](build.md#from-a-fresh-checkout-to-a-run)
-  - [How a build works](build.md#how-a-build-works)
-  - [Where things land](build.md#where-things-land)
-  - [Editing and rebuilding](build.md#editing-and-rebuilding)
-  - [Switching variants](build.md#switching-variants)
-  - [YADE DEM coupling](build.md#yade-dem-coupling)
-  - [Cleaning](build.md#cleaning)
-  - [Choosing targets](build.md#choosing-targets)
 - [Apptainer images](containers.md)
 
 ## Running cases
@@ -125,6 +117,14 @@ How do I change it safely?
 - [Regression metric ledger](regression-ledger.md)
   - [Status](regression-ledger.md#status)
   - [Ledger](regression-ledger.md#ledger)
+- [The build system](build.md)
+  - [How a build works](build.md#how-a-build-works)
+  - [Where things land](build.md#where-things-land)
+  - [Editing and rebuilding](build.md#editing-and-rebuilding)
+  - [Switching variants](build.md#switching-variants)
+  - [YADE DEM coupling](build.md#yade-dem-coupling)
+  - [Cleaning](build.md#cleaning)
+  - [Choosing targets](build.md#choosing-targets)
 - [Developer tools](dev-tools.md)
   - [Editor navigation (clangd)](dev-tools.md#editor-navigation-clangd)
   - [Agent navigation (Serena)](dev-tools.md#agent-navigation-serena)
