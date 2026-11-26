@@ -16,7 +16,7 @@ the run starts at rest. Only spheres in the reactive layer see r < 1; the
 inert bed's cells have no chemical volume change, so r = 1 there.
 
 Usage (2 Yade ranks and the 2 OpenFOAM ranks in one mpirun, from Allrun):
-    pgfDemRun -ndem 2 MPI_lambda.py
+    pgf dem run -ndem 2 MPI_lambda.py
 """
 import math
 import os
@@ -203,8 +203,11 @@ O.engines = [
     fluidCoupling,
     NewtonIntegrator(gravity=(0, 0, -9.81), damping=geom.damping, label="newton"),
     PyRunner(command="changeRadius()",        virtPeriod=radiusInterval),
-    PyRunner(command="export_spheres()",      iterPeriod=timeRatio, firstIterRun=1),
-    PyRunner(command="printAndSaveDtInfo()",  iterPeriod=timeRatio, firstIterRun=1),
+    PyRunner(command="export_spheres()",      iterPeriod=1, nDo=1, initRun=True),   # t = 0 frame
+    # After Newton, iter k holds positions at (k+1)*O.dt, and the coupling's last
+    # pass is iter endTime/O.dt - 1: fire at timeRatio-1 so frames land on writes.
+    PyRunner(command="export_spheres()",      iterPeriod=timeRatio, firstIterRun=timeRatio - 1),
+    PyRunner(command="printAndSaveDtInfo()",  iterPeriod=timeRatio, firstIterRun=timeRatio - 1),
 ]
 
 collider.verletDist = sphere_radius * 0.2
@@ -220,7 +223,7 @@ mp.USE_CPP_INTERS       = False
 mp.ERASE_REMOTE_MASTER  = True
 mp.REALLOC_FREQUENCY    = 12
 mp.fluidBodies          = sphereIDs
-mp.mpirun(foamTime.UNTIL_SOLVER_ENDS)   # np: the Yade ranks pgfDemRun started
+mp.mpirun(foamTime.UNTIL_SOLVER_ENDS)   # np: the Yade ranks pgf dem run started
 mp.mprint("shrinkingBedDEM run finished")
 
 exit()

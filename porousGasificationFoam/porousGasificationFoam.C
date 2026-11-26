@@ -44,6 +44,8 @@ Description
 #include "heterogeneousPyrolysisModel.H"
 #include "heterogeneousRadiationModel.H"
 #include "HGSSolidThermo.H"
+#include "processorPolyPatch.H"
+#include "IFstream.H"
 
 #ifdef WITH_YADE 
     #include "lambdaDotModel.H"
@@ -58,6 +60,7 @@ int main(int argc, char *argv[])
     #include "setRootCaseLists.H"
     #include "createTime.H"
     #include "createMesh.H"
+    #include "checkDecomposition.H"
     #include "createControl.H"
     #include "createTimeControls.H"
     #include "initContinuityErrs.H"

@@ -84,7 +84,7 @@ pgf build --yade
 pgf doctor --yade      # yade at the pin, with MPI; DEM problems are failures here
 ```
 
-**Run a DEM tutorial.** `pgf run` gives a copy with an active `constant/yadeProperties` the DEM build by itself. Its `Allrun` starts 2 YADE and 2 solver ranks in one `mpirun` (`pgfDemRun`); the run takes a few minutes:
+**Run a DEM tutorial.** `pgf run` gives a copy with an active `constant/yadeProperties` the DEM build by itself. Its `Allrun` starts 2 YADE and 2 solver ranks in one `mpirun` (`pgf dem run`); the run takes a few minutes:
 
 ```bash
 pgf copy MicroTGA-DEM_lambdaDotOff

@@ -4,7 +4,7 @@ Once per PGF time step, YADE sends PGF where its DEM bodies are and how fast the
 
 ## Running a coupled case
 
-A coupled case needs a `WITH_YADE` build ([build.md](build.md#yade-dem-coupling)) and `active true` in `constant/yadeProperties`. `pgfDemRun` (`tutorials/cases/DEM_common/`) starts YADE and the solver together in one `mpirun`; the solver always runs with `-parallel`.
+A coupled case needs a `WITH_YADE` build ([build.md](build.md#yade-dem-coupling)) and `active true` in `constant/yadeProperties`. `pgf dem run` starts YADE and the solver together in one `mpirun`; the solver always runs with `-parallel`.
 
 The solver's `system/controlDict` alone sets the run's time. The YADE script reads `deltaT` and `writeInterval` from it through `tutorials/cases/DEM_common/foamTime.py` and sets no step count of its own: the solver's last step ends YADE.
 

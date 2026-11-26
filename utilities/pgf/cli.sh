@@ -26,7 +26,8 @@ PGF_ENV_OPTS="--use --prefix --for-tree --bare --yade --no-yade --mpi --set --fo
 declare -gA PGF_OPT_VALUE=([--use]=build [--prefix]=dir [--mpi]=mpi [--set]=setting
   [--foam-bashrc]=file [--yade-bin]=file [--yade-trunk]=dir [--output]=file [--run-root]=dir
   [--keep]=none [--keep-runs]=none [--keep-prefixes]=none [--if-stale]=none [-c]=none
-  [--png]=dir [--time]=none [--size]=none [--compare]=dir [--palette]=none)
+  [--png]=dir [--time]=none [--size]=none [--compare]=dir [--palette]=none
+  [-ndem]=none [-nfoam]=none [-solver]=none [--stall-timeout]=none)
 
 # The environment options of shell, run, status and doctor.
 PGF_ENV_ROWS="--use SEL	the build: key or key prefix, commit, worktree, prefix path or auto	auto
@@ -46,7 +47,7 @@ PGF_ENV_ROWS="--use SEL	the build: key or key prefix, commit, worktree, prefix p
 # of the list. Old names map to their command.
 PGF_HELP_GROUPS=("Settings Commands" "Build Commands" "Run Commands" "Other Commands")
 declare -gA PGF_HELP_GROUP=(["Settings Commands"]="setup config doctor" ["Build Commands"]="build builds use gc"
-  ["Run Commands"]="copy run view shell test" ["Other Commands"]="status pack tools help")
+  ["Run Commands"]="copy run dem view shell test" ["Other Commands"]="status pack tools help")
 declare -gA PGF_CMD_ALIAS=([where]=status [ls]=builds [exec]=shell)
 
 pgf_cmd setup "find OpenFOAM and yade, save them, put pgf on PATH" \
@@ -146,6 +147,28 @@ pgf_cmd_opt run @env
 pgf_cmd_ex run "pgf copy solidAdvection" "prints where the copy went"
 pgf_cmd_ex run "pgf run ~/OpenFOAM/\$USER-v2606/run/main/solidAdvection" "the copy of a checkout on main"
 pgf_cmd_ex run "pgf run ~/OpenFOAM/\$USER-v2606/run/main/solidAdvection Allclean"
+
+pgf_cmd dem "coupled Yade + solver runs (DEM cases)" \
+  "pgf dem run [-ndem N] [-nfoam M] [-solver NAME] [--stall-timeout S] SCRIPT.py [yade args ...]" \
+  "-ndem -nfoam -solver --stall-timeout" dem
+pgf_cmd_desc dem "pgf dem run starts a coupled DEM run from the case directory: Yade and the
+solver in one mpirun of N+M ranks, joined by PgfDemBridge. The DEM tutorials'
+Allrun call it; run those through pgf run, whose environment it keeps. The case
+must be decomposed into M processor* directories (processor0 when M is 1).
+Open MPI gets --oversubscribe; PGF_MPIRUN_FLAGS adds mpirun options. Exit 2 on
+a usage or case error, otherwise mpirun's status.
+
+A stall watchdog runs mpirun in its own process group. When the run prints
+nothing for S seconds, it TERMs that group, KILLs it 10 s later
+(PGF_DEM_KILL_GRACE), prints the last output line and exits 124, the TIMEOUT
+of pgf test. A run that keeps printing is never stopped. stdout and stderr
+are merged. INT, TERM and HUP are passed on to the group.
+tutorials/cases/DEM_common/pgfDemRun is its old name."
+pgf_cmd_opt dem "-ndem N" "Yade ranks, mpy's master included" 2
+pgf_cmd_opt dem "-nfoam M" "OpenFOAM ranks" "numberOfSubdomains"
+pgf_cmd_opt dem "-solver NAME" "the solver" porousGasificationFoam
+pgf_cmd_opt dem "--stall-timeout S" "stop a run silent for S seconds; 0: never" "PGF_DEM_STALL_TIMEOUT, 600"
+pgf_cmd_ex dem "pgf dem run -ndem 2 MPI_lambda.py" "in an Allrun, from the case directory"
 
 pgf_cmd view "look at a case's results in ParaView (pgfView)" \
   "pgf view <caseDir> [--png DIR [--time T] [--size WxH] [--xvfb]] [--compare OTHER] [--palette NAME]" \
@@ -442,7 +465,8 @@ refuses to install into the build while WM_PROJECT_USER_DIR, FOAM_USER_APPBIN
 and FOAM_USER_LIBBIN point at it (edit, then pgf build); a case's dynamicCode/
 passes. With --bare, wmake is OpenFOAM's own. It also sets UCX_VFS_ENABLE=n
 UCX_LOG_LEVEL=fatal, FOAM_RUN=\$PGF_RUN_ROOT and TMPDIR=\$PGF_RUN_ROOT/tmp
-(PGF_RUN_ROOT default: \$TMPDIR/pgf-runs), and exports PGF_ROOT, so a copied
+(PGF_RUN_ROOT default: \$TMPDIR/pgf-runs; pgf run of a DEM case gets its own
+TMPDIR below it, removed afterwards), and exports PGF_ROOT, so a copied
 case finds the checkout's shared data. It checks that porousGasificationFoam
 resolves into the build.
 
@@ -463,7 +487,7 @@ preloads a small shim that moves yade's /tmp/yade-XXXXXX into \$TMPDIR.
 
 ## MPI (--mpi, PGF_MPI)
 loopback restricts Open MPI to self,vader,tcp on lo. A DEM run starts Yade and
-the solver in one mpirun (pgfDemRun), so its ranks reach each other over shared
+the solver in one mpirun (pgf dem run), so its ranks reach each other over shared
 memory; loopback keeps Open MPI's TCP off docker or libvirt bridges, which it
 can hang probing, and lets a host or sandbox whose only interface is lo run
 at all. The default, auto, applies loopback when a
@@ -729,6 +753,12 @@ _pgf() {
   dir) [ ${#pos[@]} -eq 0 ] && COMPREPLY=($(compgen -d -- "$cur")) ;;
   cmd) [ ${#pos[@]} -eq 0 ] && COMPREPLY=($(compgen -W "$_pgf_cmds $_pgf_topics" -- "$cur")) ;;
   build-options) COMPREPLY=($(compgen -W "$(_pgf_values build-options "$pgf")" -- "$cur")) ;;
+  dem)
+    if [ ${#pos[@]} -eq 0 ]; then COMPREPLY=($(compgen -W run -- "$cur")); else
+      compopt -o filenames 2>/dev/null
+      COMPREPLY=($(compgen -f -X '!*.py' -- "$cur") $(compgen -d -- "$cur"))
+    fi
+    ;;
   build | tier | shell | tutorial) [ ${#pos[@]} -eq 0 ] && COMPREPLY=($(compgen -W "$(_pgf_values "${_pgf_args[$sub]}" "$pgf")" -- "$cur")) ;;
   esac
 }

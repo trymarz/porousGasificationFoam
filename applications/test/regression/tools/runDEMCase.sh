@@ -252,6 +252,7 @@ fi
 RESULT_FIELDS+=(
     --artifact "case_dir=$CASE_DIR"
     --artifact "run_log=$WORK_DIR/run.log"
+    --artifact "yade_log=$WORK_DIR/log.yade"
 )
 
 cd "$WORK_DIR" || { echo "ERROR: cannot cd into $WORK_DIR" >&2; finish 2 "cannot cd into $WORK_DIR"; }
@@ -320,39 +321,50 @@ fi
 
 reg_phase assert
 
-grep -q "RUN FINISH" run.log \
-    || { echo "ERROR: simulation did not complete — check run.log"; finish 1 "simulation did not complete (no RUN FINISH in run.log)"; }
-grep -aqF "PgfCoupling: OpenFOAM ran its last step" run.log \
-    || { echo "ERROR: Yade was not ended by the solver's last step (no 'PgfCoupling: OpenFOAM ran its last step' in run.log)"; finish 1 "Yade was not ended by the solver's last step"; }
-grep -q "DEM coupling: active" run.log \
+# The Allrun keeps the coupled run's output in log.yade (runYade), the rest in run.log.
+grep -qs "RUN FINISH" run.log log.yade \
+    || { echo "ERROR: simulation did not complete — check log.yade"; finish 1 "simulation did not complete (no RUN FINISH in log.yade)"; }
+grep -saqF "PgfCoupling: OpenFOAM ran its last step" run.log log.yade \
+    || { echo "ERROR: Yade was not ended by the solver's last step (no 'PgfCoupling: OpenFOAM ran its last step' in log.yade)"; finish 1 "Yade was not ended by the solver's last step"; }
+grep -qs "DEM coupling: active" run.log log.yade \
     || { echo "ERROR: DEM coupling not active — solver built without -DWITH_YADE=1?"; finish 1 "DEM coupling not active — solver built without -DWITH_YADE=1?"; }
-grep -aqE '^(\[[0-9]+\] )?End$' run.log \
-    || { echo "ERROR: the solver did not reach its endTime (no End in run.log)"; finish 1 "solver did not print End"; }
+grep -saqE '^(\[[0-9]+\] )?End$' run.log log.yade \
+    || { echo "ERROR: the solver did not reach its endTime (no End in log.yade)"; finish 1 "solver did not print End"; }
 ls springs/springs_*.vtp > /dev/null 2>&1 || { echo "ERROR: no spring VTK files written"; finish 1 "no spring VTK files written"; }
-# Two outputs on each side, so a run that wrote only its initial state fails.
-nVtk=$(find spheres -maxdepth 1 -name 'vtk-spheres_*.vtu' 2>/dev/null | wc -l)
-[ "$nVtk" -ge 2 ] \
-    || { echo "ERROR: $nVtk sphere VTK file(s) written, need at least 2"; finish 1 "$nVtk sphere VTK file(s) written, need at least 2"; }
-# Count only time directories holding a solver field: function-object output
-# alone (e.g. lambdaMinusOne every step) is not a solver write.
-nWrites=$(python3 - <<'PYTIMES'
-import os
+# Sphere frame <iter> is the state at iter*deltaT (pgfView's rule). Every solver
+# write, the start and end included, needs a frame, and every frame a write
+# (or the run's last step, which --short-steps may not write).
+if ! dem_out=$(python3 - <<'PYTIMES'
+import glob, os, re, sys
 d = "processor0" if os.path.isdir("processor0") else "."
-solverFields = ("U", "p", "T")
-times = []
+solverFields = ("U", "p", "T")  # function-object output alone is not a solver write
+writes = []
 for name in os.listdir(d):
     try:
         t = float(name)
     except ValueError:
         continue
     if any(os.path.isfile(os.path.join(d, name, f)) for f in solverFields):
-        times.append(t)
-print(sum(t > min(times) for t in times) if times else 0)
+        writes.append(t)
+dt = float(re.search(r"^\s*deltaT\s+([^;\s]+)\s*;", open("system/controlDict").read(), re.M).group(1))
+frames = sorted(int(re.search(r"_(\d+)\.pvtu$", f).group(1)) * dt
+                for f in glob.glob("spheres/vtk-spheres_*.pvtu"))
+writes.sort()
+nAfter = len(writes) - 1 if writes else 0
+if nAfter < 2:  # a run that wrote only its initial state fails
+    print(f"the solver wrote {nAfter} time(s) after the start, need at least 2"); sys.exit(1)
+near = lambda t, ts: any(abs(t - u) <= 0.5 * dt for u in ts)
+noFrame = [t for t in writes if not near(t, frames)]
+noWrite = [t for t in frames if not near(t, writes) and t < max(frames)]
+if noFrame or noWrite:
+    fmt = lambda ts: " ".join(f"{t:g}" for t in ts) or "-"
+    print(f"sphere frames do not match solver writes: no frame at {fmt(noFrame)}; no write at {fmt(noWrite)}"); sys.exit(1)
+print(f"{len(frames)} sphere frames, {len(writes)} solver writes, start and end included")
 PYTIMES
-)
-[ "${nWrites:-0}" -ge 2 ] \
-    || { echo "ERROR: the solver wrote ${nWrites:-0} time(s) after the start, need at least 2"; finish 1 "solver wrote ${nWrites:-0} time(s) after the start, need at least 2"; }
-echo "  DEM output check passed ($nVtk sphere VTK files, $nWrites solver write times)"
+); then
+    echo "ERROR: $dem_out"; finish 1 "$dem_out"
+fi
+echo "  DEM output check passed ($dem_out)"
 
 RESULT_FIELDS+=(
     --artifact "spheres=$WORK_DIR/spheres"

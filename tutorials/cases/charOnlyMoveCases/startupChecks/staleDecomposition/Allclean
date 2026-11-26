@@ -1,0 +1,4 @@
+#!/bin/sh
+cd "${0%/*}" || exit
+"${PGF_ROOT:-../../../../..}/tutorials/cases/charOnlyMoveCases/solidBoundaryPolicy/cleanBase"
+rm -rf processor*

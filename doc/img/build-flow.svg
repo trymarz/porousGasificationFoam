@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 236" width="800" height="236" role="img" aria-label="pgf build: a build that exists is reused, else wmake compiles it into the build folder; pgf run runs cases with that folder">
+  <title>How a build works</title>
+  <style>
+    text { font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 13px; fill: #1f2328; }
+    .b { font-weight: 600; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .n { font-size: 12px; fill: #59636e; }
+    .box { fill: #f6f8fa; stroke: #59636e; stroke-width: 1.2; }
+    .ask { fill: #fff8c5; stroke: #9a6700; stroke-width: 1.2; }
+    .out { fill: #dafbe1; stroke: #1a7f37; stroke-width: 1.2; }
+    .line { stroke: #59636e; stroke-width: 1.4; fill: none; marker-end: url(#arrow); }
+    .head { fill: #59636e; }
+    @media (prefers-color-scheme: dark) {
+      text { fill: #e6edf3; }
+      .n { fill: #9198a1; }
+      .box { fill: #161b22; stroke: #9198a1; }
+      .ask { fill: #272115; stroke: #d29922; }
+      .out { fill: #0f2a19; stroke: #3fb950; }
+      .line { stroke: #9198a1; }
+      .head { fill: #9198a1; }
+    }
+  </style>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path class="head" d="M0,0 L10,5 L0,10 z"/>
+    </marker>
+  </defs>
+
+  <!-- pgf build -->
+  <rect class="box" x="10" y="20" width="170" height="74" rx="6"/>
+  <text x="95" y="46" text-anchor="middle" class="b">pgf build</text>
+  <text x="95" y="66" text-anchor="middle" class="n">normal variant, or DEM</text>
+  <text x="95" y="82" text-anchor="middle" class="n">with --yade</text>
+
+  <!-- built before? -->
+  <rect class="ask" x="230" y="20" width="200" height="74" rx="6"/>
+  <text x="330" y="46" text-anchor="middle" class="b">built before?</text>
+  <text x="330" y="66" text-anchor="middle" class="n">same sources, variant,</text>
+  <text x="330" y="82" text-anchor="middle" class="n">OpenFOAM and compiler</text>
+
+  <!-- wmake -->
+  <rect class="box" x="480" y="20" width="180" height="74" rx="6"/>
+  <text x="570" y="46" text-anchor="middle" class="b">wmake</text>
+  <text x="570" y="66" text-anchor="middle" class="n">compiles; objects stay in</text>
+  <text x="570" y="82" text-anchor="middle" class="n">the checkout for next time</text>
+
+  <!-- build folder -->
+  <rect class="out" x="480" y="146" width="180" height="74" rx="6"/>
+  <text x="570" y="172" text-anchor="middle" class="b">build folder</text>
+  <text x="570" y="192" text-anchor="middle" class="n">pgf-builds/&lt;key&gt;/</text>
+  <text x="570" y="208" text-anchor="middle" class="n">bin, lib, build.log</text>
+
+  <!-- pgf run -->
+  <rect class="box" x="696" y="146" width="96" height="74" rx="6"/>
+  <text x="744" y="172" text-anchor="middle" class="b">pgf run</text>
+  <text x="744" y="192" text-anchor="middle" class="n">a DEM case</text>
+  <text x="744" y="208" text-anchor="middle" class="n">takes DEM</text>
+
+  <!-- arrows -->
+  <path class="line" d="M180,57 H228"/>
+  <path class="line" d="M430,57 H478"/>
+  <text x="454" y="50" text-anchor="middle" class="n">no</text>
+  <path class="line" d="M570,94 V144"/>
+  <path class="line" d="M330,94 V183 H478"/>
+  <text x="340" y="174" class="n">yes: reuse it,</text>
+  <text x="340" y="203" class="n">nothing compiles</text>
+  <path class="line" d="M660,183 H694"/>
+</svg>
