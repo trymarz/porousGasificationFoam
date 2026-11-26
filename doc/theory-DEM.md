@@ -6,7 +6,7 @@ PGF can run coupled to YADE, a discrete-element (DEM) code that moves individual
 
 DEM supplies only how the solid moves; PGF supplies how the DEM bodies change size. Mass, porosity and chemistry stay on the mesh. This is not the usual CFD–DEM picture, where particles set the porosity and the gas drags them.
 
-![FVM–DEM coupling scheme](images/FVM-DEM-coupling.svg)
+![FVM–DEM coupling scheme](img/FVM-DEM-coupling.svg)
 
 ### What the DEM bodies are
 
