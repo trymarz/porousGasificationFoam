@@ -301,7 +301,7 @@ echo "  running DEM simulation (timeout=${TIMEOUT}s)..."
 # mpirun given that pid (PID namespaces reuse them) fails with PMIX_ERR_EXISTS.
 RUN_TMPDIR="$(mktemp -d "${TMPDIR:-/tmp}/pgf-dem-XXXXXX")" || finish 2 "cannot create the run's TMPDIR"
 # Run the case in its own session/process group (setsid) under timeout, so a
-# hung run and its whole tree (mpirun -> yade -> MPI_Comm_spawn'd solver) are
+# hung run and its whole tree (mpirun -> yade and solver ranks) are
 # terminated by signalling THAT group only. This replaces a host-wide
 # `pkill -f porousGasificationFoam`, which would kill unrelated solver runs
 # elsewhere on the machine. No `|| true`: the run's exit status is classified.

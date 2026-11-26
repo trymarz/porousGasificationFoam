@@ -36,7 +36,6 @@ if mp.rank == 0:
 
 
 
-numProcOF=2
 
 #Lambda=1
 
@@ -287,7 +286,6 @@ fluidCoupling = PgfCoupling()
 sphereIDs = [b.id for b in O.bodies if type(b.shape) == Sphere]
 
 
-fluidCoupling.SetOpenFoamSolver("porousGasificationFoam", numProcOF)
 
 
 
@@ -501,7 +499,7 @@ mp.ERASE_REMOTE_MASTER = True
 mp.REALLOC_FREQUENCY = 12
 mp.fluidBodies = sphereIDs
 mp.DOMAIN_DECOMPOSITION = True
-mp.mpirun(NSTEPS,np=numProcOF)
+mp.mpirun(NSTEPS)   # np: the Yade ranks pgfDemRun started
 mp.mprint("RUN FINISH")      
 
 if mp.rank == 0:

@@ -15,8 +15,8 @@ hexagonal layer filling the bed, settled under gravity before coupling, so
 the run starts at rest. Only spheres in the reactive layer see r < 1; the
 inert bed's cells have no chemical volume change, so r = 1 there.
 
-Usage (2 Yade ranks pre-launched, 2 OpenFOAM ranks spawned by PgfCoupling):
-    mpirun -n 2 yade MPI_lambda.py
+Usage (2 Yade ranks and the 2 OpenFOAM ranks in one mpirun, from Allrun):
+    pgfDemRun -ndem 2 MPI_lambda.py
 """
 import os
 import sys
@@ -34,7 +34,6 @@ comm = mp.comm_slave   # communicator for worker ranks
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
-numProcOF          = 2          # OpenFOAM MPI ranks
 
 writeInterval      = 0.25       # VTK write interval (virtual seconds)
 radiusInterval     = 0.01       # changeRadius() period (virtual seconds)
@@ -73,7 +72,6 @@ if mp.rank == 0:
 # Fluid coupling
 # ---------------------------------------------------------------------------
 fluidCoupling = PgfCoupling()
-fluidCoupling.SetOpenFoamSolver("porousGasificationFoam", numProcOF)
 fluidCoupling.setIdList(sphereIDs)
 
 # ---------------------------------------------------------------------------
@@ -216,7 +214,7 @@ mp.USE_CPP_INTERS       = False
 mp.ERASE_REMOTE_MASTER  = True
 mp.REALLOC_FREQUENCY    = 12
 mp.fluidBodies          = sphereIDs
-mp.mpirun(NSTEPS, np=numProcOF)
+mp.mpirun(NSTEPS)   # np: the Yade ranks pgfDemRun started
 mp.mprint("shrinkingBedDEM run finished")
 
 exit()

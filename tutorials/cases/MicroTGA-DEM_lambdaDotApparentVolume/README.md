@@ -50,9 +50,9 @@ There are six `MicroTGA-DEM_lambdaDot*` fixtures. They differ only in
 
 You need a solver built with `pgf build --yade` and a Yade built from the
 pinned fork, which carries the `PgfCoupling` engine. The startup handshake
-stops both sides by name on a protocol mismatch. `Allrun` launches `mpirun -n 2 yade MPI_lambda.py`.
-Yade then spawns the OpenFOAM ranks itself, so the run uses **4 MPI
-processes** (2 Yade + 2 OpenFOAM).
+stops both sides by name on a protocol mismatch. `Allrun` launches
+`pgfDemRun -ndem 2 MPI_lambda.py` (`../DEM_common/pgfDemRun`): one `mpirun` of
+**4 MPI processes**, 2 Yade and the 2 OpenFOAM ranks of the decomposed case.
 
 ## Copying it
 
@@ -87,7 +87,6 @@ Line numbers refer to `MPI_lambda.py`.
 
 | Name | Value | Meaning |
 |---|---|---|
-| `numProcOF` | `2` | Used twice: `SetOpenFoamSolver("porousGasificationFoam", numProcOF)` spawns this many OpenFOAM ranks with `-parallel` (`MPI_Comm_spawn` in `PgfCoupling::startFoamSolver`), and `mp.mpirun(NSTEPS, np=numProcOF)` sets the number of Yade processes. |
 | `setIdList(sphereIDs)` | all spheres | Coupled bodies. The two box walls are not coupled. |
 | `O.periodic` | `False` | No periodic cell. |
 
@@ -200,13 +199,11 @@ sent at step n is the one from step n−1.
 
 There are two separate counts:
 
-- **OpenFOAM ranks** = `numProcOF` = `numberOfSubdomains` in
-  `system/decomposeParDict`. The product of the `simple` `n` entries must
-  equal that number. Change all three together, then run `decomposePar`.
-- **Yade processes** = `mpirun -n` in `Allrun` = `np` in `mp.mpirun`.
-  The script uses `numProcOF` for both. If you want them to differ, give
-  `mp.mpirun` its own variable. Keep `np` equal to `mpirun -n`; if it is
-  larger, `mpy` spawns the difference (`mpy.initialize`). One Yade process is the
+- **OpenFOAM ranks** = `numberOfSubdomains` in `system/decomposeParDict`,
+  which `pgfDemRun` reads. The product of the `simple` `n` entries must
+  equal that number. Change both, then run `decomposePar`. One rank still
+  needs `decomposePar` (one `processor0`): the solver always runs `-parallel`.
+- **Yade processes** = `-ndem` in `Allrun`. One Yade process is the
   master and holds no spheres, so `n` Yade processes give `n − 1` DEM
   subdomains. A single Yade process runs serial Yade.
 
