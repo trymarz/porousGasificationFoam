@@ -203,8 +203,11 @@ O.engines = [
     fluidCoupling,
     NewtonIntegrator(gravity=(0, 0, -9.81), damping=geom.damping, label="newton"),
     PyRunner(command="changeRadius()",        virtPeriod=radiusInterval),
-    PyRunner(command="export_spheres()",      iterPeriod=timeRatio, firstIterRun=1),
-    PyRunner(command="printAndSaveDtInfo()",  iterPeriod=timeRatio, firstIterRun=1),
+    PyRunner(command="export_spheres()",      iterPeriod=1, nDo=1, initRun=True),   # t = 0 frame
+    # After Newton, iter k holds positions at (k+1)*O.dt, and the coupling's last
+    # pass is iter endTime/O.dt - 1: fire at timeRatio-1 so frames land on writes.
+    PyRunner(command="export_spheres()",      iterPeriod=timeRatio, firstIterRun=timeRatio - 1),
+    PyRunner(command="printAndSaveDtInfo()",  iterPeriod=timeRatio, firstIterRun=timeRatio - 1),
 ]
 
 collider.verletDist = sphere_radius * 0.2
