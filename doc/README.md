@@ -56,7 +56,7 @@ What can pgf do, and how does it work?
   - [Settings](pgf.md#settings)
   - [Builds](pgf.md#builds)
   - [Runs](pgf.md#runs)
-  - [Help and output](pgf.md#help-and-output)
+  - [Output](pgf.md#output)
 - [pgf reference](pgf-reference.md): every page of `pgf help`, generated
 
 ## The model

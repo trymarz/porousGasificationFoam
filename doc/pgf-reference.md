@@ -1,6 +1,6 @@
 # pgf reference
 
-Every page of `pgf help`, as plain text. **Generated** by `utilities/gen-pgf-reference.sh` from the pgf in this checkout; do not edit by hand. A tooling test (`applications/test/tooling/test_pgfCommands.sh`) fails when this page is stale. How pgf works, and when to use which command: [pgf guide](pgf.md).
+Every page of `pgf help`, as plain text. **Generated** by `utilities/gen-pgf-reference.sh` from the pgf in this checkout; do not edit by hand. A tooling test (`applications/test/tooling/test_pgfCommands.sh`) fails when this page is stale. How pgf works, and when to use which command: [the pgf tool](pgf.md).
 
 - [pgf](#pgf)
 - [pgf help setup](#pgf-help-setup)
