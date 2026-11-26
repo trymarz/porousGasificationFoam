@@ -16,6 +16,11 @@ How do I get PGF onto a machine?
   - [ParaView and Yade's VTK](install.md#paraview-and-yades-vtk)
   - [Pitfalls](install.md#pitfalls)
 - [Apptainer images](containers.md)
+- [Clean rebuild and uninstall](uninstall.md)
+  - [Clean rebuild](uninstall.md#clean-rebuild)
+  - [Removing PGF](uninstall.md#removing-pgf)
+  - [Removing YADE (DEM coupling)](uninstall.md#removing-yade-dem-coupling)
+  - [Removing OpenFOAM](uninstall.md#removing-openfoam)
 
 ## Running cases
 

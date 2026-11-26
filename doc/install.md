@@ -130,5 +130,6 @@ Neither YADE's Python modules nor PGF's DEM scripts import the `vtk` Python modu
 
 - [README quick start](../README.md#quick-start)
 - [The pgf tool](pgf.md), [Apptainer images](containers.md)
+- [Clean rebuild and uninstall](uninstall.md): after switching OpenFOAM, or to remove PGF
 - [The build system](build.md): how builds work, for changing the code
 - [All documentation](README.md)
