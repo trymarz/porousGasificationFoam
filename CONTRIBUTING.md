@@ -102,9 +102,9 @@ Short declarative sentences, one idea per paragraph, physics before code names.
 ### When you submit a PR
 
 - **Behaviour change** → update the code comment in the same commit, and any doc restatement that points to it.
-- **Loop structure or step ordering change** → update the per-step flow in `doc/theory.md`.
+- **Loop structure or step ordering change** → update the per-step flow in `doc/code-map.md`, and `doc/solid-step.md` for the solid step.
 - **Equation change** → update the short-form equation in `doc/theory.md`.
-- **New `pgf` flag or dictionary key** → document it in `pgf help` or the reader's code first; a doc page links to it or restates it with a pointer.
+- **New `pgf` flag or dictionary key** → document it in `pgf help` or the reader's code first; a doc page links to it or restates it with a pointer. After any change to `pgf help`, run `utilities/gen-pgf-reference.sh` to regenerate `doc/pgf-reference.md`; a tooling test fails until you do.
 - **New insight** → if it is *what the code does*, write it in a code comment or `pgf help`. If it is *why*, *how to* or *how the pieces fit*, it belongs in `doc/` or the README.
 - **Duplicate found** → reduce it to one home plus links in the same PR. No need to wait for a cleanup branch.
 
@@ -119,5 +119,6 @@ The maintainer keeps work not meant for publication (e.g. third-party gasifier c
 ## Related pages
 
 - [Regression testing](doc/regression-testing.md): running the tests, adding a case.
-- [Theory](doc/theory.md): the model, its equations and where they live in the source.
+- [Developer tools](doc/dev-tools.md): clangd, Serena, Doxygen.
+- [Code map](doc/code-map.md): where each part of the model lives in the source.
 - [All documentation](doc/README.md)

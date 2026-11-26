@@ -1,6 +1,6 @@
 # Regression metric ledger
 
-One row per registered case and function object: what the metric can detect, what it cannot, and whether it is doing its job. Read with [regression-testing.md](regression-testing.md), which explains how the comparison works. Tracking issue: #69 (step 3).
+One row per registered case and function object: what the metric can detect, what it cannot, and whether it is doing its job. Read with [regression-testing.md](regression-testing.md), which explains how the comparison works. The findings behind the dead and question rows, the recapture history and the next steps are in [a comment on #69](https://github.com/trymarz/porousGasificationFoam/issues/69#issuecomment-7200243564); "finding N" below refers to its list.
 
 Built from the committed `reference/` files on `main` at 5cec447, each case's `system/regressionFunctions` and its setup. Cases with a third column in `cases.list` (`expectFail`, `expectLog`) check a log message, not metrics, and are not listed.
 
@@ -15,19 +15,6 @@ Built from the committed `reference/` files on `main` at 5cec447, each case's `s
 | question | Moves, or stays flat, in a way the case does not explain. Needs a run before the baseline is trusted. |
 
 "Flat" means the whole column changes by less than `rtol` (1e-4). A flat column still fails if its level shifts; what it cannot do is follow anything in time.
-
-## Findings
-
-1. **Wood integral is the domain volume** (8 cases). `canonical/pyrolysis` and its siblings have one solid component, so the mass fraction `Ywood` is 1 everywhere and `volIntegrate(Ywood)` is the mesh volume, 1.6e-06 m³. Pyrolysis mass loss is `volIntegrate(Ywoodm)`, as `conservation/chemistryGateCrossing` already does.
-2. **Radiation does not reach the solid** in `canonical/radiation` and `canonical/meanTemp`. Their `Ts` and `porosityF` columns equal `canonical/pyrolysis` (radiation off) to all 6 printed digits. Absorption is `borderAs * bedBorderSurfaceAreaDensity` with `a = as = 0`, and a uniform `porosityF = 0.4` bed has no border cells. Only `G` moves. To confirm: write `bedBorderSurfaceAreaDensity` and check it is zero.
-3. **Empty cells set the solid temperature averages** in the char-only moving cases. `serial`, `serial_m2`, `serial_m4` and `solidInlet` hold no solid in most cells, where `Ts = 0` by design: `min(Ts)` is 0 for the whole run and `volAverage(Ts)` is 24–120 K. #176 fixes `solidInlet_tinyDt` with a `Ycharm`-weighted average, as #162 did for `rightWallSolidAccumulationFromLeftInlet`.
-4. **Species that do not exist.** `volIntegrate(Yhumm)` and `volIntegrate(Yrubberwoodm)` are 0 in all six char-only cases (no initial mass, reactions commented out), as is `Yashm` in `solidInlet` and `solidInlet_tinyDt`. `min/max(N2)` in `rightWallSolidAccumulationFromLeftInlet` are 1 (single-species gas).
-5. **The char-only `serial` claims do not hold.** "Increases as the solid bed burns away": char oxidation has `Ta = 1.96e4 K` and `Ts` peaks at 529 K, so the rate is about 6e-8 1/s and nothing burns in 2 s. `volAverage(porosityF)` is flat and `volIntegrate(Ycharm)` moves less than 1e-4. The case tests motion and heat-up; the char integral works as a mass-conservation invariant.
-6. **`conservation/gasPressureWork` gas energy residual drifts.** The comment says it "stays at its t = 0 value". From t = 0.05 to 0.5 it moves by 2.8e-06, 0.87% of the 3.3e-04 the gas received, growing steadily. The first-order running mean `heatTransferMean` may explain it; to settle, halve `deltaT` and see whether the drift halves.
-7. **`canonical/pyrolysis` gas pressure** rises from 2.1 bar to 39 bar in 0.5 s. Plausible for a sealed box filling with pyrolysis gas, but no metric or comment says so.
-8. **`canonical/gasification`** (on `main`): `volIntegrate(Ychar)` is flat and `volAverage(CO2)` is exactly 0. #174 makes the gas reaction run and recaptures the baseline; the rows below are `main`'s.
-9. **No case can see the #31 inflow guard.** It fires in `prescribedUsCases/tetrisCompaction`: 36209 candidates, 17243 vetoed. With `poroProtectSolidInflowFluxTolerance 1e30` none are vetoed, and all six metrics still match the baseline. The case sets neither `bedCollapse` nor `emptyFlippedCells`, and `PorosityRecovery::recover()` uses the flip list only under one of them, so the guard decides nothing there. The same case with `emptyFlippedCells true` does see it: the guard lets 231 flips destroy 2.4e-08 kg of solid; off, 7319 flips destroy 9.7e-08 kg, and `volIntegrate(Ycharm)` moves by 5e-04 relative. That variant is the fixture #175 asks for; #187 adds it as `prescribedUsCases/tetrisCompactionEmptying`.
-10. **The comparator ignores unreferenced output.** It walks `reference/` and fails on a reference file missing from the run, but a `.dat` with no reference is never read. A newly added metric passes unchecked until someone captures it.
 
 ## Ledger
 
@@ -67,7 +54,7 @@ Built from the committed `reference/` files on `main` at 5cec447, each case's `s
 | `PorosityAverage`, `PorosityMin` | invariant | — | inflow: flat at 0.5 |
 | `SolidSpeciesIntegrals` `Ycharm`, `Yashm` | live | char and ash mass entering | — |
 | `SolidSpeciesIntegrals` `Yhumm`, `Yrubberwoodm` | dead | nothing | — |
-| `TsAverage`, `TsMax`, `TsMin` | invariant | 300 K: inlet solid, bed and gas are all at 300 K with chemistry off. The committed 269–489 K is an artefact of the pre-#173 solve (see Recaptures) | solid heating |
+| `TsAverage`, `TsMax`, `TsMin` | invariant | 300 K: inlet solid, bed and gas are all at 300 K with chemistry off. The committed 269–489 K is an artefact of the pre-#173 solve ([#69](https://github.com/trymarz/porousGasificationFoam/issues/69#issuecomment-7200243564), Recaptures) | solid heating |
 
 ### canonical
 
@@ -151,92 +138,6 @@ All six metrics in every case: `volIntegrate`, `min`, `max` of `Ycharm`, and `vo
 | `rightWallSolidAccumulationFromLeftInlet` | live (inlet) | live | see below |
 
 `rightWallSolidAccumulationFromLeftInlet` also records per-component `min/max/volAverage` of `Ychar Yash Ywood Ymineral` (the maxima are flat at the inlet composition: invariant bounds), `TsCharWeighted` (invariant 300 K, #162), `min/max(rhos)`, `min/max(rho)`, `min/max(p)` (live), and `min/max(N2)` (dead, single-species gas).
-
-## Recaptures
-
-**#209 F.** `pyrolysis`, `pyrolysisE`, `gasification`, `conservation/interfaceEnthalpyGasification`, `conservation/chemistryGateCrossing` and the 11 `solidRates` fixtures, from build `2ff2cc0c020b`. Nothing else moved beyond `rtol`. Largest moves:
-
-| Case | Column | Move | Why |
-|---|---|---|---|
-| `pyrolysis`, `pyrolysisE` | `volAverage(p)` | 2.7e-4 | both causes below; p is the only column past `rtol` |
-| `gasification` | `volAverage(CO2)`, `(CO)`, `(O2)` | 2.9e-3, 1.4e-3, 4.5e-4 | step mean |
-| `interfaceEnthalpyGasification` | `max(CO)`, `Srho`, `interfaceEnthalpy` | 1.5e-3 | step mean; `T = Ts = 900` and `interfaceEnthalpy/Srho` unchanged |
-| `chemistryGateCrossing` | `solidChemistrySh`, `Ywoodm`, `solidSensible` | 5.4e-3, 3.6e-3, 3.5e-3 | both causes below, and the heat source |
-| `solidRates` | sources, `heat` | 5.2e-4 at most (`H2`, `H6`, `H7`, `H8s` past `rtol`) | step mean |
-
-- **Step mean.** The rate now reads the ODE state (`6465016`), where it used to read fields frozen at the step start, so a step's source is a mean over the step. The move is first order in dt, and halves when dt does. The heat source followed as an ODE state (`319f33b`), which took `chemistryGateCrossing`'s heat per kg of gas from 0.2% high to exact.
-- **Old ODE error.** The old right-hand side did not depend on the concentrations but its Jacobian did, so seulex was accurate only to `relTol`, 1e-4 by default. In `chemistryGateCrossing` the heavy cell's rate ran about 0.5% low whatever dt was, and only the heavy cell. The dt → 0 limit of `pyrolysis` p sat 1.8e-4 below the new build's, and `chemistryGateCrossing`'s `Ywoodm` 3e-3 above. With only those Jacobian entries zeroed, the old build agrees with the new limit to 3e-6. The new build's Jacobian matches its right-hand side and does not depend on `relTol`. `gasification` and `interfaceEnthalpyGasification` do not show this error.
-
-The fixtures were captured with `--all-files`, so `H3`, `H4`, `H5`, `H9s`, `H10s` are recaptured though they were within `rtol`; `H5` and `H9s` by only 2%. Their invariant columns changed with the file. `massRatio` is no longer exactly 1 because the gas rescale that forced it (`1e13ea8`) is gone. `H1` and `H1s` also carry the new time step in the `Time` column.
-
-**#226.** `gasification` only, from build `b5b799f733f4`; `conservation/gasReactionPorosity` gets its first baseline from the same build. YEqn now weights `reaction->R(Yi)` by `porosityF`, as EEqn already weighted `Qdot`. Before, in porous cells the species reacted at 1/porosityF times the rate the heat release implied. `gasification` is the only fast case with gas chemistry in porous cells that actually reacts. `charOnlyMoveCases/serial` has porous cells (0.99), but its gas is air at 352 K or below, so the rate there is zero. `interfaceEnthalpyGasification` runs with combustion `active false`.
-
-| Case | Column | Move | Why |
-|---|---|---|---|
-| `gasification` | `volAverage(CO2)` | 0.41x at the first sample (≈ porosityF = 0.4), 0.70x at the last | the CO oxidation rate is now 0.4x what it was |
-| | `volAverage(CO)`, `(O2)` | +27%, +2.8% at the last sample | less CO is burned |
-| | `volAverage(T)`, `(Ts)` | +2.2 K (2.2e-3), +0.1 K (1.0e-4) | CO now depletes more slowly, so more of it is left to release heat later in the run (not analysed further) |
-
-`CharIntegral` and `PorosityAverage` are unchanged.
-
-**#173 PR B.** Species now move before the energy solve, and one enthalpy balance solved for `Ts` replaces the two equations and four `H`↔`Ts` conversions. Recaptured from build `a5f8b08ddc49-yade0` (2026-11-10, branch merged with main `4dd0b40`); old is build `b5b799f733f4`. Only the 23 failing files were rewritten: 21 in the fast tier (10 cases) and 2 in the convergence tier (`serial_m2`, `serial_m4`). Fast went from 50/60 to 60/60 passing, convergence from 0/2 to 2/2. Every moved column is in this table and nothing else moved.
-
-| Case | Column | Move | Why |
-|---|---|---|---|
-| `pyrolysis`, `pyrolysisE`, `radiation`, `meanTemp`, `stoichiometric`, `enthalpy`, `noSubintegration` | `max(Ts)` | 1.0e-4 (+0.056 K) | accepted: discretisation only (CN), O(dt) |
-| `pyrolysis`, `pyrolysisE` | `volAverage(p)` | 2.0e-4 | same |
-| `radiation`, `meanTemp` | `volAverage(G)` | 2.2e-4, 2.0e-4 against the baseline (2.9e-4, 2.7e-4 against the old build) | same |
-| `conservation/chemistryGateCrossing` | `Ywoodm`, `solidSensible`, `solidChemistrySh`, `max(Ts)`, `max(T)` | 5.3e-3, 4.3e-3, 2.6e-3, 9.1e-4, 2.1e-4 | reaction and transport no longer split inside the energy step |
-| `charOnlyMoveCases/serial` | `max(Ts)`, char-weighted `Ts` | 3.8e-4, 1.5e-4 | per-species enthalpy flux |
-| `charOnlyMoveCases/solidInlet_ash` | `TsAverage`, `TsMax`, `TsMin` | 322, 489, 270 K → 300 K exactly | the old advection carried mixture-`Cp` enthalpy across a char/ash front |
-| `serial_m2`, `serial_m4` (convergence tier) | `max(Ts)` | 1.9e-2, 4.0e-2 | as `serial`; the char-weighted `Ts` order is unchanged (0.79–1.38) |
-
-- **Discretisation only.** The seven static cases use `CrankNicolson 0.3`. With `Euler` the two builds agree to 6.3e-11 on every column of all seven. With CN the old-minus-new difference at t = 0.5 halves when dt does (0.01 → 0.005), on every column:
-
-  | Case | Column | dt | dt/2 | Ratio |
-  |---|---|---|---|---|
-  | `pyrolysis` | `max(Ts)` | +5.64e-2 K | +2.77e-2 K | 0.49 |
-  | | `volAverage(p)` | +850 Pa | +437 Pa | 0.51 |
-  | | `volAverage(Ts)`, `(T)` | +1.82e-2, +2.54e-2 K | +9.13e-3, +1.28e-2 K | 0.50, 0.51 |
-  | `pyrolysisE` | `max(Ts)`, `volAverage(p)` | +5.68e-2 K, +857 Pa | +2.79e-2 K, +439 Pa | 0.49, 0.51 |
-  | `radiation` | `volAverage(G)` | +3.50 | +1.81 | 0.52 |
-  | `meanTemp` | `volAverage(G)` | +0.791 | +0.409 | 0.52 |
-
-  The other columns (`targas`, `porosityF`, `Ywoodm`, `min(Ts)`) stay inside `rtol` and have ratios 0.51–0.55. The source: under CN the carrier heat capacity `Σ max(Ym_i − dt·RRs_i, 0)·Cp_i` is not the old-time mass the scheme blends with.
-- **Uniform `Ts` under pure transport** is now exact: `solidInlet_ash` has `max|Ts − 300| = 0`, and `rightWallSolidAccumulationFromLeftInlet`'s `== 300` check holds.
-- **Composition term (D8).** Taking it explicit instead of implicit moves `pyrolysis` `max(Ts)` by +0.19 K (3.4e-4) and `volAverage(p)` by 5.7e-4, first order in dt. Implicit is kept.
-- **DEM tier**, new against old build under Yade `d5c33e0` and `yadeDt` 5e-6: `lambdaDotTemperature` and `lambdaDotBoth` move `lambdaDotMax` by 7.0e-5 and 1.06e-4, `lambdaDotAverage` by 1.5e-5 and 1.7e-5; `lambdaDotChemistry`, `lambdaDotOff` and `lambdaDotApparentVolume` do not move (≤ 4e-9). Under Yade `42126e8` and `yadeDt` 1e-6, `lambdaDotTemperature` moves `lambdaDotMax` by 1.4e-4 and nothing else past `rtol`. The DEM baselines are reset in the next entry.
-
-**DEM reset (with #173 PR B).** The six `MicroTGA-DEM_lambdaDot*` baselines dated from #199 (`b2f2ad6`). Recaptured from build `a5f8b08ddc49-yade1` under Yade from Foam-Yade `42126e8` (the `d5c33e0` install with `libpkg_openfoam.so` rebuilt; the coupling libraries under `pkg/openfoam/coupling` are identical at both commits). Before: `Off` and `ApparentVolume` pass, the other four fail. After: 6/6 pass. Only the 17 failing files were rewritten. Sign and spring-force checks pass in every case, and two runs of `lambdaDotTemperature` are byte-identical.
-
-| Case | Column | Move at the last sample | Why |
-|---|---|---|---|
-| `Temperature`, `Chemistry`, `Both`, `AltInterp` | `lambdaMinusOneAverage`, `Max`, `Min`, where the baseline is not 0 | 0.20x–0.23x | #230: Yade now runs at the OpenFOAM `deltaT` (`yadeDt` 5e-6 → 1e-6) |
-| `Temperature`, `Both` | `lambdaMinusOneMin` | 0 → 1.7e-7, 0 → 1.6e-7 | #229: no body at the rank cut stays at λ = 1 |
-| `Chemistry` | `lambdaMinusOneMax` | 0 → −1.0e-8 | #229, as above (λ falls in this case) |
-| `Temperature`, `Both` | `lambdaDotAverage` | +0.4%, +0.6% | see the steps below |
-| | `lambdaDotMax` | −2.5%, −2.0% | |
-| | `lambdaDotMin` | +3.3%, +3.7% | |
-
-`lambdaDotTemperature` step by step (`lambdaDotAverage`, `lambdaDotMax` at the last sample, in 1e-5):
-
-| State | Average | Max | Step |
-|---|---|---|---|
-| baseline (#199) | 5.6274 | 6.9558 | |
-| main before #229, `yadeDt` 5e-6 | 5.7708 | 7.0930 | +2.5%, +2.0%: #201, #209, #213, #226 (failing on main since) |
-| + #229 | 5.7888 | 7.0861 | +0.3%, −0.1% |
-| + #230, `yadeDt` 1e-6 | 5.6477 | 6.4610 | −2.4%, −8.8% |
-| main `4dd0b40` (+ #231, #228) | 5.6488 | 6.7802 | +0.02%, +4.9% |
-| + #173 PR B (recaptured) | 5.6488 | 6.7801 | ≤ 1.4e-4 |
-
-`lambdaDotMin` moves +3.3% in the first step and less than 1e-4 after it. `lambdaDotAltInterp` now runs in 122 s (2600 s before #230).
-
-## Next
-
-- Step 4: turn the invariant rows into explicit checks (bounds, zero residuals, conserved totals, Darcy's law) instead of 100-row copies of one value.
-- Replace the dead rows: `Ywoodm` for the wood integral; drop the absent species; weight `Ts` by solid in the char-only cases.
-- Settle the questions: radiation reaching the solid (finding 2), the gas energy drift (6), pyrolysis pressure (7), gasification after #174 (8).
-- Make the comparator report unreferenced output (finding 10).
 
 ## Related pages
 

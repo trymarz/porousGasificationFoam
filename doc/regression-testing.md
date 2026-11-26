@@ -58,6 +58,8 @@ The suite is green only if at least one case ran and every case passed. There is
 ./pgf test --gc --keep-runs 10 --keep-prefixes 5 [--dry-run]
 ```
 
+Every option: [`pgf help test`](pgf-reference.md#pgf-help-test).
+
 Each run goes to `$PGF_RUN_ROOT/pgf-test-<tier>-<time>-<pid>/` (`build.log`, `driver.log`, `state/` with `result.json`, and `cases/` with the kept case copies). `PGF_RUN_ROOT` defaults to `${TMPDIR:-/tmp}/pgf-runs`. The record `${XDG_STATE_HOME:-~/.local/state}/pgf/runs/last/<tier>.json` (outside the tmp run root, so it survives a reboot; before #274 it was `$PGF_RUN_ROOT/last/`) holds the build key, source fingerprint, git `HEAD`, start and end time, outcome counts, the exit code and the paths to the run's state. A tier is **stale** when the key it last tested is not that checkout's current key, or with `--if-stale AGE` when that run is older than `AGE`. `--if-stale` reruns a tier whose last run failed, even for the same key. `--rebuild` deletes the tier's prefix and builds it again. `--gc` keeps the newest N run dirs plus every dir a record points at, and the newest M prefixes. It never removes that checkout's builds (either variant) or a prefix whose build lock is held. `PGF_TIERS_CONF` points `pgf test` at another tiers file. Exit codes are the drivers' (see [Outcomes](#outcomes)). The old `./pgf-test` still forwards to `pgf test` for a deprecation period (#274).
 
 ### Baselines on another toolchain
@@ -85,7 +87,7 @@ Each side gets its own `git archive` copy of `HEAD` under the work dir (default 
 - **Build cache.** The job computes the build key (`utilities/pgf/build.sh --print-key`), restores `pgf-builds/<key>` from the Actions cache, builds with `build.sh --isolated` (a no-op on a hit) and saves the prefix on a miss. A change to any source under the build targets, the OpenFOAM version or the compiler gives a new key; a change to cases, baselines or scripts reuses the prefix.
 - **Artifacts** (`regression-<tier>-<run id>-<attempt>`, kept 14 days): `ci-build.log`, the run's `build.log` and `driver.log`, the record `state/pgf/runs/last/<tier>.json` (CI sets `XDG_STATE_HOME` under the run root), the whole `state/` dir (`result.json` and every case's logs and `compare.log`), and for each failed case the `postProcessing/` and `log.*` files of its kept copy. Only regular files are collected, because the copies symlink back into the source tree.
 - **Jobs.** `--jobs` comes from `applications/test/tiers.conf`, as locally. A hosted `ubuntu-24.04` runner has 4 cores for a public repository and 2 for a private one.
-- **Not covered.** The `dem` tier is local-only: the image has no Yade, so run `./pgf test dem` before DEM-touching merges. It needs a yade built at the yade-pgf pin and refuses another before building (`PGF_YADE_OFF_PIN=1` overrides; see [build → YADE DEM coupling](build.md)). Parallel decomposition is not covered either, since no case in `cases.list` decomposes.
+- **Not covered.** The `dem` tier is local-only: the image has no Yade, so run `./pgf test dem` before DEM-touching merges. It needs a yade built at the yade-pgf pin and refuses another before building (`PGF_YADE_OFF_PIN=1` overrides; see [build → YADE DEM coupling](build.md#yade-dem-coupling)). Parallel decomposition is not covered either, since no case in `cases.list` decomposes.
 - **Baselines.** CI only compares against the committed `reference/`; it never captures one.
 
 ## Add a case
