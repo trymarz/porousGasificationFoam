@@ -12,7 +12,7 @@ The solver's `system/controlDict` alone sets the run's time. The YADE script rea
 
 1. **Bodies go up.** YADE sends each body's position, velocity and λ to every OpenFOAM rank whose mesh bounding box holds the body's centre.
 2. **Bodies land on the mesh.** Each rank finds the cell holding each body and averages the bodies per cell into `UsDEM` and `lambdaDEM`. These are smoothed over the solid region into `Us` and `lambda` ([`constant/lambdaDict`](case-setup.md#constantlambdadict-required-by-with_yade-builds-running-a-dem-case)). `Us` then moves the solid in this step's solid transport; `lambda` is output only, since YADE owns each body's λ.
-3. **λ values go down.** Each rank returns one value per body: the rate `λ̇` or the factor `r`, depending on the [body size model](theory-DEM.md#body-size-models). It is the value the solid step assembled in the previous time step, because this step's solid step has not run yet. Cells that are almost all gas (`porosityF ≥ connectedBelowPorosity`) send the neutral value, 0 for a rate and 1 for `r`.
+3. **λ values go down.** Each rank returns one value per body: the rate `λ̇` or the factor `r`, depending on the [body size model](theory-DEM.md#body-size-models). It is the value the solid step assembled in the previous time step, because this step's solid step has not run yet. Cells that are almost all gas (`porosityF ≥ 1 − connectedAboveSolidFraction`, from `solidRegimes` in `pyrolysisProperties`) send the neutral value, 0 for a rate and 1 for `r`.
 4. **YADE applies them.** A body near a rank boundary may be sent to several ranks. Only the ranks that found it in their cells answer, and YADE takes the lowest such rank's value ([#229](https://github.com/trymarz/porousGasificationFoam/issues/229)). A body no rank found keeps its previous value and is counted in `PgfCoupling.nLost`. A rate is then integrated by YADE every DEM step; `r` multiplies λ once, here.
 5. **YADE runs to the next exchange.** The solver tells YADE its `deltaT` and whether this was its last step. YADE moves the bodies until the next exchange.
 
@@ -21,7 +21,9 @@ The solver's `system/controlDict` alone sets the run's time. The YADE script rea
 YADE runs several DEM steps per PGF step, set by `O.dt = deltaT / DEM_SUBSTEPS` with a whole number of substeps.
 
 - **Rate modes** (`constant`, `exactDifferential`). YADE integrates `λ̇` every DEM step, so λ advances by `λ̇ · deltaT` per exchange only when the DEM steps fill the PGF step exactly. The run stops unless YADE's `dt` divides `deltaT` to within 10⁻⁶. Before this check, the fixtures ran with a DEM step 5 times the PGF step, so λ advanced 5 times too fast ([#230](https://github.com/trymarz/porousGasificationFoam/issues/230)).
-- **`apparentVolume`.** `r` is applied once per exchange, so the ratio of the steps does not change λ, and no exact ratio is needed.
+- **`apparentVolume`.** `r` is applied once per exchange, so the ratio of the steps does not change λ, and no exact ratio is needed: YADE exchanges every `int(deltaT / dt)` DEM steps, or every step when `dt ≥ deltaT`.
+
+Both rules are in `PgfCoupling::setExchangeInterval` (yade-pgf `pkg/openfoam/PgfCoupling.cpp`).
 
 ## Start and stop
 
