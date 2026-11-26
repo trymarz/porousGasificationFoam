@@ -19,6 +19,8 @@ pgf run <case>                    # run a case with the checkout's build (or wor
 
 pgf decides *what* to build and *where* it goes; OpenFOAM's own `wmake` does the compiling:
 
+![pgf build reuses a build it has, or has wmake compile one into the build folder; pgf run runs cases with that folder](img/build-flow.svg)
+
 1. **pgf build** (or `./Allwmake`) names the build from your sources, the variant (normal or DEM), the OpenFOAM version and the compiler, in a clean shell that loads OpenFOAM.
 2. **Built before?** Then it is reused at once: nothing compiles, the checkout is not touched.
 3. **Variant switched** between normal and DEM since the last build? pgf cleans the 2 parts that differ (pyrolysis library, solver) so they recompile; you never clean by hand.
