@@ -6,7 +6,7 @@ In the paper the solid stays in place, and its porosity changes through a chemis
 
 ## Model overview
 
-Each cell holds gas and solid in proportions set by the porosity `ε` (`porosityF`): `ε = 1` is pure gas, `ε = 0` pure solid, and anything in between is a porous medium. The solid chemistry passes mass and energy between solid and gas. Momentum goes one way only: the solid slows the gas through the Darcy–Forchheimer resistance, while the gas does not push the solid, whose velocity `Us` is given in `0/Us` or comes from DEM. Gas released by the solid brings no momentum with it.
+Each cell holds gas and solid in proportions set by the porosity `ε` (`porosityF`): `ε = 1` is pure gas, `ε = 0` pure solid, and anything in between is a porous medium. The solid chemistry passes mass and energy between solid and gas. Momentum goes one way only: the solid slows the gas through the Darcy–Forchheimer resistance, while the gas does not push the solid, whose velocity `Us` is given in `0/Us` or comes from DEM ([the idea behind the DEM coupling](theory-DEM.md#the-idea)). Gas released by the solid brings no momentum with it.
 
 ## Notation
 
@@ -227,7 +227,7 @@ $$
 
 ## DEM coupling
 
-Only in a `WITH_YADE` build with `constant/yadeProperties` `active true`. What the two sides exchange, the λ modes and the particle-size update: [theory-DEM.md](theory-DEM.md).
+Only in a `WITH_YADE` build with `constant/yadeProperties` `active true`. The DEM particles supply only `U_s`; the idea behind this, what the two sides exchange, the λ modes and the particle-size update: [theory-DEM.md](theory-DEM.md).
 
 ## Related pages
 

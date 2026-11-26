@@ -2,6 +2,24 @@
 
 PGF can run coupled to YADE, a discrete-element (DEM) code that moves individual particles. This needs a `WITH_YADE` build ([build.md](build.md#yade-dem-coupling)) and `active true` in `constant/yadeProperties`. `pgfDemRun` (`tutorials/cases/DEM_common/`) starts YADE and `porousGasificationFoam` in one `mpirun`, the solver always with `-parallel` (coupling v2, [#328](https://github.com/trymarz/porousGasificationFoam/issues/328)). The two exchange data once per PGF time step, in step 2 of the [per-time-step flow](theory.md#per-time-step-flow).
 
+## The idea
+
+The usual CFD–DEM picture, where particles set the porosity and the gas drags the particles, does not apply here.
+
+**What the particles are.** The DEM particles are an analog chosen by the user to move the solid in a physically plausible way. They can be bead-spring chains, spheres or rough grains. They are not the solid that PGF models. That solid lives on the mesh as the mass per cell `Ym`, and porosity follows from it (`1 − ε = Σ Ym/ρ`). The particles carry no mass, and none of their shape or size reaches PGF. The closer they mimic the real material, the more physical the solid velocity is likely to be, but nothing enforces this. For example, a single pellet spanning several cells is modelled as bead-spring chains. A gasifier bed is modelled as loosely packed spheres, because spheres flow smoothly under compaction, not because the real bed is made of spheres. To study bridging you would pick rougher particles that clog more easily.
+
+**DEM → PGF: the solid velocity only.** The particle velocities, averaged per cell and smoothed over the solid cells that hold no particles, give `U_s`. `U_s` gives the solid flux `φ_s`. `φ_s` moves `Ym`, and the new `Ym` gives the new porosity. The gas sees the particles only through that porosity, via the Darcy–Forchheimer resistance. Particle positions decide only which cells anchor `U_s`. Neither the positions nor λ enters any PGF equation.
+
+**PGF → DEM: how λ changes.** PGF sends each cell's λ̇, or under `apparentVolume` a factor `r`. In most cases this comes from the solid chemistry. `exactDifferential` can add a solid-temperature term, for example for thermal expansion, and `constant` sends a fixed rate. λ is a particle length scale, independent of porosity. In the tutorial fixtures, only the spring model uses it, as a stretch of the springs' rest length ([below](#spring-model-and-engine-order-231)).
+
+**One-way, in cycles.** Each side takes the other's latest data as it is, updates its own state and sends its new fields back. PGF does not correct the particle velocities, and YADE does not correct λ̇ or `r`. The two descriptions are not tied together beyond this exchange, so their coherence is hoped for, not enforced.
+
+**Left out on purpose:**
+- no drag or torque on the particles;
+- particle radius, mass and inertia do not follow λ.
+
+See [Limitations](#limitations).
+
 **Who owns what.**
 - YADE moves the particles and owns each particle's length scale `λ` (default 1).
 - PGF sends back only how `λ` should change: a rate `λ̇`, or, under `apparentVolume`, a factor `r`. PGF's `lambda` field is a cell average written for output, and no PGF equation reads it.
