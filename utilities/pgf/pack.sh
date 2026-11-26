@@ -61,7 +61,8 @@ EOF
     cd /tmp/yade-build
     cmake /opt/pgf/yade-pgf -DCMAKE_INSTALL_PREFIX=/opt/yade -DENABLE_GUI=OFF -DNOSUFFIX=ON \\
         -DYADE_VERSION=$yver -DCMAKE_BUILD_TYPE=Release -DPYTHON_EXECUTABLE=/usr/bin/python3
-    make -j"\$(nproc)" install
+    # one job per 4 GB of free memory, at most one per core: a YADE job needs 3-4 GB
+    make -j"\$(awk -v n="\$(nproc)" '/MemAvailable/ {j = int(\$2 / 4194304); print (j < 1 ? 1 : (j > n ? n : j))}' /proc/meminfo)" install
     cd / && rm -rf /tmp/yade-build
     export YADE_BIN=/opt/yade/bin/yade YADE_TRUNK=/opt/pgf/yade-pgf
 EOF
