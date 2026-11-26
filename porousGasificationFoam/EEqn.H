@@ -27,7 +27,9 @@ Description
     gasProductEnthalpyAtTs and gasReactantEnthalpyAtTg are the sensible
     enthalpy h of the mass Srho_i brings across the interface (products at
     Ts, gaseous reactants at Tg; GasSolidHeatExchange), h and not e even in
-    e form: entering mass brings its flow work.
+    e form: entering mass brings its flow work. A continuity-error term
+    such as fvm::Sp(contErr, he) must exclude sum_i Srho_i, or gas
+    products arrive at Tg again (#213).
 
     With frozenTemperature no energy equation is solved: gas and solid keep
     their own, separate temperatures.

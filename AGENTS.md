@@ -12,7 +12,7 @@ Also flag if the *Last verified* date below predates significant recent commits 
 
 ## Documentation split
 
-- **`README.md`** (short front page), **`doc/*.md`** and **`CONTRIBUTING.md`** — human-facing. Quick start in the README; every page in `doc/README.md`, in the six page groups of `CONTRIBUTING.md` → Documentation → Page groups; contribution workflow in `CONTRIBUTING.md`.
+- **`README.md`** (short front page), **`doc/*.md`** and **`CONTRIBUTING.md`** — human-facing. Quick start in the README; every page and section in the table of contents, `doc/README.md`, by page group (`CONTRIBUTING.md` → Documentation → Page groups); contribution workflow in `CONTRIBUTING.md`.
 - **`AGENTS.md`** (this file) — agent-operating instructions only.
 
 **Rule for new content**: if a fact is useful to *either* a human contributor *or* an agent, it goes in `README.md` or `doc/` (whichever fits; the README stays short and links out). Only put content in `AGENTS.md` when it is 100% agent-targeted and would be noise for a human reader (e.g. "pass git identity per-invocation rather than touching global config", "verify before claiming"). When in doubt, choose `README.md` — false positives there are cheap; missing facts are not.
@@ -126,7 +126,8 @@ When you need a load-bearing fact, go to `README.md` and `doc/` rather than re-d
 | Practical pitfalls (true vs bulk density, JANAF substitution, radiation calibration, time-step coupling, numerics symptoms) | `doc/case-guide.md` → "Tips for preparing new simulations" |
 | Tutorial cases, and which test tier runs each | `doc/tutorials.md` (also parsed by `pgf copy --list`) |
 | Every `pgf` command, flag and setting | `pgf help`, or the generated `doc/pgf-reference.md` |
-| Build targets and dependencies | `doc/build.md` |
+| Installing OpenFOAM, PGF and YADE; checking the DEM coupling | `doc/install.md` |
+| Build store, variants, targets and dependencies, yade-pgf pin | `doc/build.md` |
 | clangd, Serena, Doxygen | `doc/dev-tools.md` |
 | Regression framework — hook a case, capture a baseline, run comparisons | `doc/regression-testing.md` |
 | GitHub Issues workflow — plan issues, checkbox ticks, reconciliation, branch/PR linkage | "GitHub Issues Workflow" (this file) |

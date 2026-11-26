@@ -4,45 +4,7 @@ Refactor safety net: the framework runs selected tutorial cases, extracts summar
 
 ## Run it
 
-Source OpenFOAM and build the solver first (a missing solver gives `ERROR`/`CRASH`, never a false green).
-
-```bash
-cd applications/test/regression
-./Allrun                                  # fast tier, one case at a time
-./Allrun --tag all                        # every case (adds the convergence tier)
-./Allrun --case charOnlyMoveCases/serial  # one case, whatever its tag
-./Allrun --list                           # show the selection, run nothing
-./Allrun --no-run                         # compare existing output only
-./Allrun --rtol 1e-3                      # override relative tolerance
-./Allrun --jobs 4                         # four cases at once
-./Allrun --run-root /scratch/r --keep-runs  # where the case copies go; keep passed ones too
-```
-
-Exit `0` = every case passed; non-zero = at least one did not. A single case without the suite: `tools/runCase.sh tutorials/cases/canonical/pyrolysis [--no-run] [--run-dir D] [--rtol R] [--atol A]`. Run it with the checkout's build by prefixing the command with `./pgf shell --` (see [Where things land](build.md#where-things-land)).
-
-`--case` accepts the `cases.list` path, a trailing part of it or the basename, and selects every tag unless `--tag` is also given.
-
-**Cases run from a copy.** Each case is copied to `<run root>/<case path with / as __>/<case path>` and cleaned, run and compared there against the source tree's `reference/`, so the source tree never gets logs, time directories, `processor*/` or `postProcessing/`. The copy keeps its symlinks, and every sibling directory on the way up (including `applications/`) is a symlink back into the source tree, so `../MicroTGA-DEM_lambdaDot_common/…` and `../../../applications/…` resolve as usual. The run root defaults to `${PGF_RUN_ROOT:-${TMPDIR:-/tmp}/pgf-runs}/regression-<time>-<pid>`. Copies of passed cases are deleted, failed ones kept (the runner prints `run copy <path>`), all of them with `--keep-runs`. `--in-place` runs in the source tree as before. With `--no-run`, the copy includes whatever output is already in the source case. The DEM driver (`Allrun.yade`) still runs in place.
-
-## Outcomes
-
-Each case ends in one outcome, taken from its exit status; the summary and suite exit code both reflect it.
-
-| Exit code | Outcome | Meaning |
-|---|---|---|
-| `0` | `PASS` | ran, compared, within tolerance |
-| `1` | `FAIL` | ran, compared, diverged beyond tolerance |
-| `2` | `ERROR` | missing case dir or baseline, dirty slate, no `postProcessing/`, comparator missing |
-| `124` | `TIMEOUT` | exceeded its timeout; process group terminated |
-| `128+N` | `CRASH (SIG…)` | died on signal N (`134` = SIGABRT, `139` = SIGSEGV) |
-
-The suite is green only if at least one case ran and every case passed. There is no skip: a case without a baseline, an empty or unreadable case list, or a `--tag`/`--case` filter matching nothing is an `ERROR` (exit 2). To skip a suite, don't invoke its driver.
-
-**Tiers** (tagged in `cases.list`): `fast` runs by default and in CI on every PR and push to `main` (see [CI on GitHub Actions](#ci-on-github-actions)); `convergence` is a mesh-refinement study, run with `--tag convergence` or `--tag all`. DEM cases are listed separately in `cases_yade.list`.
-
-### Tiers with `pgf test`
-
-`pgf test` runs a whole tier against the build of the checkout pgf runs from (see [Where things land](build.md#where-things-land)) and remembers the result. The tiers are rows in `applications/test/tiers.conf`: driver, build variant, jobs, timeout, `pgf shell` flags, selection and cadence.
+`pgf test <tier>` runs a whole tier against the build of the checkout pgf runs from ([the pgf tool → Builds](pgf.md#builds)) and remembers the result; it builds the solver first if needed. The tiers are rows in `applications/test/tiers.conf`: driver, build variant, jobs, timeout, `pgf shell` flags, selection and cadence.
 
 | Tier | Driver and selection | Variant | Jobs | Cadence |
 |---|---|---|---|---|
@@ -60,18 +22,47 @@ The suite is green only if at least one case ran and every case passed. There is
 
 Every option: [`pgf help test`](pgf-reference.md#pgf-help-test).
 
-Each run goes to `$PGF_RUN_ROOT/pgf-test-<tier>-<time>-<pid>/` (`build.log`, `driver.log`, `state/` with `result.json`, and `cases/` with the kept case copies). `PGF_RUN_ROOT` defaults to `${TMPDIR:-/tmp}/pgf-runs`. The record `${XDG_STATE_HOME:-~/.local/state}/pgf/runs/last/<tier>.json` (outside the tmp run root, so it survives a reboot; before #274 it was `$PGF_RUN_ROOT/last/`) holds the build key, source fingerprint, git `HEAD`, start and end time, outcome counts, the exit code and the paths to the run's state. A tier is **stale** when the key it last tested is not that checkout's current key, or with `--if-stale AGE` when that run is older than `AGE`. `--if-stale` reruns a tier whose last run failed, even for the same key. `--rebuild` deletes the tier's prefix and builds it again. `--gc` keeps the newest N run dirs plus every dir a record points at, and the newest M prefixes. It never removes that checkout's builds (either variant) or a prefix whose build lock is held. `PGF_TIERS_CONF` points `pgf test` at another tiers file. Exit codes are the drivers' (see [Outcomes](#outcomes)). The old `./pgf-test` still forwards to `pgf test` for a deprecation period (#274).
+Each run goes to `$PGF_RUN_ROOT/pgf-test-<tier>-<time>-<pid>/` (`build.log`, `driver.log`, `state/` with `result.json`, and `cases/` with the kept case copies). `PGF_RUN_ROOT` defaults to `${TMPDIR:-/tmp}/pgf-runs`. The record `${XDG_STATE_HOME:-~/.local/state}/pgf/runs/last/<tier>.json` (outside the tmp run root, so it survives a reboot) holds the build key, source fingerprint, git `HEAD`, start and end time, outcome counts, the exit code and the paths to the run's state. A tier is **stale** when the key it last tested is not that checkout's current key, or with `--if-stale AGE` when that run is older than `AGE`. `--if-stale` reruns a tier whose last run failed, even for the same key. `--rebuild` deletes the tier's prefix and builds it again. `--gc` keeps the newest N run dirs plus every dir a record points at, and the newest M prefixes. It never removes that checkout's builds (either variant) or a prefix whose build lock is held. `PGF_TIERS_CONF` points `pgf test` at another tiers file. Exit codes are the drivers' (see [Outcomes](#outcomes)).
 
-### Baselines on another toolchain
+### The drivers
 
-Baselines are captured with one compiler and OpenFOAM build, and nothing guarantees another toolchain reproduces them within `rtol`. `container/pgf-toolchain.def` pins one: ESI's `opencfd/openfoam-run:2606` image (Ubuntu 26.04, system gcc and Open MPI) by digest, plus `openfoam2606-dev` from ESI's apt repository (pinned by version) and `python3`; ESI publishes no `openfoam-dev:2606` image. PGF is not built into the image; `pgf test` builds whatever tree it is given. `container/compareToolchains.sh` runs the same commit natively and in the image and prints each case's outcome on both sides:
+`pgf test` calls the drivers in `applications/test/regression/`; run them yourself for one case, other flags or a tolerance override. Source OpenFOAM and build the solver first (a missing solver gives `ERROR`/`CRASH`, never a false green).
 
 ```bash
-apptainer build --fakeroot /scratch/pgf-toolchain.sif container/pgf-toolchain.def
-container/compareToolchains.sh --image /scratch/pgf-toolchain.sif [--tiers "fast convergence"] [--work DIR]
+cd applications/test/regression
+./Allrun                                  # fast tier, one case at a time
+./Allrun --tag all                        # every case (adds the convergence tier)
+./Allrun --case charOnlyMoveCases/serial  # one case, whatever its tag
+./Allrun --list                           # show the selection, run nothing
+./Allrun --no-run                         # compare existing output only
+./Allrun --rtol 1e-3                      # override relative tolerance
+./Allrun --jobs 4                         # four cases at once
+./Allrun --run-root /scratch/r --keep-runs  # where the case copies go; keep passed ones too
 ```
 
-Each side gets its own `git archive` copy of `HEAD` under the work dir (default `$PGF_RUN_ROOT/toolchains-<time>-<pid>`), so uncommitted changes are not tested. The native side uses your `PGF_BUILD_ROOT`; the image side builds into the work dir. It exits 1 when any case fails in the image. The image has no Yade, so the `dem` tier is not covered.
+Exit `0` = every case passed; non-zero = at least one did not. A single case without the suite: `tools/runCase.sh tutorials/cases/canonical/pyrolysis [--no-run] [--run-dir D] [--rtol R] [--atol A]`. Run it with the checkout's build by prefixing the command with `./pgf shell --` ([the pgf tool → Builds](pgf.md#builds)).
+
+`--case` accepts the `cases.list` path, a trailing part of it or the basename, and selects every tag unless `--tag` is also given.
+
+**Cases run from a copy.** Each case is copied to `<run root>/<case path with / as __>/<case path>` and cleaned, run and compared there against the source tree's `reference/`, so the source tree never gets logs, time directories, `processor*/` or `postProcessing/`. The copy keeps its symlinks, and every sibling directory on the way up (including `applications/`) is a symlink back into the source tree, so `../MicroTGA-DEM_lambdaDot_common/…` and `../../../applications/…` resolve as usual. The run root defaults to `${PGF_RUN_ROOT:-${TMPDIR:-/tmp}/pgf-runs}/regression-<time>-<pid>`. Copies of passed cases are deleted, failed ones kept (the runner prints `run copy <path>`), all of them with `--keep-runs`. `--in-place` runs in the source tree. With `--no-run`, the copy includes whatever output is already in the source case. The DEM driver (`Allrun.yade`) does the same ([DEM suite](#dem-yade-suite)).
+
+**Tiers** (tagged in `cases.list`): `fast` runs by default and in CI on every PR and push to `main` ([CI](#ci-on-github-actions)); `convergence` is a mesh-refinement study, run with `--tag convergence` or `--tag all`. DEM cases are listed separately in `cases_yade.list`.
+
+## Outcomes
+
+Each case ends in one outcome, taken from its exit status; the summary and suite exit code both reflect it.
+
+| Exit code | Outcome | Meaning |
+|---|---|---|
+| `0` | `PASS` | ran, compared, within tolerance |
+| `1` | `FAIL` | ran, compared, diverged beyond tolerance |
+| `2` | `ERROR` | missing case dir or baseline, dirty slate, no `postProcessing/`, comparator missing |
+| `124` | `TIMEOUT` | exceeded its timeout; process group terminated |
+| `128+N` | `CRASH (SIG…)` | died on signal N (`134` = SIGABRT, `139` = SIGSEGV) |
+
+The suite is green only if at least one case ran and every case passed. There is no skip: a case without a baseline, an empty or unreadable case list, or a `--tag`/`--case` filter matching nothing is an `ERROR` (exit 2). To skip a suite, don't invoke its driver.
+
+## CI and other toolchains
 
 ### CI on GitHub Actions
 
@@ -89,6 +80,17 @@ Each side gets its own `git archive` copy of `HEAD` under the work dir (default 
 - **Jobs.** `--jobs` comes from `applications/test/tiers.conf`, as locally. A hosted `ubuntu-24.04` runner has 4 cores for a public repository and 2 for a private one.
 - **Not covered.** The `dem` tier is local-only: the image has no Yade, so run `./pgf test dem` before DEM-touching merges. It needs a yade built at the yade-pgf pin and refuses another before building (`PGF_YADE_OFF_PIN=1` overrides; see [build → YADE DEM coupling](build.md#yade-dem-coupling)). Parallel decomposition is not covered either, since no case in `cases.list` decomposes.
 - **Baselines.** CI only compares against the committed `reference/`; it never captures one.
+
+### Baselines on another toolchain
+
+Baselines are captured with one compiler and OpenFOAM build, and nothing guarantees another toolchain reproduces them within `rtol`. `container/pgf-toolchain.def` pins one: ESI's `opencfd/openfoam-run:2606` image (Ubuntu 26.04, system gcc and Open MPI) by digest, plus `openfoam2606-dev` from ESI's apt repository (pinned by version) and `python3`; ESI publishes no `openfoam-dev:2606` image. PGF is not built into the image; `pgf test` builds whatever tree it is given. `container/compareToolchains.sh` runs the same commit natively and in the image and prints each case's outcome on both sides:
+
+```bash
+apptainer build --fakeroot /scratch/pgf-toolchain.sif container/pgf-toolchain.def
+container/compareToolchains.sh --image /scratch/pgf-toolchain.sif [--tiers "fast convergence"] [--work DIR]
+```
+
+Each side gets its own `git archive` copy of `HEAD` under the work dir (default `$PGF_RUN_ROOT/toolchains-<time>-<pid>`), so uncommitted changes are not tested. The native side uses your `PGF_BUILD_ROOT`; the image side builds into the work dir. It exits 1 when any case fails in the image. The image has no Yade, so the `dem` tier is not covered.
 
 ## Add a case
 
@@ -185,7 +187,7 @@ tools/runDEMCase.sh tutorials/experimental/simple_line_case [--timeout S] [--run
 - Needs a Yade-enabled build (`pgf build --yade`), Yade and `mpirun`. Cases are listed in `cases_yade.list`.
 - **One coupler.** The DEM cases run the `pgf` coupler (`pgfDemCoupler` ↔ `PgfCoupling` over PgfDemBridge, protocol v2, no drag). Their baselines come from the `-pgf` copies of #331, captured on v2406.
 - Each case runs from a copy under the run root (`--run-root`, default `$PGF_RUN_ROOT/yade-<time>-<pid>`), as in the serial suite. Passed copies are deleted, failed ones kept; `--keep-runs` keeps all, `--in-place` runs in the source tree.
-- **Run length comes from the solver's `controlDict`.** Each case's Yade script follows it (`tutorials/cases/DEM_common/foamTime.py`; see [DEM exchange → Keeping time](dem-exchange.md#keeping-time)) and sets no step count of its own: the solver's last step ends Yade. A run whose log lacks `PgfCoupling: OpenFOAM ran its last step` is a `FAIL`. `runDEMCase.sh --nsteps` is gone.
+- **Run length comes from the solver's `controlDict`.** Each case's Yade script follows it (`tutorials/cases/DEM_common/foamTime.py`; see [DEM exchange → Keeping time](dem-exchange.md#keeping-time)) and sets no step count of its own: the solver's last step ends Yade. A run whose log lacks `PgfCoupling: OpenFOAM ran its last step` is a `FAIL`.
 - `--short` sets each copy's `endTime` to `YADE_SHORT_STEPS` solver steps (default 50, about 5 min per fixture on a loaded machine) and its `writeInterval` to half that, and skips the baseline comparison, whose rows are full-length. Yade follows the shortened `controlDict` by itself. A green `--short` run shows that the coupling handshake works, that both sides exit cleanly and that output and invariants hold. Invariant bounds are calibrated for the full-length run, so under `--short` a `>=` bound above 0 is checked as `> 0` and a `<=` bound below 0 as `< 0` (`checkInvariants.py --short`): the direction holds, the full-run magnitude is not checked. It is not a numerical or physical result. `YADE_TIMEOUT` defaults to 900 s under `--short`.
 - Each case is checked for `RUN FINISH`, the solver's `End`, an active coupling handshake, at least two solver write times after the start, a sphere VTK frame at every solver write time (frame `<iter>` at `iter * deltaT`, start and end included) and no frame off a write time except the last, spring VTK output and a positive PGF time step in `dtInfo.txt`. A case's `system/regressionInvariants` is then checked as in the serial suite, before the baseline comparison.
 - Takes the same `--list`, `--json`, `--state-dir` and `--jobs` flags, but defaults to **one** case at a time and warns if you raise it: concurrent DEM runs are unverified, and each starts its own `mpirun` of Yade and solver ranks (`pgf dem run`).

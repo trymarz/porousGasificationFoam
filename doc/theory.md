@@ -10,7 +10,7 @@ Each cell holds gas and solid in proportions set by the porosity `ε` (`porosity
 
 Gas and solid exchange mass and energy. The solid reactions can consume and produce both solid and gas species, and release or absorb heat; the two phases also exchange heat by convection, and radiation reaches both.
 
-Momentum goes one way only. The solid slows the gas through the Darcy–Forchheimer resistance, but the gas does not push the solid, and gas released by the solid brings no momentum with it. The solid's velocity `U_s` is given in `0/Us` or comes from DEM ([the idea behind the DEM coupling](theory-DEM.md#the-idea)).
+Momentum goes one way only. The solid slows the gas through the Darcy–Forchheimer resistance, but the gas does not push the solid, and gas released by the solid brings no momentum with it. The solid's velocity `U_s` is given in `0/Us` or comes from DEM. DEM coupling needs a `WITH_YADE` build with `constant/yadeProperties` `active true`; it replaces the prescribed `U_s` and nothing else in the equations below. In return PGF sends each DEM body how its length scale λ changes, from the solid chemistry. The idea and the body size models: [DEM coupling](theory-DEM.md); the exchange step: [DEM exchange](dem-exchange.md).
 
 ## Notation
 
@@ -93,7 +93,7 @@ All three come from one chemistry ODE per cell, integrated over the time step at
 Each solid reaction's rate is defined per kg of its solid substrate (Żuk et al. 2022, Eq. 4–5), and every coefficient is a mass per kg of that substrate. In `hem = 0.6 CH4 + 0.4 char`, 1 kg of hem gives 0.4 kg of char. So:
 
 - **A lone solid substrate's coefficient has no effect.** `2 wood = 2 tar` behaves like `wood = tar`, and the solver warns about it at start-up. To split one solid among competing branches, give each branch its own reaction and put the branch fraction into its `A`.
-- **Gas substrates count per kg of solid too** (Eq. 6; #201). In `char + 1.33 O2 = 2.33 CO`, each kg of char consumed takes 1.33 kg of O₂ and gives 2.33 kg of CO, and `heatOfReaction` is per kg of char. Before #201, non-stoichiometric mode divided every coefficient by the sum of the reactant coefficients (Σ = 2.33 here); inputs written for that rule keep their kinetics with `A/Σ` and `heatOfReaction·Σ`, as the bundled tutorials now do.
+- **Gas substrates count per kg of solid too** (Eq. 6; #201). In `char + 1.33 O2 = 2.33 CO`, each kg of char consumed takes 1.33 kg of O₂ and gives 2.33 kg of CO, and `heatOfReaction` is per kg of char. Inputs written for the rule before #201: [case guide → reaction inputs from before #201](case-guide.md#reaction-inputs-from-before-201).
 - **Diffusion limit.** With `diffusionLimitedReactions`, each gas reactant's resistance in Eq. 10, 1/Ω_diff, is multiplied by its mass coefficient (ξ_a/Σ, e.g. 1.33 for O₂ above). At the diffusion limit the reactant consumed then equals what Eq. 9 delivers. This departs from the literal Eq. 10, under which the consumption would be ξ_a/Σ times the delivery. Stoichiometric mode does the same with the gas reactant's mass coefficient in that mode, e.g. 16/12 = 1.33 kg of O₂ per kg of char in `char + 0.5 O2 = CO` (#209).
 
 #### Energy
@@ -146,10 +146,7 @@ flowchart LR
 
 By Hess's law the direct route from O₂ at `T_g` to CO at `T_s` gives the same total. The code books it in steps so that each has one sender and one receiver.
 
-*Why the source is at the donor's temperature.* The gas energy equation is conservative: it solves for the energy in the cell, `ερ_g h_g` (`fvm::ddt(porosityRho, he) + fvm::div(phi, he)`, `EEqn.H`). Mass added by `S_ρ` without a matching energy source would arrive with `h = 0`, which for sensible enthalpy is 298.15 K. That was the case before #213; the old `heatUpGas` term only partly corrected it. In the non-conservative form, `ρ_g Dh_g/Dt`, the same omission is silent: new mass takes the cell's `h`, as if born at `T_g`.
-
-- OpenFOAM's compressible solvers (`rhoPimpleFoam`, `reactingFoam`) use the conservative form. `twoPhaseEulerFoam` subtracts the numerical continuity error, `fvm::Sp(contErr, he)` (`EEqns.H`).
-- If such a term is ever added to PGF's `EEqn.H`, its `contErr` must exclude `Σᵢ S_ρ,i`, or gas products are again born at `T_g`.
+*Why the source is at the donor's temperature.* The gas energy equation is conservative: it solves for the energy in the cell, `ερ_g h_g` (`fvm::ddt(porosityRho, he) + fvm::div(phi, he)`, `EEqn.H`). Mass added by `S_ρ` without a matching energy source would arrive with `h = 0`, which for sensible enthalpy is 298.15 K. That was the case before #213; the old `heatUpGas` term only partly corrected it. In the non-conservative form, `ρ_g Dh_g/Dt`, the same omission is silent: new mass takes the cell's `h`, as if born at `T_g`. OpenFOAM's compressible solvers (`rhoPimpleFoam`, `reactingFoam`) use the conservative form too.
 
 *Reference temperatures.* The gas `h_i` counts from 298.15 K, the solid `H` from 0 K. The offset is absorbed in `heatReact` (it is defined at `T_s`) or, in enthalpy mode, in the `−c_p,k T_std` term of the solid `h_k(T)`; no temperature depends on it. It cancels exactly only for constant `c_p` (#173).
 
@@ -202,10 +199,6 @@ The regimes hold at any scale: a cell may be a piece of one pellet, where α cou
 - `connectedAboveSolidFraction` is also the threshold of the DEM coupling: where the solid is not connected, `lambdaDot` is off and the interpolation models treat the cell as outside the solid.
 - `maxSolidFraction` is the packing cap: the solid flux limiter refuses any flux that would carry a cell past it. It must stay below 1, since the gas equations divide by the gas volume.
 - `dispersedSolidTemperature gas` takes the gas temperature in dispersed cells too. The energy the solid loses that way is not charged anywhere.
-
-## DEM coupling
-
-Only in a `WITH_YADE` build with `constant/yadeProperties` `active true`. DEM replaces the prescribed `U_s` and nothing else in the equations above. In return PGF sends each DEM body how its length scale λ changes, from the solid chemistry. The idea and the body size models: [theory-DEM.md](theory-DEM.md); the exchange step: [dem-exchange.md](dem-exchange.md).
 
 ## Related pages
 

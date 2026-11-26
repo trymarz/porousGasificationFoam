@@ -388,7 +388,7 @@ pgf_paraview_check() {
   pv="$(command -v pvpython)"
   if [ -z "$pv" ]; then
     if command -v paraview >/dev/null; then
-      echo "WARN ParaView $(pgf_tilde "$(command -v paraview)") has no Python (no pvpython); fix: sudo apt install python3-paraview (doc/build.md, ParaView and Yade's VTK)"
+      echo "WARN ParaView $(pgf_tilde "$(command -v paraview)") has no Python (no pvpython); fix: sudo apt install python3-paraview (doc/install.md, ParaView and Yade's VTK)"
     else
       echo "SKIP no ParaView on PATH; only pgf view needs it (doc/paraview.md)"
     fi
@@ -465,7 +465,7 @@ pgf_doctor() {
     _dem "yade (pgf config set YADE_BIN=<yade>)"
     dem_ok=0
   elif [ ! -x "$yb" ]; then
-    _r "$([ "${PGF_YADE:-0}" = 1 ] && echo FAIL || echo WARN)" "no yade binary at ${yb:-none}; fix: pgf config set YADE_BIN=<yade> (doc/build.md, YADE DEM coupling)"
+    _r "$([ "${PGF_YADE:-0}" = 1 ] && echo FAIL || echo WARN)" "no yade binary at ${yb:-none}; fix: pgf config set YADE_BIN=<yade> (doc/install.md, 3. DEM coupling)"
     _dem "yade (pgf config set YADE_BIN=<yade>)"
   else
     out="$(timeout 60 "$yb" -v 2>/dev/null | grep -m1 -i 'version' | sed 's/^ *//')"

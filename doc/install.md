@@ -28,7 +28,7 @@ source /usr/lib/openfoam/openfoam2606/etc/bashrc && foamVersion   # OpenFOAM-v26
 git clone https://github.com/trymarz/porousGasificationFoam.git
 cd porousGasificationFoam
 ./pgf setup --yes      # finds OpenFOAM, links pgf into ~/.local/bin
-pgf build              # libraries and solver, about 1.5 min
+pgf build              # libraries and solver
 ```
 
 If `pgf setup` warns that `~/.local/bin is not on your PATH` (a new account: Debian and Ubuntu add it only at the next login once it exists), run `export PATH="$HOME/.local/bin:$PATH"` first.
@@ -37,7 +37,7 @@ No submodule is needed without DEM. `pgf doctor` checks the whole setup ([`pgf h
 
 ## 3. DEM coupling (optional)
 
-DEM cases need YADE from [trymarz/yade-pgf](https://github.com/trymarz/yade-pgf) (branch `pgf-main`: YADE 2026.1.0 plus the per-particle `lambda` state and the `PgfCoupling` engine), at the commit PGF pins. Upstream YADE does not work. Background: [build.md → YADE DEM coupling](build.md#yade-dem-coupling).
+DEM cases need YADE from [trymarz/yade-pgf](https://github.com/trymarz/yade-pgf) (branch `pgf-main`: YADE 2026.1.0 plus the per-particle `lambda` state and the `PgfCoupling` engine), at the commit PGF pins. Upstream YADE does not work: the per-particle state and the engine exist only in the fork. How the pin and the protocol work: [the build system → YADE DEM coupling](build.md#yade-dem-coupling).
 
 **System packages.** YADE's build dependencies, the list `pgf pack` installs (`PGF_PACK_YADE_DEPS` in `utilities/pgf/pack.sh`):
 
@@ -45,7 +45,7 @@ DEM cases need YADE from [trymarz/yade-pgf](https://github.com/trymarz/yade-pgf)
 sudo apt-get install cmake git g++ python3-dev python3-numpy python3-mpi4py python3-mpmath python3-matplotlib python3-ipython python3-pygraphviz python3-xlib python3-sphinx python3-tk libboost-all-dev libeigen3-dev libgts-dev libcgal-dev libvtk9-dev libsqlite3-dev libbz2-dev zlib1g-dev libopenblas-dev libsuitesparse-dev libmetis-dev coinor-libclp-dev libmpfr-dev libmpfrc++-dev libmpc-dev
 ```
 
-On Debian 13, `libvtk9-dev` cannot be installed beside `python3-paraview` ([Pitfalls](#pitfalls)).
+On Debian 13, `libvtk9-dev` cannot be installed beside `python3-paraview` ([ParaView and Yade's VTK](#paraview-and-yades-vtk)).
 
 **yade-pgf at the pin.** The pin is the submodule `submodules/yade-pgf`. It carries the coupling core as its own submodule (`extra/PgfDemBridge`), and PGF's DEM build needs `submodules/PgfDemBridge`, so check out both, then the nested bridge (not `--recursive`: yade-pgf's `data` submodule is private):
 
@@ -84,16 +84,44 @@ pgf copy MicroTGA-DEM_lambdaDotOff
 pgf run ~/OpenFOAM/$USER-v2606/run/main/MicroTGA-DEM_lambdaDotOff
 ```
 
-The run's output, kept in the case's `log.yade`, shows the solver's `DEM coupling: active` and the handshake on both sides, `pgfDemCoupler: handshake ok, protocol v2` and `PgfCoupling: handshake ok, protocol v2`; [build.md → Checking that the coupling is in](build.md#checking-that-the-coupling-is-in) lists the other checks.
+The run's output, kept in the case's `log.yade`, shows the solver's `DEM coupling: active` and the handshake on both sides, `pgfDemCoupler: handshake ok, protocol v2` and `PgfCoupling: handshake ok, protocol v2`; [Checking that the coupling is in](#checking-that-the-coupling-is-in) lists the other checks.
 
-## Container (no build on the server)
+## Checking that the coupling is in
 
-`pgf pack` builds an Apptainer image of one commit, with OpenFOAM, the pinned yade-pgf and PGF inside; the server then needs only Apptainer: [Apptainer images](containers.md).
+- **Build variant.** A `--yade` solver links `liblambdaDotModel` (which holds `pgfDemCoupler`). In a normal build it does not appear:
+
+  ```bash
+  ldd $(which porousGasificationFoam) | grep liblambdaDotModel
+  ```
+
+  It must resolve to a path; `not found` means the directory holding them is not on `LD_LIBRARY_PATH`. For a prefix build, `.pgf-build.json` in the prefix records `"variant": "yade1"`.
+- **YADE side.** `yade --help` ends its description with the compiled features; the list must contain `MPI`.
+- **At run time.** A `WITH_YADE` solver prints `DEM coupling: active` (or `inactive (yadeProperties absent or active=false)`) at startup, from `createDEMFields.H`; a normal build prints no such line. `pgf dem run` prints `pgf dem run: N Yade + M OpenFOAM rank(s)` before its `mpirun`. The solver always runs with `-parallel`, so the case must be decomposed (into one `processor0` for one OpenFOAM rank).
+- **Handshake.** Once both sides agree, the solver prints `pgfDemCoupler: handshake ok, protocol v2, lambdaMode …, N DEM rank(s)` and YADE prints `PgfCoupling: handshake ok, protocol v2, lambdaMode …, M OpenFOAM rank(s)`; a tutorial's `Allrun` keeps both in `log.yade`. A mismatch stops the run with a message naming both versions. A DEM script without `PgfCoupling` leaves the solver waiting in the handshake; `runDEMCase.sh`'s timeout ends such a run.
+- **End.** OpenFOAM's last step ends YADE: it prints `PgfCoupling: OpenFOAM ran its last step; the DEM run ends at iter N`. A YADE run that ends first stops OpenFOAM.
+
+## ParaView and Yade's VTK
+
+YADE is configured with `ENABLE_VTK=ON` for `VTKRecorder` (C++, in `libpost_vtk.so`), which DEM cases such as `MicroTGA-DEM_lambdaDot_common` use for their sphere output. On Debian 13 that means two packages with different jobs:
+
+| Package | Needed for |
+|---|---|
+| `libvtk9-dev` (depends on `python3-vtk9`) | configuring and compiling YADE (`VTK_DIR=/usr/lib/x86_64-linux-gnu/cmake/vtk-9.3`, the headers) |
+| `libvtk9.3` | running YADE: the `libvtk*-9.3.so.1` that `libyade.so`, `libpost_vtk.so` and others link |
+
+Neither YADE's Python modules nor PGF's DEM scripts import the `vtk` Python module: `yade.export.VTKExporter` and the cases' `MPI_lambda.py` write VTK files as text. `pgf build --yade` does not need VTK either.
+
+`python3-paraview`, which [`pgf view`](paraview.md) needs, conflicts with `python3-vtk9` (both ship the `vtkmodules` Python package), so `libvtk9-dev` and `python3-paraview` cannot be installed together. The route that works:
+
+1. Day to day, keep `paraview python3-paraview` and the runtime `libvtk9.3`. `libvtk9.3` is usually marked as automatically installed, so keep `apt autoremove` from taking it: `sudo apt-mark manual libvtk9.3`.
+2. To build or rebuild YADE (for example when the pin moves), swap: `sudo apt install libvtk9-dev` (removes `python3-paraview`), build YADE, then `sudo apt install python3-paraview` (removes `libvtk9-dev` and `python3-vtk9` again). The installed YADE keeps working; `ldd <yade lib dir>/libpost_vtk.so | grep 'not found'` should print nothing.
+3. If you need both at once, use a Kitware ParaView binary (its own Python and VTK, no apt packages) with its `bin/` first on `PATH`, and keep `libvtk9-dev`.
+
+`pgf doctor` reports, under "ParaView", whether the ParaView on your `PATH` has Python.
 
 ## Pitfalls
 
 - **One MPI.** YADE and the solver run in one `mpirun`, so YADE, `mpi4py` and OpenFOAM must use the same Open MPI. Build YADE against the system Open MPI that `openfoam2606-dev` uses, not a ThirdParty or conda one.
-- **ParaView and `libvtk9-dev` (Debian 13).** `python3-paraview`, which `pgf view` needs, conflicts with `libvtk9-dev`, which the YADE build needs. The order that works: [build.md → ParaView and Yade's VTK](build.md#paraview-and-yades-vtk).
 - **Memory for the YADE build.** Each `make` job needs roughly 3–4 GB; pick `-j` from the free memory, not the core count, or `cc1plus` is killed. Rerunning `make` resumes.
 - **YADE off the pin.** After a `git pull` that moves `submodules/yade-pgf`, rerun the two `git submodule update` lines above (without `--init`) and rebuild YADE; `pgf doctor --yade` names the commits when they differ.
 - **Single-interface hosts.** On a host whose only network is `lo`, or with docker or libvirt bridges, Open MPI can hang the coupled run; `pgf` then restricts it to loopback by itself (`PGF_MPI=auto`; [`pgf help config`](pgf-reference.md#pgf-help-config)).
@@ -101,5 +129,6 @@ The run's output, kept in the case's `log.yade`, shows the solver's `DEM couplin
 ## Related pages
 
 - [README quick start](../README.md#quick-start)
-- [The pgf tool](pgf.md), [Building](build.md), [Apptainer images](containers.md)
+- [The pgf tool](pgf.md), [Apptainer images](containers.md)
+- [The build system](build.md): how builds work, for changing the code
 - [All documentation](README.md)

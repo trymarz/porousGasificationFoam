@@ -2,7 +2,7 @@
 
 *New contributors: start here.*
 
-## Branch Naming
+## Branch naming
 
 Branches use a short prefix that signals intent, followed by a kebab-case descriptive name. Five prefixes cover everything:
 
@@ -18,17 +18,17 @@ Examples: `feature/UsInterp-laplace-smoothing`, `fix/regression-allrun-set-u`, `
 
 A single branch may bundle multiple low-risk meta concerns (e.g. formatter, docs, and dev-workflow changes can ride on one `chore/...` branch). Anything that can affect numerical results stays on its own branch.
 
-## Issue Tracking
+## Issue tracking
 
 Planning work has a matching GitHub Issue (public, like this repo) tracked on a project board named "PGF development" — that's the place to check current status (Backlog/Ready/In progress/In review/Done). Deeper working detail (files to touch, approach, step-by-step log) goes in the PRs that resolve the issue and in its comments. The board itself is currently private to the maintainer, so external contributors should rely on the issue's own labels/state rather than the board view. Start the branch that resolves an issue from that issue's own **Development** panel ("Create a branch") so GitHub links the two automatically, and include `Closes #<issue>` in the PR body so merging the PR closes the issue and moves its board card to `Done` on its own.
 
-## Merge Strategy
+## Merge strategy
 
 The repository uses **squash merge** — each PR becomes one commit on `main`, whose message is the PR title followed by the PR body. This keeps `main` linear and easy to scan with `git log --oneline`, while preserving the *why* and verification context inside `git log` / `git show`.
 
 Because the squash commit is permanent and per-branch commits are not, the convention below applies to **PR titles and bodies**, not to individual commits on your working branch. Commit however you like locally; the squash collapses it.
 
-## PR Titles
+## PR titles
 
 ```
 <type>[(<scope>)]: <imperative subject>
@@ -47,7 +47,7 @@ docs(README): clarify default chemistry
 chore: apply clang-format across solver
 ```
 
-## PR Body
+## PR body
 
 Opening a PR auto-populates the description from `.github/pull_request_template.md`. Three sections:
 
@@ -72,20 +72,11 @@ Other pages link to that home instead of repeating the fact. Where the home is d
 
 ### Page groups
 
-Each group answers one question. Inside a group, pages run from overview to detail. The [README](README.md) quick start comes before all groups; development and contribution come last.
+The pages fall into six groups. Each group answers one question, and inside a group pages run from overview to detail. The [README](README.md) quick start comes before all groups; development and contribution come last. The groups, their questions and their pages are in the table of contents, [doc/README.md](doc/README.md).
 
-| Group | Question | Pages, overview → detail |
-|---|---|---|
-| Installing and building | How do I get PGF onto a machine? | [install](doc/install.md), [build](doc/build.md), [containers](doc/containers.md) |
-| Running cases | How do I set up and run a case? | [case guide](doc/case-guide.md), [tutorials](doc/tutorials.md), [case reference](doc/case-reference.md), [ParaView](doc/paraview.md) |
-| The pgf tool | What can pgf do, and how does it work? | [pgf](doc/pgf.md), [pgf reference](doc/pgf-reference.md) |
-| The model | What physics does it solve? | [theory](doc/theory.md), [DEM coupling](doc/theory-DEM.md) |
-| How the code implements it | Where does each piece live, and in what order does it run? | [code map](doc/code-map.md), [solid step](doc/solid-step.md), [DEM exchange](doc/dem-exchange.md) |
-| Developing PGF | How do I change it safely? | this page, [regression testing](doc/regression-testing.md), [regression ledger](doc/regression-ledger.md), [developer tools](doc/dev-tools.md) |
+Task pages (installing, running cases, the pgf tool) hold workflow and advice; exact flags and keys point to `pgf help` and the code. Model pages give the physics, its assumptions and what is left out, with short-form equations and physics before code names. Code pages are mostly maps with pointers into the source.
 
-Task pages hold workflow and advice; exact flags and keys point to `pgf help` and the code. Model pages give the physics, its assumptions and what is left out, with short-form equations and physics before code names. Code pages are mostly maps with pointers into the source.
-
-A new page joins one group and the index in [doc/README.md](doc/README.md).
+A new page joins one group: add its line to `doc/README.md`, then run `utilities/gen-doc-toc.py`, which writes the section links under each page. A tooling test (`applications/test/tooling/test_docToc.sh`) fails while they are stale.
 
 ### Source comments
 
@@ -106,6 +97,7 @@ Short declarative sentences, one idea per paragraph, physics before code names.
 - **Equation change** → update the short-form equation in `doc/theory.md`.
 - **New `pgf` flag or dictionary key** → document it in `pgf help` or the reader's code first; a doc page links to it or restates it with a pointer. After any change to `pgf help`, run `utilities/gen-pgf-reference.sh` to regenerate `doc/pgf-reference.md`; a tooling test fails until you do.
 - **New insight** → if it is *what the code does*, write it in a code comment or `pgf help`. If it is *why*, *how to* or *how the pieces fit*, it belongs in `doc/` or the README.
+- **Heading added, renamed or removed** → run `utilities/gen-doc-toc.py` to refresh the table of contents.
 - **Duplicate found** → reduce it to one home plus links in the same PR. No need to wait for a cleanup branch.
 
 ## Private companion repository
@@ -114,7 +106,7 @@ The maintainer keeps work not meant for publication (e.g. third-party gasifier c
 
 - Private branches and issues live on `private`. Its `main` is public `main` plus private-only commits, synced by merging `origin/main` into it.
 - To publish, branch from `origin/main`, cherry-pick (or `git checkout <commit> -- <paths>`) only the wanted changes, push to `origin` and open a public PR.
-- `utilities/githooks/pre-push` refuses a push to the public repo when an outgoing commit touches a path listed in `utilities/githooks/private-paths`; deleting such a path is allowed. It needs `core.hooksPath` set as in [doc/dev-tools.md](doc/dev-tools.md#editor-navigation-clangd).
+- `utilities/githooks/pre-push` refuses a push to the public repo when an outgoing commit touches a path listed in `utilities/githooks/private-paths`; deleting such a path is allowed. It needs the hooks enabled: [developer tools → Git hooks](doc/dev-tools.md#git-hooks).
 
 ## Related pages
 

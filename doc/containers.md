@@ -25,11 +25,10 @@ apptainer run pgf-<commit12>-yade1.sif ./Allrun     # run the case in the curren
 apptainer run pgf-<commit12>-yade1.sif status       # pgf status inside the image
 ```
 
-Inside the image `pgf` reads the yade-pgf pin from the manifest, so the yade check from [Checking that the coupling is in](build.md#checking-that-the-coupling-is-in) works there as well. Building an image needs `apptainer build --fakeroot` (unprivileged user namespaces) and, for the DEM variant, a long yade compile.
+Inside the image `pgf` reads the yade-pgf pin from the manifest, so the yade check from [Checking that the coupling is in](install.md#checking-that-the-coupling-is-in) works there as well. Building an image needs `apptainer build --fakeroot` (unprivileged user namespaces) and, for the DEM variant, a long yade compile.
 
 ## Related pages
 
-- [Building](build.md): the build store, the DEM coupling, cleaning.
 - [The pgf tool](pgf.md): settings, builds and runs.
 - [Installing](install.md): a machine that builds PGF itself.
 - [All documentation](README.md)

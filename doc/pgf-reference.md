@@ -1,6 +1,6 @@
 # pgf reference
 
-Every page of `pgf help`, as plain text. **Generated** by `utilities/gen-pgf-reference.sh` from the pgf in this checkout; do not edit by hand. A tooling test (`applications/test/tooling/test_pgfCommands.sh`) fails when this page is stale. How pgf works, and when to use which command: [pgf guide](pgf.md).
+Every page of `pgf help`, as plain text. **Generated** by `utilities/gen-pgf-reference.sh` from the pgf in this checkout; do not edit by hand. A tooling test (`applications/test/tooling/test_pgfCommands.sh`) fails when this page is stale. How pgf works, and when to use which command: [the pgf tool](pgf.md).
 
 - [pgf](#pgf)
 - [pgf help setup](#pgf-help-setup)
@@ -705,7 +705,33 @@ Builds and keys:
   sources, the variant (yade0 non-DEM, yade1 DEM), the OpenFOAM version and the
   compiler, so a prefix with the same key is reused without compiling. Each
   checkout has two keys, non-DEM and DEM; pgf status shows them, pgf builds lists
-  every build. More: doc/build.md, Where
+  every build. More: doc/build.md, "Where things land".
+
+Choosing a build:
+  Each command uses one build. It comes from, later winning:
+    auto              the build of the sources as they are now in the checkout
+                      pgf runs from (the default)
+    .pgf.conf         PGF_BUILD in the checkout file
+    the terminal      PGF_BUILD in the environment, which pgf use sets
+    --use SEL         on the command line
+  PGF_BUILD is refused in the user file: it is per worktree or terminal.
+
+  SEL is a key or unique key prefix, a commit (the newest build made from it), a
+  worktree name or path (its last build), a prefix path, or auto. --prefix DIR
+  uses that complete prefix as it is (also one built outside the store) and
+  skips the staleness check. eval "$(pgf use SEL)" sets the terminal layer.
+  The banner of pgf shell and pgf run names the layer the build came from.
+
+Stale builds:
+  A selected build that is not of that checkout's current sources is stale:
+  pgf shell warns, pgf run refuses. pgf run --build builds that checkout first
+  (it cannot be combined with a selected build); pgf run --allow-stale runs a
+  stale build anyway. The refusal names the layer that chose the build and its
+  fix: leave out --use; eval "$(pgf use auto)" for the terminal layer;
+  pgf config unset PGF_BUILD --checkout for the checkout file.
+
+  A case made by pgf copy runs with the build of the checkout it came from, unless
+  a build was chosen.
 
 All commands and topics: pgf help.
 ```

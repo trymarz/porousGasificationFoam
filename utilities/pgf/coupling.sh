@@ -117,7 +117,7 @@ pgf_yade_check() {
   commit="$(pgf_yade_commit "$bin")"
   pin="$(pgf_coupling_pin)"
   b="${bin/#"$HOME"/\~}" t="${trunk/#"$HOME"/\~}"
-  fix="build yade at yade-pgf ${pin:0:10} (doc/build.md, YADE DEM coupling), then pgf config set YADE_BIN=<that yade>"
+  fix="build yade at yade-pgf ${pin:0:10} (doc/install.md, 3. DEM coupling), then pgf config set YADE_BIN=<that yade>"
   if [ -z "$pin" ] && [ -z "$commit" ]; then
     echo "WARN yade $b does not say which yade-pgf commit built it (yade -v), and pgf does not know the pin here"
     return 0
