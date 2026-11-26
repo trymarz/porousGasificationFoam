@@ -74,7 +74,7 @@ Building needs no YADE. Running a DEM case needs a YADE built with MPI from yade
 - **OpenFOAM v2606**, the solver's only target.
 - **YADE from yade-pgf** ([trymarz/yade-pgf](https://github.com/trymarz/yade-pgf), branch `pgf-main`), a YADE fork, at the commit this repository pins. Upstream YADE does not work: the per-particle `lambda_`/`lambdaDot` state, and the `PgfCoupling` engine exist only in the fork. Built as in [install.md](install.md#3-dem-coupling-optional), its version string carries the commit, e.g. `yade -v` prints `Yade version: 2026.11.25-git-475bb35`; without `-DYADE_VERSION` it is the bare `2026.1.0` of the fork's `RELEASE` file.
 - **One MPI for both.** `pgfDemRun` starts YADE and the solver in one `mpirun` (coupling v2, [#328](https://github.com/trymarz/porousGasificationFoam/issues/328)), so YADE, `mpi4py` and OpenFOAM must use the same MPI installation (Open MPI here).
-- **Same protocol on both sides.** PGF links nothing from YADE and includes none of its headers. `pgfDemCoupler` and `PgfCoupling` both build the same `PgfDemBridge` (protocol v2); the startup handshake compares the version and `lambdaMode`, and stops both sides by name on a mismatch ([theory-DEM.md](theory-DEM.md#exchanged-fields)). This run-time check replaces any build-time check of the buffer layout.
+- **Same protocol on both sides.** PGF links nothing from YADE and includes none of its headers. `pgfDemCoupler` and `PgfCoupling` both build the same `PgfDemBridge` (protocol v2); the startup handshake compares the version and `lambdaMode`, and stops both sides by name on a mismatch ([dem-exchange.md](dem-exchange.md#exchanged-fields)). This run-time check replaces any build-time check of the buffer layout.
 
 ### The submodule and its pin
 

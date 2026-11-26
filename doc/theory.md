@@ -78,7 +78,7 @@ for each time step:
 ```
 
 1. **Time step** — the gas Courant and solid diffusion limits set Δt (`setMultiRegionDeltaT.H`); with local time stepping (LTS) `setRDeltaT.H` sets a local Δt instead. With `adjustTimeStep` and `solidChemistryTimeStepControl` both on, `updateChemistryTimeStep.H` also caps Δt by about the time a specie's mass fraction took to reach 0 or 1 in the last chemistry solve.
-2. **DEM exchange** — DEM body data from YADE rebuild `Us` and `lambda`; `lambdaDot` goes back to YADE (`DEM/lambdaDotModel.C`, [DEM coupling](theory-DEM.md)).
+2. **DEM exchange** — DEM body data from YADE rebuild `Us` and `lambda`; `lambdaDot` goes back to YADE (`DEM/lambdaDotModel.C`, [DEM exchange](dem-exchange.md)).
 3. **Radiation** — updates the solid radiative source (`radiation.H`).
 4. **Solid step** — `pyrolysisZone.evolve()` (`volPyrolysis::evolveRegion()`) runs the stages in the order shown. Each stage, with the fields it reads and writes and its checks: [solid-step.md](solid-step.md).
 5. **Gas continuity** — `rhoEqn.H`.
@@ -229,11 +229,12 @@ $$
 
 ## DEM coupling
 
-Only in a `WITH_YADE` build with `constant/yadeProperties` `active true`. DEM replaces the prescribed `U_s` and nothing else in the equations above. In return PGF sends each DEM body how its length scale λ changes, from the solid chemistry. The idea, the λ modes and the exchange: [theory-DEM.md](theory-DEM.md).
+Only in a `WITH_YADE` build with `constant/yadeProperties` `active true`. DEM replaces the prescribed `U_s` and nothing else in the equations above. In return PGF sends each DEM body how its length scale λ changes, from the solid chemistry. The idea and the body size models: [theory-DEM.md](theory-DEM.md); the exchange step: [dem-exchange.md](dem-exchange.md).
 
 ## Related pages
 
 - [Solid step](solid-step.md): the solid step, stage by stage.
 - [DEM coupling](theory-DEM.md): the YADE coupling.
+- [DEM exchange](dem-exchange.md): step 2 of the flow, the exchange with YADE.
 - [Setting up your own case](case-setup.md): required fields, input files, tutorial cases, tips.
 - [All documentation](README.md)
