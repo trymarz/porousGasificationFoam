@@ -81,7 +81,7 @@ Building needs no YADE. Running a DEM case needs a YADE built with MPI from yade
 yade-pgf is the submodule `submodules/yade-pgf` (`.gitmodules`). The pinned commit is the gitlink in this repository's tree:
 
 ```bash
-git submodule update --init submodules/yade-pgf
+git submodule update --init --recursive submodules/yade-pgf   # with its extra/PgfDemBridge
 git ls-tree HEAD submodules/yade-pgf     # the pinned commit
 git submodule status submodules/yade-pgf # a leading '+' means the checkout differs from the pin
 ```

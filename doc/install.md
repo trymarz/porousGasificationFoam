@@ -55,10 +55,10 @@ sudo apt-get install cmake git g++ python3-dev python3-numpy python3-mpi4py pyth
 
 On Debian 13, `libvtk9-dev` cannot be installed beside `python3-paraview` ([Pitfalls](#pitfalls)).
 
-**yade-pgf at the pin.** The pin is the submodule `submodules/yade-pgf`:
+**yade-pgf at the pin.** The pin is the submodule `submodules/yade-pgf`. It carries the coupling core as its own submodule (`extra/PgfDemBridge`), and PGF's DEM build needs `submodules/PgfDemBridge`, so check out both, recursively:
 
 ```bash
-git submodule update --init submodules/yade-pgf
+git submodule update --init --recursive submodules/yade-pgf submodules/PgfDemBridge
 ```
 
 To build from a yade-pgf clone of your own instead, check out the pinned commit (`git ls-tree HEAD submodules/yade-pgf` prints it) and pass `--yade-trunk DIR` to `pgf setup` below.
@@ -110,7 +110,7 @@ cd <a pgf copy> && apptainer run pgf-<commit12>-yade1.sif ./Allrun
 - **One MPI.** YADE and the solver run in one `mpirun`, so YADE, `mpi4py` and OpenFOAM must use the same Open MPI. Build YADE against the system Open MPI that `openfoam2606-dev` uses, not a ThirdParty or conda one.
 - **ParaView and `libvtk9-dev` (Debian 13).** `python3-paraview`, which `pgf view` needs, conflicts with `python3-vtk9`, which `libvtk9-dev` pulls in. Build YADE with `libvtk9-dev`, then swap back to `python3-paraview`; keep the runtime `libvtk9.3` with `sudo apt-mark manual libvtk9.3`. Details: [build.md → ParaView and Yade's VTK](build.md#paraview-and-yades-vtk).
 - **Memory for the YADE build.** Each `make` job needs roughly 3–4 GB; pick `-j` from the free memory, not the core count, or `cc1plus` is killed. Rerunning `make` resumes.
-- **YADE off the pin.** After a `git pull` that moves `submodules/yade-pgf`, run `git submodule update` and rebuild YADE; `pgf doctor --yade` names the commits when they differ.
+- **YADE off the pin.** After a `git pull` that moves `submodules/yade-pgf`, run `git submodule update --recursive` and rebuild YADE; `pgf doctor --yade` names the commits when they differ.
 - **Single-interface hosts.** On a host whose only network is `lo`, or with docker or libvirt bridges, Open MPI can hang the coupled run; `pgf` then restricts it to loopback by itself (`PGF_MPI=auto`; `pgf help`, section MPI).
 
 ## Related pages

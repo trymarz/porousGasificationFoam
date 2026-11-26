@@ -42,7 +42,7 @@ pgf_trunk_pin_check() {
   pin="$(pgf_coupling_pin)" head="$(pgf_coupling_trunk_head "$trunk")"
   [ -n "$pin" ] && [ -n "$head" ] && [ "$pin" != "$head" ] || return 0
   if [ "$(cd "$trunk" 2>/dev/null && pwd -P)" = "$(cd "$own" 2>/dev/null && pwd -P)" ]; then
-    echo "WARN submodules/yade-pgf is at ${head:0:10}, off its pin ${pin:0:10}; fix: git submodule update submodules/yade-pgf"
+    echo "WARN submodules/yade-pgf is at ${head:0:10}, off its pin ${pin:0:10}; fix: git submodule update --recursive submodules/yade-pgf"
   else
     echo "WARN YADE_TRUNK is at ${head:0:10}, the submodule pin is ${pin:0:10} ($trunk); its PgfCoupling may differ from the pinned yade's"
   fi
