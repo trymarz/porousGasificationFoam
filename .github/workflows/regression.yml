@@ -198,6 +198,14 @@ jobs:
         with:
           path: pgf
 
+      # liblambdaDotModel compiles the PgfDemBridge core; yade-pgf stays out.
+      - name: Check out the PgfDemBridge submodule
+        run: |
+          set -eu
+          git config --global --add safe.directory "$GITHUB_WORKSPACE/pgf"
+          git -C pgf submodule update --init --depth 1 submodules/PgfDemBridge
+          test -f pgf/submodules/PgfDemBridge/src/PgfDemBridge.hpp
+
       - name: Set work dirs
         run: |
           echo "PGF_BUILD_ROOT=$GITHUB_WORKSPACE/pgf-builds" >>"$GITHUB_ENV"
