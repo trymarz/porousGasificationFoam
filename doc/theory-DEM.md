@@ -22,7 +22,11 @@ The particle velocities, averaged per cell and smoothed over solid cells without
 
 ### PGF → DEM: the particle length scale λ
 
-PGF sends each cell's λ̇, or under `apparentVolume` a factor `r`. In most cases this comes from the solid chemistry. `exactDifferential` can add a solid-temperature term, for example for thermal expansion, and `constant` sends a fixed rate. λ is a particle length scale, independent of porosity. In the tutorial fixtures, only the spring model uses it, as a stretch of the springs' rest length ([below](#spring-model-and-engine-order-231)).
+The solid changes as it reacts: it shrinks as it burns out, or swells as it heats. That chemistry lives on the mesh, so only PGF knows it. The particles learn it through one number each, a length scale λ (`State::lambda_` in YADE, starting at 1).
+
+PGF tells each particle how its λ changes, in one of two ways. In the rate modes (`constant`, `exactDifferential`) it sends a rate λ̇, which YADE integrates every DEM step. Under `apparentVolume` it sends a factor `r`, which YADE applies to λ once per exchange. λ is not related to the FVM porosity field: `ε` is derived solely from `Ym`. The DEM side uses λ to evolve the shape of its particles. That shape change drives their motion, which comes back to PGF as `UsDEM` for the advection step of the solid transport equation.
+
+What a particle does with λ is up to the DEM script. YADE only stores and updates it; in the tutorial fixtures the spring model stretches its rest length by it ([below](#spring-model-and-engine-order-231)).
 
 ### Consistency
 
