@@ -96,14 +96,14 @@ The run's output, kept in the case's `log.yade`, shows the solver's `DEM couplin
 
 ## Checking that the coupling is in
 
-- **Build variant.** A `--yade` solver links `liblambdaDotModel` (which holds `pgfDemCoupler`). In a normal build it does not appear:
+- **Build variant.** A `--yade` solver links `liblambdaDotModel` (which holds `pgfDemCoupler`). In a normal build it does not appear. The solver is on `PATH` only in pgf's environment, so run the check there:
 
   ```bash
-  ldd $(which porousGasificationFoam) | grep liblambdaDotModel
+  pgf shell --yade -- bash -c 'ldd "$(command -v porousGasificationFoam)" | grep liblambdaDotModel'
   ```
 
   It must resolve to a path; `not found` means the directory holding them is not on `LD_LIBRARY_PATH`. For a prefix build, `.pgf-build.json` in the prefix records `"variant": "yade1"`.
-- **YADE side.** `yade --help` ends its description with the compiled features; the list must contain `MPI`.
+- **YADE side.** `$HOME/opt/yade-pgf/bin/yade --help` ends its description with the compiled features; the list must contain `MPI`. `pgf doctor --yade` checks this too.
 - **At run time.** A `WITH_YADE` solver prints `DEM coupling: active` (or `inactive (yadeProperties absent or active=false)`) at startup, from `createDEMFields.H`; a normal build prints no such line. `pgf dem run` prints `pgf dem run: N Yade + M OpenFOAM rank(s)` before its `mpirun`. The solver always runs with `-parallel`, so the case must be decomposed (into one `processor0` for one OpenFOAM rank).
 - **Handshake.** Once both sides agree, the solver prints `pgfDemCoupler: handshake ok, protocol v2, lambdaMode …, N DEM rank(s)` and YADE prints `PgfCoupling: handshake ok, protocol v2, lambdaMode …, M OpenFOAM rank(s)`; a tutorial's `Allrun` keeps both in `log.yade`. A mismatch stops the run with a message naming both versions. A DEM script without `PgfCoupling` leaves the solver waiting in the handshake; `runDEMCase.sh`'s timeout ends such a run.
 - **End.** OpenFOAM's last step ends YADE: it prints `PgfCoupling: OpenFOAM ran its last step; the DEM run ends at iter N`. A YADE run that ends first stops OpenFOAM.
@@ -133,6 +133,7 @@ Neither YADE's Python modules nor PGF's DEM scripts import the `vtk` Python modu
 - **One Python.** YADE uses the `apt` packages of the system Python (Boost.Python, numpy, mpi4py), so it is built with `/usr/bin/python3` even when conda, a venv or pyenv comes first on `PATH`; otherwise CMake can stop with `NOT FOUND:libboost-python`. pgf runs on the same Python ([`pgf help environment`](pgf-reference.md#pgf-help-environment)), and `pgf doctor --yade` checks that yade does.
 - **Memory for the YADE build.** Each `make` job needs roughly 3–4 GB; pick `-j` from the free memory, not the core count, or `cc1plus` is killed. Rerunning `make` resumes.
 - **YADE off the pin.** After a `git pull` that moves `submodules/yade-pgf`, rerun the two `git submodule update` lines above (without `--init`) and rebuild YADE; `pgf doctor --yade` names the commits when they differ.
+- **`No OpenFOAM tutorials?`** Every `Allrun` prints this line when OpenFOAM's own tutorials are not installed, as with `openfoam2606-dev` alone. It is harmless: PGF's tutorials are in the checkout. `sudo apt-get install openfoam2606-tutorials` silences it.
 - **Single-interface hosts.** On a host whose only network is `lo`, or with docker or libvirt bridges, Open MPI can hang the coupled run; `pgf` then restricts it to loopback by itself (`PGF_MPI=auto`; [`pgf help config`](pgf-reference.md#pgf-help-config)).
 
 ## Related pages
