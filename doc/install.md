@@ -1,6 +1,6 @@
 # Installing porousGasificationFoam
 
-This page takes a clean Debian 13 or Ubuntu 24.04 machine to a running PGF on OpenFOAM v2606, with the optional DEM coupling to YADE. Steps 1 and 2 are all you need without DEM. To run on a server without building there, see [Container](#container-no-build-on-the-server).
+This page takes a clean Debian 13 or Ubuntu 24.04 machine to a running PGF on OpenFOAM v2606, with the optional DEM coupling to YADE. Steps 1 and 2 are all you need without DEM. To run on a server without building there, use an [Apptainer image](containers.md) instead.
 
 ## 1. OpenFOAM v2606
 
@@ -33,15 +33,7 @@ pgf build              # libraries and solver, about 1.5 min
 
 If `pgf setup` warns that `~/.local/bin is not on your PATH` (a new account: Debian and Ubuntu add it only at the next login once it exists), run `export PATH="$HOME/.local/bin:$PATH"` first.
 
-No submodule is needed without DEM. Then run a first tutorial, as in the [README quick start](../README.md#quick-start):
-
-```bash
-pgf copy charOnlyMoveCases/serial
-cd ~/OpenFOAM/$USER-v2606/run/main/charOnlyMoveCases/serial
-pgf run .
-```
-
-`pgf doctor` checks the whole setup; [pgf.md](pgf.md) covers the tool.
+No submodule is needed without DEM. `pgf doctor` checks the whole setup ([`pgf help doctor`](pgf-reference.md#pgf-help-doctor)); then copy and run a first tutorial, steps 3 and 4 of the [README quick start](../README.md#quick-start). What setup saves and where: [the pgf tool → Settings](pgf.md#settings).
 
 ## 3. DEM coupling (optional)
 
@@ -95,23 +87,15 @@ The run's output, kept in the case's `log.yade`, shows the solver's `DEM couplin
 
 ## Container (no build on the server)
 
-`pgf pack` builds an Apptainer image of one PGF commit with OpenFOAM v2606, the pinned yade-pgf and PGF compiled inside; it needs `apptainer` and unprivileged user namespaces on the machine that builds it. On the server, only Apptainer is needed:
-
-```bash
-./pgf pack                                         # DEM variant; --no-yade for a smaller, faster one
-apptainer run pgf-<commit12>-yade1.sif status      # what the image holds
-cd <a pgf copy> && apptainer run pgf-<commit12>-yade1.sif ./Allrun
-```
-
-[containers.md](containers.md) covers the image.
+`pgf pack` builds an Apptainer image of one commit, with OpenFOAM, the pinned yade-pgf and PGF inside; the server then needs only Apptainer: [Apptainer images](containers.md).
 
 ## Pitfalls
 
 - **One MPI.** YADE and the solver run in one `mpirun`, so YADE, `mpi4py` and OpenFOAM must use the same Open MPI. Build YADE against the system Open MPI that `openfoam2606-dev` uses, not a ThirdParty or conda one.
-- **ParaView and `libvtk9-dev` (Debian 13).** `python3-paraview`, which `pgf view` needs, conflicts with `python3-vtk9`, which `libvtk9-dev` pulls in. Build YADE with `libvtk9-dev`, then swap back to `python3-paraview`; keep the runtime `libvtk9.3` with `sudo apt-mark manual libvtk9.3`. Details: [build.md → ParaView and Yade's VTK](build.md#paraview-and-yades-vtk).
+- **ParaView and `libvtk9-dev` (Debian 13).** `python3-paraview`, which `pgf view` needs, conflicts with `libvtk9-dev`, which the YADE build needs. The order that works: [build.md → ParaView and Yade's VTK](build.md#paraview-and-yades-vtk).
 - **Memory for the YADE build.** Each `make` job needs roughly 3–4 GB; pick `-j` from the free memory, not the core count, or `cc1plus` is killed. Rerunning `make` resumes.
 - **YADE off the pin.** After a `git pull` that moves `submodules/yade-pgf`, run `git submodule update` and rebuild YADE; `pgf doctor --yade` names the commits when they differ.
-- **Single-interface hosts.** On a host whose only network is `lo`, or with docker or libvirt bridges, Open MPI can hang the coupled run; `pgf` then restricts it to loopback by itself (`PGF_MPI=auto`; `pgf help`, section MPI).
+- **Single-interface hosts.** On a host whose only network is `lo`, or with docker or libvirt bridges, Open MPI can hang the coupled run; `pgf` then restricts it to loopback by itself (`PGF_MPI=auto`; [`pgf help config`](pgf-reference.md#pgf-help-config)).
 
 ## Related pages
 

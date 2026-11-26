@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 210" width="560" height="210" font-family="Noto Sans, DejaVu Sans, Arial, sans-serif" font-size="11">
+  <rect width="560" height="210" fill="#fff"/>
+  <defs>
+    <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#dd2222"/></marker>
+    <marker id="ab" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#2244dd"/></marker>
+  </defs>
+  <text x="280" y="16" text-anchor="middle" font-size="14">Scheme of FVM–DEM coupling</text>
+  <!-- FVM box -->
+  <rect x="4" y="30" width="232" height="176" fill="none" stroke="#2244dd" stroke-width="4"/>
+  <text x="120" y="52" text-anchor="middle" fill="#2244dd" font-weight="bold">Finite Volume Method</text>
+  <text x="120" y="66" text-anchor="middle" fill="#2244dd" font-style="italic">porousGasificationFoam solver</text>
+  <g fill="#2244dd">
+    <text x="16" y="98">Solves:</text>
+    <text x="16" y="113">- Heterogeneous reactions</text>
+    <text x="16" y="128">- Radiation in gas and solid</text>
+    <text x="16" y="143">- Energy conservation in gas and solid</text>
+    <text x="16" y="158">- Mass conservation in gas and solid</text>
+    <text x="16" y="173">- Momentum conservation in gas</text>
+  </g>
+  <!-- DEM box -->
+  <rect x="384" y="40" width="172" height="150" fill="none" stroke="#dd2222" stroke-width="4"/>
+  <text x="470" y="62" text-anchor="middle" fill="#dd2222" font-weight="bold">Discrete Element Method</text>
+  <text x="470" y="76" text-anchor="middle" fill="#dd2222" font-style="italic">YadeDEM solver</text>
+  <g fill="#dd2222">
+    <text x="396" y="128">Solves:</text>
+    <text x="396" y="143">- Momentum conservation</text>
+    <text x="396" y="158">  of solid particles</text>
+  </g>
+  <!-- coupling region -->
+  <rect x="248" y="22" width="124" height="184" fill="none" stroke="#bb33bb" stroke-width="1.5" stroke-dasharray="4 3"/>
+  <text x="310" y="38" text-anchor="middle" fill="#dd2222">solid material</text>
+  <text x="310" y="51" text-anchor="middle" fill="#dd2222">transport velocity</text>
+  <line x1="382" y1="62" x2="240" y2="62" stroke="#dd2222" stroke-width="3" marker-end="url(#ar)"/>
+  <text x="310" y="92" text-anchor="middle" fill="#2244dd">rate of solid material</text>
+  <text x="310" y="105" text-anchor="middle" fill="#2244dd">shape change</text>
+  <line x1="238" y1="116" x2="380" y2="116" stroke="#2244dd" stroke-width="3" marker-end="url(#ab)"/>
+  <g fill="#bb33bb" font-weight="bold">
+    <text x="258" y="160">Two-way exchange</text>
+    <text x="258" y="174">between PGF</text>
+    <text x="258" y="188">and YadeDEM</text>
+  </g>
+</svg>

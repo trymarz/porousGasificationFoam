@@ -29,7 +29,7 @@ that `lambdaAverage` rounds away.
 ## The reaction
 
 The coefficients are masses per kg of char, today's convention (#201; see
-`doc/case-setup.md`):
+`doc/theory.md`, "Solid reaction rates"):
 
 ```
 char + 3.6641 CO2 = 4.6641 CO

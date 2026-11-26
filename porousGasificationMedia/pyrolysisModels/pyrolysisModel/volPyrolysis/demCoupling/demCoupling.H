@@ -35,7 +35,7 @@ Description
     temperature-driven term follows the energy step (addTemperatureTerm),
     and the boundary values follow once all have contributed (finishStep).
     Which model computes the terms is selected by lambdaMode in
-    constant/lambdaDict; see doc/case-setup.md.
+    constant/lambdaDict; see doc/case-reference.md.
 
     Coupling is active only when constant/yadeProperties has active=true
     and the solver registered the lambdaDot/lambda fields. Otherwise

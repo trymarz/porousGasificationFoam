@@ -29,8 +29,8 @@ mktree() {
     cp "$PGF" "$t/" && cp -r "$PGF_ROOT"/utilities/pgf/* "$t/utilities/pgf/" || die "cannot copy pgf"
     printf '#!/bin/sh\ncase "$*" in *--print-prefix*) echo "%s" ;; *--print-key*) echo "${2##*/}" ;; esac\n' "$2" \
         >"$t/utilities/pgf/build.sh"
-    printf '## Tutorial Cases\n\n| Case | What it is | Notes |\n|---|---|---|\n| `family/*` | A demo family | |\n' \
-        >"$t/doc/case-setup.md"
+    printf '# Tutorials\n\n| Case | What it is | Tested | Notes |\n|---|---|---|---|\n| `family/*` | A demo family | no | |\n\n## Related pages\n\n- `other/*` | not a row\n' \
+        >"$t/doc/tutorials.md"
     printf '#!/bin/sh\necho "$PGF_ROOT" >ran.txt\n' >"$t/tutorials/cases/family/demo/Allrun"
     chmod +x "$t/utilities/pgf/build.sh" "$t/tutorials/cases/family/demo/Allrun"
     echo 'FoamFile {}' >"$t/tutorials/cases/family/demo/system/controlDict"
@@ -61,7 +61,7 @@ p() {
 extra=()
 
 p "$one" copy --list >"$TEST_TMP/out" 2>&1
-check "copy --list names each tutorial with its line from doc/case-setup.md" \
+check "copy --list names each tutorial with its line from doc/tutorials.md" \
     grep -qE "^  family/demo +A demo family$" "$TEST_TMP/out"
 
 p "$one" copy family/demo >"$TEST_TMP/out" 2>&1

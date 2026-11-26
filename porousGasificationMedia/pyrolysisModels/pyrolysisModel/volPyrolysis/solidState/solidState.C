@@ -88,7 +88,7 @@ void SolidState::rejectReplacedKeys(const dictionary& coeffs) const
             << "These keys are no longer read. Replace each as shown:" << nl
             << nl << replacements.str().c_str() << nl
             << "The thresholds are now solid volume fractions, 1 - porosity;"
-            << " see doc/case-setup.md." << exit(FatalIOError);
+            << " see doc/case-reference.md, pyrolysisProperties." << exit(FatalIOError);
     }
 }
 

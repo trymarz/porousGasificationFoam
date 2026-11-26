@@ -19,7 +19,7 @@ There are six `MicroTGA-DEM_lambdaDot*` fixtures. They differ only in
   source in `thermoData/solidThermoData`. The `exactDifferential`
   fixtures use `dlambdaOverDTs`/`dlambdaOverDYmi` values chosen so the
   regression signal is visible, not for physical accuracy (see
-  `doc/case-setup.md`).
+  `doc/case-guide.md`, "Setting up a DEM case").
 - With these values λ only ever decreases (shrinkage), and that is the
   direction a char-gasification variant needs.
 - It is the only fixture with its own `constant/solidThermophysicalProperties`
