@@ -13,6 +13,8 @@ pgf view $case --png $case/png --time 0.5 --size 1600x1200
 pgf view $case --palette BlackBackground            # any ParaView palette
 ```
 
+Every option: [`pgf help view`](pgf-reference.md#pgf-help-view).
+
 `<case>` is a finished copy of a tutorial (`pgf copy`, then `pgf run`; the path above is for a checkout on `main`, `pgf copy` prints it for yours) or a `--keep-runs` copy from the regression runner. Give `--png` a path such as `$case/png`: a relative `out/` lands wherever you run the command, the checkout included. The GUI keeps your own ParaView palette (Edit → Settings → Color Palette); `--png` renders on `WhiteBackground` unless `--palette` names another. `--palette` lasts for that run only (in the GUI it sets the views' backgrounds); your saved ParaView palette is never changed. ParaView comes from your `PATH`, not from pgf's clean environment. Decomposed cases are read as decomposed when `processor0` has more time directories than the case root. A `<case>.foam` file is created in the case on first use.
 
 Both the GUI and `--png` show the last written time unless `--time T` is given. When T is not a written time, the time at or before it is shown (the first one if T is earlier) with a `WARN` naming the nearest written times; the closing `OK` line names the time shown. Each view becomes one PNG named after it. It also works inside `pgf shell`.
@@ -87,5 +89,5 @@ foamcli's `render` and `gallery` make 2D matplotlib slices with no ParaView. `pg
 ## Related pages
 
 - [The pgf tool](pgf.md): settings, builds and runs.
-- [Setting up your own case](case-setup.md): required fields, input files, tutorial cases, tips.
+- [Case guide](case-guide.md): setting up and running your own case.
 - [All documentation](README.md)

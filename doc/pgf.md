@@ -36,9 +36,7 @@ Settings say which OpenFOAM and yade to use, where builds, scratch and case copi
 ./pgf setup --foam-bashrc ~/OpenFOAM/OpenFOAM-v2606/etc/bashrc
 ```
 
-To make the `pgf` command run another worktree's pgf, run `./pgf setup --link-only --force` in that worktree. It only repoints the `~/.local/bin/pgf` link, and `--force` replaces a link to another checkout.
-
-All options, and where setup looks: `pgf help setup`.
+To make the `pgf` command run another worktree's pgf, run `./pgf setup --link-only --force` in that worktree. All options, and where setup looks: [`pgf help setup`](pgf-reference.md#pgf-help-setup).
 
 ### Viewing and changing settings
 
@@ -48,7 +46,7 @@ pgf config set PGF_MPI=loopback --checkout   # only for the checkout pgf runs fr
 pgf config                                   # every value and where it came from
 ```
 
-The checkout file wins over the user file, and the environment or a `--set KEY=VALUE` option wins over both. Every key, the files and how the layers combine: `pgf help config`.
+The checkout file wins over the user file, and the environment or a `--set KEY=VALUE` option wins over both. Every key and its default: [`pgf help config`](pgf-reference.md#pgf-help-config).
 
 ### Checking the setup
 
@@ -59,20 +57,7 @@ pgf doctor          # check everything; DEM problems are only warnings
 pgf doctor --yade   # you need DEM: its problems are failures
 ```
 
-It checks, in groups: OpenFOAM, the builds of the checkout pgf runs from, yade and the DEM coupling, MPI, and whether `pgf` is on your `PATH`. Each check is one `OK`, `WARN` or `FAIL` line, and under each problem a `fix:` line says what to run. A verdict closes the output. For example, with a yade built from the wrong yade-pgf commit (shortened and wrapped):
-
-```text
-yade and DEM
-  OK   yade ~/.local/bin/yade (Yade version: …), with MPI
-  WARN yade … was built from yade-pgf d5c33e0, 6 commits older than the
-       pin 475bb35558; DEM results may differ from the dem baselines
-       fix: build yade at yade-pgf 475bb35558 (doc/build.md, …),
-       then pgf config set YADE_BIN=<that yade>
-
-verdict: ready for non-DEM runs; DEM needs: a yade built from the yade-pgf pin
-```
-
-It exits 1 if any check fails, so scripts can use it too. Every check: `pgf help doctor`.
+It checks OpenFOAM, the checkout's builds, yade and the DEM coupling, MPI, and whether `pgf` is on your `PATH`. Each problem gets a `fix:` line saying what to run, and a verdict closes the output; it exits 1 if any check fails. Every check: [`pgf help doctor`](pgf-reference.md#pgf-help-doctor).
 
 ## Builds
 
@@ -85,7 +70,7 @@ pgf builds                 # every build, the checkout that made it, the existin
 pgf gc                     # remove old builds no checkout uses
 ```
 
-By default every command uses the build of the checkout pgf runs from. To use another, say an older commit's or another worktree's, select it: `--use SEL` for one command, or `eval "$(pgf use SEL)"` for the terminal. `pgf run` refuses a build of other sources than that checkout's unless you add `--allow-stale`. Details: `pgf help build-selection`.
+By default every command uses the build of the checkout pgf runs from. To use another, say an older commit's or another worktree's, select it: `--use SEL` for one command, or `eval "$(pgf use SEL)"` for the terminal. `pgf run` refuses a build of other sources than that checkout's unless you add `--allow-stale`. Details: [`pgf help build-selection`](pgf-reference.md#pgf-help-build-selection).
 
 ## Runs
 
@@ -106,20 +91,21 @@ pgf test <tier>                       # run a regression tier
 ```
 
 - **`copy`** copies the whole tutorial and records the checkout and commit it came from, so `pgf run` uses that checkout's build. An existing copy is kept unless `--force`. Run copies, not the tutorials in the checkout.
-- **`run`** works from any directory. It runs the script in the case directory and writes `<case>/.pgf-run.json`: the command, its exit status and the build it used. Details: `pgf help run-record`.
-- **`dem run`** starts a coupled DEM run from the case directory: Yade and the solver in one `mpirun`. The DEM tutorials' `Allrun` call it, so run them with `pgf run`. A stall watchdog stops a run that prints nothing for `--stall-timeout` seconds (`PGF_DEM_STALL_TIMEOUT`, default 600, `0` turns it off) and exits 124, as a timed-out test does. `tutorials/cases/DEM_common/pgfDemRun` is its old name, kept for one release. Details: `pgf help dem`.
-- **`shell`** gives you OpenFOAM and the build on `PATH`, and little else from your own environment. `pgf shell -- <command>` runs one command there. Details: `pgf help environment`.
+- **`run`** works from any directory. It runs the script in the case directory and writes `<case>/.pgf-run.json`: the command, its exit status and the build it used. Details: [`pgf help run-record`](pgf-reference.md#pgf-help-run-record).
+- **`dem run`** starts a coupled DEM run from the case directory: Yade and the solver in one `mpirun`. The DEM tutorials' `Allrun` call it, so run them with `pgf run`. A stall watchdog stops a run that stays silent too long. Details: [`pgf help dem`](pgf-reference.md#pgf-help-dem); the coupled run itself: [DEM exchange → Start and stop](dem-exchange.md#start-and-stop).
+- **`shell`** gives you OpenFOAM and the build on `PATH`, and little else from your own environment. `pgf shell -- <command>` runs one command there. Details: [`pgf help environment`](pgf-reference.md#pgf-help-environment).
 - **`view`** opens the case in ParaView ([viewing a case](paraview.md)). **`test`** runs a regression tier ([regression testing](regression-testing.md)).
 
 ## Help and output
 
-`pgf help` is the reference: it lists the commands and the help topics, `pgf help <command>` (or `pgf <command> --help`) explains one command, and `pgf help <topic>` one topic (`build-selection`, `run-record`, `environment`). `pgf help --all` shows every page in one go, through `less` on a terminal, so you can search it; piped, it prints plain text. `pgf tools` describes the scripts at the top of the checkout. Every command behaves the same from any working directory.
+`pgf help` is the reference, also on one page as the [pgf reference](pgf-reference.md): it lists the commands and the help topics, `pgf help <command>` (or `pgf <command> --help`) explains one command, and `pgf help <topic>` one topic (`build-selection`, `run-record`, `environment`). `pgf help --all` shows every page in one go, through `less` on a terminal, so you can search it; piped, it prints plain text. `pgf tools` describes the scripts at the top of the checkout. Every command behaves the same from any working directory.
 
 Status lines read `OK`, `WARN`, `FAIL`, `SKIP`, `INFO` (`PASS`/`FAIL` for tests). `setup`, `build`, `copy`, `run` and `test` end with a `next:` block that suggests the command to run next. Colour is on when both stdout and stderr are a terminal: `--color=auto|always|never` (or `PGF_COLOR`) and `NO_COLOR` control it, and log files never get colour codes.
 
 ## Related pages
 
+- [pgf reference](pgf-reference.md): every page of `pgf help`.
 - [Building](build.md): the build store, the DEM coupling, cleaning.
 - [Apptainer images](containers.md): `pgf pack`, an image of one commit for a server.
-- [Setting up your own case](case-setup.md): required fields, input files, tutorial cases, tips.
+- [Case guide](case-guide.md): setting up and running your own case.
 - [All documentation](README.md)

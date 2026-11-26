@@ -59,18 +59,54 @@ Aim for terse and specific. The body becomes part of `main`'s history once squas
 
 ## Documentation
 
-Source code is the source of truth for physics, equations, units, and algorithm choices. Comments live next to the implementation they describe — OpenFOAM-style file banner with a `Description` block, `//-` briefs above function declarations, and `// ...` narrative inside function bodies for non-obvious steps.
+### The code wins
 
-[doc/theory.md](doc/theory.md) summarises the model: per-step flow, a model → input → source table, and short-form equations. It does **not** restate implementation detail, which belongs in the source file where it cannot drift unnoticed during refactors. If theory.md and the code differ, the code wins.
+When a doc page and the code disagree, the code is right and the page gets fixed. This holds for every page, practical ones included. The code changes faster than the docs, and the docs must not mislead.
 
-When you submit a PR:
+### Each fact has one home
 
-- **Behaviour change** → update the relevant code-comment block in the same commit.
-- **Loop structure or step ordering change** → update the per-step flow in `doc/theory.md` too.
-- **Equation change** → update the short-form equation in `doc/theory.md` too.
-- **New documentation insight** → if it's about *what the code does*, write it as a code comment. If it's about *how to use* the solver or *how to navigate* the codebase, it belongs in the README or `doc/`.
+Other pages link to that home instead of repeating the fact. Where the home is depends on the kind of fact:
 
-If you catch a theory.md claim (beyond a short-form equation) that's already in the code as a comment, replace it with a pointer in the same PR. The migration is opportunistic — no need to wait for a dedicated cleanup branch.
+- **What the code does exactly**: an equation term, a dictionary key and its default, a `pgf` flag, a build path, the order of stages. Its home is the code: source comments, `pgf help`, the dictionary readers. A doc page may restate such a fact only with a pointer to its source (a file, or `pgf help <topic>`), so a reader can check it. Restate less, point more.
+- **What the code does not say**: why the model is built this way, its assumptions and what it leaves out on purpose, how to approach a task (set up a case, choose a model, debug a run), and how the pieces fit together. The docs own this.
+
+### Page groups
+
+Each group answers one question. Inside a group, pages run from overview to detail. The [README](README.md) quick start comes before all groups; development and contribution come last.
+
+| Group | Question | Pages, overview → detail |
+|---|---|---|
+| Installing and building | How do I get PGF onto a machine? | [install](doc/install.md), [build](doc/build.md), [containers](doc/containers.md) |
+| Running cases | How do I set up and run a case? | [case guide](doc/case-guide.md), [tutorials](doc/tutorials.md), [case reference](doc/case-reference.md), [ParaView](doc/paraview.md) |
+| The pgf tool | What can pgf do, and how does it work? | [pgf](doc/pgf.md), [pgf reference](doc/pgf-reference.md) |
+| The model | What physics does it solve? | [theory](doc/theory.md), [DEM coupling](doc/theory-DEM.md) |
+| How the code implements it | Where does each piece live, and in what order does it run? | [code map](doc/code-map.md), [solid step](doc/solid-step.md), [DEM exchange](doc/dem-exchange.md) |
+| Developing PGF | How do I change it safely? | this page, [regression testing](doc/regression-testing.md), [regression ledger](doc/regression-ledger.md), [developer tools](doc/dev-tools.md) |
+
+Task pages hold workflow and advice; exact flags and keys point to `pgf help` and the code. Model pages give the physics, its assumptions and what is left out, with short-form equations and physics before code names. Code pages are mostly maps with pointers into the source.
+
+A new page joins one group and the index in [doc/README.md](doc/README.md).
+
+### Source comments
+
+Comments follow OpenFOAM style: a `Description` block in the file banner, `//-` briefs above declarations, `// ...` narrative inside function bodies for non-obvious steps. A comment is at most 3 lines; a longer one signals code that wants a named function, not more prose. The banner `Description` is exempt, as the one-time design spec of the file, but it should not restate the briefs below it.
+
+### Rendering
+
+GitHub is the target. Use what it renders well: colour-coded equations (`\color{...}` in `$$` math, one colour per kind of term), SVG figures in `doc/img/`, mermaid diagrams. Links between pages are relative. Portability to a docs-site generator is not a goal.
+
+### Voice
+
+Short declarative sentences, one idea per paragraph, physics before code names.
+
+### When you submit a PR
+
+- **Behaviour change** → update the code comment in the same commit, and any doc restatement that points to it.
+- **Loop structure or step ordering change** → update the per-step flow in `doc/code-map.md`, and `doc/solid-step.md` for the solid step.
+- **Equation change** → update the short-form equation in `doc/theory.md`.
+- **New `pgf` flag or dictionary key** → document it in `pgf help` or the reader's code first; a doc page links to it or restates it with a pointer. After any change to `pgf help`, run `utilities/gen-pgf-reference.sh` to regenerate `doc/pgf-reference.md`; a tooling test fails until you do.
+- **New insight** → if it is *what the code does*, write it in a code comment or `pgf help`. If it is *why*, *how to* or *how the pieces fit*, it belongs in `doc/` or the README.
+- **Duplicate found** → reduce it to one home plus links in the same PR. No need to wait for a cleanup branch.
 
 ## Private companion repository
 
@@ -78,10 +114,11 @@ The maintainer keeps work not meant for publication (e.g. third-party gasifier c
 
 - Private branches and issues live on `private`. Its `main` is public `main` plus private-only commits, synced by merging `origin/main` into it.
 - To publish, branch from `origin/main`, cherry-pick (or `git checkout <commit> -- <paths>`) only the wanted changes, push to `origin` and open a public PR.
-- `utilities/githooks/pre-push` refuses a push to the public repo when an outgoing commit touches a path listed in `utilities/githooks/private-paths` (top-level `private/`, `tutorials/cases/LEIgasifier*`, `LEIgeometry.local`); deleting such a path is allowed. It needs `core.hooksPath` set as in [doc/build.md](doc/build.md).
+- `utilities/githooks/pre-push` refuses a push to the public repo when an outgoing commit touches a path listed in `utilities/githooks/private-paths`; deleting such a path is allowed. It needs `core.hooksPath` set as in [doc/dev-tools.md](doc/dev-tools.md#editor-navigation-clangd).
 
 ## Related pages
 
 - [Regression testing](doc/regression-testing.md): running the tests, adding a case.
-- [Theory](doc/theory.md): the model, its equations and where they live in the source.
+- [Developer tools](doc/dev-tools.md): clangd, Serena, Doxygen.
+- [Code map](doc/code-map.md): where each part of the model lives in the source.
 - [All documentation](doc/README.md)

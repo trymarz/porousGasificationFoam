@@ -521,10 +521,14 @@ if [ "$sub" = run ]; then
   pgf_run_precheck "${cmd[0]}"
   logs_before="$(pgf_case_logs)"
   started="$(date -u +%Y-%m-%dT%H:%M:%SZ)" t0="$(date +%s)"
+  # A DEM run gets its own TMPDIR: a killed mpirun's prterun.* dir there would break the next run.
+  run_tmp=""
+  [ "$yade" -eq 1 ] && { run_tmp="$(mktemp -d "$TMPDIR/pgf-dem-XXXXXX")" || die "cannot create the run's TMPDIR"; }
   trap ':' INT TERM
-  "${cmd[@]}"
+  TMPDIR="${run_tmp:-$TMPDIR}" "${cmd[@]}"
   rc=$?
   trap - INT TERM
+  [ -z "$run_tmp" ] || rm -rf "$run_tmp"
   python3 "$PGF_LIB/registry.py" record "$PWD" "$(pgf_records_dir)" "$prefix" "$sel_src" \
     "${yade_bin:-}" "$([ -n "${yade_bin:-}" ] && pgf_yade_commit "$yade_bin")" "$started" "$rc" "${cmd[@]}" ||
     st WARN "could not write the run record" >&2

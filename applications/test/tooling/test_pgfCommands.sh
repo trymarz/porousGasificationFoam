@@ -78,7 +78,7 @@ check "setup steps: OpenFOAM is not v2606, with the fix under it" \
     bash -c 'grep -q "^  → looking for OpenFOAM … WARN fake, .*; PGF targets v2606$" "$1" &&
         grep -A1 "looking for OpenFOAM" "$1" | grep -q "^       fix: pgf config set PGF_FOAM_BASHRC="' _ "$TEST_TMP/out"
 check "  the yade it found, and why its pin cannot be checked" \
-    bash -c 'grep -q "^  → looking for yade … WARN $2/yade-2026.1$" "$1" &&
+    bash -c 'grep -q "^  → looking for yade … WARN $2/yade-2026.1; only DEM runs need it$" "$1" &&
         grep -q "^       does not say which yade-pgf commit built it" "$1"' _ "$TEST_TMP/out" "$yadedir"
 check "  the file it wrote" grep -q "^  → saving settings … OK wrote .*\.pgf\.conf (checkout layer)$" "$TEST_TMP/out"
 check "  that --no-link left pgf unlinked" grep -q "^  → linking pgf … skipped (--no-link)" "$TEST_TMP/out"
@@ -98,6 +98,26 @@ NO_COLOR=1 penv --color never status >/dev/null 2>&1
 check "--color never is accepted" [ $? -eq 0 ]
 penv --color=sometimes status >/dev/null 2>"$TEST_TMP/err"
 check "  and a bad --color value is refused" grep -q "color takes auto, always or never" "$TEST_TMP/err"
+
+# An uninitialised yade-pgf submodule is a WARN with the fix, and only for DEM (#308).
+mkdir -p "$tree/submodules/yade-pgf" "$TEST_TMP/home-sub"
+env -i PATH="$yadedir:/usr/bin:/bin" HOME="$TEST_TMP/home-sub" TMPDIR="$TEST_TMP" "$tree/pgf" setup --user --yes \
+    --no-link --no-completion --foam-bashrc "$bashrc" >"$TEST_TMP/outsub" 2>&1
+check "setup with an empty submodules/yade-pgf says only DEM runs need yade" \
+    grep -q "^  → looking for yade … WARN $yadedir/yade-2026.1; only DEM runs need it$" "$TEST_TMP/outsub"
+check "  names the empty submodule and the git submodule fix under it" \
+    bash -c 'grep -A1 "^       no yade-pgf sources in $2/submodules/yade-pgf$" "$1" |
+        grep -q "^ *fix: git submodule update --init submodules/yade-pgf$"' _ "$TEST_TMP/outsub" "$tree"
+rmdir "$tree/submodules/yade-pgf" "$tree/submodules"
+
+# doctor names a dangling yade link on PATH (#308).
+mkdir -p "$TEST_TMP/deadbin"
+ln -s "$TEST_TMP/gone/yade" "$TEST_TMP/deadbin/yade"
+env -i PATH="$TEST_TMP/deadbin:/usr/bin:/bin" HOME="$home" TMPDIR="$TEST_TMP" YADE_TRUNK="$trunk" \
+    "$tree/pgf" doctor >"$TEST_TMP/doctor" 2>&1
+check "doctor warns about a dangling yade link on PATH, with the fix" \
+    bash -c 'grep -A1 "^  WARN $2/yade on PATH is a dangling link to $3/gone/yade$" "$1" | grep -q "fix: remove it, or point it at a yade"' \
+    _ "$TEST_TMP/doctor" "$TEST_TMP/deadbin" "$TEST_TMP"
 
 # help: one page per command, the same as <cmd> --help (#285)
 penv help >"$TEST_TMP/help" 2>&1
@@ -137,6 +157,8 @@ check "pgf help lists the topics: build-selection, run-record, environment" \
 for t in $topics; do
     check "pgf help $t is its page" bash -c '"$1" help "$2" | head -1 | grep -q "^pgf help $2: "' _ "$tree/pgf" "$t"
 done
+check "doc/pgf-reference.md matches pgf help (utilities/gen-pgf-reference.sh regenerates it, #352)" \
+    "$PGF_ROOT/utilities/gen-pgf-reference.sh" --check
 keep="$(sed -n 's/^ *for v in \(HOME .*\); do$/\1/p' "$tree/pgf")"
 check "the environment topic names every variable pgf keeps ($keep)" \
     bash -c 'page="$("$1" help environment | tr "\n" " ")"; for v in $2 "PGF_\*" "YADE_\*"; do
@@ -355,6 +377,15 @@ printf 'FoamFile { object yadeProperties; }\nactive          true;\n' >"$dem/con
 (cd / && penv run --prefix "$prefix" "$dem") >/dev/null 2>"$TEST_TMP/err"
 check "an active yadeProperties selects --yade (yade shim on PATH)" grep -q '/pgf-bin/yade$' "$dem/ran.txt"
 check "run says it picked --yade" grep -q "using --yade" "$TEST_TMP/err"
+# Each DEM run gets its own TMPDIR, removed afterwards (#308).
+printf '#!/bin/sh\necho "$TMPDIR" >>tmpdirs.txt; [ -d "$TMPDIR" ] && [ -w "$TMPDIR" ] || exit 9\n' >"$dem/Alltmp"
+chmod +x "$dem/Alltmp"
+for i in 1 2; do (cd / && penv run --prefix "$prefix" "$dem" Alltmp) >/dev/null 2>&1 || fail "Alltmp run $i failed"; done
+check "a DEM run gets its own writable TMPDIR under \$PGF_RUN_ROOT/tmp, one per run" \
+    bash -c '[ "$(grep -c "^$2/tmp/pgf-dem-......$" "$1")" -eq 2 ] && [ "$(sort -u "$1" | wc -l)" -eq 2 ]' \
+    _ "$dem/tmpdirs.txt" "$TEST_TMP/runs"
+check "  and removes it afterwards" bash -c 'while read -r d; do [ ! -e "$d" ] || exit 1; done <"$1"' _ "$dem/tmpdirs.txt"
+rm -f "$dem/Alltmp" "$dem/tmpdirs.txt"
 rm -f "$dem/ran.txt"
 (cd / && penv run --no-yade --prefix "$prefix" "$dem") >/dev/null 2>&1
 check "--no-yade overrides the auto choice" bash -c '! grep -q yade "$1/ran.txt"' _ "$dem"

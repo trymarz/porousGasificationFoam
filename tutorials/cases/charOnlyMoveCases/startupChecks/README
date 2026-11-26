@@ -1,0 +1,6 @@
+Start-up case checks (#311) on copies of ../solidInlet_ash.
+
+Each case reuses ../solidBoundaryPolicy/copyBase, breaks one piece of case
+setup and expects the solver to stop at start-up with a message naming the
+cause. cases.list judges each on its log (expectFail).
+staleDecomposition runs on 2 MPI ranks.
