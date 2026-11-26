@@ -47,7 +47,7 @@ rm -rf <checkout>           # the git clone, with its submodules
 The YADE build of [DEM coupling](install.md#3-dem-coupling-optional) lives in two directories, the install prefix and the build tree:
 
 ```bash
-rm -rf ~/opt/yade-pgf ~/build/yade-pgf
+rm -rf ~/.local/opt/yade-pgf ~/.cache/yade-pgf-build
 ```
 
 The system packages it needed stay; remove them with `apt` if nothing else uses them. If you swapped VTK packages for the build ([ParaView and Yade's VTK](install.md#paraview-and-yades-vtk)), `sudo apt-mark auto libvtk9.3` lets `apt autoremove` take the runtime library again.

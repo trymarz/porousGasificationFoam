@@ -69,20 +69,20 @@ To build from a yade-pgf clone of your own instead, check out the pinned commit 
 ```bash
 src="$PWD/submodules/yade-pgf"
 ver="$(git -C "$src" show -s --format=%cd --date=format:%Y.%m.%d HEAD)-git-$(git -C "$src" rev-parse --short=7 HEAD)"
-mkdir -p ~/build/yade-pgf && cd ~/build/yade-pgf
-cmake "$src" -DCMAKE_INSTALL_PREFIX=$HOME/opt/yade-pgf -DENABLE_GUI=OFF -DNOSUFFIX=ON \
+mkdir -p ~/.cache/yade-pgf-build && cd ~/.cache/yade-pgf-build
+cmake "$src" -DCMAKE_INSTALL_PREFIX=$HOME/.local/opt/yade-pgf -DENABLE_GUI=OFF -DNOSUFFIX=ON \
     -DYADE_VERSION="$ver" -DCMAKE_BUILD_TYPE=Release -DPYTHON_EXECUTABLE=/usr/bin/python3
 # one make job per 4 GB of free memory, at most one per core: a job needs 3-4 GB
 njobs="$(awk -v n="$(nproc)" '/MemAvailable/ {j = int($2 / 4194304); print (j < 1 ? 1 : (j > n ? n : j))}' /proc/meminfo)"
 make -j"$njobs" install        # 30-60 min
 ```
 
-`njobs` keeps `make` from running out of memory; close other large programs first, since it counts the memory free when it starts ([Pitfalls](#pitfalls)). Run it in a plain shell, not one that has sourced OpenFOAM: YADE and OpenFOAM must use the same MPI, the system Open MPI. `-DPYTHON_EXECUTABLE` ties YADE to the system Python, whose `apt` packages it uses ([One Python](#pitfalls)). CMake must not print `MPI NOT FOUND, YADE-OpenFOAM coupling disabled`. `$HOME/opt/yade-pgf/bin/yade -v` then prints `Yade version: <date>-git-<commit>`.
+The build tree in `~/.cache` can be deleted after `make install`; keeping it makes a rebuild faster when the pin moves. `njobs` keeps `make` from running out of memory; close other large programs first, since it counts the memory free when it starts ([Pitfalls](#pitfalls)). Run it in a plain shell, not one that has sourced OpenFOAM: YADE and OpenFOAM must use the same MPI, the system Open MPI. `-DPYTHON_EXECUTABLE` ties YADE to the system Python, whose `apt` packages it uses ([One Python](#pitfalls)). CMake must not print `MPI NOT FOUND, YADE-OpenFOAM coupling disabled`. `$HOME/.local/opt/yade-pgf/bin/yade -v` then prints `Yade version: <date>-git-<commit>`.
 
 **Build and check the DEM variant of PGF.** Back in the PGF checkout:
 
 ```bash
-./pgf setup --yade-bin $HOME/opt/yade-pgf/bin/yade
+./pgf setup --yade-bin $HOME/.local/opt/yade-pgf/bin/yade
 pgf build --yade
 pgf doctor --yade      # yade at the pin, with MPI; DEM problems are failures here
 ```
@@ -105,7 +105,7 @@ The run's output, kept in the case's `log.yade`, shows the solver's `DEM couplin
   ```
 
   It must resolve to a path; `not found` means the directory holding them is not on `LD_LIBRARY_PATH`. For a prefix build, `.pgf-build.json` in the prefix records `"variant": "yade1"`.
-- **YADE side.** `$HOME/opt/yade-pgf/bin/yade --help` ends its description with the compiled features; the list must contain `MPI`. `pgf doctor --yade` checks this too.
+- **YADE side.** `$HOME/.local/opt/yade-pgf/bin/yade --help` ends its description with the compiled features; the list must contain `MPI`. `pgf doctor --yade` checks this too.
 - **At run time.** A `WITH_YADE` solver prints `DEM coupling: active` (or `inactive (yadeProperties absent or active=false)`) at startup, from `createDEMFields.H`; a normal build prints no such line. `pgf dem run` prints `pgf dem run: N Yade + M OpenFOAM rank(s)` before its `mpirun`. The solver always runs with `-parallel`, so the case must be decomposed (into one `processor0` for one OpenFOAM rank).
 - **Handshake.** Once both sides agree, the solver prints `pgfDemCoupler: handshake ok, protocol v2, lambdaMode …, N DEM rank(s)` and YADE prints `PgfCoupling: handshake ok, protocol v2, lambdaMode …, M OpenFOAM rank(s)`; a tutorial's `Allrun` keeps both in `log.yade`. A mismatch stops the run with a message naming both versions. A DEM script without `PgfCoupling` leaves the solver waiting in the handshake; `runDEMCase.sh`'s timeout ends such a run.
 - **End.** OpenFOAM's last step ends YADE: it prints `PgfCoupling: OpenFOAM ran its last step; the DEM run ends at iter N`. A YADE run that ends first stops OpenFOAM.
