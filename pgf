@@ -69,6 +69,9 @@ case "${1:-}" in
 help) case "${2:-}" in -h | --help) pgf_help help ;; *) pgf_help "${2:-}" ;; esac ;;
 -h | --help) pgf_help ;;
 esac
+# pgf dem runs in the caller's environment, set up by pgf run or pgf shell (or a
+# sourced OpenFOAM); its options and help are its own, so it goes before wants_help.
+[ "${1:-}" = dem ] && { shift; exec "$PGF_LIB/dem.sh" "$@"; }
 [ -n "${1:-}" ] && wants_help "$@" && pgf_help "$1"
 
 # pgf test keeps the caller's environment; it calls pgf shell itself. pgf view

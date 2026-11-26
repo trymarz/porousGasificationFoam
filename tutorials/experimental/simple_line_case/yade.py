@@ -752,7 +752,7 @@ mp.ERASE_REMOTE_MASTER = True
 mp.REALLOC_FREQUENCY = 12
 mp.fluidBodies = sphereIDs
 mp.DOMAIN_DECOMPOSITION = True
-mp.mpirun(foamTime.UNTIL_SOLVER_ENDS)   # np: the Yade ranks pgfDemRun started
+mp.mpirun(foamTime.UNTIL_SOLVER_ENDS)   # np: the Yade ranks pgf dem run started
 mp.mprint("RUN FINISH")      
 
         
