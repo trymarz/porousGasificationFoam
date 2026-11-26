@@ -1,72 +1,60 @@
 # DEM exchange
 
-What happens in step 2 of the [per-time-step flow](theory.md#per-time-step-flow), when PGF and YADE exchange data, and how the tutorial fixtures use λ. The idea and the body size models: [DEM coupling](theory-DEM.md). **If this page and the code differ, the code wins.**
+Once per PGF time step, YADE sends PGF where its DEM bodies are and how fast they move, and PGF sends back how each body's λ changes. This page follows that exchange, step 2 of the [per-time-step flow](theory.md#per-time-step-flow). Why the coupling works this way: [DEM coupling](theory-DEM.md). **If this page and the code differ, the code wins.**
 
-## Running and code
+## Running a coupled case
 
-Running it needs a `WITH_YADE` build ([build.md](build.md#yade-dem-coupling)) and `active true` in `constant/yadeProperties`. `pgfDemRun` (`tutorials/cases/DEM_common/`) starts YADE and the solver, always with `-parallel`, in one `mpirun`; the exchange runs once per PGF time step.
+A coupled case needs a `WITH_YADE` build ([build.md](build.md#yade-dem-coupling)) and `active true` in `constant/yadeProperties`. `pgfDemRun` (`tutorials/cases/DEM_common/`) starts YADE and the solver together in one `mpirun`; the solver always runs with `-parallel`.
 
-YADE owns each body's λ (default 1); PGF's `lambda` field is only a cell average written for output.
+The solver's `system/controlDict` alone sets the run's time. The YADE script reads `deltaT` and `writeInterval` from it through `tutorials/cases/DEM_common/foamTime.py` and sets no step count of its own: the solver's last step ends YADE.
 
-**Code.** PGF side: `porousGasificationMedia/DEM/pgfDemCoupler/` and `DEM/lambdaDotModel.C`. YADE side: the `PgfCoupling` engine (`pkg/openfoam/PgfCoupling.cpp` in trymarz/yade-pgf, the submodule `submodules/yade-pgf`). Both build the same protocol core, [PgfDemBridge](https://github.com/trymarz/PgfDemBridge) (`submodules/PgfDemBridge`, its banner in `src/PgfDemBridge.hpp`), and neither includes the other's headers. A `yadeProperties` with a `coupler` entry other than `pgf` stops the solver (`porousGasificationFoam/createDEMFields.H`).
+## One exchange, step by step
 
-## λ modes in the exchange
+1. **Bodies go up.** YADE sends each body's position, velocity and λ to every OpenFOAM rank whose mesh bounding box holds the body's centre.
+2. **Bodies land on the mesh.** Each rank finds the cell holding each body and averages the bodies per cell into `UsDEM` and `lambdaDEM`. These are smoothed over the solid region into `Us` and `lambda` ([`constant/lambdaDict`](case-setup.md#constantlambdadict-required-by-with_yade-builds-running-a-dem-case)). `Us` then moves the solid in this step's solid transport; `lambda` is output only, since YADE owns each body's λ.
+3. **λ values go down.** Each rank returns one value per body: the rate `λ̇` or the factor `r`, depending on the [body size model](theory-DEM.md#body-size-models). It is the value the solid step assembled in the previous time step, because this step's solid step has not run yet. Cells that are almost all gas (`porosityF ≥ connectedBelowPorosity`) send the neutral value, 0 for a rate and 1 for `r`.
+4. **YADE applies them.** A body near a rank boundary may be sent to several ranks. Only the ranks that found it in their cells answer, and YADE takes the lowest such rank's value ([#229](https://github.com/trymarz/porousGasificationFoam/issues/229)). A body no rank found keeps its previous value and is counted in `PgfCoupling.nLost`. A rate is then integrated by YADE every DEM step; `r` multiplies λ once, here.
+5. **YADE runs to the next exchange.** The solver tells YADE its `deltaT` and whether this was its last step. YADE moves the bodies until the next exchange.
 
-The mode also sets the integer the handshake sends YADE:
+## Keeping time
 
-| `lambdaMode` | Sent down | YADE applies it | Source |
-|---|---|---|---|
-| `constant` (default) | rate `λ̇ = lambdaValue` [m/s] | `λ += λ̇·dt` every DEM step (`NewtonIntegrator`) | `constantLambdaDot` |
-| `exactDifferential` | rate `λ̇ = (∂λ/∂Tₛ) dTₛ/dt + Σᵢ (∂λ/∂Ymᵢ) Rᵢ` [m/s] | as above | `exactDifferentialLambdaDot.H` (Description) |
-| `apparentVolume` | factor `r = ∛(1 + ΔV_chem/V_old)` [–] | `λ ← r λ` once per exchange (`PgfCoupling::apply`) | `apparentVolumeLambdaDot.H`; [body size](theory-DEM.md#body-size-under-lambdamode-apparentvolume) |
+YADE runs several DEM steps per PGF step, set by `O.dt = deltaT / DEM_SUBSTEPS` with a whole number of substeps.
 
-Before the exchange, `lambdaDotModel::updateLambdaDot()` sets the neutral value (0 for a rate, 1 for `r`) wherever `porosityF ≥ connectedBelowPorosity`. The comment there: "the value gated and pushed to particles here is the previous step's", because the models assemble the value later in the step, inside the solid solve.
+- **Rate modes** (`constant`, `exactDifferential`). YADE integrates `λ̇` every DEM step, so λ advances by `λ̇ · deltaT` per exchange only when the DEM steps fill the PGF step exactly. The run stops unless YADE's `dt` divides `deltaT` to within 10⁻⁶. Before this check, the fixtures ran with a DEM step 5 times the PGF step, so λ advanced 5 times too fast ([#230](https://github.com/trymarz/porousGasificationFoam/issues/230)).
+- **`apparentVolume`.** `r` is applied once per exchange, so the ratio of the steps does not change λ, and no exact ratio is needed.
 
-Under `apparentVolume` (`DEM/lambdaDotModels/apparentVolumeLambdaDot/`), `rhoApparent` is required. `r = 1` in nearly empty cells (`V_old < minSolidVolume`); at full burnout the ratio is floored at `minVolumeRatio`, with a warning. Both keys are optional in `lambdaDict`.
+## Start and stop
 
-## Exchanged fields
+At startup the two sides compare the protocol version, the buffer layout, the MPI thread level and `lambdaMode`, and both stop with a message naming the mismatch. They also stop if the OpenFOAM ranks disagree on `lambdaMode`, or if `PgfCoupling.expectLambdaMode` in the YADE script differs from the case's. A YADE script without the `PgfCoupling` engine leaves the solver waiting at startup.
 
-| Stage | MPI call | Per body | Content |
-|---|---|---|---|
-| open, once | `Allgather` on all ranks | – | magic, protocol version (2), side, thread level, `lambdaMode`, strides 7/1; each OpenFOAM rank's mesh bounding box |
-| step header | `Allreduce` | – | rebuild and stop flags; a rebuild makes a new neighbour graph from the DEM ranks' edges |
-| bodies up | `Neighbor_alltoallv`, each DEM rank → each OpenFOAM rank whose box holds the body's centre | 7 | position [m], velocity [m/s], `λ` [m] |
-| values down | `Neighbor_alltoallv`, back | 1 | `λ̇` [m/s] or `r` [–] in the same order, NaN where that rank did not find the body |
-| control | `Bcast` from the first OpenFOAM rank | – | `deltaT`, and whether this was the solver's last step |
+The solver's last step ends YADE, with `PgfCoupling: OpenFOAM ran its last step` in the log. A YADE run that ends first stops the solver, and an MPI error on either side aborts both.
 
-- **On the mesh.** Each OpenFOAM rank locates the bodies in its cells. It fills `nParticles`, the cell means `UsDEM` and `lambdaDEM`, and then `Us` and `lambda` from those, smoothed by the `interpolationMode` / `lambdaInterpolationMode` models of `constant/lambdaDict` ([case-setup.md](case-setup.md#constantlambdadict-required-by-with_yade-builds-running-a-dem-case)).
-- **Stops by name** on a version, stride, thread-level or `lambdaMode` mismatch, on OpenFOAM ranks disagreeing on `lambdaMode`, and on `PgfCoupling.expectLambdaMode` ≠ the case's mode. A DEM script without `PgfCoupling` leaves the solver waiting in the handshake.
-- **End.** The solver's last step ends YADE (`PgfCoupling: OpenFOAM ran its last step; the DEM run ends at iter N`); a YADE run that ends first stops the solver. An MPI error on either side aborts both.
-- **Erased bodies.** YADE applies `λ̇` or `r` once per exchange, looking each body up by id with `BodyContainer::exists`. A body erased with `mp.bodyErase` is skipped, so a stale list cannot be dereferenced.
+## The fixtures' spring model
 
-## Which rank sets λ̇ (#229)
+YADE only stores and updates λ; nothing in YADE or yade-pgf reads it ([#206](https://github.com/trymarz/porousGasificationFoam/issues/206)). In the DEM tutorial fixtures λ gets a mechanical effect through springs, written in Python in their shared script `tutorials/cases/MicroTGA-DEM_lambdaDot_common/MPI_lambda.py`.
 
-A body near a rank boundary lies in the bounding box of several OpenFOAM ranks. YADE sends it to each of them; a rank that did not find the body in its cells returns NaN for it, and YADE takes the value of the lowest rank that found it. A body that no rank found keeps its previous `λ̇` (`PgfCoupling::apply`), and `PgfCoupling.nLost` counts it.
+Each sphere is joined to its 6 nearest neighbours. A spring's rest length is its initial length times the mean λ of its two ends, so a growing λ pushes the spheres apart and a shrinking one pulls them together. The force is linear in the stretch; very compressed springs go slack and very stretched ones break. Parameters: [the reference DEM-spring case](../tutorials/cases/MicroTGA-DEM_lambdaDotApparentVolume/README.md).
 
-## Time step (#230)
+The springs must add their forces after `PgfCoupling` and before `NewtonIntegrator` in the engine list: YADE resets forces every step, so a force added after `NewtonIntegrator` is lost ([#231](https://github.com/trymarz/porousGasificationFoam/issues/231)). The `springForceAtNewton` output records the spring force `NewtonIntegrator` actually integrates, and the fixtures assert it is positive.
 
-YADE exchanges every `n` DEM steps (`dataExchangeInterval`, `PgfCoupling::setExchangeInterval`):
+## Where it lives in the code
 
-- **Rate modes** (`constant`, `exactDifferential`): `n = round(foamDt/yadeDt)`. The run stops (`MPI_Abort`, message `in a lambdaDot rate mode Yade's dt must divide the OpenFOAM deltaT exactly`) unless `n ≥ 1` and `|foamDt/yadeDt − n| ≤ 10⁻⁶ n`. That is, `yadeDt ≤ foamDt` with an integer ratio. YADE integrates `λ̇` every DEM step, so λ then advances by `λ̇·n·yadeDt = λ̇·foamDt` per exchange. Before #230, the fixtures ran at `yadeDt = 5·foamDt`, so λ advanced 5× too fast.
-- **`apparentVolume`**: `n = int(foamDt/yadeDt)` when `yadeDt < foamDt`, else 1. `r` is applied once per exchange, so the ratio does not change λ.
+| Piece | Location |
+|---|---|
+| PGF side of the exchange | `porousGasificationMedia/DEM/pgfDemCoupler/` |
+| Bodies to `Us` and `lambda`, gating | `porousGasificationMedia/DEM/lambdaDotModel.C` |
+| The body size models | `porousGasificationMedia/DEM/lambdaDotModels/` |
+| YADE side | `PgfCoupling` engine, `pkg/openfoam/PgfCoupling.cpp` in [yade-pgf](https://github.com/trymarz/yade-pgf) (`submodules/yade-pgf`) |
+| λ integration in YADE | `NewtonIntegrator` |
+| Shared protocol | [PgfDemBridge](https://github.com/trymarz/PgfDemBridge) (`submodules/PgfDemBridge`), described in `src/PgfDemBridge.hpp` |
 
-The solver's `controlDict` is the one place that sets the run's time. The Yade scripts read it through `tutorials/cases/DEM_common/foamTime.py`: `O.dt = deltaT / DEM_SUBSTEPS` with a whole number of substeps, outputs every `writeInterval`, and no step count of their own, since the solver's last step ends YADE.
-
-## Spring model and engine order (#231)
-
-The springs are not part of YADE or yade-pgf. They are Python in the DEM fixtures' shared script `tutorials/cases/MicroTGA-DEM_lambdaDot_common/MPI_lambda.py`, the only place λ has a mechanical effect (#206).
-
-- **Topology.** Each sphere is joined to its 6 nearest neighbours (`cKDTree`). `L₀` is their initial distance.
-- **Rest length.** `L_target = L₀ · λ̄`, with `λ̄` the mean of the two endpoints' `state.lambda_`. "lambda is read, not integrated, here".
-- **Clamps.** `λ̄` is clamped to [0.1, 2.0] for the force only, without writing back into `lambda_`. The spring "freezes" (adds no force) when `L ≤ 0.8 L₀`. It breaks and is removed when the elongation `(L − L₀)/L₀` exceeds 100 %.
-- **Force.** Hooke, `F = k (L − L_target)` along the spring, equal and opposite on both ends. `k = c²/(4m)`, with `c = spring_damping = 1.0` and `m = 0.000268`, the relation for critical damping, used only to set `k`. There is no dashpot term; motion is damped by `NewtonIntegrator(damping=0.99)`.
-- **Engine order.** `ForceResetter` → collider → `InteractionLoop` → `PgfCoupling` (sets `λ̇` or applies `r`) → `apply_spring_forces()` (every step) → `spring_force_at_newton()` → `NewtonIntegrator` (moves bodies, `λ += λ̇·dt`) → output runners. The script's own reason: "addF is non-permanent, so a force added after Newton is reset unused (#231)". `springForceAtNewton` in `postProcessing/` records the spring force Newton integrates. The `lambdaDotChemistry`, `lambdaDotAltInterp` and `lambdaDotApparentVolume` fixtures assert it is > 0 (`system/regressionInvariants`).
+Both sides build the same protocol core, and neither includes the other's headers.
 
 ## Limitations
 
-- **Cross-rank springs** (#231, B4). Every YADE rank computes every spring whose two bodies it can see, and remote copies carry a stale `lambda_`. With 2 or more YADE workers, a spring across ranks is counted 0, 1 or 2 times. The fixtures run `-n 2` (an empty master plus one worker), so it does not occur there.
-- **Always decomposed.** The solver always runs with `-parallel`, so even one OpenFOAM rank needs a one-piece `processor0`; the fixtures use 2.
-- Physical limitations of the coupling: [DEM coupling → Limitations](theory-DEM.md#limitations).
+- **Cross-rank springs.** Each YADE rank computes every spring whose two bodies it can see, and remote copies of bodies carry a stale λ. With 2 or more YADE workers, a spring across ranks is counted 0, 1 or 2 times ([#231](https://github.com/trymarz/porousGasificationFoam/issues/231)). The fixtures run one YADE worker, so it does not occur there.
+- **Always decomposed.** Even one OpenFOAM rank needs a one-piece `processor0`; the fixtures use 2.
+- Limitations of the coupling itself: [DEM coupling → Limitations](theory-DEM.md#limitations).
 
 ## Related pages
 

@@ -26,7 +26,7 @@ The solid changes as it reacts: it shrinks as it burns out, or swells as it heat
 
 PGF tells each body how its λ changes, in one of two ways. In the rate modes (`constant`, `exactDifferential`) it sends a rate λ̇, which YADE integrates every DEM step. Under `apparentVolume` it sends a factor `r`, which YADE applies to λ once per exchange. λ is not related to the FVM porosity field: `ε` is derived solely from `Ym`. The DEM side uses λ to evolve the shape of its bodies. That shape change drives their motion, which comes back to PGF as `UsDEM` for the advection step of the solid transport equation.
 
-What a body does with λ is up to the DEM script. YADE only stores and updates it; in the tutorial fixtures the spring model stretches its rest length by it ([DEM exchange](dem-exchange.md#spring-model-and-engine-order-231)).
+What a body does with λ is up to the DEM script. YADE only stores and updates it; in the tutorial fixtures the spring model stretches its rest length by it ([DEM exchange](dem-exchange.md#the-fixtures-spring-model)).
 
 ### Consistency
 
