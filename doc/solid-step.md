@@ -1,6 +1,6 @@
 # Solid step
 
-What `volPyrolysis::evolveRegion()` does in one time step, stage by stage, in the order the code runs them. This is step 4 of the [per-time-step flow](theory.md#per-time-step-flow). The source is `porousGasificationMedia/pyrolysisModels/pyrolysisModel/volPyrolysis/volPyrolysis.C`; each module lives in a subdirectory next to it. **If this page and the code differ, the code wins.**
+What `volPyrolysis::evolveRegion()` does in one time step, stage by stage, in the order the code runs them. This is step 4 of the [per-time-step flow](code-map.md#per-time-step-flow). The source is `porousGasificationMedia/pyrolysisModels/pyrolysisModel/volPyrolysis/volPyrolysis.C`; each module lives in a subdirectory next to it. **If this page and the code differ, the code wins.**
 
 The reads and writes come from the "Field access" list in each module's header; the kinds come from the table in [#239](https://github.com/trymarz/porousGasificationFoam/issues/239):
 

@@ -1,6 +1,6 @@
 # Theory
 
-What the solver models and where each piece lives in the source. The equations are short-form summaries checked against the code, with the model first described in [Żuk et al. 2022](https://doi.org/10.1016/j.cpc.2022.108407) (CPC 278, 108407); reaction kinetics, diffusive resistance, reaction enthalpies, heat-transfer correlations and the radiation models are described there (§2.2–2.4) and in the source. **If this page and the code differ, the code wins** — please open an issue or PR.
+What the solver models: the physics, its assumptions and the equations. Where each piece lives in the source, and the order the solver runs them: [code map](code-map.md). The equations are short-form summaries checked against the code, with the model first described in [Żuk et al. 2022](https://doi.org/10.1016/j.cpc.2022.108407) (CPC 278, 108407); reaction kinetics, diffusive resistance, reaction enthalpies, heat-transfer correlations and the radiation models are described there (§2.2–2.4) and in the source. **If this page and the code differ, the code wins** — please open an issue or PR.
 
 In the paper the solid stays in place, and its porosity changes through a chemistry source term. Here the solid can move with the velocity `Us`, and porosity is recomputed each step from the solid mass in the cell. The solid equations below therefore differ from the paper's (3a–3c).
 
@@ -30,60 +30,6 @@ Momentum goes one way only. The solid slows the gas through the Darcy–Forchhei
 | `φ_s` | `phiSolid` | limited solid volume flux |
 
 - **Densities.** Skeletal is the material without its pores; apparent is a particle's mass over its envelope volume, pores included. Both are per-specie entries in `solidThermophysicalProperties`; `rhoApparent` is optional and only `lambdaMode apparentVolume` reads it. The mixture's skeletal density is `1/ρ_s = Σₖ Ysₖ/ρ_s,k`, and its bulk density `ρ_s (1 − ε)`.
-
-## Models at a glance
-
-| Model | Configured in | Implemented in |
-|---|---|---|
-| Gas flow | `thermophysicalProperties`, `turbulenceProperties` | `{rho,U,Y,E,p,pc}Eqn.H` |
-| Gas reactions | `combustionProperties`, `chemistryProperties`, `reactions` | OpenFOAM `CombustionModel` |
-| Darcy–Forchheimer | `0/Df`, `porosityProperties` | `fieldPorosityModel/` |
-| Solid chemistry | `chemistryProperties`, `reactions`, `solidThermophysicalProperties` | `porousSolidChemistryModel/` |
-| Diffusion limit | `specieTransferProperties` | `specieTransfer/` |
-| Solid transport, porosity | `0/Us`, `pyrolysisProperties`, `system/fvSchemes` | `solidSpeciesTransport/`, `solidFluxLimiter/`, `porosityRecovery/` |
-| Solid energy | `solidThermophysicalProperties`, `0/anisotropyK` | `solidEnergy/` |
-| Gas–solid heat | `heatTransferProperties` | `heatTransfer/`, `gasSolidHeatExchange/` |
-| Radiation | `radiationProperties` | `heterogeneousRadiationModels/` |
-| DEM coupling | `lambdaDict`, `yadeProperties` | `DEM/`, `demCoupling/` |
-
-- **Paths.** Inputs are in `constant/` unless they start with `0/` or `system/`. The `*Eqn.H` files are in `porousGasificationFoam/`. Model folders are under `porousGasificationMedia/`, and the solid-step ones under its `pyrolysisModels/pyrolysisModel/volPyrolysis/`. `volPyrolysis.C` there runs the solid step. Keys: [case-setup.md](case-setup.md#input-file-reference).
-- **Gas reactions.** These are the `R_hom,i` and `Q̇_chem` terms. Each enters multiplied by `ε` (`YEqn.H`, `EEqn.H`).
-- **Optional inputs.** `porosityProperties` (default Darcy only), `0/anisotropyK` (default identity), and `specieTransferProperties`, which is read only when `diffusionLimitedReactions` is on in `chemistryProperties`.
-- **Solid transport.** `pyrolysisProperties` → `pyrolysisCoeffs` holds the limiter and bed switches. The `div(phiSolid)` entry is in `system/fvSchemes`.
-- **DEM coupling.** Needs a `WITH_YADE` build; see [DEM coupling](theory-DEM.md).
-
-## Per-time-step flow
-
-The time loop in `porousGasificationFoam/porousGasificationFoam.C`:
-
-```
-for each time step:
-    choose Δt              # gas Courant and solid diffusion limits;
-                           # optionally capped by the solid chemistry
-    exchange with DEM      # WITH_YADE builds only
-    update radiation
-    solid step:
-        chemistry and gas–solid heat exchange, from the step-start state
-        limit the solid flux
-        transport the solid species
-        solve the solid energy for T_s
-        classify cells: connected / dispersed / trace
-        DEM λ temperature term
-        porosity from the solid mass; collapse or empty the bed
-    gas continuity
-    PIMPLE loop:
-        momentum, species, energy
-        pressure correctors
-    turbulence
-```
-
-1. **Time step** — the gas Courant and solid diffusion limits set Δt (`setMultiRegionDeltaT.H`); with local time stepping (LTS) `setRDeltaT.H` sets a local Δt instead. With `adjustTimeStep` and `solidChemistryTimeStepControl` both on, `updateChemistryTimeStep.H` also caps Δt by about the time a specie's mass fraction took to reach 0 or 1 in the last chemistry solve.
-2. **DEM exchange** — DEM body data from YADE rebuild `Us` and `lambda`; the rate `λ̇`, or the factor `r` under `apparentVolume`, goes back to YADE (`DEM/lambdaDotModel.C`, [DEM exchange](dem-exchange.md)).
-3. **Radiation** — updates the solid radiative source (`radiation.H`).
-4. **Solid step** — `pyrolysisZone.evolve()` (`volPyrolysis::evolveRegion()`) runs the stages in the order shown. Each stage, with the fields it reads and writes and its checks: [solid-step.md](solid-step.md).
-5. **Gas continuity** — `rhoEqn.H`.
-6. **PIMPLE loop** — `UEqn.H`, `YEqn.H`, `EEqn.H`, then `pEqn.H`, or `pcEqn.H` when `consistent` is on.
-7. **Turbulence** — `turbulence->correct()`, gated by `pimple.turbCorr()`.
 
 ## Equations
 
@@ -233,8 +179,9 @@ Only in a `WITH_YADE` build with `constant/yadeProperties` `active true`. DEM re
 
 ## Related pages
 
+- [Code map](code-map.md): where each model lives, and the per-time-step flow.
 - [Solid step](solid-step.md): the solid step, stage by stage.
 - [DEM coupling](theory-DEM.md): the YADE coupling.
-- [DEM exchange](dem-exchange.md): step 2 of the flow, the exchange with YADE.
+- [DEM exchange](dem-exchange.md): the exchange with YADE.
 - [Setting up your own case](case-setup.md): required fields, input files, tutorial cases, tips.
 - [All documentation](README.md)

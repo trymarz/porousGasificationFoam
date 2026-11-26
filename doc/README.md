@@ -21,10 +21,14 @@ New to PGF? [Install it](install.md), run the [README](../README.md) quick start
 
 ## The model
 
-- [Theory](theory.md): what the solver models, the equations, the per-time-step flow, where each piece lives in the source.
+- [Theory](theory.md): what the solver models: physics, assumptions, equations.
 - [DEM coupling](theory-DEM.md): the idea of the YADE coupling and the body size models.
-- [DEM exchange](dem-exchange.md): step 2 of that flow, the exchange with YADE: fields, λ modes, time step, the fixtures' springs.
+
+## How the code implements it
+
+- [Code map](code-map.md): where each model lives in the source, and the per-time-step flow.
 - [Solid step](solid-step.md): step 4 of that flow, stage by stage.
+- [DEM exchange](dem-exchange.md): step 2 of that flow, the exchange with YADE: fields, λ modes, time step, the fixtures' springs.
 
 ## Developing PGF
 

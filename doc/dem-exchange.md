@@ -1,6 +1,6 @@
 # DEM exchange
 
-Once per PGF time step, YADE sends PGF where its DEM bodies are and how fast they move, and PGF sends back how each body's λ changes. This page follows that exchange, step 2 of the [per-time-step flow](theory.md#per-time-step-flow). Why the coupling works this way: [DEM coupling](theory-DEM.md). **If this page and the code differ, the code wins.**
+Once per PGF time step, YADE sends PGF where its DEM bodies are and how fast they move, and PGF sends back how each body's λ changes. This page follows that exchange, step 2 of the [per-time-step flow](code-map.md#per-time-step-flow). Why the coupling works this way: [DEM coupling](theory-DEM.md). **If this page and the code differ, the code wins.**
 
 ## Running a coupled case
 
@@ -61,5 +61,6 @@ Both sides build the same protocol core, and neither includes the other's header
 ## Related pages
 
 - [DEM coupling](theory-DEM.md): the idea and the body size models.
-- [Theory](theory.md): the gas–solid model and the per-time-step flow.
+- [Theory](theory.md): the gas–solid model.
+- [Code map](code-map.md): the per-time-step flow this exchange is step 2 of.
 - [All documentation](README.md)

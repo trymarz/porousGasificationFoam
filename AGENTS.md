@@ -117,10 +117,11 @@ When you need a load-bearing fact, go to `README.md` and `doc/` rather than re-d
 
 | Need | Section |
 |---|---|
-| Per-time-step flow / which source file implements each step | `doc/theory.md` → "Per-time-step flow" (short-form equations; for details follow its pointers into source comments — the code wins) |
+| Per-time-step flow / which source file implements each model and step | `doc/code-map.md` (follow its pointers into source comments — the code wins); short-form equations in `doc/theory.md` |
 | Branch naming, PR titles, PR body, doc-strategy rule | `CONTRIBUTING.md` |
 | Per-case input dictionaries (`chemistryProperties`, `solidThermophysicalProperties`, `radiationProperties`, `pyrolysisProperties`, `lambdaDict`, `heatTransferProperties`, `specieTransferProperties`, `porosityProperties`) | `doc/case-setup.md` → "Input File Reference" |
-| DEM `lambdaDict` keys, and which side owns `lambdaDot` vs `lambda` | `doc/case-setup.md` → "Input File Reference → `constant/lambdaDict`" |
+| DEM `lambdaDict` keys | `doc/case-setup.md` → "Input File Reference → `constant/lambdaDict`" |
+| Which side owns `λ` and what PGF sends back (`λ̇` or `r`) | `doc/theory-DEM.md` → "The idea"; the exchange itself in `doc/dem-exchange.md` |
 | Required `0/` fields and their meaning | `doc/case-setup.md` → "Required Initial Fields" |
 | Practical pitfalls (true vs bulk density, JANAF substitution, radiation calibration, time-step coupling, numerics symptoms) | `doc/case-setup.md` → "Tips for Preparing New Simulations" |
 | Build targets and dependencies | `doc/build.md` |
