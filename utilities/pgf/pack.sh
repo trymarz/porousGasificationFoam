@@ -6,7 +6,11 @@
 PGF_PACK_BASE_DEF="container/pgf-toolchain.def"
 
 # Build dependencies of a headless yade on the toolchain image (Ubuntu 26.04).
-PGF_PACK_YADE_DEPS="cmake git g++ python3-dev python3-numpy python3-mpi4py python3-mpmath \
+# Python modules yade and the DEM tutorial scripts import, as module:package;
+# pgf doctor --yade imports each, test_tutorialImports.sh keeps it complete.
+PGF_YADE_PY_MODULES="numpy:python3-numpy scipy:python3-scipy mpi4py:python3-mpi4py mpmath:python3-mpmath"
+
+PGF_PACK_YADE_DEPS="cmake git g++ python3-dev python3-numpy python3-scipy python3-mpi4py python3-mpmath \
 python3-matplotlib python3-ipython python3-pygraphviz python3-xlib python3-sphinx python3-tk libboost-all-dev libeigen3-dev libgts-dev libcgal-dev \
 libvtk9-dev libsqlite3-dev libbz2-dev zlib1g-dev libopenblas-dev libsuitesparse-dev \
 libmetis-dev coinor-libclp-dev libmpfr-dev libmpfrc++-dev libmpc-dev"
