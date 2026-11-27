@@ -11,8 +11,6 @@
 Arbitrary chemistry · Dynamic porosity and permeability · Interphase heat and mass exchange<br>
 Local thermal non-equilibrium · Compressible species transport · Generalized source terms
 
-[Quick start](#quick-start) · [Documentation](doc/README.md) · [Tutorials](doc/tutorials.md) · [Citation](#citation)
-
 </div>
 
 **Gas phase** ($\varepsilon$ porosity, $U_g$ superficial velocity)
@@ -40,7 +38,7 @@ Colours mark the kind of term: ${\color{blue}\text{storage}}$, ${\color{orange}\
 
 *porousGasificationFoam* (PGF) is an OpenFOAM solver for **thermochemical conversion in porous media**. A solid phase, represented as a porosity field, is coupled to a gas flowing through the void space. The phases exchange mass through reactions, momentum through drag, and energy through interphase heat transfer; the porosity sets each phase's share of a cell. All chemistry — gas-phase, heterogeneous (gas–solid), and solid decomposition — is defined per case. With no reactions defined, both phases stay inert. The solid can be stationary or move under gravity and other external forces, shrink, or disappear entirely as conversion proceeds.
 
-The continuum transport equations are solved with the Finite Volume Method (OpenFOAM). An optional coupling to a Discrete Element Method solver YADE provides PGF with a velocity field for the solid momentum equation. Solid material properties, initial distribution of porosity throughout a domain, reaction kinetics, and many other parameters — all these are user inputs — the solver is geometry- and chemistry-agnostic.
+The continuum transport equations are solved with the Finite Volume Method (OpenFOAM). An optional coupling to the Discrete Element Method (DEM) solver, YADE, provides PGF with a velocity field for the solid momentum equation. Solid material properties, the initial porosity distribution, reaction kinetics and many other parameters are user inputs, so the solver is geometry- and chemistry-agnostic.
 
 Example application areas:
 
@@ -52,9 +50,7 @@ Example application areas:
 
 …and other processes that share a reactive or transforming porous solid exchanging mass and heat with a gas. The name *porousGasificationFoam* reflects the solver's origins in biomass-to-syngas gasification (feedstock + air/O₂/steam/CO₂ → H₂/CO), not a limit on what it can model.
 
-Target: **OpenFOAM-v2606** · License: **GPL v3** · Earlier versions for [OpenFOAM 8](https://github.com/btuznik/porousGasificationFoam) and [foam-extend 4.1](https://github.com/pjzuk/porousGasificationFoam) are no longer maintained.
-
-**On OpenFOAM v2406?** That line is frozen at tag `v2406-final` and branch `maint/of2406`, with the legacy `foamYade` coupler and trymarz/Foam-Yade branch `legacy-2406`.
+Target: **OpenFOAM-v2606** · License: **GPL v3** · Earlier versions for [OpenFOAM 8](https://github.com/btuznik/porousGasificationFoam) and [foam-extend 4.1](https://github.com/pjzuk/porousGasificationFoam) are no longer maintained. The OpenFOAM v2406 line is frozen at tag `v2406-final` and branch `maint/of2406`, with the legacy `foamYade` coupler and trymarz/Foam-Yade branch `legacy-2406`.
 
 ## Quick start
 
@@ -84,7 +80,7 @@ It builds the libraries and the solver into a build of their own: about 1.5 min 
 pgf copy charOnlyMoveCases/serial
 ```
 
-**4. Run it and look at the results** in ParaView:
+**4. Run it and look at the results** in ParaView. `pgf copy` prints where the copy went; for a checkout on `main` it is:
 
 ```bash
 cd ~/OpenFOAM/$USER-v2606/run/main/charOnlyMoveCases/serial
