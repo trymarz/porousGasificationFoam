@@ -34,7 +34,7 @@ pgf build              # libraries and solver
 This builds `main`, the latest sources. To build a tested release instead, check out its tag right after `cd porousGasificationFoam`, before `pgf build`; the tags and their notes are on the [Releases page](https://github.com/trymarz/porousGasificationFoam/releases):
 
 ```bash
-git checkout v2606-testing-1   # a release tag; git checkout main goes back to the latest
+git checkout v2606-testing-2   # a release tag; git checkout main goes back to the latest
 ```
 
 `pgf copy` files a tutorial copy under the checkout's branch, `run/main/…`; on a tag it uses the commit, `run/<commit>/…`. It prints the copy's path and the `pgf run` line for it.
