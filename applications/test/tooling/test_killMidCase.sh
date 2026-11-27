@@ -25,8 +25,7 @@ kill -TERM -- "-$pid" 2>/dev/null
 wait "$pid"
 rc=$?
 check "runner died on the signal (rc=$rc)" [ "$rc" -ne 0 ]
-sleep 1
-check "nothing left running in the killed group" bash -c '! kill -0 -- "-$1" 2>/dev/null' _ "$pid"
+check "nothing left running in the killed group" all_gone -g "$pid"
 
 tutorials_state >"$TEST_TMP/after"
 check "source tutorials/ unchanged" cmp -s "$TEST_TMP/before" "$TEST_TMP/after"

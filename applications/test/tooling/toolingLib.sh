@@ -92,3 +92,25 @@ tutorials_state() {
     git -C "$PGF_ROOT" status --porcelain --ignored -- tutorials
     git -C "$PGF_ROOT" diff -- tutorials applications | sha1sum
 }
+
+# all_gone [-g] <pid ...> — wait up to PGF_GONE_WAIT s (default 5) until none of the
+#   processes (-g: process groups) is alive. A zombie counts as gone: kill -0 still
+#   succeeds on it while a late-reaping PID 1 has not collected it yet (#365).
+all_gone() {
+    local group=0 p end alive
+    [ "${1:-}" = -g ] && { group=1; shift; }
+    end=$(($(date +%s) + ${PGF_GONE_WAIT:-5}))
+    while :; do
+        alive=0
+        for p in "$@"; do
+            if [ "$group" -eq 1 ]; then
+                ps -A -o pgid=,stat= | awk -v g="$p" '$1 == g && $2 !~ /^Z/ { f = 1 } END { exit !f }'
+            else
+                ps -o stat= -p "$p" 2>/dev/null | grep -qv '^Z'
+            fi && { alive=1; break; }
+        done
+        [ "$alive" -eq 0 ] && return 0
+        [ "$(date +%s)" -ge "$end" ] && return 1
+        sleep 0.2
+    done
+}
