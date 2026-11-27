@@ -47,10 +47,10 @@ No submodule is needed without DEM. `pgf doctor` checks the whole setup ([`pgf h
 
 DEM cases need YADE from [trymarz/yade-pgf](https://github.com/trymarz/yade-pgf) (branch `pgf-main`: YADE 2026.1.0 plus the per-particle `lambda` state and the `PgfCoupling` engine), at the commit PGF pins. Upstream YADE does not work: the per-particle state and the engine exist only in the fork. How the pin and the protocol work: [the build system → YADE DEM coupling](build.md#yade-dem-coupling).
 
-**System packages.** YADE's build dependencies, the list `pgf pack` installs (`PGF_PACK_YADE_DEPS` in `utilities/pgf/pack.sh`):
+**System packages.** YADE's build dependencies and the Python modules the DEM tutorial scripts import (`scipy`, for one), the list `pgf pack` installs (`PGF_PACK_YADE_DEPS` in `utilities/pgf/pack.sh`). It is shorter than the one in [YADE's installation guide](https://yade-dem.org/doc/installation.html): no GUI, no documentation build, and no `python3-pyqt5.qtwebkit`, which Debian 13 and Ubuntu 26.04 no longer have:
 
 ```bash
-sudo apt-get install cmake git g++ python3-dev python3-numpy python3-mpi4py python3-mpmath python3-matplotlib python3-ipython python3-pygraphviz python3-xlib python3-sphinx python3-tk libboost-all-dev libeigen3-dev libgts-dev libcgal-dev libvtk9-dev libsqlite3-dev libbz2-dev zlib1g-dev libopenblas-dev libsuitesparse-dev libmetis-dev coinor-libclp-dev libmpfr-dev libmpfrc++-dev libmpc-dev
+sudo apt-get install cmake git g++ python3-dev python3-numpy python3-scipy python3-mpi4py python3-mpmath python3-matplotlib python3-ipython python3-pygraphviz python3-xlib python3-sphinx python3-tk libboost-all-dev libeigen3-dev libgts-dev libcgal-dev libvtk9-dev libsqlite3-dev libbz2-dev zlib1g-dev libopenblas-dev libsuitesparse-dev libmetis-dev coinor-libclp-dev libmpfr-dev libmpfrc++-dev libmpc-dev
 ```
 
 On Debian 13, `libvtk9-dev` cannot be installed beside `python3-paraview` ([ParaView and Yade's VTK](#paraview-and-yades-vtk)).
@@ -64,27 +64,33 @@ git -C submodules/yade-pgf submodule update --init extra/PgfDemBridge
 
 To build from a yade-pgf clone of your own instead, check out the pinned commit (`git ls-tree HEAD submodules/yade-pgf` prints it) and pass `--yade-trunk DIR` to `pgf setup` below.
 
-**Build YADE.** The CMake line is the one `pgf pack` uses (`utilities/pgf/pack.sh`). yade-pgf ships a `RELEASE` file, so without `-DYADE_VERSION` its version is plain `2026.1.0`; the line puts the commit into the version, where `pgf doctor` reads it:
+**Build YADE.** The steps are those of [YADE's installation guide](https://yade-dem.org/doc/installation.html) (`submodules/yade-pgf/doc/sphinx/installation.rst`), with PGF's CMake flags:
 
 ```bash
 src="$PWD/submodules/yade-pgf"
-ver="$(git -C "$src" show -s --format=%cd --date=format:%Y.%m.%d HEAD)-git-$(git -C "$src" rev-parse --short=7 HEAD)"
 mkdir -p ~/.cache/yade-pgf-build && cd ~/.cache/yade-pgf-build
 cmake "$src" -DCMAKE_INSTALL_PREFIX=$HOME/.local/opt/yade-pgf -DENABLE_GUI=OFF -DNOSUFFIX=ON \
-    -DYADE_VERSION="$ver" -DCMAKE_BUILD_TYPE=Release -DPYTHON_EXECUTABLE=/usr/bin/python3
-# one make job per 4 GB of free memory, at most one per core: a job needs 3-4 GB
-njobs="$(awk -v n="$(nproc)" '/MemAvailable/ {j = int($2 / 4194304); print (j < 1 ? 1 : (j > n ? n : j))}' /proc/meminfo)"
-make -j"$njobs" install        # 30-60 min
+    -DCMAKE_BUILD_TYPE=Release -DPYTHON_EXECUTABLE=/usr/bin/python3
+make -j4 install        # 30-60 min
+cd -                    # back to the PGF checkout
 ```
 
-The build tree in `~/.cache` can be deleted after `make install`; keeping it makes a rebuild faster when the pin moves. `njobs` keeps `make` from running out of memory; close other large programs first, since it counts the memory free when it starts ([Pitfalls](#pitfalls)). Run it in a plain shell, not one that has sourced OpenFOAM: YADE and OpenFOAM must use the same MPI, the system Open MPI. `-DPYTHON_EXECUTABLE` ties YADE to the system Python, whose `apt` packages it uses ([One Python](#pitfalls)). CMake must not print `MPI NOT FOUND, YADE-OpenFOAM coupling disabled`. `$HOME/.local/opt/yade-pgf/bin/yade -v` then prints `Yade version: <date>-git-<commit>`.
+What each flag is for:
 
-**Build and check the DEM variant of PGF.** Back in the PGF checkout:
+- `-DENABLE_GUI=OFF`: PGF drives YADE from scripts; the GUI needs the Qt packages left out above.
+- `-DNOSUFFIX=ON`: the binary is `yade`, not `yade-2026.1.0`, so the path below stays the same when the pin moves.
+- `-DPYTHON_EXECUTABLE=/usr/bin/python3`: ties YADE to the system Python, whose `apt` packages it uses ([One Python](#pitfalls)).
+
+Each `make` job needs about 3 GB of memory, so pick `-jN` from your RAM, not your cores: `-j4` on 16 GB, `-j2` on 8 GB. Too many jobs end in the compiler being killed ([Pitfalls](#pitfalls)). Run the build in a plain shell, not one that has sourced OpenFOAM: YADE and OpenFOAM must use the same MPI, the system Open MPI. CMake must not print `MPI NOT FOUND, YADE-OpenFOAM coupling disabled`. The build tree in `~/.cache` can be deleted after `make install`; keeping it makes a rebuild faster when the pin moves.
+
+`$HOME/.local/opt/yade-pgf/bin/yade -v` then prints `Yade version: 2026.1.0-git-<commit>`: in a git checkout yade-pgf puts the commit into its version, where `pgf doctor` reads it.
+
+**Build and check the DEM variant of PGF.** In the PGF checkout, where `cd -` above went back to:
 
 ```bash
 ./pgf setup --yade-bin $HOME/.local/opt/yade-pgf/bin/yade
 pgf build --yade
-pgf doctor --yade      # yade at the pin, with MPI; DEM problems are failures here
+pgf doctor --yade      # yade at the pin, with MPI and its Python modules; DEM problems are failures here
 ```
 
 **Run a DEM tutorial.** `pgf run` gives a copy with an active `constant/yadeProperties` the DEM build by itself. Its `Allrun` starts 2 YADE and 2 solver ranks in one `mpirun` (`pgf dem run`); the run takes a few minutes:
@@ -133,7 +139,7 @@ Neither YADE's Python modules nor PGF's DEM scripts import the `vtk` Python modu
 
 - **One MPI.** YADE and the solver run in one `mpirun`, so YADE, `mpi4py` and OpenFOAM must use the same Open MPI. Build YADE against the system Open MPI that `openfoam2606-dev` uses, not a ThirdParty or conda one.
 - **One Python.** YADE uses the `apt` packages of the system Python (Boost.Python, numpy, mpi4py), so it is built with `/usr/bin/python3` even when conda, a venv or pyenv comes first on `PATH`; otherwise CMake can stop with `NOT FOUND:libboost-python`. pgf runs on the same Python ([`pgf help environment`](pgf-reference.md#pgf-help-environment)), and `pgf doctor --yade` checks that yade does.
-- **Memory for the YADE build.** Each `make` job needs roughly 3–4 GB, so the build line picks `-j` from the free memory, not the core count. If `cc1plus` is still killed (`Killed signal terminated program cc1plus`), rerun `make` with a lower `-j`; it resumes.
+- **Memory for the YADE build.** Each `make` job needs about 3 GB, so pick `-j` from the memory, not the core count, and close other large programs first. If `cc1plus` is still killed (`Killed signal terminated program cc1plus`), rerun `make` with a lower `-j`; it resumes.
 - **YADE off the pin.** After a `git pull` that moves `submodules/yade-pgf`, rerun the two `git submodule update` lines above (without `--init`) and rebuild YADE; `pgf doctor --yade` names the commits when they differ.
 - **`No OpenFOAM tutorials?`** Every `Allrun` prints this line when OpenFOAM's own tutorials are not installed, as with `openfoam2606-dev` alone. It is harmless: PGF's tutorials are in the checkout. `sudo apt-get install openfoam2606-tutorials` silences it.
 - **Single-interface hosts.** On a host whose only network is `lo`, or with docker or libvirt bridges, Open MPI can hang the coupled run; `pgf` then restricts it to loopback by itself (`PGF_MPI=auto`; [`pgf help config`](pgf-reference.md#pgf-help-config)).

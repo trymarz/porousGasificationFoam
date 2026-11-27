@@ -406,7 +406,7 @@ pgf_paraview_check() {
 #   WARN or FAIL, then a verdict; returns 1 when any FAIL. OpenFOAM is sourced
 #   in children only.
 pgf_doctor() {
-  local fails=0 need_build=0 dem_ok=1 grp="" bashrc ver yb out trunk why p f v key line libdir py ypy
+  local fails=0 need_build=0 dem_ok=1 grp="" bashrc ver yb out trunk why p f v key line libdir py ypy m miss pkgs
   local -a dem=()
   _r() {
     st_check "$1" "$2"
@@ -491,6 +491,16 @@ pgf_doctor() {
     elif [ -n "$ypy" ]; then
       _r WARN "yade runs on $ypy, not pgf's python3 $py, so the two may see other modules; fix: rebuild yade with -DPYTHON_EXECUTABLE=$py (doc/install.md, 3. DEM coupling)"
       _dem "a yade built with pgf's python3"
+    fi
+    miss="" pkgs=""
+    for m in $PGF_YADE_PY_MODULES; do
+      "${ypy:-$py}" -c "import ${m%%:*}" 2>/dev/null || miss+=" ${m%%:*}" pkgs+=" ${m#*:}"
+    done
+    if [ -z "$miss" ]; then
+      _r OK "yade's python3 imports the modules DEM cases need"
+    else
+      _r WARN "yade's python3 ${ypy:-$py} cannot import${miss}; fix: sudo apt-get install${pkgs}"
+      _dem "the Python modules DEM cases import"
     fi
     while IFS= read -r line; do
       [ "${line%% *}" = OK ] || _dem "a yade built from the yade-pgf pin"
