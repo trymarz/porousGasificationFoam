@@ -82,8 +82,9 @@ check "  within S + grace + 2 s ($took s)" [ "$took" -le 5 ]
 check "  and says why, with the last line" bash -c 'grep -qx "pgf dem run: no output for 2 s — run stalled, stopped" "$1" &&
     grep -qx "pgf dem run: last line: stub step 1" "$1"' _ "$TEST_TMP/err"
 check "  its output was shown as it came" grep -qx "stub step 1" "$TEST_TMP/out"
+# shellcheck disable=SC2046 # one pid per word
 check "  its children are gone, the TERM-proof one too (KILL after grace)" \
-    bash -c 'for p in $(cat "$1"); do kill -0 "$p" 2>/dev/null && exit 1; done; exit 0' _ "$TEST_TMP/pids"
+    all_gone $(cat "$TEST_TMP/pids")
 check "  a sibling outside its group survives" kill -0 "$sib"
 
 # -- a run that keeps printing is not stopped ---------------------------------
@@ -114,8 +115,9 @@ kill -TERM "$pid"
 wait "$pid"
 rc=$?
 check "a TERM to pgf dem run ends it with 143 (rc=$rc)" [ "$rc" -eq 143 ]
+# shellcheck disable=SC2046 # one pid per word
 check "  and its children with it" \
-    bash -c 'for p in $(cat "$1"); do kill -0 "$p" 2>/dev/null && exit 1; done; exit 0' _ "$TEST_TMP/pids"
+    all_gone $(cat "$TEST_TMP/pids")
 check "  the sibling still survives" kill -0 "$sib"
 
 finish
