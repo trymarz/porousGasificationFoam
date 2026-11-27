@@ -14,7 +14,7 @@ Read by `porousGasificationFoam/createFields.H` and the models that own each fie
 | `U` | volVectorField | Velocity [m/s] |
 | `T` | volScalarField | Gas temperature [K] |
 | `Ts` | volScalarField | Solid temperature [K] |
-| `rhos` | volScalarField | Solid density [kg/m³] |
+| `rhos` | volScalarField | Optional. Solid density [kg/m³]; read if present (`HGSSolidThermo.C`) |
 | `porosityF` | volScalarField | Porosity (0 = solid, 1 = gas) |
 | `porosityF0` | volScalarField | Initial porosity (archival copy) |
 | `Df` | volTensorField | Darcy resistance tensor |
@@ -23,7 +23,8 @@ Read by `porousGasificationFoam/createFields.H` and the models that own each fie
 | `<gasName>` (e.g. `O2`, `N2`, `CO`) | volScalarField | Gas species mass fractions |
 | `Y<solidName>` (e.g. `Ywood`, `Yash`) | volScalarField | Solid species mass fractions |
 | `Ydefault` | volScalarField | Default field for unmatched gas species (set to 0) |
-| `YsDefault` | volScalarField | Default field for unmatched solid species (set to 0) |
+| `Y0Default` | volScalarField | Template for `Y<solidName>0` when that file is absent; its values are recomputed at start-up (`ODESolidHeterogeneousChemistryModel.C`) |
+| `YsDefault` | volScalarField | Not read by PGF: every solid component needs its own `Y<solidName>` (`basicSolidMixture.C`). Many tutorials still ship one. |
 
 - `Df` is a tensor field. For isotropic porous media, use a diagonal tensor with large values (e.g. `1e9`) in gas-only regions and smaller values (based on permeability) in porous zones. Initialise it with `setFields` ([case guide → initial porosity](case-guide.md#biomass-distribution-initial-porosityf)).
 - Solid species field names: `Y` + component name from `solidThermophysicalProperties` (e.g. `wood` → `Ywood`).
@@ -71,6 +72,7 @@ solidReactionEnergyFromEnthalpy false;   // true = use Hf, false = use heatReact
 stoichiometricReactions false;           // true = mass-conserving stoichiometry
 diffusionLimitedReactions true;          // enable mass-transfer limitation
 showRelativeReactionRates false;
+solidChemistryTimeStepControl false;     // true + adjustTimeStep: cap Δt by the solid chemistry
 
 solidOdeCoeffs
 {
@@ -103,6 +105,9 @@ solidReactions
 
 - Rates are per kg of solid substrate, and every coefficient is a mass per kg of solid substrate. What that means for a coefficient on a lone solid, for gas substrates and under `diffusionLimitedReactions`: [theory → solid reaction rates](theory.md#solid-reaction-rates).
 - `heatOfReaction`: which value to give, [case guide → heat of reaction](case-guide.md#heat-of-reaction-at-reaction-temperature).
+- `species` and `solidReactions` may also sit in a file that `chemistryProperties` pulls in with `#include`; some tutorials keep them in `constant/reactions` this way.
+- `solidChemistryTimeStepControl` is read by `porousGasificationFoam/readChemistryTimeControls.H`; what the cap does: [code map, step 1](code-map.md#per-time-step-flow).
+- Gas-phase reactions go through OpenFOAM's `CombustionModel` (`porousGasificationFoam/createFields.H`), set up by `chemistryType`, `odeCoeffs`, the gas `reactions` and, where a case has one, `constant/combustionProperties`; their keys are OpenFOAM's, as in its `reactingFoam` tutorials.
 - `solidReactionEnergyFromEnthalpy` picks how the reaction heat is computed (default `true` in the code; the tutorials mostly set `false`): [theory → reaction heat](theory.md#energy).
 
 ## `constant/solidThermophysicalProperties`
@@ -162,6 +167,7 @@ pyrolysisCoeffs
 }
 ```
 
+- More `pyrolysisCoeffs` keys are read where they act, each with its default there: `emptyFlippedCells` (`volPyrolysis/porosityRecovery/porosityRecovery.C`), `collapseMovesSolidMass` (`volPyrolysis/bedCollapse/bedCollapse.C`), `advectSolidFields` and `nSolidFluxLimiterCorrectors` (`volPyrolysis/solidFluxLimiter/solidFluxLimiter.C`), `failOnInvalidSolidState` and `maxSolidTemperature` (`volPyrolysis/solidDiagnostics/solidDiagnostics.C`), `reactionDeltaMin` (`heterogeneousPyrolysisModel/heterogeneousPyrolysisModel.C`).
 - `frozenTemperature true` solves no energy equation ([theory](theory.md#energy)). The old key `equilibrium` still works but prints a deprecation warning.
 - `solidRegimes`: what each regime means and which parts of the model each threshold switches: [theory → solid regimes](theory.md#solid-regimes). The thresholds must nest, `dispersedAboveSolidFraction` < `connectedAboveSolidFraction` < `maxSolidFraction` < 1, or the run stops at start-up. DEM cases must set `connectedAboveSolidFraction`.
 - `solidStateCheckTolerance` is the slack the fail-fast checks and the limiter report allow, in solid fraction. It changes no result, only whether a run warns or aborts.

@@ -53,7 +53,7 @@ Building needs no YADE: `pgf build --yade` compiles nothing from it. The OpenFOA
 
 ### The protocol
 
-PGF links nothing from YADE and includes none of its headers. `pgfDemCoupler` and YADE's `PgfCoupling` engine (`pkg/openfoam/PgfCoupling.cpp` in yade-pgf, built into `libpkg_openfoam.so`) both build the same `PgfDemBridge` (protocol v2, [#328](https://github.com/trymarz/porousGasificationFoam/issues/328)). The startup handshake compares the version and `lambdaMode`, and stops both sides by name on a mismatch ([dem-exchange.md](dem-exchange.md#start-and-stop)). This run-time check replaces any build-time check of the buffer layout.
+PGF links nothing from YADE and includes none of its headers. `pgfDemCoupler` and YADE's `PgfCoupling` engine (`pkg/openfoam/PgfCoupling.cpp` in yade-pgf, built into `libpkg_openfoam.so`) both build the same `PgfDemBridge` (protocol v2, [#328](https://github.com/trymarz/porousGasificationFoam/issues/328)). A startup handshake checks that both sides agree, the buffer layout included, and stops both by name on a mismatch; what it compares: [DEM exchange → start and stop](dem-exchange.md#start-and-stop). This run-time check replaces any build-time check of the buffer layout.
 
 ### The submodule and its pin
 
@@ -78,7 +78,7 @@ When the pin moves, rebuild YADE. PGF's `--yade` build does not depend on the pi
 
 `YADE_TRUNK` is the yade-pgf source checkout. The build does not read it; `pgf` uses it for the pin checks above (its `PgfCoupling` sources and `py/mpy.py`).
 
-`pgf --yade` defaults `YADE_TRUNK` to `submodules/yade-pgf`; set it (or `pgf setup --yade-trunk DIR`) to use another checkout.
+With `--yade`, `pgf` defaults `YADE_TRUNK` to `submodules/yade-pgf`; set it (or `pgf setup --yade-trunk DIR`) to use another checkout.
 
 ## Cleaning
 

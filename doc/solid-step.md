@@ -51,7 +51,7 @@ Each stage reads what the stages above it left, so the order sets the results.
 **5. `limitSolidFlux()`** — model (`SolidFluxLimiter`).
 - Reads: `Us`, `Ym`, `rho`, `Ts`, the chemistry's `RRs` and `RRpor`, the SolidState thresholds.
 - Writes: nothing itself; `limit()` returns the flux, which volPyrolysis stores in `phiSolid`. Before that, when limiting is on, volPyrolysis refreshes the `Ym` patches, since the bed motion and `updateSolidState()` of the last step changed what they depend on.
-- Checks, right after: **`SolidDiagnostics::checkSolidCrossing()`** (diagnostics) on the limited flux, before any solid field moves. It warns, once per patch, about solid entering an inheriting patch, solid entering declaring faces whose `Yi` sum to zero, and solid crossing a wall-type patch.
+- Checks, right after: **`SolidDiagnostics::checkSolidCrossing()`** (diagnostics) on the limited flux, before any solid field moves. It applies `solidBoundaryPolicy` (by default `error`: the run stops) to solid entering an inheriting patch, solid entering declaring faces whose `Yi` sum to zero, and solid crossing a wall-type patch ([case reference → solid boundary conditions](case-reference.md#solid-boundary-conditions)).
 
 ### Species, then energy
 

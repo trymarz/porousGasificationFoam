@@ -13,6 +13,10 @@ compile_commands.json
 .plans/
 *.swp
 
+# --- Doxygen output (doc/Doxygen/Allwmake) -------------------------------
+/doc/Doxygen/html/
+/doc/Doxygen/DTAGS
+
 # --- pgf pack images (default: the current directory) ---------------------
 *.sif
 

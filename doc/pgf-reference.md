@@ -563,7 +563,7 @@ Description:
 Options:
   --rebuild          delete the tier's build first, then build it again
   --if-stale AGE     run only when the last PASS is older than AGE or of other sources
-  --run-root DIR     the run dir (default: $PGF_RUN_ROOT/pgf-test-<tier>-<time>)
+  --run-root DIR     the run dir (default: $PGF_RUN_ROOT/pgf-test-<tier>-<time>-<pid>)
   --status           per tier: last outcome, when, and whether it is current
   --gc               prune old run dirs and builds
   --keep-runs N      with --gc: run dirs to keep (default: 10)

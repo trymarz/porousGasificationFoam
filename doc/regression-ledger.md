@@ -1,6 +1,6 @@
 # Regression metric ledger
 
-One row per registered case and function object: what the metric can detect, what it cannot, and whether it is doing its job. Read with [regression-testing.md](regression-testing.md), which explains how the comparison works. The findings behind the dead and question rows, the recapture history and the next steps are in [a comment on #69](https://github.com/trymarz/porousGasificationFoam/issues/69#issuecomment-7200243564); "finding N" below refers to its list.
+One row per case in `cases.list` and function object (the DEM cases of `cases_yade.list` are not in it yet): what the metric can detect, what it cannot, and whether it is doing its job. Read with [regression-testing.md](regression-testing.md), which explains how the comparison works. The findings behind the dead and question rows, the recapture history and the next steps are in [a comment on #69](https://github.com/trymarz/porousGasificationFoam/issues/69#issuecomment-7200243564); "finding N" below refers to its list.
 
 Built from the committed `reference/` files on `main` at 5cec447, each case's `system/regressionFunctions` and its setup. Cases with a third column in `cases.list` (`expectFail`, `expectLog`) check a log message, not metrics, and are not listed.
 

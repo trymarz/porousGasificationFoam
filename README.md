@@ -115,9 +115,14 @@ porousGasificationMedia/   libraries (pyrolysis, chemistry, radiation, DEM)
 tutorials/cases/           tutorial cases
 utilities/                 helper scripts (pgf internals, Python tools, compile_commands)
 utilities/pgf/             pgf's parts: build driver, test tiers, settings, registry
-applications/test/         regression framework
+applications/test/         regression framework, tooling tests, test tiers (tiers.conf)
+applications/utilities/    pgfView, the ParaView viewer behind pgf view
+thermoData/                solid thermophysical data for cases
+submodules/                yade-pgf and PgfDemBridge, for DEM builds
+container/                 toolchain container recipe
 pgf                        the pgf command: settings, builds, runs, tests (pgf help)
-Allwmake / Allwclean       build / clean everything (non-DEM by default), via pgf build
+Allwmake                   build everything except DEM, via pgf build
+Allwclean                  clean the in-tree build cache of every target; builds stay (pgf gc removes them)
 doc/                       documentation and Doxygen source
 ```
 

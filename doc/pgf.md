@@ -58,7 +58,7 @@ pgf doctor          # check everything; DEM problems are only warnings
 pgf doctor --yade   # you need DEM: its problems are failures
 ```
 
-It checks OpenFOAM, the checkout's builds, yade and the DEM coupling, MPI, and whether `pgf` is on your `PATH`. Each problem gets a `fix:` line saying what to run, and a verdict closes the output; it exits 1 if any check fails. Every check: [`pgf help doctor`](pgf-reference.md#pgf-help-doctor).
+It checks OpenFOAM, the checkout's builds, yade and the DEM coupling, MPI, ParaView, and whether `pgf` is on your `PATH`. Each problem gets a `fix:` line saying what to run, and a verdict closes the output; it exits 1 if any check fails. Every check: [`pgf help doctor`](pgf-reference.md#pgf-help-doctor).
 
 ## Builds
 
@@ -99,7 +99,7 @@ pgf test <tier>                       # run a regression tier
 
 ## Output
 
-Status lines read `OK`, `WARN`, `FAIL`, `SKIP`, `INFO` (`PASS`/`FAIL` for tests). `setup`, `build`, `copy`, `run` and `test` end with a `next:` block that suggests the command to run next. Colour is on when both stdout and stderr are a terminal: `--color=auto|always|never` (or `PGF_COLOR`) and `NO_COLOR` control it, and log files never get colour codes.
+Status lines read `OK`, `WARN`, `FAIL`, `SKIP`, `INFO` (`PASS`/`FAIL` for tests). `setup`, `build`, `copy`, `run`, `test` and `pack` end with a `next:` block that suggests the command to run next. Colour is on when both stdout and stderr are a terminal: `--color=auto|always|never` (or `PGF_COLOR`) and `NO_COLOR` control it, and log files never get colour codes.
 
 ## Related pages
 

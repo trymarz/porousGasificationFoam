@@ -59,7 +59,7 @@ cd doc/Doxygen
 ./Allwmake
 ```
 
-Output: `$WM_PROJECT_DIR/doc/Doxygen/html/index.html`. Needs `doxygen` and `graphviz`. The wrapper finds the source root from its own location, so it can be run by absolute path from anywhere; set `POROUS_DOC_SRC` only to document a different tree.
+Output: `doc/Doxygen/html/index.html` in the checkout (git-ignored, as is the `DTAGS` tag file next to it). Needs `doxygen` and `graphviz`. The wrapper finds the source root from its own location, so it can be run by absolute path from anywhere; set `POROUS_DOC_SRC` only to document a different tree.
 
 ## Related pages
 

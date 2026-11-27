@@ -78,7 +78,7 @@ The suite is green only if at least one case ran and every case passed. There is
 - **Build cache.** The job computes the build key (`utilities/pgf/build.sh --print-key`), restores `pgf-builds/<key>` from the Actions cache, builds with `build.sh --isolated` (a no-op on a hit) and saves the prefix on a miss. A change to any source under the build targets, the OpenFOAM version or the compiler gives a new key; a change to cases, baselines or scripts reuses the prefix.
 - **Artifacts** (`regression-<tier>-<run id>-<attempt>`, kept 14 days): `ci-build.log`, the run's `build.log` and `driver.log`, the record `state/pgf/runs/last/<tier>.json` (CI sets `XDG_STATE_HOME` under the run root), the whole `state/` dir (`result.json` and every case's logs and `compare.log`), and for each failed case the `postProcessing/` and `log.*` files of its kept copy. Only regular files are collected, because the copies symlink back into the source tree.
 - **Jobs.** `--jobs` comes from `applications/test/tiers.conf`, as locally. A hosted `ubuntu-24.04` runner has 4 cores for a public repository and 2 for a private one.
-- **Not covered.** The `dem` tier is local-only: the image has no Yade, so run `./pgf test dem` before DEM-touching merges. It needs a yade built at the yade-pgf pin and refuses another before building (`PGF_YADE_OFF_PIN=1` overrides; see [build → YADE DEM coupling](build.md#yade-dem-coupling)). Parallel decomposition is not covered either, since no case in `cases.list` decomposes.
+- **Not covered.** The `dem` tier is local-only: the image has no Yade, so run `./pgf test dem` before DEM-touching merges. It needs a yade built at the yade-pgf pin and refuses another before building (`PGF_YADE_OFF_PIN=1` overrides; see [build → YADE DEM coupling](build.md#yade-dem-coupling)). Parallel runs are not covered either: no case in `cases.list` runs in parallel past start-up (`startupChecks/staleDecomposition` decomposes only to check the start-up refusal).
 - **Baselines.** CI only compares against the committed `reference/`; it never captures one.
 
 ### Baselines on another toolchain
@@ -130,19 +130,12 @@ regressionTsMax            max(Ts)                ==        300 1e-6  # every |x
 
 ### Expected failures and log checks
 
-A case that checks how the solver reacts to a bad input has no baseline. In
-`cases.list`, give it a third column after the tag: `expectFail` or
-`expectLog`, then an extended regex (the rest of the line), matched against
-the case's `log.*` files.
+A case that checks how the solver reacts to a bad input has no baseline. In `cases.list`, give it a third column after the tag: `expectFail` or `expectLog`, then an extended regex (the rest of the line), matched against the case's `log.*` files.
 
 - `expectFail` passes when `Allrun` exits non-zero and the regex matches.
-- `expectLog` passes when `Allrun` succeeds and the regex matches; with a
-  leading `!`, when it matches nothing.
+- `expectLog` passes when `Allrun` succeeds and the regex matches; with a leading `!`, when it matches nothing.
 
-A signal death is still a CRASH. Example:
-`tutorials/cases/charOnlyMoveCases/solidBoundaryPolicy/` copies
-`solidInlet_ash`, changes one boundary setting per case, and expects the
-matching start-up or run-time message.
+A signal death is still a CRASH. Example: `tutorials/cases/charOnlyMoveCases/solidBoundaryPolicy/` copies `solidInlet_ash`, changes one boundary setting per case, and expects the matching start-up or run-time message.
 
 ## How the comparison works
 
@@ -158,7 +151,7 @@ Defaults `rtol=1e-4`, `atol=1e-12`. Column names from the `volFieldValue.dat` he
 
 - Only scalar reductions are compared, not full fields; a change that cancels in every selected scalar goes undetected. Add metrics to widen coverage.
 - A passing metric is not necessarily a live one. [regression-ledger.md](regression-ledger.md) records, per case, what each metric can and cannot detect.
-- Results depend on MPI decomposition: rerun with the baseline's `numberOfSubdomains`. The pilot `charOnlyMoveCases/serial` is serial (1 proc) by design, so the suite does not exercise the parallel path. `charOnlyMoveCases/parallel` is not a baseline because its 4-proc run hits a processor-boundary breakdown in the moving-solid immersed boundary.
+- Results depend on MPI decomposition: rerun with the baseline's `numberOfSubdomains`. The pilot `charOnlyMoveCases/serial` is serial (1 proc) by design, so no baseline exercises the parallel path. `charOnlyMoveCases/parallel` is not a baseline because its 4-proc run hits a processor-boundary breakdown in the moving-solid immersed boundary.
 
 ---
 
@@ -181,7 +174,7 @@ A zero, negative or non-numeric `--jobs` is an `ERROR` (exit 2).
 applications/test/regression/Allrun.yade --short   # smoke: 50 solver steps, no baseline
 applications/test/regression/Allrun.yade           # full run (hours)
 applications/test/regression/Allrun.yade --list    # selection only
-tools/runDEMCase.sh tutorials/experimental/simple_line_case [--timeout S] [--run-dir D [--short-steps N]]
+tools/runDEMCase.sh tutorials/cases/MicroTGA-DEM_lambdaDotOff [--timeout S] [--run-dir D [--short-steps N]]
 ```
 
 - Needs a Yade-enabled build (`pgf build --yade`), Yade and `mpirun`. Cases are listed in `cases_yade.list`.

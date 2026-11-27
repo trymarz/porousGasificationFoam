@@ -201,7 +201,7 @@ built it: its baselines were made with the pin. PGF_YADE_OFF_PIN=1 runs it
 anyway with a WARN naming both commits."
 pgf_cmd_opt test --rebuild "delete the tier's build first, then build it again"
 pgf_cmd_opt test "--if-stale AGE" "run only when the last PASS is older than AGE or of other sources"
-pgf_cmd_opt test "--run-root DIR" "the run dir" '$PGF_RUN_ROOT/pgf-test-<tier>-<time>'
+pgf_cmd_opt test "--run-root DIR" "the run dir" '$PGF_RUN_ROOT/pgf-test-<tier>-<time>-<pid>'
 pgf_cmd_opt test --status "per tier: last outcome, when, and whether it is current"
 pgf_cmd_opt test --gc "prune old run dirs and builds"
 pgf_cmd_opt test "--keep-runs N" "with --gc: run dirs to keep" 10
